@@ -646,235 +646,122 @@
         calculate();
     }
 
-    function calculate() {
-        const calcType = document.getElementById('calc-type').value;
-        const returnMode = document.getElementById('return-mode').value;
-        const roadQuality = parseFloat(document.getElementById('road-quality').value) || 1.0;
+    async function calculate() {
+        const payload = {
+            calcType: document.getElementById('calc-type').value,
+            returnMode: document.getElementById('return-mode').value,
+            roadQuality: document.getElementById('road-quality').value,
+            trailerType: document.getElementById('trailer-type').value,
+            dist: document.getElementById('dist').value,
+            podachaDist: document.getElementById('podacha-dist').value,
+            volume: document.getElementById('volume').value,
+            normWeight: document.getElementById('norm-weight').value,
+            carsCount: document.getElementById('cars-count').value,
+            daysPerTrip: document.getElementById('days-per-trip').value,
+            idleDays: document.getElementById('idle-days').value,
+            idleRate: document.getElementById('idle-rate').value,
+            rate: document.getElementById('rate').value,
+            season: document.getElementById('season-type').value,
+            fuelLoad: document.getElementById('fuel-load').value,
+            fuelEmpty: document.getElementById('fuel-empty').value,
+            fuelPrice: document.getElementById('fuel-price').value,
+            driverPayMode: document.getElementById('driver-pay-mode').value,
+            driverRateLoad: document.getElementById('driver-rate-load').value,
+            driverRateEmpty: document.getElementById('driver-rate-empty').value,
+            driverPctVal: document.getElementById('driver-pct-val').value,
+            perDiem: document.getElementById('per-diem').value,
+            toCost: document.getElementById('to-cost').value,
+            toPeriod: document.getElementById('to-period').value,
+            tireCost: document.getElementById('tire-cost').value,
+            tireCount: document.getElementById('tire-count').value,
+            tireMileage: document.getElementById('tire-mileage').value,
+            adbluePrice: document.getElementById('adblue-price').value,
+            adblueConsumption: document.getElementById('adblue-consumption').value,
+            washCost: document.getElementById('wash-cost') ? document.getElementById('wash-cost').value : 0,
+            washFreq: document.getElementById('wash-freq') ? document.getElementById('wash-freq').value : 0,
+            refFuelRate: document.getElementById('ref-fuel-rate') ? document.getElementById('ref-fuel-rate').value : 0,
+            refHours: document.getElementById('ref-hours') ? document.getElementById('ref-hours').value : 0,
+            amort: document.getElementById('overhead-amort').value,
+            admin: document.getElementById('overhead-admin').value,
+            repair: document.getElementById('overhead-repair').value,
+            fin: document.getElementById('overhead-fin').value,
+            totalFleet: document.getElementById('total-fleet').value,
+            isRoundTrip: document.getElementById('round-trip-enable').value === 'on',
+            rtTransferDist: document.getElementById('rt-transfer-dist').value,
+            rtBackhaulDist: document.getElementById('rt-backhaul-dist').value,
+            rtReturnDist: document.getElementById('rt-return-dist').value,
+            rtTotalVolume: document.getElementById('rt-total-volume').value,
+            rtRate: document.getElementById('rt-rate').value
+        };
+
         const routeName = document.getElementById('route-name').value || 'Заявка';
-        const trailerType = document.getElementById('trailer-type').value;
+        const trailerType = payload.trailerType;
+        const safeVolume = parseFloat(payload.volume) > 0 ? parseFloat(payload.volume) : 1;
 
-        const dist = parseFloat(document.getElementById('dist').value) || 0;
-        const podachaDist = parseFloat(document.getElementById('podacha-dist').value) || 0;
-        const contractVolume = parseFloat(document.getElementById('volume').value) || 0;
-        const normWeight = parseFloat(document.getElementById('norm-weight').value) || 1;
-        const carsCount = parseFloat(document.getElementById('cars-count').value) || 1;
-        const daysPerTrip = parseFloat(document.getElementById('days-per-trip').value) || 1;
-        const idleDays = parseFloat(document.getElementById('idle-days').value) || 0;
-        const idleRate = parseFloat(document.getElementById('idle-rate').value) || 0;
-        const rate = parseFloat(document.getElementById('rate').value) || 0;
+        try {
+            const response = await fetch('/api/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        let actualVolume = 0;
-        let tripsCount = 0;
-        let totalLoadedKm = 0;
-        let totalEmptyKm = 0;
+            if (!response.ok) throw new Error('Помилка сервера розрахунків');
 
-        if (returnMode === 'разовий') {
-            tripsCount = carsCount;
-            actualVolume = normWeight * carsCount;
-            totalLoadedKm = dist * carsCount;
-            totalEmptyKm = 0;
-            document.getElementById('trip-volume-info').innerText = `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`;
-        } else {
-            tripsCount = contractVolume / normWeight;
-            actualVolume = contractVolume;
-            totalLoadedKm = dist * tripsCount;
-            totalEmptyKm = dist * Math.max(0, tripsCount - carsCount);
-            document.getElementById('trip-volume-info').innerText = `Повний вивіз: ${tripsCount.toFixed(1)} ходок (${actualVolume} тн)`;
+            const result = await response.json();
+
+            // Виводимо результати на екран
+            document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
+            document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}`;
+            document.getElementById('res-margin').innerText = formatMoney(result.marginalIncome);
+            document.getElementById('res-margin-ton').innerText = `на 1 т: ${result.marginPerTon} грн`;
+            document.getElementById('res-ebitda').innerText = formatMoney(result.ebitda);
+            document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн`;
+            document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
+            
+            const badge = document.getElementById('res-badge');
+            badge.innerText = result.profitabilityPct.toFixed(1) + '%';
+            badge.className = 'badge ' + (result.profitabilityPct >= 15 ? 'badge-success' : result.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
+
+            document.getElementById('res-breakeven-full').innerText = `${Math.round(result.netProfit ? 0 : 0)} грн/т`;
+
+            // Формуємо таблицю витрат
+            const tbody = document.getElementById('cost-breakdown');
+            const rows = [
+                { name: `Пальне (Загалом)`, val: result.fuelTotal },
+                { name: 'Зарплата водіїв', val: result.driverTotal },
+                { name: 'Технічне обслуговування (ТО)', val: result.toTotal },
+                { name: 'Знос шин', val: result.tireTotal },
+                { name: 'Накладні витрати', val: result.overheadTotal },
+                { name: 'Податки', val: result.taxesTotal }
+            ];
+
+            let totalCostsSum = result.fuelTotal + result.driverTotal + result.toTotal + result.tireTotal + result.overheadTotal + result.taxesTotal;
+            tbody.innerHTML = rows.map(r => `
+                <tr>
+                    <td>${r.name}</td>
+                    <td>${formatMoney(r.val)}</td>
+                    <td>${Math.round(r.val / safeVolume)} грн</td>
+                    <td>${totalCostsSum > 0 ? (r.val / totalCostsSum * 100).toFixed(1) + '%' : '0%'}</td>
+                </tr>
+            `).join('');
+
+            renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal);
+
+            lastCalcData = { 
+                routeName, 
+                trailerType, 
+                volume: payload.volume, 
+                rate: payload.rate, 
+                grossIncome: result.grossIncome, 
+                marginalIncome: result.marginalIncome, 
+                ebitda: result.ebitda, 
+                netProfit: result.netProfit, 
+                profitabilityPct: result.profitabilityPct 
+            };
+
+        } catch (err) {
+            console.error('Помилка обчислення:', err);
         }
-
-        const season = document.getElementById('season-type').value;
-        let seasonCoeff = 1.0;
-        if (season === 'літо') seasonCoeff = 1.05;
-        else if (season === 'зима') seasonCoeff = 1.10;
-
-        const fuelLoad = (parseFloat(document.getElementById('fuel-load').value) || 0) * seasonCoeff * roadQuality;
-        const fuelEmpty = (parseFloat(document.getElementById('fuel-empty').value) || 0) * seasonCoeff * roadQuality;
-        const fuelPrice = parseFloat(document.getElementById('fuel-price').value) || 0;
-
-        const driverPayMode = document.getElementById('driver-pay-mode').value;
-        const driverRateLoad = parseFloat(document.getElementById('driver-rate-load').value) || 0;
-        const driverRateEmpty = parseFloat(document.getElementById('driver-rate-empty').value) || 0;
-        const driverPctVal = parseFloat(document.getElementById('driver-pct-val').value) || 0;
-        const perDiem = parseFloat(document.getElementById('per-diem').value) || 0;
-
-        const toCost = (parseFloat(document.getElementById('to-cost').value) || 0) * (1 + (roadQuality - 1) * 0.5);
-        const toPeriod = parseFloat(document.getElementById('to-period').value) || 1;
-        const tireCost = (parseFloat(document.getElementById('tire-cost').value) || 0) * (1 + (roadQuality - 1) * 0.5);
-        const tireCount = parseFloat(document.getElementById('tire-count').value) || 0;
-        const tireMileage = parseFloat(document.getElementById('tire-mileage').value) || 1;
-        const adbluePrice = parseFloat(document.getElementById('adblue-price').value) || 0;
-        const adblueConsumption = parseFloat(document.getElementById('adblue-consumption').value) || 0;
-
-        const washCost = parseFloat(document.getElementById('wash-cost').value) || 0;
-        const washFreq = parseFloat(document.getElementById('wash-freq').value) || 0;
-        const refFuelRate = parseFloat(document.getElementById('ref-fuel-rate').value) || 0;
-        const refHours = parseFloat(document.getElementById('ref-hours').value) || 0;
-
-        const amort = parseFloat(document.getElementById('overhead-amort').value) || 0;
-        const admin = parseFloat(document.getElementById('overhead-admin').value) || 0;
-        const repair = parseFloat(document.getElementById('overhead-repair').value) || 0;
-        const fin = parseFloat(document.getElementById('overhead-fin').value) || 0;
-        const totalFleet = parseFloat(document.getElementById('total-fleet').value) || 1;
-
-        const totalPodachaKm = podachaDist * carsCount;
-
-        const isRoundTrip = document.getElementById('round-trip-enable').value === 'on';
-        const rtTransferDist = isRoundTrip ? (parseFloat(document.getElementById('rt-transfer-dist').value) || 0) : 0;
-        const rtBackhaulDist = isRoundTrip ? (parseFloat(document.getElementById('rt-backhaul-dist').value) || 0) : 0;
-        const rtReturnDist = isRoundTrip ? (parseFloat(document.getElementById('rt-return-dist').value) || 0) : 0;
-        const rtTotalVolumeAvailable = isRoundTrip ? (parseFloat(document.getElementById('rt-total-volume').value) || 0) : 0;
-        const rtRate = isRoundTrip ? (parseFloat(document.getElementById('rt-rate').value) || 0) : 0;
-
-        const numReturnLegs = (returnMode === 'разовий') ? 0 : Math.max(0, Math.round(tripsCount - carsCount));
-        const maxLegsByCapacity = normWeight > 0 ? Math.floor(rtTotalVolumeAvailable / normWeight) : 0;
-        const rtLegsUsed = isRoundTrip ? Math.min(numReturnLegs, maxLegsByCapacity) : 0;
-        const rtVolumeTotal = Math.min(rtTotalVolumeAvailable, rtLegsUsed * normWeight);
-        const rtIncome = rtVolumeTotal * rtRate;
-
-        if (rtLegsUsed > 0) {
-            totalEmptyKm = Math.max(0, totalEmptyKm - rtLegsUsed * dist + rtLegsUsed * (rtTransferDist + rtReturnDist));
-            totalLoadedKm += rtLegsUsed * rtBackhaulDist;
-        }
-
-        if (isRoundTrip) {
-            document.getElementById('trip-volume-info').innerText += rtLegsUsed > 0
-                ? ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок довантажено (${rtVolumeTotal.toFixed(1)} тн)`
-                : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
-            document.getElementById('rt-info').innerText = numReturnLegs > 0
-                ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${rtTotalVolumeAvailable < rtLegsUsed*normWeight ? 'обсягом вантажу' : 'кількістю ходок'})`
-                : 'Немає порожніх зворотних ходок у цьому рейсі (перевірте об\'єм і кількість авто)';
-        }
-
-        const fuelCostEmptyPerKm = (fuelEmpty * fuelPrice) / 100 / (calcType === 'безготівковий' ? 1.2 : 1.0);
-        const podachaLitres = (fuelEmpty * totalPodachaKm) / 100;
-        const fuelPodachaTotal = fuelCostEmptyPerKm * totalPodachaKm;
-
-        document.getElementById('podacha-info').innerText = totalPodachaKm > 0 
-            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л (${formatMoney(fuelPodachaTotal)})` 
-            : '';
-
-        const fuelLoadedTotal = ((fuelPrice * fuelLoad) / 100 / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalLoadedKm;
-        const fuelEmptyTotal = fuelCostEmptyPerKm * totalEmptyKm;
-        
-        let refFuelTotal = 0;
-        if (trailerType === 'рефрижератор') {
-            refFuelTotal = (refFuelRate * refHours * (fuelPrice / (calcType === 'безготівковий' ? 1.2 : 1.0))) * (returnMode === 'разовий' ? carsCount : tripsCount);
-        }
-
-        const fuelMainRouteTotal = fuelLoadedTotal + fuelEmptyTotal + refFuelTotal;
-        const fuelTotal = fuelMainRouteTotal + fuelPodachaTotal;
-
-        const totalFuelLitres = (fuelLoad * totalLoadedKm / 100) + (fuelEmpty * totalEmptyKm / 100) + podachaLitres + (trailerType === 'рефрижератор' ? refFuelRate * refHours * (returnMode === 'разовий' ? carsCount : tripsCount) : 0);
-        const adblueLitres = (adblueConsumption * (totalLoadedKm + totalEmptyKm + totalPodachaKm)) / 100;
-        const adblueTotal = ((adbluePrice * adblueConsumption / 100) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * (totalLoadedKm + totalEmptyKm + totalPodachaKm);
-
-        document.getElementById('fuel-summary-box').innerText = `⛽ Паливний розрахунок: ${totalFuelLitres.toFixed(0)} л ДП (${formatMoney(fuelTotal)}) + ${adblueLitres.toFixed(0)} л AdBlue (${formatMoney(adblueTotal)})`;
-
-        const idleCompensationTotal = idleDays * idleRate * (returnMode === 'разовий' ? carsCount : tripsCount);
-        const grossIncome = (rate * actualVolume) + rtIncome + idleCompensationTotal;
-
-        let tax5Total = 0;
-        let tax1Total = 0;
-        let netIncome = grossIncome;
-
-        if (calcType === 'безготівковий') {
-            netIncome = grossIncome / 1.2;
-        } else if (calcType === 'фоп') {
-            tax5Total = grossIncome * 0.05;
-            tax1Total = grossIncome * 0.01;
-            netIncome = grossIncome - tax5Total - tax1Total;
-        }
-
-        let driverTotal = 0;
-        if (driverPayMode === 'km') {
-            driverTotal = (driverRateLoad * totalLoadedKm) + (driverRateEmpty * totalEmptyKm) + (driverRateEmpty * totalPodachaKm);
-        } else {
-            driverTotal = grossIncome * (driverPctVal / 100);
-        }
-
-        const esvTotal = driverTotal * 0.22;
-        const actualTripDays = (daysPerTrip + idleDays) * (returnMode === 'разовий' ? 1 : (tripsCount / carsCount));
-        const perDiemTotal = perDiem * actualTripDays * carsCount;
-
-        const totalMileageAll = totalLoadedKm + totalEmptyKm + totalPodachaKm;
-        const toTotal = ((toCost / toPeriod) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalMileageAll;
-        const tireTotal = (((tireCost * tireCount) / tireMileage) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalMileageAll;
-
-        const directCosts = fuelTotal + adblueTotal + driverTotal + esvTotal + perDiemTotal + toTotal + tireTotal;
-        const marginalIncome = netIncome - directCosts;
-
-        const annualTankWashTotal = trailerType === 'цистерна' ? (washCost * washFreq) * totalFleet : 0;
-        const dailyOverheadAdminRepair = (admin + repair + (annualTankWashTotal / (calcType === 'безготівковий' ? 1.2 : 1.0))) / totalFleet / 365;
-        const dailyOverheadAmortFin = (amort + fin) / totalFleet / 365;
-
-        const adminRepairAllocated = dailyOverheadAdminRepair * actualTripDays * carsCount;
-        const amortFinAllocated = dailyOverheadAmortFin * actualTripDays * carsCount;
-
-        const ebitda = marginalIncome - adminRepairAllocated;
-        const netProfit = ebitda - amortFinAllocated;
-        const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
-
-        const safeVolume = actualVolume > 0 ? actualVolume : 1;
-
-        const opCostPerTon = (directCosts + adminRepairAllocated) / safeVolume;
-        const fullCostPerTon = (directCosts + adminRepairAllocated + amortFinAllocated) / safeVolume;
-        let breakevenOpPerTon, breakevenFullPerTon;
-        if (calcType === 'фоп') {
-            breakevenOpPerTon = opCostPerTon / 0.94;
-            breakevenFullPerTon = fullCostPerTon / 0.94;
-        } else if (calcType === 'безготівковий') {
-            breakevenOpPerTon = opCostPerTon * 1.2;
-            breakevenFullPerTon = fullCostPerTon * 1.2;
-        } else {
-            breakevenOpPerTon = opCostPerTon;
-            breakevenFullPerTon = fullCostPerTon;
-        }
-
-        document.getElementById('res-income').innerText = formatMoney(grossIncome);
-        document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(netIncome)}`;
-        document.getElementById('res-margin').innerText = formatMoney(marginalIncome);
-        document.getElementById('res-margin-ton').innerText = `на 1 т: ${Math.round(marginalIncome / safeVolume)} грн`;
-        document.getElementById('res-ebitda').innerText = formatMoney(ebitda);
-        document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${Math.round(ebitda / safeVolume)} грн`;
-        document.getElementById('res-profit').innerText = formatMoney(netProfit);
-        
-        const badge = document.getElementById('res-badge');
-        badge.innerText = profitabilityPct.toFixed(1) + '%';
-        badge.className = 'badge ' + (profitabilityPct >= 15 ? 'badge-success' : profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
-
-        document.getElementById('res-breakeven-full').innerText = `${Math.round(breakevenFullPerTon)} грн/т`;
-        document.getElementById('res-breakeven-op').innerText = `Операційна: ${Math.round(breakevenOpPerTon)} грн/т`;
-
-        const tbody = document.getElementById('cost-breakdown');
-        const rows = [];
-        if (tax5Total > 0) rows.push({ name: 'Єдиний податок ФОП (5%)', val: tax5Total });
-        if (tax1Total > 0) rows.push({ name: 'Військовий збір ФОП (1%)', val: tax1Total });
-        rows.push(
-            { name: `Пальне: Основний рейс`, val: fuelMainRouteTotal },
-            { name: `Пальне: Подача авто (${totalPodachaKm} км)`, val: fuelPodachaTotal },
-            { name: 'AdBlue (Загалом)', val: adblueTotal },
-            { name: `Зарплата водіїв (${driverPayMode === 'km' ? 'км' : '% від фрахту'})`, val: driverTotal },
-            { name: 'ЄСВ (22%)', val: esvTotal },
-            { name: 'Добові водіїв', val: perDiemTotal },
-            { name: 'Технічне обслуговування (ТО)', val: toTotal },
-            { name: 'Знос шин', val: tireTotal },
-            { name: 'Адмін. та операційні витрати', val: adminRepairAllocated },
-            { name: 'Амортизація та фінансні витрати', val: amortFinAllocated }
-        );
-
-        let totalCostsSum = directCosts + adminRepairAllocated + amortFinAllocated + tax5Total + tax1Total;
-        tbody.innerHTML = rows.map(r => `
-            <tr>
-                <td>${r.name}</td>
-                <td>${formatMoney(r.val)}</td>
-                <td>${Math.round(r.val / safeVolume)} грн</td>
-                <td>${totalCostsSum > 0 ? (r.val / totalCostsSum * 100).toFixed(1) + '%' : '0%'}</td>
-            </tr>
-        `).join('');
-
-        renderChart(fuelTotal + adblueTotal, driverTotal + esvTotal + perDiemTotal, toTotal + tireTotal, adminRepairAllocated + amortFinAllocated, tax5Total + tax1Total);
-
-        lastCalcData = { routeName, trailerType, volume: actualVolume, rate, grossIncome, marginalIncome, ebitda, netProfit, profitabilityPct };
     }
 
     function renderChart(fuel, driver, maintenance, overhead, taxes) {
