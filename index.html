@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Калькулятор прибутковості вантажних перевезень v7.8</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a; --card-bg: #1e293b; --border-color: #334155; 
+            --text-main: #f8fafc; --text-muted: #94a3b8; --accent: #3b82f6; 
+            --accent-hover: #2563eb; --success: #10b981; --warning: #f59e0b; 
+            --danger: #ef4444; --input-bg: #0f172a;
+        }
+        [data-theme="light"] {
+            --bg-color: #f1f5f9; --card-bg: #ffffff; --border-color: #cbd5e1; 
+            --text-main: #1e293b; --text-muted: #64748b; --accent: #2563eb; 
+            --accent-hover: #1d4ed8; --success: #059669; --warning: #d97706; 
+            --danger: #dc2626; --input-bg: #f8fafc;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: var(--card-bg); padding: 16px 24px; border-radius: 12px; border: 1px solid var(--border-color); }
+        h1 { font-size: 1.4rem; font-weight: 700; }
+        .theme-btn { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; }
+        
+        .currency-bar { display: flex; gap: 16px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+        .currency-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; }
+        .currency-val { color: var(--accent); }
+        .converter-box { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .converter-box input { width: 90px; text-align: center; }
+        
+        .actions-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .btn { background: var(--accent); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: 160px; }
+        .btn:hover { background: var(--accent-hover); }
+        .btn-success { background: var(--success); }
+        .btn-warning { background: var(--warning); }
+        
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .kpi-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; }
+        .kpi-title { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
+        .kpi-value { font-size: 1.25rem; font-weight: 700; }
+        .kpi-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+        .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 1024px) { .grid-layout { grid-template-columns: 1fr; } }
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+        .card h2 { font-size: 1.1rem; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 1px solid var(--border-color); color: var(--accent); display: flex; align-items: center; gap: 6px; }
+        
+        .form-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
+        .form-row.two-cols { grid-template-columns: 2fr 1fr; }
+        label { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+        input, select { width: 100%; background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 7px 10px; border-radius: 6px; font-size: 0.9rem; text-align: right; }
+        select { text-align: left; }
+        input:focus, select:focus { outline: none; border-color: var(--accent); }
+        .unit { font-size: 0.8rem; color: var(--text-muted); }
+        
+        .preset-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+        .preset-btn { background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-muted); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: 500; }
+        .preset-btn:hover { border-color: var(--accent); color: var(--text-main); }
+        .preset-btn.active { background: var(--accent) !important; color: #ffffff !important; border-color: var(--accent) !important; font-weight: 700; }
+        
+        .dynamic-field { display: none; }
+        .dynamic-field.active { display: grid; }
+        
+        .chart-box { margin-top: 15px; }
+        .bar-container { width: 100%; height: 18px; background: var(--input-bg); border-radius: 9px; overflow: hidden; display: flex; margin-top: 8px; }
+        .bar-segment { height: 100%; }
+        .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 0.75rem; }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .legend-color { width: 10px; height: 10px; border-radius: 2px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th { color: var(--text-muted); font-weight: 600; }
+        td:nth-child(2), td:nth-child(3), td:nth-child(4) { text-align: right; }
+        .comparison-table { overflow-x: auto; }
+    </style>
+    <!-- Новий API-ключ Google Maps -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=places,geometry"></script>
+</head>
+<body data-theme="dark">
+
+<div class="container">
+    <header>
+        <h1>🚛 Калькулятор прибутковості перевезень v7.8 (POI: OpenStreetMap, безкоштовно)</h1>
+        <button class="theme-btn" onclick="toggleTheme()">🌓 Тема</button>
+    </header>
+
+    <div class="currency-bar">
+        <div class="currency-item">🇺🇸 USD НБУ: <span class="currency-val" id="rate-usd">...</span></div>
+        <div class="currency-item">🇪🇺 EUR НБУ: <span class="currency-val" id="rate-eur">...</span></div>
+        <div class="currency-item">🇵🇱 PLN НБУ: <span class="currency-val" id="rate-pln">...</span></div>
+        <div class="currency-item">⛽ Ціна ДП: <a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">перевірити актуальну →</a></div>
+        
+        <div class="converter-box">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Конвертер:</span>
+            <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
+            <select id="conv-curr" onchange="convertCurrency()" style="width: 75px;">
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="PLN">PLN</option>
+            </select>
+            <span id="conv-res" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);">0 грн</span>
+        </div>
+    </div>
+
+    <div class="actions-bar">
+        <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
+        <button class="btn" onclick="window.print()">📄 Експорт у PDF</button>
+        <button class="btn btn-warning" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-title">Загальний дохід</div>
+            <div class="kpi-value" id="res-income">0 грн</div>
+            <div class="kpi-sub" id="res-income-net">Чистий: 0 грн</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Маржинальний дохід</div>
+            <div class="kpi-value" id="res-margin">0 грн</div>
+            <div class="kpi-sub" id="res-margin-ton">на 1 т: 0 грн</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">EBITDA</div>
+            <div class="kpi-value" id="res-ebitda">0 грн</div>
+            <div class="kpi-sub" id="res-ebitda-ton">на 1 т: 0 грн</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Чистий прибуток</div>
+            <div class="kpi-value" id="res-profit">0 грн</div>
+            <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">🎯 Точка беззбитковості</div>
+            <div class="kpi-value" id="res-breakeven-full" style="font-size: 1.1rem; color: var(--warning);">0 грн/т</div>
+            <div class="kpi-sub" id="res-breakeven-op">Операційна: 0 грн/т</div>
+        </div>
+    </div>
+
+    <div class="grid-layout">
+        <div>
+            <div class="card">
+                <h2>📦 Параметри заявки та Маршруту</h2>
+                <div class="preset-bar">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">Швидкі пресети авто:</span>
+                    <button class="preset-btn active" onclick="applyPreset('зерновоз', this)">🌾 Зерновоз</button>
+                    <button class="preset-btn" onclick="applyPreset('рефрижератор', this)">❄️ Рефрижератор</button>
+                    <button class="preset-btn" onclick="applyPreset('тент', this)">🚛 Тент</button>
+                    <button class="preset-btn" onclick="applyPreset('цистерна', this)">🥛 Цистерна</button>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Назва / Маршрут заявки:</label>
+                    <input type="text" id="route-name" value="Маршрут 1 (Зерно)" style="text-align: left;" oninput="calculate()">
+                </div>
+                
+                <div style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 6px;">🗺️ Розрахунок відстані Google Maps</div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт 0 (Стоянка авто - опц.):</label>
+                        <input type="text" id="osm-base" placeholder="напр. Київ" style="text-align: left;" autocomplete="off">
+                    </div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт A (Завантаження):</label>
+                        <input type="text" id="osm-from" placeholder="напр. Житомир" style="text-align: left;" autocomplete="off">
+                    </div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт B (Розвантаження):</label>
+                        <input type="text" id="osm-to" placeholder="напр. Одеса" style="text-align: left;" autocomplete="off">
+                    </div>
+                    <div id="waypoints-list" style="margin-bottom: 6px;"></div>
+                    <button type="button" class="preset-btn" style="margin-bottom: 8px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
+                    <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="calculateGoogleRoute()">Розрахувати відстань за картами Google</button>
+                    <div id="osm-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
+                </div>
+                
+                <div id="map" style="height: 180px; width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);"></div>
+
+                <div style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (OpenStreetMap, безкоштовно)</div>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.8rem;">
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-gas" checked style="width:auto;"> ⛽ АЗС</label>
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-tir" checked style="width:auto;"> 🅿️ Стоянки TIR</label>
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-cafe" style="width:auto;"> ☕ Кафе</label>
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-sto" style="width:auto;"> 🔧 СТО</label>
+                    </div>
+                    <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти вздовж маршруту</button>
+                    <div id="poi-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
+                    <div id="poi-results" style="max-height: 220px; overflow-y: auto; margin-top: 8px; font-size: 0.8rem;"></div>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Логістика повернення:</label>
+                    <select id="return-mode" onchange="calculate()">
+                        <option value="циклічний" selected>🟢 Циклічний вивіз (весь об'єм, з поверненням)</option>
+                        <option value="разовий">⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option>
+                    </select>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Форма розрахунку:</label>
+                    <select id="calc-type" onchange="calculate()">
+                        <option value="безготівковий">Безготівковий (з ПДВ)</option>
+                        <option value="фоп" selected>ФОП (3 група: 5% + ВЗ 1%)</option>
+                        <option value="готівка">Готівка</option>
+                    </select>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Якість дорожнього покриття:</label>
+                    <select id="road-quality" onchange="calculate()">
+                        <option value="1.0" selected>🟢 Чудова дорога / Траса (1.0)</option>
+                        <option value="1.06">🟡 Середня дорога / Вторинна (1.06)</option>
+                        <option value="1.18">🔴 Погана дорога / Бруківка / Ями (1.18)</option>
+                    </select>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Тип причепу:</label>
+                    <select id="trailer-type" onchange="onTrailerChange()">
+                        <option value="зерновоз" selected>Зерновоз</option>
+                        <option value="рефрижератор">Рефрижератор</option>
+                        <option value="тент">Тент</option>
+                        <option value="цистерна">Цистерна</option>
+                    </select>
+                </div>
+
+                <div class="form-row dynamic-field" id="field-ref-consumption">
+                    <label>Витрата рефа (л/год):</label>
+                    <input type="number" id="ref-fuel-rate" value="3.5" step="0.1" oninput="calculate()">
+                    <span class="unit">л/год</span>
+                </div>
+                <div class="form-row dynamic-field" id="field-ref-hours">
+                    <label>Час роботи рефрижератора:</label>
+                    <input type="number" id="ref-hours" value="24" oninput="calculate()">
+                    <span class="unit">годин/рейс</span>
+                </div>
+
+                <div class="form-row">
+                    <label>Подача авто (км):</label>
+                    <input type="number" id="podacha-dist" value="30" oninput="calculate()">
+                    <span class="unit">км</span>
+                </div>
+                <div id="podacha-info" style="font-size: 0.8rem; color: var(--accent); font-weight: 500; text-align: right; margin-top: -8px; margin-bottom: 8px;"></div>
+
+                <div class="form-row">
+                    <label>Відстань перевезення (км):</label>
+                    <input type="number" id="dist" value="300" oninput="calculate()">
+                    <span class="unit">км</span>
+                </div>
+                <div class="form-row">
+                    <label>Загальний об'єм контракту:</label>
+                    <input type="number" id="volume" value="3000" oninput="calculate()">
+                    <span class="unit">тн</span>
+                </div>
+                <div class="form-row">
+                    <label>Нормативна вага на авто:</label>
+                    <input type="number" id="norm-weight" value="21.5" step="0.5" oninput="calculate()">
+                    <span class="unit">тн/маш</span>
+                </div>
+                <div class="form-row">
+                    <label>Кількість залучених авто:</label>
+                    <input type="number" id="cars-count" value="10" oninput="calculate()">
+                    <span class="unit">шт</span>
+                </div>
+                <div id="trip-volume-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: -6px; margin-bottom: 8px;"></div>
+
+                <div class="form-row">
+                    <label>Кількість діб на ходку:</label>
+                    <input type="number" id="days-per-trip" value="1.33" step="0.01" oninput="calculate()">
+                    <span class="unit">діб</span>
+                </div>
+
+                <div class="form-row">
+                    <label>Фактичний простій (понад норму):</label>
+                    <input type="number" id="idle-days" value="0" step="0.5" oninput="calculate()">
+                    <span class="unit">діб/рейс</span>
+                </div>
+                <div class="form-row">
+                    <label>Компенсація за простій від замовника:</label>
+                    <input type="number" id="idle-rate" value="1500" oninput="calculate()">
+                    <span class="unit">грн/доба</span>
+                </div>
+
+                <div class="form-row">
+                    <label>Розцінка (з ПДВ / ФОП):</label>
+                    <input type="number" id="rate" value="1560" oninput="calculate()">
+                    <span class="unit">грн/тн</span>
+                </div>
+
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-top: 10px;">
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label style="color: var(--success); font-weight: 600;">🔄 Режим Кругорейсу (Зворотний вантаж):</label>
+                        <select id="round-trip-enable" onchange="toggleRoundTrip()">
+                            <option value="off" selected>Вимкнено (без зворотного вантажу)</option>
+                            <option value="on">Увімкнено (Вантаж назад)</option>
+                        </select>
+                    </div>
+                    <div id="round-trip-box" style="display: none;">
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4;">
+                            Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C,
+                            звідти <b>вантаженим</b> зворотнім вантажем до точки D, і <b>порожнім</b> повертається у пункт A під нове завантаження.
+                            Якщо загального обсягу зворотнього вантажу не вистачає на всі ходки — решта їде звичайним прямим порожнім поверненням (як без кругорейсу).
+                        </div>
+                        <div class="form-row two-cols" style="margin-bottom: 6px;">
+                            <label>Точка C (довантаження, порожнім з B):</label>
+                            <input type="text" id="rt-point-c" placeholder="напр. Жашків" style="text-align: left;" autocomplete="off">
+                        </div>
+                        <div class="form-row two-cols" style="margin-bottom: 6px;">
+                            <label>Точка D (вивантаження, вантаженим з C):</label>
+                            <input type="text" id="rt-point-d" placeholder="напр. Чорноморськ" style="text-align: left;" autocomplete="off">
+                        </div>
+                        <button type="button" class="btn" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотній маршрут (Google)</button>
+                        <div id="rt-status" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
+
+                        <div class="form-row">
+                            <label>Плече B→C (порожнім):</label>
+                            <input type="number" id="rt-transfer-dist" value="0" oninput="calculate()">
+                            <span class="unit">км</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Плече C→D (вантаженим):</label>
+                            <input type="number" id="rt-backhaul-dist" value="0" oninput="calculate()">
+                            <span class="unit">км</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Плече D→A (порожнім):</label>
+                            <input type="number" id="rt-return-dist" value="0" oninput="calculate()">
+                            <span class="unit">км</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Загальний обсяг зворотнього вантажу:</label>
+                            <input type="number" id="rt-total-volume" value="0" oninput="calculate()">
+                            <span class="unit">тн</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Розцінка зворотнього вантажу:</label>
+                            <input type="number" id="rt-rate" value="1200" oninput="calculate()">
+                            <span class="unit">грн/тн</span>
+                        </div>
+                        <div id="rt-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: 4px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>⛽ Пальне та Екіпаж</h2>
+                <div class="form-row">
+                    <label>Витрата ДП (завантажений):</label>
+                    <input type="number" id="fuel-load" value="37" step="0.1" oninput="calculate()">
+                    <span class="unit">л/100км</span>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Сезон / Клімат:</label>
+                    <select id="season-type" onchange="calculate()">
+                        <option value="літо">Літо (+5% Кондиціонер)</option>
+                        <option value="стандарт" selected>Норма (0%)</option>
+                        <option value="зима">Зима (+10% Прогрів/Зима)</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label>Витрата ДП (пустий/подача):</label>
+                    <input type="number" id="fuel-empty" value="32" step="0.1" oninput="calculate()">
+                    <span class="unit">л/100км</span>
+                </div>
+                <div class="form-row">
+                    <label>Вартість ДП:</label>
+                    <input type="number" id="fuel-price" value="97.0" oninput="calculate()">
+                    <span class="unit">грн/л</span>
+                </div>
+                <div class="form-row">
+                    <label>Витрата AdBlue:</label>
+                    <input type="number" id="adblue-consumption" value="2.85" step="0.05" oninput="calculate()">
+                    <span class="unit">л/100км</span>
+                </div>
+                <div class="form-row">
+                    <label>Вартість AdBlue:</label>
+                    <input type="number" id="adblue-price" value="18" step="0.5" oninput="calculate()">
+                    <span class="unit">грн/л</span>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Модель ЗП водія:</label>
+                    <select id="driver-pay-mode" onchange="onDriverPayModeChange()">
+                        <option value="km" selected>Оплата за км (грн/км)</option>
+                        <option value="pct">Відсоток від фрахту (% від суми)</option>
+                    </select>
+                </div>
+
+                <div id="driver-km-box">
+                    <div class="form-row">
+                        <label>ЗП водія (завантажений):</label>
+                        <input type="number" id="driver-rate-load" value="4.03" step="0.01" oninput="calculate()">
+                        <span class="unit">грн/км</span>
+                    </div>
+                    <div class="form-row">
+                        <label>ЗП водія (пустий/подача):</label>
+                        <input type="number" id="driver-rate-empty" value="2.30" step="0.01" oninput="calculate()">
+                        <span class="unit">грн/км</span>
+                    </div>
+                </div>
+
+                <div id="driver-pct-box" style="display: none;">
+                    <div class="form-row">
+                        <label>Відсоток водія від фрахту:</label>
+                        <input type="number" id="driver-pct-val" value="12" step="0.5" oninput="calculate()">
+                        <span class="unit">%</span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label>Добові водія:</label>
+                    <input type="number" id="per-diem" value="850" oninput="calculate()">
+                    <span class="unit">грн/доба</span>
+                </div>
+
+                <div id="fuel-summary-box" style="background: rgba(59, 130, 246, 0.08); padding: 10px; border-radius: 8px; font-size: 0.85rem; color: var(--accent); margin-top: 10px; font-weight: 500;">
+                    ⛽ Паливний розрахунок: ...
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <h2>🛠️ Технічне обслуговування та Шини</h2>
+                <div class="form-row">
+                    <label>Вартість ТО (з ПДВ):</label>
+                    <input type="number" id="to-cost" value="18000" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row">
+                    <label>Періодичність ТО:</label>
+                    <input type="number" id="to-period" value="50000" oninput="calculate()">
+                    <span class="unit">км</span>
+                </div>
+
+                <div class="form-row dynamic-field" id="field-wash-cost">
+                    <label>Вартість промивки цистерни:</label>
+                    <input type="number" id="wash-cost" value="10000" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row dynamic-field" id="field-wash-freq">
+                    <label>Кількість промивок на рік:</label>
+                    <input type="number" id="wash-freq" value="4" oninput="calculate()">
+                    <span class="unit">раз/рік</span>
+                </div>
+
+                <div class="form-row">
+                    <label>Вартість шини (з ПДВ):</label>
+                    <input type="number" id="tire-cost" value="16500" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row">
+                    <label>Кількість шин на авто:</label>
+                    <input type="number" id="tire-count" value="14" oninput="calculate()">
+                    <span class="unit">шт</span>
+                </div>
+                <div class="form-row">
+                    <label>Пробіг шини (ресурс):</label>
+                    <input type="number" id="tire-mileage" value="150000" oninput="calculate()">
+                    <span class="unit">км</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🏢 Накладні витрати підприємства</h2>
+                <div class="form-row">
+                    <label>Амортизація (річна):</label>
+                    <input type="number" id="overhead-amort" value="40139408" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row">
+                    <label>Адміністративні витрати:</label>
+                    <input type="number" id="overhead-admin" value="17871209" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row">
+                    <label>Ремонти та інші оп. витрати:</label>
+                    <input type="number" id="overhead-repair" value="16124943" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row">
+                    <label>Фінансові витрати (кредити):</label>
+                    <input type="number" id="overhead-fin" value="4308097" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row">
+                    <label>Загальний парк авто:</label>
+                    <input type="number" id="total-fleet" value="68" oninput="calculate()">
+                    <span class="unit">шт</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📊 Візуальна структура витрат</h2>
+                <div class="chart-box">
+                    <div class="bar-container" id="bar-chart"></div>
+                    <div class="chart-legend" id="chart-legend"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📋 Розшифровка витрат рейсу</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Стаття витрат</th>
+                            <th>Сума (грн)</th>
+                            <th>На 1 тн</th>
+                            <th>Частка</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cost-breakdown"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="saved-section" style="margin-top: 20px;">
+        <h2>📊 Збережені розрахунки (Ротації)</h2>
+        <div class="comparison-table">
+            <table id="saved-table">
+                <thead>
+                    <tr>
+                        <th>Назва / Маршрут</th>
+                        <th>Причіп</th>
+                        <th>Об'єм</th>
+                        <th>Розцінка</th>
+                        <th>Дохід</th>
+                        <th>Маржа</th>
+                        <th>EBITDA</th>
+                        <th>Прибуток</th>
+                        <th>Рентабельність</th>
+                        <th>Дії</th>
+                    </tr>
+                </thead>
+                <tbody id="saved-tbody">
+                    <tr><td colspan="10" style="text-align: center; color: var(--text-muted);">Немає збережених розрахунків.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let savedCalculations = [];
+    let map, directionsService, directionsRenderer, directionsRendererBackhaul;
+    let waypointCounter = 0;
+    let poiMarkers = [];
+    let lastRoutePath = null;
+    let lastCalcData = {};
+    let nbuRates = { USD: 41.5, EUR: 45.2, PLN: 10.5 };
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsikMeho5FrbfPSOfy6Dekz6RfVj169_BCvPSEYNFeKpI1yT4RuCBneDDwjP1-xGjW/exec';
+
+    function toggleTheme() {
+        const body = document.body;
+        const currentTheme = body.getAttribute('data-theme');
+        body.setAttribute('data-theme', currentTheme === 'dark' ? 'light' : 'dark');
+    }
+
+    function formatMoney(amount) {
+        return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(amount) + ' грн';
+    }
+
+    async function fetchNBURates() {
+        try {
+            const res = await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
+            const data = await res.json();
+            data.forEach(item => {
+                if (item.cc === 'USD') { nbuRates.USD = item.rate; document.getElementById('rate-usd').innerText = item.rate.toFixed(2) + ' грн'; }
+                if (item.cc === 'EUR') { nbuRates.EUR = item.rate; document.getElementById('rate-eur').innerText = item.rate.toFixed(2) + ' грн'; }
+                if (item.cc === 'PLN') { nbuRates.PLN = item.rate; document.getElementById('rate-pln').innerText = item.rate.toFixed(2) + ' грн'; }
+            });
+            convertCurrency();
+        } catch(e) { console.log('NBU rates error', e); }
+    }
+
+    function convertCurrency() {
+        const val = parseFloat(document.getElementById('conv-amount').value) || 0;
+        const curr = document.getElementById('conv-curr').value;
+        const rate = nbuRates[curr] || 1;
+        document.getElementById('conv-res').innerText = formatMoney(val * rate);
+    }
+
+    function applyPreset(type, btnElement) {
+        document.getElementById('trailer-type').value = type;
+        
+        if (btnElement) {
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+        }
+
+        if (type === 'зерновоз') {
+            document.getElementById('fuel-load').value = 37;
+            document.getElementById('fuel-empty').value = 32;
+            document.getElementById('norm-weight').value = 21.5;
+        } else if (type === 'рефрижератор') {
+            document.getElementById('fuel-load').value = 34;
+            document.getElementById('fuel-empty').value = 29;
+            document.getElementById('norm-weight').value = 20.0;
+        } else if (type === 'тент') {
+            document.getElementById('fuel-load').value = 32;
+            document.getElementById('fuel-empty').value = 27;
+            document.getElementById('norm-weight').value = 22.0;
+        } else if (type === 'цистерна') {
+            document.getElementById('fuel-load').value = 35;
+            document.getElementById('fuel-empty').value = 28;
+            document.getElementById('norm-weight').value = 24.0;
+        }
+        onTrailerChange();
+    }
+
+    function onTrailerChange() {
+        const trailer = document.getElementById('trailer-type').value;
+        const refConsumption = document.getElementById('field-ref-consumption');
+        const refHours = document.getElementById('field-ref-hours');
+        if (trailer === 'рефрижератор') { refConsumption.classList.add('active'); refHours.classList.add('active'); } 
+        else { refConsumption.classList.remove('active'); refHours.classList.remove('active'); }
+
+        const washCost = document.getElementById('field-wash-cost');
+        const washFreq = document.getElementById('field-wash-freq');
+        if (trailer === 'цистерна') { washCost.classList.add('active'); washFreq.classList.add('active'); } 
+        else { washCost.classList.remove('active'); washFreq.classList.remove('active'); }
+        calculate();
+    }
+
+    function toggleRoundTrip() {
+        const val = document.getElementById('round-trip-enable').value;
+        document.getElementById('round-trip-box').style.display = val === 'on' ? 'block' : 'none';
+        calculate();
+    }
+
+    function onDriverPayModeChange() {
+        const mode = document.getElementById('driver-pay-mode').value;
+        document.getElementById('driver-km-box').style.display = mode === 'km' ? 'block' : 'none';
+        document.getElementById('driver-pct-box').style.display = mode === 'pct' ? 'block' : 'none';
+        calculate();
+    }
+
+    function calculate() {
+        const calcType = document.getElementById('calc-type').value;
+        const returnMode = document.getElementById('return-mode').value;
+        const roadQuality = parseFloat(document.getElementById('road-quality').value) || 1.0;
+        const routeName = document.getElementById('route-name').value || 'Заявка';
+        const trailerType = document.getElementById('trailer-type').value;
+
+        const dist = parseFloat(document.getElementById('dist').value) || 0;
+        const podachaDist = parseFloat(document.getElementById('podacha-dist').value) || 0;
+        const contractVolume = parseFloat(document.getElementById('volume').value) || 0;
+        const normWeight = parseFloat(document.getElementById('norm-weight').value) || 1;
+        const carsCount = parseFloat(document.getElementById('cars-count').value) || 1;
+        const daysPerTrip = parseFloat(document.getElementById('days-per-trip').value) || 1;
+        const idleDays = parseFloat(document.getElementById('idle-days').value) || 0;
+        const idleRate = parseFloat(document.getElementById('idle-rate').value) || 0;
+        const rate = parseFloat(document.getElementById('rate').value) || 0;
+
+        let actualVolume = 0;
+        let tripsCount = 0;
+        let totalLoadedKm = 0;
+        let totalEmptyKm = 0;
+
+        if (returnMode === 'разовий') {
+            tripsCount = carsCount;
+            actualVolume = normWeight * carsCount;
+            totalLoadedKm = dist * carsCount;
+            totalEmptyKm = 0;
+            document.getElementById('trip-volume-info').innerText = `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`;
+        } else {
+            tripsCount = contractVolume / normWeight;
+            actualVolume = contractVolume;
+            totalLoadedKm = dist * tripsCount;
+            totalEmptyKm = dist * Math.max(0, tripsCount - carsCount);
+            document.getElementById('trip-volume-info').innerText = `Повний вивіз: ${tripsCount.toFixed(1)} ходок (${actualVolume} тн)`;
+        }
+
+        const season = document.getElementById('season-type').value;
+        let seasonCoeff = 1.0;
+        if (season === 'літо') seasonCoeff = 1.05;
+        else if (season === 'зима') seasonCoeff = 1.10;
+
+        const fuelLoad = (parseFloat(document.getElementById('fuel-load').value) || 0) * seasonCoeff * roadQuality;
+        const fuelEmpty = (parseFloat(document.getElementById('fuel-empty').value) || 0) * seasonCoeff * roadQuality;
+        const fuelPrice = parseFloat(document.getElementById('fuel-price').value) || 0;
+
+        const driverPayMode = document.getElementById('driver-pay-mode').value;
+        const driverRateLoad = parseFloat(document.getElementById('driver-rate-load').value) || 0;
+        const driverRateEmpty = parseFloat(document.getElementById('driver-rate-empty').value) || 0;
+        const driverPctVal = parseFloat(document.getElementById('driver-pct-val').value) || 0;
+        const perDiem = parseFloat(document.getElementById('per-diem').value) || 0;
+
+        const toCost = (parseFloat(document.getElementById('to-cost').value) || 0) * (1 + (roadQuality - 1) * 0.5);
+        const toPeriod = parseFloat(document.getElementById('to-period').value) || 1;
+        const tireCost = (parseFloat(document.getElementById('tire-cost').value) || 0) * (1 + (roadQuality - 1) * 0.5);
+        const tireCount = parseFloat(document.getElementById('tire-count').value) || 0;
+        const tireMileage = parseFloat(document.getElementById('tire-mileage').value) || 1;
+        const adbluePrice = parseFloat(document.getElementById('adblue-price').value) || 0;
+        const adblueConsumption = parseFloat(document.getElementById('adblue-consumption').value) || 0;
+
+        const washCost = parseFloat(document.getElementById('wash-cost').value) || 0;
+        const washFreq = parseFloat(document.getElementById('wash-freq').value) || 0;
+        const refFuelRate = parseFloat(document.getElementById('ref-fuel-rate').value) || 0;
+        const refHours = parseFloat(document.getElementById('ref-hours').value) || 0;
+
+        const amort = parseFloat(document.getElementById('overhead-amort').value) || 0;
+        const admin = parseFloat(document.getElementById('overhead-admin').value) || 0;
+        const repair = parseFloat(document.getElementById('overhead-repair').value) || 0;
+        const fin = parseFloat(document.getElementById('overhead-fin').value) || 0;
+        const totalFleet = parseFloat(document.getElementById('total-fleet').value) || 1;
+
+        const totalPodachaKm = podachaDist * carsCount;
+
+        const isRoundTrip = document.getElementById('round-trip-enable').value === 'on';
+        const rtTransferDist = isRoundTrip ? (parseFloat(document.getElementById('rt-transfer-dist').value) || 0) : 0;
+        const rtBackhaulDist = isRoundTrip ? (parseFloat(document.getElementById('rt-backhaul-dist').value) || 0) : 0;
+        const rtReturnDist = isRoundTrip ? (parseFloat(document.getElementById('rt-return-dist').value) || 0) : 0;
+        const rtTotalVolumeAvailable = isRoundTrip ? (parseFloat(document.getElementById('rt-total-volume').value) || 0) : 0;
+        const rtRate = isRoundTrip ? (parseFloat(document.getElementById('rt-rate').value) || 0) : 0;
+
+        const numReturnLegs = (returnMode === 'разовий') ? 0 : Math.max(0, Math.round(tripsCount - carsCount));
+        const maxLegsByCapacity = normWeight > 0 ? Math.floor(rtTotalVolumeAvailable / normWeight) : 0;
+        const rtLegsUsed = isRoundTrip ? Math.min(numReturnLegs, maxLegsByCapacity) : 0;
+        const rtVolumeTotal = Math.min(rtTotalVolumeAvailable, rtLegsUsed * normWeight);
+        const rtIncome = rtVolumeTotal * rtRate;
+
+        if (rtLegsUsed > 0) {
+            totalEmptyKm = Math.max(0, totalEmptyKm - rtLegsUsed * dist + rtLegsUsed * (rtTransferDist + rtReturnDist));
+            totalLoadedKm += rtLegsUsed * rtBackhaulDist;
+        }
+
+        if (isRoundTrip) {
+            document.getElementById('trip-volume-info').innerText += rtLegsUsed > 0
+                ? ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок довантажено (${rtVolumeTotal.toFixed(1)} тн)`
+                : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
+            document.getElementById('rt-info').innerText = numReturnLegs > 0
+                ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${rtTotalVolumeAvailable < rtLegsUsed*normWeight ? 'обсягом вантажу' : 'кількістю ходок'})`
+                : 'Немає порожніх зворотних ходок у цьому рейсі (перевірте об\'єм і кількість авто)';
+        }
+
+        const fuelCostEmptyPerKm = (fuelEmpty * fuelPrice) / 100 / (calcType === 'безготівковий' ? 1.2 : 1.0);
+        const podachaLitres = (fuelEmpty * totalPodachaKm) / 100;
+        const fuelPodachaTotal = fuelCostEmptyPerKm * totalPodachaKm;
+
+        document.getElementById('podacha-info').innerText = totalPodachaKm > 0 
+            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л (${formatMoney(fuelPodachaTotal)})` 
+            : '';
+
+        const fuelLoadedTotal = ((fuelPrice * fuelLoad) / 100 / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalLoadedKm;
+        const fuelEmptyTotal = fuelCostEmptyPerKm * totalEmptyKm;
+        
+        let refFuelTotal = 0;
+        if (trailerType === 'рефрижератор') {
+            refFuelTotal = (refFuelRate * refHours * (fuelPrice / (calcType === 'безготівковий' ? 1.2 : 1.0))) * (returnMode === 'разовий' ? carsCount : tripsCount);
+        }
+
+        const fuelMainRouteTotal = fuelLoadedTotal + fuelEmptyTotal + refFuelTotal;
+        const fuelTotal = fuelMainRouteTotal + fuelPodachaTotal;
+
+        const totalFuelLitres = (fuelLoad * totalLoadedKm / 100) + (fuelEmpty * totalEmptyKm / 100) + podachaLitres + (trailerType === 'рефрижератор' ? refFuelRate * refHours * (returnMode === 'разовий' ? carsCount : tripsCount) : 0);
+        const adblueLitres = (adblueConsumption * (totalLoadedKm + totalEmptyKm + totalPodachaKm)) / 100;
+        const adblueTotal = ((adbluePrice * adblueConsumption / 100) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * (totalLoadedKm + totalEmptyKm + totalPodachaKm);
+
+        document.getElementById('fuel-summary-box').innerText = `⛽ Паливний розрахунок: ${totalFuelLitres.toFixed(0)} л ДП (${formatMoney(fuelTotal)}) + ${adblueLitres.toFixed(0)} л AdBlue (${formatMoney(adblueTotal)})`;
+
+        const idleCompensationTotal = idleDays * idleRate * (returnMode === 'разовий' ? carsCount : tripsCount);
+        const grossIncome = (rate * actualVolume) + rtIncome + idleCompensationTotal;
+
+        let tax5Total = 0;
+        let tax1Total = 0;
+        let netIncome = grossIncome;
+
+        if (calcType === 'безготівковий') {
+            netIncome = grossIncome / 1.2;
+        } else if (calcType === 'фоп') {
+            tax5Total = grossIncome * 0.05;
+            tax1Total = grossIncome * 0.01;
+            netIncome = grossIncome - tax5Total - tax1Total;
+        }
+
+        let driverTotal = 0;
+        if (driverPayMode === 'km') {
+            driverTotal = (driverRateLoad * totalLoadedKm) + (driverRateEmpty * totalEmptyKm) + (driverRateEmpty * totalPodachaKm);
+        } else {
+            driverTotal = grossIncome * (driverPctVal / 100);
+        }
+
+        const esvTotal = driverTotal * 0.22;
+        const actualTripDays = (daysPerTrip + idleDays) * (returnMode === 'разовий' ? 1 : (tripsCount / carsCount));
+        const perDiemTotal = perDiem * actualTripDays * carsCount;
+
+        const totalMileageAll = totalLoadedKm + totalEmptyKm + totalPodachaKm;
+        const toTotal = ((toCost / toPeriod) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalMileageAll;
+        const tireTotal = (((tireCost * tireCount) / tireMileage) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalMileageAll;
+
+        const directCosts = fuelTotal + adblueTotal + driverTotal + esvTotal + perDiemTotal + toTotal + tireTotal;
+        const marginalIncome = netIncome - directCosts;
+
+        const annualTankWashTotal = trailerType === 'цистерна' ? (washCost * washFreq) * totalFleet : 0;
+        const dailyOverheadAdminRepair = (admin + repair + (annualTankWashTotal / (calcType === 'безготівковий' ? 1.2 : 1.0))) / totalFleet / 365;
+        const dailyOverheadAmortFin = (amort + fin) / totalFleet / 365;
+
+        const adminRepairAllocated = dailyOverheadAdminRepair * actualTripDays * carsCount;
+        const amortFinAllocated = dailyOverheadAmortFin * actualTripDays * carsCount;
+
+        const ebitda = marginalIncome - adminRepairAllocated;
+        const netProfit = ebitda - amortFinAllocated;
+        const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
+
+        const safeVolume = actualVolume > 0 ? actualVolume : 1;
+
+        const opCostPerTon = (directCosts + adminRepairAllocated) / safeVolume;
+        const fullCostPerTon = (directCosts + adminRepairAllocated + amortFinAllocated) / safeVolume;
+        let breakevenOpPerTon, breakevenFullPerTon;
+        if (calcType === 'фоп') {
+            breakevenOpPerTon = opCostPerTon / 0.94;
+            breakevenFullPerTon = fullCostPerTon / 0.94;
+        } else if (calcType === 'безготівковий') {
+            breakevenOpPerTon = opCostPerTon * 1.2;
+            breakevenFullPerTon = fullCostPerTon * 1.2;
+        } else {
+            breakevenOpPerTon = opCostPerTon;
+            breakevenFullPerTon = fullCostPerTon;
+        }
+
+        document.getElementById('res-income').innerText = formatMoney(grossIncome);
+        document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(netIncome)}`;
+        document.getElementById('res-margin').innerText = formatMoney(marginalIncome);
+        document.getElementById('res-margin-ton').innerText = `на 1 т: ${Math.round(marginalIncome / safeVolume)} грн`;
+        document.getElementById('res-ebitda').innerText = formatMoney(ebitda);
+        document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${Math.round(ebitda / safeVolume)} грн`;
+        document.getElementById('res-profit').innerText = formatMoney(netProfit);
+        
+        const badge = document.getElementById('res-badge');
+        badge.innerText = profitabilityPct.toFixed(1) + '%';
+        badge.className = 'badge ' + (profitabilityPct >= 15 ? 'badge-success' : profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
+
+        document.getElementById('res-breakeven-full').innerText = `${Math.round(breakevenFullPerTon)} грн/т`;
+        document.getElementById('res-breakeven-op').innerText = `Операційна: ${Math.round(breakevenOpPerTon)} грн/т`;
+
+        const tbody = document.getElementById('cost-breakdown');
+        const rows = [];
+        if (tax5Total > 0) rows.push({ name: 'Єдиний податок ФОП (5%)', val: tax5Total });
+        if (tax1Total > 0) rows.push({ name: 'Військовий збір ФОП (1%)', val: tax1Total });
+        rows.push(
+            { name: `Пальне: Основний рейс`, val: fuelMainRouteTotal },
+            { name: `Пальне: Подача авто (${totalPodachaKm} км)`, val: fuelPodachaTotal },
+            { name: 'AdBlue (Загалом)', val: adblueTotal },
+            { name: `Зарплата водіїв (${driverPayMode === 'km' ? 'км' : '% від фрахту'})`, val: driverTotal },
+            { name: 'ЄСВ (22%)', val: esvTotal },
+            { name: 'Добові водіїв', val: perDiemTotal },
+            { name: 'Технічне обслуговування (ТО)', val: toTotal },
+            { name: 'Знос шин', val: tireTotal },
+            { name: 'Адмін. та операційні витрати', val: adminRepairAllocated },
+            { name: 'Амортизація та фінансні витрати', val: amortFinAllocated }
+        );
+
+        let totalCostsSum = directCosts + adminRepairAllocated + amortFinAllocated + tax5Total + tax1Total;
+        tbody.innerHTML = rows.map(r => `
+            <tr>
+                <td>${r.name}</td>
+                <td>${formatMoney(r.val)}</td>
+                <td>${Math.round(r.val / safeVolume)} грн</td>
+                <td>${totalCostsSum > 0 ? (r.val / totalCostsSum * 100).toFixed(1) + '%' : '0%'}</td>
+            </tr>
+        `).join('');
+
+        renderChart(fuelTotal + adblueTotal, driverTotal + esvTotal + perDiemTotal, toTotal + tireTotal, adminRepairAllocated + amortFinAllocated, tax5Total + tax1Total);
+
+        lastCalcData = { routeName, trailerType, volume: actualVolume, rate, grossIncome, marginalIncome, ebitda, netProfit, profitabilityPct };
+    }
+
+    function renderChart(fuel, driver, maintenance, overhead, taxes) {
+        const total = fuel + driver + maintenance + overhead + taxes;
+        if (total === 0) {
+            document.getElementById('bar-chart').innerHTML = '';
+            document.getElementById('chart-legend').innerHTML = '';
+            return;
+        }
+
+        const pFuel = (fuel / total) * 100;
+        const pDriver = (driver / total) * 100;
+        const pMaint = (maintenance / total) * 100;
+        const pOverhead = (overhead / total) * 100;
+        const pTaxes = (taxes / total) * 100;
+
+        document.getElementById('bar-chart').innerHTML = `
+            <div class="bar-segment" style="width: ${pFuel}%; background: #3b82f6;" title="Пальне"></div>
+            <div class="bar-segment" style="width: ${pDriver}%; background: #10b981;" title="Водій/Добові"></div>
+            <div class="bar-segment" style="width: ${pMaint}%; background: #f59e0b;" title="ТО/Шини"></div>
+            <div class="bar-segment" style="width: ${pOverhead}%; background: #8b5cf6;" title="Накладні"></div>
+            <div class="bar-segment" style="width: ${pTaxes}%; background: #ef4444;" title="Податки"></div>
+        `;
+
+        document.getElementById('chart-legend').innerHTML = `
+            <div class="legend-item"><div class="legend-color" style="background: #3b82f6;"></div>Пальне+AdBlue ${pFuel.toFixed(0)}%</div>
+            <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div>Екіпаж ${pDriver.toFixed(0)}%</div>
+            <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>ТО/Шини ${pMaint.toFixed(0)}%</div>
+            <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Накладні ${pOverhead.toFixed(0)}%</div>
+            ${pTaxes > 0 ? `<div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div>Податки ${pTaxes.toFixed(0)}%</div>` : ''}
+        `;
+    }
+
+    function saveCalculation() {
+        if (!lastCalcData || !lastCalcData.routeName) return;
+        savedCalculations.push({ ...lastCalcData, id: Date.now() });
+        localStorage.setItem('saved_freight_calcs', JSON.stringify(savedCalculations));
+        renderSavedTable();
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(lastCalcData),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        }).then(res => console.log('Успішно відправлено у Google Таблицю!')).catch(err => console.error('Помилка відправки:', err));
+    }
+
+    function removeSaved(id) {
+        savedCalculations = savedCalculations.filter(c => c.id !== id);
+        localStorage.setItem('saved_freight_calcs', JSON.stringify(savedCalculations));
+        renderSavedTable();
+    }
+
+    function renderSavedTable() {
+        const tbody = document.getElementById('saved-tbody');
+        if (savedCalculations.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-muted);">Немає збережених розрахунків.</td></tr>`;
+            return;
+        }
+        tbody.innerHTML = savedCalculations.map(c => `
+            <tr>
+                <td><b>${c.routeName}</b></td>
+                <td>${c.trailerType}</td>
+                <td>${c.volume} тн</td>
+                <td>${c.rate} грн</td>
+                <td>${formatMoney(c.grossIncome)}</td>
+                <td>${formatMoney(c.marginalIncome)}</td>
+                <td>${formatMoney(c.ebitda)}</td>
+                <td>${formatMoney(c.netProfit)}</td>
+                <td><span class="badge ${c.profitabilityPct >= 15 ? 'badge-success' : c.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger'}">${c.profitabilityPct.toFixed(1)}%</span></td>
+                <td><button onclick="removeSaved(${c.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:bold;">✕</button></td>
+            </tr>
+        `).join('');
+    }
+
+    function shareOffer() {
+        const d = lastCalcData;
+        if (!d || !d.routeName) return;
+        const text = `🚛 *КОМЕРЦІЙНА ПРОПОЗИЦІЯ / РОЗРАХУНОК РЕЙСУ*
+
+📍 Маршрут: ${d.routeName}
+🚛 Причіп: ${d.trailerType}
+📦 Об'єм: ${d.volume} тн
+💰 Розцінка: ${d.rate} грн/тн
+💵 Дохід: ${formatMoney(d.grossIncome)}
+📈 Чистий прибуток: ${formatMoney(d.netProfit)}
+📊 Рентабельність: ${d.profitabilityPct.toFixed(1)}%`;
+        if (navigator.share) {
+            navigator.share({ title: 'Розрахунок рейсу', text: text }).catch(err => console.log('Share API error:', err));
+        } else {
+            navigator.clipboard.writeText(text).then(() => { alert('Текст скопійовано! Вставте його у Viber або Telegram.'); });
+        }
+    }
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+            center: { lat: 48.3794, lng: 31.1656 },
+            zoom: 6
+        });
+
+        directionsService = new google.maps.DirectionsService();
+        directionsRenderer = new google.maps.DirectionsRenderer({ polylineOptions: { strokeColor: '#3b82f6', strokeWeight: 5 } });
+        directionsRenderer.setMap(map);
+        directionsRendererBackhaul = new google.maps.DirectionsRenderer({ polylineOptions: { strokeColor: '#f59e0b', strokeWeight: 4 }, suppressMarkers: false });
+        directionsRendererBackhaul.setMap(map);
+
+        new google.maps.places.Autocomplete(document.getElementById('osm-base'));
+        new google.maps.places.Autocomplete(document.getElementById('osm-from'));
+        new google.maps.places.Autocomplete(document.getElementById('osm-to'));
+        new google.maps.places.Autocomplete(document.getElementById('rt-point-c'));
+        new google.maps.places.Autocomplete(document.getElementById('rt-point-d'));
+    }
+
+    function addWaypointRow() {
+        waypointCounter++;
+        const id = 'wp-' + waypointCounter;
+        const row = document.createElement('div');
+        row.className = 'form-row two-cols';
+        row.style.marginBottom = '6px';
+        row.id = 'row-' + id;
+        row.innerHTML = `<label>Проміжна зупинка:</label>
+            <div style="display:flex; gap:4px;">
+                <input type="text" id="${id}" class="waypoint-input" placeholder="напр. Вінниця" style="text-align:left;" autocomplete="off">
+                <button type="button" onclick="removeWaypointRow('${id}')" style="flex:0 0 auto; width:32px; background:var(--danger); color:#fff; border:none; border-radius:6px; cursor:pointer;">✕</button>
+            </div>`;
+        document.getElementById('waypoints-list').appendChild(row);
+        new google.maps.places.Autocomplete(document.getElementById(id));
+    }
+
+    function removeWaypointRow(id) {
+        const row = document.getElementById('row-' + id);
+        if (row) row.remove();
+    }
+
+    function calculateGoogleRoute() {
+        const baseQuery = document.getElementById('osm-base').value.trim();
+        const fromQuery = document.getElementById('osm-from').value.trim();
+        const toQuery = document.getElementById('osm-to').value.trim();
+        const statusEl = document.getElementById('osm-status');
+
+        if (!fromQuery || !toQuery) { 
+            statusEl.innerText = '⚠️ Введіть хоча б пункти А та В'; 
+            statusEl.style.color = 'var(--warning)'; 
+            return; 
+        }
+        statusEl.innerText = '🔍 Побудова маршруту через Google Maps...'; 
+        statusEl.style.color = 'var(--text-muted)';
+
+        let waypoints = [];
+        let originPoint = fromQuery;
+
+        if (baseQuery) {
+            originPoint = baseQuery;
+            waypoints.push({ location: fromQuery, stopover: true });
+        }
+
+        document.querySelectorAll('.waypoint-input').forEach(input => {
+            const v = input.value.trim();
+            if (v) waypoints.push({ location: v, stopover: true });
+        });
+
+        const request = {
+            origin: originPoint,
+            destination: toQuery,
+            waypoints: waypoints,
+            travelMode: google.maps.TravelMode.DRIVING
+        };
+
+        directionsService.route(request, function(response, status) {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(response);
+                const route = response.routes[0];
+                lastRoutePath = route.overview_path;
+                clearPOIMarkers();
+                
+                let podachaKm = 0;
+                let mainKm = 0;
+
+                if (baseQuery && route.legs.length >= 2) {
+                    podachaKm = Math.round(route.legs[0].distance.value / 1000);
+                    mainKm = Math.round(route.legs.reduce((acc, leg, idx) => idx > 0 ? acc + leg.distance.value : acc, 0) / 1000);
+                } else {
+                    mainKm = Math.round(route.legs.reduce((acc, leg) => acc + leg.distance.value, 0) / 1000);
+                }
+
+                document.getElementById('route-name').value = `${fromQuery} — ${toQuery}`;
+                document.getElementById('podacha-dist').value = podachaKm;
+                document.getElementById('dist').value = mainKm;
+
+                statusEl.innerText = baseQuery 
+                    ? `✅ Маршрут Google: Подача ${podachaKm} км | Рейс ${mainKm} км`
+                    : `✅ Маршрут Google: Рейс ${mainKm} км`;
+                statusEl.style.color = 'var(--success)';
+
+                calculate();
+            } else {
+                statusEl.innerText = '❌ Не вдалося побудувати маршрут: ' + status;
+                statusEl.style.color = 'var(--danger)';
+            }
+        });
+    }
+
+    function calculateBackhaulRoute() {
+        const b = document.getElementById('osm-to').value.trim();
+        const a = document.getElementById('osm-from').value.trim();
+        const c = document.getElementById('rt-point-c').value.trim();
+        const d = document.getElementById('rt-point-d').value.trim();
+        const statusEl = document.getElementById('rt-status');
+
+        if (!b || !a || !c || !d) {
+            statusEl.innerText = '⚠️ Заповніть пункти A, B (основний маршрут) та C, D (зворотній)';
+            statusEl.style.color = 'var(--warning)';
+            return;
+        }
+        statusEl.innerText = '🔍 Побудова зворотнього маршруту...';
+        statusEl.style.color = 'var(--text-muted)';
+
+        const request = {
+            origin: b,
+            destination: a,
+            waypoints: [{ location: c, stopover: true }, { location: d, stopover: true }],
+            travelMode: google.maps.TravelMode.DRIVING
+        };
+
+        directionsService.route(request, function(response, status) {
+            if (status === 'OK') {
+                directionsRendererBackhaul.setDirections(response);
+                const legs = response.routes[0].legs;
+                const transferKm = Math.round(legs[0].distance.value / 1000);
+                const backhaulKm = Math.round(legs[1].distance.value / 1000);
+                const returnKm = Math.round(legs[2].distance.value / 1000);
+
+                document.getElementById('rt-transfer-dist').value = transferKm;
+                document.getElementById('rt-backhaul-dist').value = backhaulKm;
+                document.getElementById('rt-return-dist').value = returnKm;
+
+                statusEl.innerText = `✅ B→C ${transferKm} км | C→D ${backhaulKm} км | D→A ${returnKm} км`;
+                statusEl.style.color = 'var(--success)';
+                calculate();
+            } else {
+                statusEl.innerText = '❌ Не вдалося побудувати зворотній маршрут: ' + status;
+                statusEl.style.color = 'var(--danger)';
+            }
+        });
+    }
+
+    function clearPOIMarkers() {
+        poiMarkers.forEach(m => m.setMap(null));
+        poiMarkers = [];
+        document.getElementById('poi-results').innerHTML = '';
+    }
+
+    function sampleRoutePoints(path, everyMeters) {
+        const points = [];
+        let accumulated = 0;
+        points.push(path[0]);
+        for (let i = 1; i < path.length; i++) {
+            const segment = google.maps.geometry && google.maps.geometry.spherical
+                ? google.maps.geometry.spherical.computeDistanceBetween(path[i - 1], path[i])
+                : 0;
+            accumulated += segment;
+            if (accumulated >= everyMeters) {
+                points.push(path[i]);
+                accumulated = 0;
+            }
+        }
+        if (points[points.length - 1] !== path[path.length - 1]) points.push(path[path.length - 1]);
+        return points;
+    }
+
+    async function searchPOIsAlongRoute() {
+        const statusEl = document.getElementById('poi-status');
+        if (!lastRoutePath) {
+            statusEl.innerText = '⚠️ Спочатку розрахуйте основний маршрут кнопкою вище';
+            statusEl.style.color = 'var(--warning)';
+            return;
+        }
+
+        const wantGas = document.getElementById('poi-gas').checked;
+        const wantTir = document.getElementById('poi-tir').checked;
+        const wantCafe = document.getElementById('poi-cafe').checked;
+        const wantSto = document.getElementById('poi-sto').checked;
+
+        if (!wantGas && !wantTir && !wantCafe && !wantSto) {
+            statusEl.innerText = '⚠️ Оберіть хоча б одну категорію';
+            statusEl.style.color = 'var(--warning)';
+            return;
+        }
+
+        clearPOIMarkers();
+        let samplePoints = sampleRoutePoints(lastRoutePath, 60000);
+        if (samplePoints.length > 6) {
+            const step = Math.ceil(samplePoints.length / 6);
+            samplePoints = samplePoints.filter((_, i) => i % step === 0);
+        }
+
+        const seenIds = new Set();
+        let foundCount = 0;
+        let completed = 0;
+
+        for (const pt of samplePoints) {
+            statusEl.innerText = `🔍 OpenStreetMap: опрацьовано ${completed}/${samplePoints.length} точок...`;
+            statusEl.style.color = 'var(--text-muted)';
+
+            const lat = pt.lat(), lon = pt.lng();
+            const filters = [];
+            
+            if (wantGas) filters.push(`nwr["amenity"="fuel"](around:8000,${lat},${lon});`);
+            if (wantCafe) filters.push(`nwr["amenity"="cafe"](around:8000,${lat},${lon});`);
+            if (wantSto) filters.push(`nwr["shop"="car_repair"](around:8000,${lat},${lon});`);
+            if (wantTir) {
+                filters.push(`nwr["amenity"="parking"]["hgv"](around:8000,${lat},${lon});`);
+                filters.push(`nwr["highway"="rest_area"](around:8000,${lat},${lon});`);
+            }
+            const query = `[out:json][timeout:25];(${filters.join('')});out center 15;`;
+
+            try {
+                const res = await fetch('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'data=' + encodeURIComponent(query)
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    (data.elements || []).forEach(el => {
+                        if (seenIds.has(el.id)) return;
+                        seenIds.add(el.id);
+                        const info = classifyOverpassElement(el);
+                        if (info) { foundCount++; addPOIMarkerOSM(el, info.icon, info.label); }
+                    });
+                } else {
+                    console.warn('Overpass HTTP помилка:', res.status);
+                }
+            } catch (e) {
+                console.warn('Overpass fetch помилка:', e);
+            }
+
+            completed++;
+            await new Promise(r => setTimeout(r, 400));
+        }
+
+        statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (OpenStreetMap)`;
+        statusEl.style.color = 'var(--success)';
+    }
+
+    function classifyOverpassElement(el) {
+        const tags = el.tags || {};
+        if (tags.amenity === 'fuel') return { icon: '⛽', label: 'АЗС' };
+        if (tags.amenity === 'cafe') return { icon: '☕', label: 'Кафе' };
+        if (tags.shop === 'car_repair') return { icon: '🔧', label: 'СТО' };
+        if (tags.amenity === 'parking' || tags.highway === 'rest_area') return { icon: '🅿️', label: 'TIR стоянка' };
+        return null;
+    }
+
+    function addPOIMarkerOSM(el, icon, label) {
+        const lat = el.lat || (el.center && el.center.lat);
+        const lon = el.lon || (el.center && el.center.lon);
+        if (!lat || !lon) return;
+        const position = { lat, lng: lon };
+        const name = (el.tags && el.tags.name) || label;
+
+        const marker = new google.maps.Marker({
+            position: position,
+            map: map,
+            label: { text: icon, fontSize: '14px' },
+            title: name
+        });
+        poiMarkers.push(marker);
+
+        const infoWindow = new google.maps.InfoWindow({
+            content: `<div style="color:#1e293b; font-size:0.85rem;"><b>${icon} ${name}</b><br>${label} · OpenStreetMap</div>`
+        });
+        marker.addListener('click', () => infoWindow.open(map, marker));
+
+        const resultsBox = document.getElementById('poi-results');
+        const row = document.createElement('div');
+        row.style.cssText = 'padding:4px 0; border-bottom:1px solid var(--border-color); cursor:pointer;';
+        row.innerHTML = `${icon} <b>${name}</b><br><span style="color:var(--text-muted); font-size:0.75rem;">${label}</span>`;
+        row.onclick = () => { map.panTo(position); map.setZoom(13); infoWindow.open(map, marker); };
+        resultsBox.appendChild(row);
+    }
+
+    window.onload = function() {
+        const localData = localStorage.getItem('saved_freight_calcs');
+        if (localData) {
+            try { savedCalculations = JSON.parse(localData); renderSavedTable(); } catch(e){}
+        }
+        fetchNBURates();
+        onTrailerChange();
+        initMap();
+    };
+</script>
+</body>
+</html>
