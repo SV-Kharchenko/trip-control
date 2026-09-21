@@ -3,37 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TripControl • Управління рейсами</title>
+    <title>Калькулятор прибутковості вантажних перевезень v7.8</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg-color: #0f172a; --card-bg: #1e293b; --border-color: #334155; 
             --text-main: #f8fafc; --text-muted: #94a3b8; --accent: #3b82f6; 
             --accent-hover: #2563eb; --success: #10b981; --warning: #f59e0b; 
-            --danger: #ef4444; --input-bg: #0f172a; --section-bg: rgba(30, 41, 59, 0.5);
+            --danger: #ef4444; --input-bg: #0f172a;
         }
         [data-theme="light"] {
             --bg-color: #f1f5f9; --card-bg: #ffffff; --border-color: #cbd5e1; 
             --text-main: #1e293b; --text-muted: #64748b; --accent: #2563eb; 
             --accent-hover: #1d4ed8; --success: #059669; --warning: #d97706; 
-            --danger: #dc2626; --input-bg: #f8fafc; --section-bg: #e2e8f0;
+            --danger: #dc2626; --input-bg: #f8fafc;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
-        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; min-height: 100vh; padding-top: 205px; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; min-height: 100vh; padding-top: 190px; }
         .container { max-width: 1400px; margin: 0 auto; display: none; }
         
+        /* Фіксована панель KPI та кнопок зверху */
         .sticky-header {
             position: fixed; top: 0; left: 0; width: 100%; background: var(--card-bg);
-            border-bottom: 2px solid var(--accent); z-index: 1000; padding: 10px 20px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            border-bottom: 1px solid var(--border-color); z-index: 1000; padding: 10px 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
         .header-content { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; }
         .top-row { display: flex; justify-content: space-between; align-items: center; }
-        
-        .brand-logo { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main); }
-        .brand-logo span { color: var(--accent); }
-
+        h1 { font-size: 1.1rem; font-weight: 700; }
         .theme-btn { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
         
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
@@ -62,12 +59,8 @@
         
         .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 1024px) { .grid-layout { grid-template-columns: 1fr; } }
-        
-        .section-block { background: var(--section-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .section-title { font-size: 1.15rem; font-weight: 700; color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
-
-        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; margin-bottom: 15px; }
-        .card h2 { font-size: 1.05rem; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 1px solid var(--border-color); color: var(--accent); display: flex; align-items: center; gap: 6px; }
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+        .card h2 { font-size: 1.1rem; margin-bottom: 14px; padding-bottom: 6px; border-bottom: 1px solid var(--border-color); color: var(--accent); display: flex; align-items: center; gap: 6px; }
         
         .form-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
         .form-row.two-cols { grid-template-columns: 2fr 1fr; }
@@ -85,8 +78,15 @@
         .dynamic-field { display: none; }
         .dynamic-field.active { display: grid; }
         
+        .chart-box { margin-top: 15px; }
+        .bar-container { width: 100%; height: 18px; background: var(--input-bg); border-radius: 9px; overflow: hidden; display: flex; margin-top: 8px; }
+        .bar-segment { height: 100%; }
+        .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-size: 0.75rem; }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .legend-color { width: 10px; height: 10px; border-radius: 2px; }
+        
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
-        th, td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); }
         th { color: var(--text-muted); font-weight: 600; }
         td:nth-child(2), td:nth-child(3), td:nth-child(4) { text-align: right; }
         .comparison-table { overflow-x: auto; }
@@ -122,7 +122,7 @@
 <div class="sticky-header" id="sticky-kpi" style="display: none;">
     <div class="header-content">
         <div class="top-row">
-            <div class="brand-logo">📊 <span>TripControl</span> • Управління перевезеннями</div>
+            <h1>🚛 TripControl v7.8</h1>
             <div style="display:flex; gap:10px; align-items: center;">
                 <button class="theme-btn" onclick="toggleTheme()">🌓 Тема</button>
                 <button class="theme-btn" style="border-color: var(--danger); color: var(--danger);" onclick="handleLogout()">Вийти</button>
@@ -182,317 +182,274 @@
         </div>
     </div>
 
-    <!-- МАРШРУТ ТА КАРТИ -->
-    <div class="section-block">
-        <div class="section-title">Параметри заявки та маршруту</div>
-        <div class="grid-layout">
-            <div>
-                <div class="card" style="margin-bottom: 0;">
-                    <h2>📦 Параметри заявки та Маршруту</h2>
-                    <div class="preset-bar">
-                        <span style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">Швидкі пресети авто:</span>
-                        <button class="preset-btn active" onclick="applyPreset('зерновоз', this)">🌾 Зерновоз</button>
-                        <button class="preset-btn" onclick="applyPreset('рефрижератор', this)">❄️ Рефрижератор</button>
-                        <button class="preset-btn" onclick="applyPreset('тент', this)">🚛 Тент</button>
-                        <button class="preset-btn" onclick="applyPreset('цистерна', this)">🥛 Цистерна</button>
-                    </div>
+    <!-- Єдина сітка форми -->
+    <div class="grid-layout">
+        <div>
+            <div class="card">
+                <h2>📦 Параметри заявки та Маршруту</h2>
+                <div class="preset-bar">
+                    <span style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">Швидкі пресети авто:</span>
+                    <button class="preset-btn active" onclick="applyPreset('зерновоз', this)">🌾 Зерновоз</button>
+                    <button class="preset-btn" onclick="applyPreset('рефрижератор', this)">❄️ Рефрижератор</button>
+                    <button class="preset-btn" onclick="applyPreset('тент', this)">🚛 Тент</button>
+                    <button class="preset-btn" onclick="applyPreset('цистерна', this)">🥛 Цистерна</button>
+                </div>
 
-                    <div class="form-row two-cols">
-                        <label>Назва / Маршрут заявки:</label>
-                        <input type="text" id="route-name" value="Маршрут 1 (Зерно)" style="text-align: left;" oninput="calculate()">
-                    </div>
+                <div class="form-row two-cols">
+                    <label>Назва / Маршрут заявки:</label>
+                    <input type="text" id="route-name" value="Маршрут 1 (Зерно)" style="text-align: left;" oninput="calculate()">
+                </div>
 
-                    <div class="form-row two-cols">
-                        <label>Логістика повернення:</label>
-                        <select id="return-mode" onchange="calculate()">
-                            <option value="циклічний" selected>🟢 Циклічний вивіз (весь об'єм, з поверненням)</option>
-                            <option value="разовий">⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option>
+                <div class="form-row two-cols">
+                    <label>Логістика повернення:</label>
+                    <select id="return-mode" onchange="calculate()">
+                        <option value="циклічний" selected>🟢 Циклічний вивіз (весь об'єм, з поверненням)</option>
+                        <option value="разовий">⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option>
+                    </select>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Форма розрахунку:</label>
+                    <select id="calc-type" onchange="calculate()">
+                        <option value="безготівковий">Безготівковий (з ПДВ)</option>
+                        <option value="фоп" selected>ФОП (3 група: 5% + ВЗ 1%)</option>
+                        <option value="готівка">Готівка</option>
+                    </select>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Якість дорожнього покриття:</label>
+                    <select id="road-quality" onchange="calculate()">
+                        <option value="1.0" selected>🟢 Чудова дорога / Траса (1.0)</option>
+                        <option value="1.06">🟡 Середня дорога / Вторинна (1.06)</option>
+                        <option value="1.18">🔴 Погана дорога / Бруківка / Ями (1.18)</option>
+                    </select>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Тип причепу:</label>
+                    <select id="trailer-type" onchange="onTrailerChange()">
+                        <option value="зерновоз" selected>Зерновоз</option>
+                        <option value="рефрижератор">Рефрижератор</option>
+                        <option value="тент">Тент</option>
+                        <option value="цистерна">Цистерна</option>
+                    </select>
+                </div>
+
+                <div class="form-row dynamic-field" id="field-ref-consumption">
+                    <label>Витрата рефа (л/год):</label>
+                    <input type="number" id="ref-fuel-rate" value="3.5" step="0.1" oninput="calculate()">
+                    <span class="unit">л/год</span>
+                </div>
+                <div class="form-row dynamic-field" id="field-ref-hours">
+                    <label>Час роботи рефрижератора:</label>
+                    <input type="number" id="ref-hours" value="24" oninput="calculate()">
+                    <span class="unit">годин/рейс</span>
+                </div>
+
+                <div class="form-row">
+                    <label>Подача авто (км):</label>
+                    <input type="number" id="podacha-dist" value="30" oninput="calculate()">
+                    <span class="unit">км</span>
+                </div>
+                <div id="podacha-info" style="font-size: 0.8rem; color: var(--accent); font-weight: 500; text-align: right; margin-top: -8px; margin-bottom: 8px;"></div>
+
+                <div class="form-row">
+                    <label>Відстань перевезення (км):</label>
+                    <input type="number" id="dist" value="300" oninput="calculate()">
+                    <span class="unit">км</span>
+                </div>
+                <div class="form-row">
+                    <label>Загальний об'єм контракту:</label>
+                    <input type="number" id="volume" value="3000" oninput="calculate()">
+                    <span class="unit">тн</span>
+                </div>
+                <div class="form-row">
+                    <label>Нормативна вага на авто:</label>
+                    <input type="number" id="norm-weight" value="21.5" step="0.5" oninput="calculate()">
+                    <span class="unit">тн/маш</span>
+                </div>
+                <div class="form-row">
+                    <label>Кількість залучених авто:</label>
+                    <input type="number" id="cars-count" value="10" oninput="calculate()">
+                    <span class="unit">шт</span>
+                </div>
+                <div id="trip-volume-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: -6px; margin-bottom: 8px;"></div>
+
+                <div class="form-row">
+                    <label>Кількість діб на ходку:</label>
+                    <input type="number" id="days-per-trip" value="1.33" step="0.01" oninput="calculate()">
+                    <span class="unit">діб</span>
+                </div>
+
+                <div class="form-row">
+                    <label>Фактичний простій (понад норму):</label>
+                    <input type="number" id="idle-days" value="0" step="0.5" oninput="calculate()">
+                    <span class="unit">діб/рейс</span>
+                </div>
+                <div class="form-row">
+                    <label>Компенсація за простій від замовника:</label>
+                    <input type="number" id="idle-rate" value="1500" oninput="calculate()">
+                    <span class="unit">грн/доба</span>
+                </div>
+
+                <div class="form-row">
+                    <label>Розцінка (з ПДВ / ФОП):</label>
+                    <input type="number" id="rate" value="1560" oninput="calculate()">
+                    <span class="unit">грн/тн</span>
+                </div>
+
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-top: 10px;">
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label style="color: var(--success); font-weight: 600;">🔄 Режим Кругорейсу (Зворотний вантаж):</label>
+                        <select id="round-trip-enable" onchange="toggleRoundTrip()">
+                            <option value="off" selected>Вимкнено (без зворотного вантажу)</option>
+                            <option value="on">Увімкнено (Вантаж назад)</option>
                         </select>
                     </div>
-
-                    <div class="form-row two-cols">
-                        <label>Форма розрахунку:</label>
-                        <select id="calc-type" onchange="calculate()">
-                            <option value="безготівковий">Безготівковий (з ПДВ)</option>
-                            <option value="фоп" selected>ФОП (3 група: 5% + ВЗ 1%)</option>
-                            <option value="готівка">Готівка</option>
-                        </select>
-                    </div>
-
-                    <div class="form-row two-cols">
-                        <label>Якість дорожнього покриття:</label>
-                        <select id="road-quality" onchange="calculate()">
-                            <option value="1.0" selected>🟢 Чудова дорога / Траса (1.0)</option>
-                            <option value="1.06">🟡 Середня дорога / Вторинна (1.06)</option>
-                            <option value="1.18">🔴 Погана дорога / Бруківка / Ями (1.18)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-row two-cols">
-                        <label>Тип причепу:</label>
-                        <select id="trailer-type" onchange="onTrailerChange()">
-                            <option value="зерновоз" selected>Зерновоз</option>
-                            <option value="рефрижератор">Рефрижератор</option>
-                            <option value="тент">Тент</option>
-                            <option value="цистерна">Цистерна</option>
-                        </select>
-                    </div>
-
-                    <div class="form-row dynamic-field" id="field-ref-consumption">
-                        <label>Витрата рефа (л/год):</label>
-                        <input type="number" id="ref-fuel-rate" value="3.5" step="0.1" oninput="calculate()">
-                        <span class="unit">л/год</span>
-                    </div>
-                    <div class="form-row dynamic-field" id="field-ref-hours">
-                        <label>Час роботи рефрижератора:</label>
-                        <input type="number" id="ref-hours" value="24" oninput="calculate()">
-                        <span class="unit">годин/рейс</span>
-                    </div>
-
-                    <div class="form-row">
-                        <label>Подача авто (км):</label>
-                        <input type="number" id="podacha-dist" value="30" oninput="calculate()">
-                        <span class="unit">км</span>
-                    </div>
-                    <div id="podacha-info" style="font-size: 0.8rem; color: var(--accent); font-weight: 500; text-align: right; margin-top: -8px; margin-bottom: 8px;"></div>
-
-                    <div class="form-row">
-                        <label>Відстань перевезення (км):</label>
-                        <input type="number" id="dist" value="300" oninput="calculate()">
-                        <span class="unit">км</span>
-                    </div>
-                    <div class="form-row">
-                        <label>Загальний об'єм контракту:</label>
-                        <input type="number" id="volume" value="3000" oninput="calculate()">
-                        <span class="unit">тн</span>
-                    </div>
-                    <div class="form-row">
-                        <label>Нормативна вага на авто:</label>
-                        <input type="number" id="norm-weight" value="21.5" step="0.5" oninput="calculate()">
-                        <span class="unit">тн/маш</span>
-                    </div>
-                    <div class="form-row">
-                        <label>Кількість залучених авто:</label>
-                        <input type="number" id="cars-count" value="10" oninput="calculate()">
-                        <span class="unit">шт</span>
-                    </div>
-                    <div id="trip-volume-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: -6px; margin-bottom: 8px;"></div>
-
-                    <div class="form-row">
-                        <label>Кількість діб на ходку:</label>
-                        <input type="number" id="days-per-trip" value="1.33" step="0.01" oninput="calculate()">
-                        <span class="unit">діб</span>
-                    </div>
-
-                    <div class="form-row">
-                        <label>Фактичний простій (понад норму):</label>
-                        <input type="number" id="idle-days" value="0" step="0.5" oninput="calculate()">
-                        <span class="unit">діб/рейс</span>
-                    </div>
-                    <div class="form-row">
-                        <label>Компенсація за простій від замовника:</label>
-                        <input type="number" id="idle-rate" value="1500" oninput="calculate()">
-                        <span class="unit">грн/доба</span>
-                    </div>
-
-                    <div class="form-row">
-                        <label>Розцінка (з ПДВ / ФОП):</label>
-                        <input type="number" id="rate" value="1560" oninput="calculate()">
-                        <span class="unit">грн/тн</span>
-                    </div>
-
-                    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-top: 10px;">
+                    <div id="round-trip-box" style="display: none;">
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4;">
+                            Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C, звідти <b>вантаженим</b> до D, і <b>порожнім</b> у пункт A.
+                        </div>
                         <div class="form-row two-cols" style="margin-bottom: 6px;">
-                            <label style="color: var(--success); font-weight: 600;">🔄 Режим Кругорейсу (Зворотний вантаж):</label>
-                            <select id="round-trip-enable" onchange="toggleRoundTrip()">
-                                <option value="off" selected>Вимкнено (без зворотного вантажу)</option>
-                                <option value="on">Увімкнено (Вантаж назад)</option>
-                            </select>
+                            <label>Точка C (довантаження):</label>
+                            <input type="text" id="rt-point-c" placeholder="напр. Жашків" style="text-align: left;" autocomplete="off">
                         </div>
-                        <div id="round-trip-box" style="display: none;">
-                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4;">
-                                Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C, звідти <b>вантаженим</b> до D, і <b>порожнім</b> у пункт A.
-                            </div>
-                            <div class="form-row two-cols" style="margin-bottom: 6px;">
-                                <label>Точка C (довантаження):</label>
-                                <input type="text" id="rt-point-c" placeholder="напр. Жашків" style="text-align: left;" autocomplete="off">
-                            </div>
-                            <div class="form-row two-cols" style="margin-bottom: 6px;">
-                                <label>Точка D (вивантаження):</label>
-                                <input type="text" id="rt-point-d" placeholder="напр. Чорноморськ" style="text-align: left;" autocomplete="off">
-                            </div>
-                            <button type="button" class="btn" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотній маршрут (Google)</button>
-                            <div id="rt-status" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
+                        <div class="form-row two-cols" style="margin-bottom: 6px;">
+                            <label>Точка D (вивантаження):</label>
+                            <input type="text" id="rt-point-d" placeholder="напр. Чорноморськ" style="text-align: left;" autocomplete="off">
+                        </div>
+                        <button type="button" class="btn" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотній маршрут (Google)</button>
+                        <div id="rt-status" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
 
-                            <div class="form-row"><label>Плече B→C (порожнім):</label><input type="number" id="rt-transfer-dist" value="0" oninput="calculate()"><span class="unit">км</span></div>
-                            <div class="form-row"><label>Плече C→D (вантаж):</label><input type="number" id="rt-backhaul-dist" value="0" oninput="calculate()"><span class="unit">км</span></div>
-                            <div class="form-row"><label>Плече D→A (порожнім):</label><input type="number" id="rt-return-dist" value="0" oninput="calculate()"><span class="unit">км</span></div>
-                            <div class="form-row"><label>Загальний обсяг зворотнього:</label><input type="number" id="rt-total-volume" value="0" oninput="calculate()"><span class="unit">тн</span></div>
-                            <div class="form-row"><label>Розцінка зворотнього:</label><input type="number" id="rt-rate" value="1200" oninput="calculate()"><span class="unit">грн/тн</span></div>
-                            <div id="rt-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: 4px;"></div>
-                        </div>
+                        <div class="form-row"><label>Плече B→C (порожнім):</label><input type="number" id="rt-transfer-dist" value="0" oninput="calculate()"><span class="unit">км</span></div>
+                        <div class="form-row"><label>Плече C→D (вантаж):</label><input type="number" id="rt-backhaul-dist" value="0" oninput="calculate()"><span class="unit">км</span></div>
+                        <div class="form-row"><label>Плече D→A (порожнім):</label><input type="number" id="rt-return-dist" value="0" oninput="calculate()"><span class="unit">км</span></div>
+                        <div class="form-row"><label>Загальний обсяг зворотнього:</label><input type="number" id="rt-total-volume" value="0" oninput="calculate()"><span class="unit">тн</span></div>
+                        <div class="form-row"><label>Розцінка зворотнього:</label><input type="number" id="rt-rate" value="1200" oninput="calculate()"><span class="unit">грн/тн</span></div>
+                        <div id="rt-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: 4px;"></div>
                     </div>
                 </div>
             </div>
 
-            <div>
-                <div class="card" style="margin-bottom: 0;">
-                    <h2>🗺️ Картографія та Логістика Google Maps</h2>
-                    <div style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
-                        <div class="form-row two-cols" style="margin-bottom: 6px;">
-                            <label>Пункт 0 (Стоянка - опц.):</label>
-                            <input type="text" id="osm-base" placeholder="напр. Київ" style="text-align: left;" autocomplete="off">
-                        </div>
-                        <div class="form-row two-cols" style="margin-bottom: 6px;">
-                            <label>Пункт A (Завантаження):</label>
-                            <input type="text" id="osm-from" placeholder="напр. Житомир" style="text-align: left;" autocomplete="off">
-                        </div>
-                        <div class="form-row two-cols" style="margin-bottom: 6px;">
-                            <label>Пункт B (Розвантаження):</label>
-                            <input type="text" id="osm-to" placeholder="напр. Одеса" style="text-align: left;" autocomplete="off">
-                        </div>
-                        <div id="waypoints-list" style="margin-bottom: 6px;"></div>
-                        <button type="button" class="preset-btn" style="margin-bottom: 8px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
-                        <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="calculateGoogleRoute()">Розрахувати відстань за картами Google</button>
-                        <div id="osm-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
-                    </div>
-                    
-                    <div id="map" style="height: 280px; width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);"></div>
+            <div class="card">
+                <h2>⛽ Пальне та Екіпаж</h2>
+                <div class="form-row">
+                    <label>Витрата ДП (завантажений):</label>
+                    <input type="number" id="fuel-load" value="37" step="0.1" oninput="calculate()">
+                    <span class="unit">л/100км</span>
+                </div>
 
-                    <div style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px;">
-                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (OpenStreetMap)</div>
-                        <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.8rem;">
-                            <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-gas" checked style="width:auto;"> ⛽ АЗС</label>
-                            <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-tir" checked style="width:auto;"> 🅿️ Стоянки TIR</label>
-                            <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-cafe" style="width:auto;"> ☕ Кафе</label>
-                            <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-sto" style="width:auto;"> 🔧 СТО</label>
-                        </div>
-                        <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти вздовж маршруту</button>
-                        <div id="poi-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
-                        <div id="poi-results" style="max-height: 180px; overflow-y: auto; margin-top: 8px; font-size: 0.8rem;"></div>
+                <div class="form-row two-cols">
+                    <label>Сезон / Клімат:</label>
+                    <select id="season-type" onchange="calculate()">
+                        <option value="літо">Літо (+5% Кондиціонер)</option>
+                        <option value="стандарт" selected>Норма (0%)</option>
+                        <option value="зима">Зима (+10% Прогрів/Зима)</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label>Витрата ДП (пустий/подача):</label>
+                    <input type="number" id="fuel-empty" value="32" step="0.1" oninput="calculate()">
+                    <span class="unit">л/100км</span>
+                </div>
+                <div class="form-row">
+                    <label>Вартість ДП:</label>
+                    <input type="number" id="fuel-price" value="97.0" oninput="calculate()">
+                    <span class="unit">грн/л</span>
+                </div>
+                <div class="form-row">
+                    <label>Витрата AdBlue:</label>
+                    <input type="number" id="adblue-consumption" value="2.85" step="0.05" oninput="calculate()">
+                    <span class="unit">л/100км</span>
+                </div>
+                <div class="form-row">
+                    <label>Вартість AdBlue:</label>
+                    <input type="number" id="adblue-price" value="18" step="0.5" oninput="calculate()">
+                    <span class="unit">грн/л</span>
+                </div>
+
+                <div class="form-row two-cols">
+                    <label>Модель ЗП водія:</label>
+                    <select id="driver-pay-mode" onchange="onDriverPayModeChange()">
+                        <option value="km" selected>Оплата за км (грн/км)</option>
+                        <option value="pct">Відсоток від фрахту (% від суми)</option>
+                    </select>
+                </div>
+
+                <div id="driver-km-box">
+                    <div class="form-row">
+                        <label>ЗП водія (завантажений):</label>
+                        <input type="number" id="driver-rate-load" value="4.03" step="0.01" oninput="calculate()">
+                        <span class="unit">грн/км</span>
                     </div>
+                    <div class="form-row">
+                        <label>ЗП водія (пустий/подача):</label>
+                        <input type="number" id="driver-rate-empty" value="2.30" step="0.01" oninput="calculate()">
+                        <span class="unit">грн/км</span>
+                    </div>
+                </div>
+
+                <div id="driver-pct-box" style="display: none;">
+                    <div class="form-row">
+                        <label>Відсоток водія від фрахту:</label>
+                        <input type="number" id="driver-pct-val" value="12" step="0.5" oninput="calculate()">
+                        <span class="unit">%</span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label>Добові водія:</label>
+                    <input type="number" id="per-diem" value="850" oninput="calculate()">
+                    <span class="unit">грн/доба</span>
+                </div>
+
+                <div id="fuel-summary-box" style="background: rgba(59, 130, 246, 0.08); padding: 10px; border-radius: 8px; font-size: 0.85rem; color: var(--accent); margin-top: 10px; font-weight: 500;">
+                    ⛽ Паливний розрахунок: ...
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- ЕКОНОМІКА РЕЙСУ ТА ДІАГРАМА -->
-    <div class="section-block">
-        <div class="section-title">Економіка рейсу та структура витрат</div>
-        <div class="grid-layout">
-            <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                <h2>📊 Структура витрат (Діаграма)</h2>
-                <div style="width: 100%; max-width: 320px; height: 320px; position: relative; margin: 0 auto;">
-                    <canvas id="expenseChart"></canvas>
+        <div>
+            <div class="card">
+                <h2>🗺️ Картографія та Логістика Google Maps</h2>
+                <div style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт 0 (Стоянка - опц.):</label>
+                        <input type="text" id="osm-base" placeholder="напр. Київ" style="text-align: left;" autocomplete="off">
+                    </div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт A (Завантаження):</label>
+                        <input type="text" id="osm-from" placeholder="напр. Житомир" style="text-align: left;" autocomplete="off">
+                    </div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт B (Розвантаження):</label>
+                        <input type="text" id="osm-to" placeholder="напр. Одеса" style="text-align: left;" autocomplete="off">
+                    </div>
+                    <div id="waypoints-list" style="margin-bottom: 6px;"></div>
+                    <button type="button" class="preset-btn" style="margin-bottom: 8px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
+                    <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="calculateGoogleRoute()">Розрахувати відстань за картами Google</button>
+                    <div id="osm-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
+                </div>
+                
+                <div id="map" style="height: 220px; width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);"></div>
+
+                <div style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px;">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (OpenStreetMap)</div>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.8rem;">
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-gas" checked style="width:auto;"> ⛽ АЗС</label>
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-tir" checked style="width:auto;"> 🅿️ Стоянки TIR</label>
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-cafe" style="width:auto;"> ☕ Кафе</label>
+                        <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-sto" style="width:auto;"> 🔧 СТО</label>
+                    </div>
+                    <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти вздовж маршруту</button>
+                    <div id="poi-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
+                    <div id="poi-results" style="max-height: 150px; overflow-y: auto; margin-top: 8px; font-size: 0.8rem;"></div>
                 </div>
             </div>
 
-            <div class="card" style="margin-bottom: 0;">
-                <h2>📋 Розшифровка витрат рейсу</h2>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Стаття витрат</th>
-                            <th>Сума (грн)</th>
-                            <th>На 1 тн</th>
-                            <th>Частка</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cost-breakdown"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- ПАЛЬНЕ ТА ЕКІПАЖ -->
-    <div class="section-block">
-        <div class="section-title">Пальне та екіпаж</div>
-        <div class="card" style="margin-bottom: 0; max-width: 800px; margin-left: auto; margin-right: auto;">
-            <h2>⛽ Параметри палива та ЗП водія</h2>
-            <div class="form-row">
-                <label>Витрата ДП (завантажений):</label>
-                <input type="number" id="fuel-load" value="37" step="0.1" oninput="calculate()">
-                <span class="unit">л/100км</span>
-            </div>
-
-            <div class="form-row two-cols">
-                <label>Сезон / Клімат:</label>
-                <select id="season-type" onchange="calculate()">
-                    <option value="літо">Літо (+5% Кондиціонер)</option>
-                    <option value="стандарт" selected>Норма (0%)</option>
-                    <option value="зима">Зима (+10% Прогрів/Зима)</option>
-                </select>
-            </div>
-
-            <div class="form-row">
-                <label>Витрата ДП (пустий/подача):</label>
-                <input type="number" id="fuel-empty" value="32" step="0.1" oninput="calculate()">
-                <span class="unit">л/100км</span>
-            </div>
-            <div class="form-row">
-                <label>Вартість ДП:</label>
-                <input type="number" id="fuel-price" value="97.0" oninput="calculate()">
-                <span class="unit">грн/л</span>
-            </div>
-            <div class="form-row">
-                <label>Витрата AdBlue:</label>
-                <input type="number" id="adblue-consumption" value="2.85" step="0.05" oninput="calculate()">
-                <span class="unit">л/100км</span>
-            </div>
-            <div class="form-row">
-                <label>Вартість AdBlue:</label>
-                <input type="number" id="adblue-price" value="18" step="0.5" oninput="calculate()">
-                <span class="unit">грн/л</span>
-            </div>
-
-            <div class="form-row two-cols">
-                <label>Модель ЗП водія:</label>
-                <select id="driver-pay-mode" onchange="onDriverPayModeChange()">
-                    <option value="km" selected>Оплата за км (грн/км)</option>
-                    <option value="pct">Відсоток від фрахту (% від суми)</option>
-                </select>
-            </div>
-
-            <div id="driver-km-box">
-                <div class="form-row">
-                    <label>ЗП водія (завантажений):</label>
-                    <input type="number" id="driver-rate-load" value="4.03" step="0.01" oninput="calculate()">
-                    <span class="unit">грн/км</span>
-                </div>
-                <div class="form-row">
-                    <label>ЗП водія (пустий/подача):</label>
-                    <input type="number" id="driver-rate-empty" value="2.30" step="0.01" oninput="calculate()">
-                    <span class="unit">грн/км</span>
-                </div>
-            </div>
-
-            <div id="driver-pct-box" style="display: none;">
-                <div class="form-row">
-                    <label>Відсоток водія від фрахту:</label>
-                    <input type="number" id="driver-pct-val" value="12" step="0.5" oninput="calculate()">
-                    <span class="unit">%</span>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <label>Добові водія:</label>
-                <input type="number" id="per-diem" value="850" oninput="calculate()">
-                <span class="unit">грн/доба</span>
-            </div>
-
-            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--accent); padding: 12px; border-radius: 8px; margin-top: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 6px;">
-                <div id="fuel-summary-box" style="color: var(--accent); font-weight: 500;">⛽ Паливний розрахунок: ...</div>
-                <div id="fuel-per-trip-box" style="color: var(--success); font-weight: 600;">📊 Кількість пального на 1 рейс: ...</div>
-                <div id="cost-per-km-box" style="color: var(--warning); font-weight: 600;">📈 Собівартість 1 км шляху: ...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ТА НАКЛАДНІ -->
-    <div class="section-block">
-        <div class="section-title">Технічне обслуговування та накладні витрати</div>
-        <div class="grid-layout">
-            <div class="card" style="margin-bottom: 0;">
+            <div class="card">
                 <h2>🛠️ Технічне обслуговування та Шини</h2>
                 <div class="form-row"><label>Вартість ТО (з ПДВ):</label><input type="number" id="to-cost" value="18000" oninput="calculate()"><span class="unit">грн</span></div>
                 <div class="form-row"><label>Періодичність ТО:</label><input type="number" id="to-period" value="50000" oninput="calculate()"><span class="unit">км</span></div>
@@ -503,7 +460,8 @@
                     <span class="unit">грн</span>
                 </div>
                 <div class="form-row dynamic-field" id="field-wash-freq">
-                    <label>Кількість промивок на рік:</label><input type="number" id="wash-freq" value="4" oninput="calculate()">
+                    <label>Кількість промивок на рік:</label>
+                    <input type="number" id="wash-freq" value="4" oninput="calculate()">
                     <span class="unit">раз/рік</span>
                 </div>
 
@@ -512,7 +470,7 @@
                 <div class="form-row"><label>Пробіг шини (ресурс):</label><input type="number" id="tire-mileage" value="150000" oninput="calculate()"><span class="unit">км</span></div>
             </div>
 
-            <div class="card" style="margin-bottom: 0;">
+            <div class="card">
                 <h2>🏢 Накладні витрати підприємства</h2>
                 <div class="form-row"><label>Амортизація (річна):</label><input type="number" id="overhead-amort" value="40139408" oninput="calculate()"><span class="unit">грн</span></div>
                 <div class="form-row"><label>Адміністративні витрати:</label><input type="number" id="overhead-admin" value="17871209" oninput="calculate()"><span class="unit">грн</span></div>
@@ -523,8 +481,32 @@
         </div>
     </div>
 
-    <!-- Архів збережених розрахунків -->
-    <div class="card" id="saved-section" style="margin-top: 30px;">
+    <div class="grid-layout">
+        <div class="card">
+            <h2>📊 Візуальна структура витрат</h2>
+            <div class="chart-box">
+                <div class="bar-container" id="bar-chart"></div>
+                <div class="chart-legend" id="chart-legend"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📋 Розшифровка витрат рейсу</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Стаття витрат</th>
+                        <th>Сума (грн)</th>
+                        <th>На 1 тн</th>
+                        <th>Частка</th>
+                    </tr>
+                </thead>
+                <tbody id="cost-breakdown"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" id="saved-section" style="margin-top: 20px;">
         <h2>📊 Збережені розрахунки (Ротації)</h2>
         <div class="comparison-table">
             <table id="saved-table">
@@ -551,6 +533,8 @@
 </div>
 
 <script>
+    // Ініціалізація Supabase винесена на самий початок скрипта, 
+    // щоб уникнути помилки "Cannot access 'supabaseClient' before initialization"
     const SUPABASE_URL = 'https://qkfqjorzsxcajcneohoy.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_-W_XaLQFhKyDvQY_-5xHBw_tK25Pjw9';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -563,8 +547,7 @@
     let poiMarkers = [];
     let lastRoutePath = null;
     let lastCalcData = {};
-    let nbuRates = { USD: 44.67, EUR: 51.20, PLN: 11.74 };
-    let expenseChartInstance = null;
+    let nbuRates = { USD: 41.5, EUR: 45.2, PLN: 10.5 };
 
     async function checkUserAccess() {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -793,18 +776,6 @@
             document.getElementById('podacha-info').innerText = result.podachaText || '';
             document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
             
-            const distVal = parseFloat(payload.dist) || 0;
-            const podachaVal = parseFloat(payload.podachaDist) || 0;
-            const fuelLoadRate = parseFloat(payload.fuelLoad) || 0;
-            const fuelEmptyRate = parseFloat(payload.fuelEmpty) || 0;
-            const fuelLitresPerCar = ((fuelLoadRate * distVal) / 100) + ((fuelEmptyRate * (distVal + podachaVal * 2)) / 100);
-            document.getElementById('fuel-per-trip-box').innerText = `📊 Пальне на 1 повний рейс авто: ~${fuelLitresPerCar.toFixed(1)} л ДП`;
-
-            const totalMileageAll = (distVal * 2 * (payload.volume / payload.normWeight)) + (podachaVal * payload.carsCount);
-            const totalDirectCosts = result.detailedRows.reduce((acc, row) => acc + row.val, 0);
-            const costPerKm = totalMileageAll > 0 ? (totalDirectCosts / totalMileageAll) : 0;
-            document.getElementById('cost-per-km-box').innerText = `📈 Орієнтовна собівартість 1 км шляху: ${Math.round(costPerKm)} грн/км`;
-
             const badge = document.getElementById('res-badge');
             badge.innerText = result.profitabilityPct.toFixed(1) + '%';
             badge.className = 'badge ' + (result.profitabilityPct >= 15 ? 'badge-success' : result.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
@@ -824,7 +795,7 @@
                 </tr>
             `).join('');
 
-            renderExpenseChart(result.detailedRows || []);
+            renderChart(result.fuelTotal, result.driverTotal, result.toTotal + result.tireTotal, result.overheadTotal, result.taxesTotal);
 
             lastCalcData = { 
                 routeName, trailerType, volume: payload.volume, rate: payload.rate, 
@@ -836,45 +807,35 @@
         }
     }
 
-    function renderExpenseChart(rows) {
-        const ctx = document.getElementById('expenseChart').getContext('2d');
-        const labels = rows.map(r => r.name);
-        const data = rows.map(r => r.val);
-        const backgroundColors = ['#ef4444', '#f97316', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'];
-
-        if (expenseChartInstance) {
-            expenseChartInstance.data.labels = labels;
-            expenseChartInstance.data.datasets[0].data = data;
-            expenseChartInstance.update();
+    function renderChart(fuel, driver, maintenance, overhead, taxes) {
+        const total = fuel + driver + maintenance + overhead + taxes;
+        if (total === 0 || isNaN(total)) {
+            document.getElementById('bar-chart').innerHTML = '';
+            document.getElementById('chart-legend').innerHTML = '';
             return;
         }
 
-        expenseChartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: backgroundColors,
-                    borderWidth: 2,
-                    borderColor: '#1e293b'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            boxWidth: 12,
-                            font: { size: 11 },
-                            color: '#94a3b8'
-                        }
-                    }
-                }
-            }
-        });
+        const pFuel = (fuel / total) * 100;
+        const pDriver = (driver / total) * 100;
+        const pMaint = (maintenance / total) * 100;
+        const pOverhead = (overhead / total) * 100;
+        const pTaxes = (taxes / total) * 100;
+
+        document.getElementById('bar-chart').innerHTML = `
+            <div class="bar-segment" style="width: ${pFuel}%; background: #3b82f6;" title="Пальне"></div>
+            <div class="bar-segment" style="width: ${pDriver}%; background: #10b981;" title="Водій/Добові"></div>
+            <div class="bar-segment" style="width: ${pMaint}%; background: #f59e0b;" title="ТО/Шини"></div>
+            <div class="bar-segment" style="width: ${pOverhead}%; background: #8b5cf6;" title="Накладні"></div>
+            <div class="bar-segment" style="width: ${pTaxes}%; background: #ef4444;" title="Податки"></div>
+        `;
+
+        document.getElementById('chart-legend').innerHTML = `
+            <div class="legend-item"><div class="legend-color" style="background: #3b82f6;"></div>Пальне+AdBlue ${pFuel.toFixed(0)}%</div>
+            <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div>Екіпаж ${pDriver.toFixed(0)}%</div>
+            <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>ТО/Шини ${pMaint.toFixed(0)}%</div>
+            <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Накладні ${pOverhead.toFixed(0)}%</div>
+            ${pTaxes > 0 ? `<div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div>Податки ${pTaxes.toFixed(0)}%</div>` : ''}
+        `;
     }
 
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsikMeho5FrbfPSOfy6Dekz6RfVj169_BCvPSEYNFeKpI1yT4RuCBneDDwjP1-xGjW/exec';
