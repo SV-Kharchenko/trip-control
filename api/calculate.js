@@ -1,66 +1,62 @@
-import { createClient } from '@supabase/supabase-js';
-
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     try {
-        // 1. Перевірка наявності токена у запиті від клієнта
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: 'Необхідна авторизація.' });
-        }
-        const token = authHeader.split(' ')[1];
+        const body = req.body || {};
 
-        // 2. Ініціалізація Supabase з виправленим URL (додано 'z') 
-        // та публічним ключем + передача токена користувача для проходження RLS
-        const supabaseUrl = process.env.SUPABASE_URL || 'https://qkfqjorzsxcajcneohoy.supabase.co';
-        const supabaseKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_-W_XaLQFhKyDvQY_-5xHBw_tK25Pjw9';
-        
-        const supabase = createClient(supabaseUrl, supabaseKey, {
-            global: { headers: { Authorization: `Bearer ${token}` } }
-        });
+        // Вхідні параметри з форми
+        const calcType = body.calcType || 'фоп'; // безготівковий, фоп, готівка
+        const returnMode = body.returnMode || 'циклічний'; // циклічний, разовий
+        const dist = parseFloat(body.dist) || 300;
+        const podachaDist = parseFloat(body.podachaDist) || 30;
+        const contractVolume = parseFloat(body.volume) || 3000;
+        const normWeight = parseFloat(body.normWeight) || 21.5;
+        const carsCount = parseFloat(body.carsCount) || 10;
+        const daysPerTrip = parseFloat(body.daysPerTrip) || 1.33;
+        const rate = parseFloat(body.rate) || 1560; // грн за тн
 
-        // 3. Перевірка валідності токена
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError || !user) {
-            return res.status(401).json({ error: 'Недійсний токен.' });
-        }
+        // Пальне та AdBlue
+        const fuelLoadRate = parseFloat(body.fuelLoad) || 37;
+        const fuelEmptyRate = parseFloat(body.fuelEmpty) || 32;
+        const fuelPrice = parseFloat(body.fuelPrice) || 53;
+        const adblueRate = parseFloat(body.adblueConsumption) || 2.85;
+        const adbluePrice = parseFloat(body.adbluePrice) || 18;
 
-        // 4. Перевірка статусу схвалення адміністратором
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('is_approved')
-            .eq('id', user.id)
-            .single();
+        // Зарплата водія та добові
+        const driverPayMode = body.driverPayMode || 'km';
+        const driverRateLoad = parseFloat(body.driverRateLoad) || 4.03;
+        const driverRateEmpty = parseFloat(body.driverRateEmpty) || 2.30;
+        const perDiem = parseFloat(body.perDiem) || 550;
 
-        if (!profile || !profile.is_approved) {
-            return res.status(403).json({ error: 'Акаунт очікує підтвердження адміністратора.' });
-        }
+        // ТО та Шини
+        const toCost = parseFloat(body.toCost) || 18000;
+        const toPeriod = parseFloat(body.toPeriod) || 50000;
+        const tireCost = parseFloat(body.tireCost) || 16500;
+        const tireCount = parseFloat(body.tireCount) || 14;
+        const tireMileage = parseFloat(body.tireMileage) || 150000;
 
-        // --- ПОЧАТОК ЛОГІКИ КАЛЬКУЛЯТОРА ---
-        const data = req.body;
+        // Накладні витрати підприємства (річні з Excel)
+        const amortYear = parseFloat(body.amort) || 40139408;
+        const adminYear = parseFloat(body.admin) || 17871209;
+        const repairYear = parseFloat(body.repair) || 16124943;
+        const finYear = parseFloat(body.fin) || 4308097.69;
+        const totalFleet = parseFloat(body.totalFleet) || 68;
+        const workDaysYear = 300; // 25 днів * 12 місяців
 
-        const calcType = data.calcType || 'фоп';
-        const returnMode = data.returnMode || 'циклічний';
-        const roadQuality = parseFloat(data.roadQuality) || 1.0;
-        const trailerType = data.trailerType || 'зерновоз';
+        // Зворотний маршрут (якщо увімкнено)
+        const isRoundTrip = body.isRoundTrip || false;
+        const rtBackhaulDist = parseFloat(body.rtBackhaulDist) || 0;
+        const rtRate = parseFloat(body.rtRate) || 0;
+        const rtVolume = parseFloat(body.rtTotalVolume) || 0;
 
-        const dist = parseFloat(data.dist) || 0;
-        const podachaDist = parseFloat(data.podachaDist) || 0;
-        const contractVolume = parseFloat(data.volume) || 0;
-        const normWeight = parseFloat(data.normWeight) || 1;
-        const carsCount = parseFloat(data.carsCount) || 1;
-        const daysPerTrip = parseFloat(data.daysPerTrip) || 1;
-        const idleDays = parseFloat(data.idleDays) || 0;
-        const idleRate = parseFloat(data.idleRate) || 0;
-        const rate = parseFloat(data.rate) || 0;
-
-        let actualVolume = 0;
+        // --- РОЗРАХУНОК ХОДОК ТА ПРОБІГІВ ---
         let tripsCount = 0;
+        let actualVolume = contractVolume;
         let totalLoadedKm = 0;
         let totalEmptyKm = 0;
+        let totalPodachaKm = podachaDist * carsCount;
 
         if (returnMode === 'разовий') {
             tripsCount = carsCount;
@@ -68,205 +64,120 @@ export default async function handler(req, res) {
             totalLoadedKm = dist * carsCount;
             totalEmptyKm = 0;
         } else {
-            // ФІКС: коректний розрахунок ходок та повного об'єму контракту для циклічного вивозу
             tripsCount = normWeight > 0 ? Math.ceil(contractVolume / normWeight) : 0;
-            actualVolume = contractVolume;
             totalLoadedKm = dist * tripsCount;
-            // У циклічному режимі авто їде туди з вантажем, а назад порожнім (крім перших виїздів машин)
             totalEmptyKm = dist * Math.max(0, tripsCount - carsCount);
         }
 
-        const season = data.season || 'стандарт';
-        let seasonCoeff = 1.0;
-        if (season === 'літо') seasonCoeff = 1.05;
-        else if (season === 'зима') seasonCoeff = 1.10;
-
-        const fuelLoad = (parseFloat(data.fuelLoad) || 0) * seasonCoeff * roadQuality;
-        const fuelEmpty = (parseFloat(data.fuelEmpty) || 0) * seasonCoeff * roadQuality;
-        const fuelPrice = parseFloat(data.fuelPrice) || 0;
-
-        const driverPayMode = data.driverPayMode || 'km';
-        const driverRateLoad = parseFloat(data.driverRateLoad) || 0;
-        const driverRateEmpty = parseFloat(data.driverRateEmpty) || 0;
-        const driverPctVal = parseFloat(data.driverPctVal) || 0;
-        const perDiem = parseFloat(data.perDiem) || 0;
-
-        const toCost = (parseFloat(data.toCost) || 0) * (1 + (roadQuality - 1) * 0.5);
-        const toPeriod = parseFloat(data.toPeriod) || 1;
-        const tireCost = (parseFloat(data.tireCost) || 0) * (1 + (roadQuality - 1) * 0.5);
-        const tireCount = parseFloat(data.tireCount) || 0;
-        const tireMileage = parseFloat(data.tireMileage) || 1;
-        const adbluePrice = parseFloat(data.adbluePrice) || 0;
-        const adblueConsumption = parseFloat(data.adblueConsumption) || 0;
-
-        const washCost = parseFloat(data.washCost) || 0;
-        const washFreq = parseFloat(data.washFreq) || 0;
-        const refFuelRate = parseFloat(data.refFuelRate) || 0;
-        const refHours = parseFloat(data.refHours) || 0;
-
-        const amort = parseFloat(data.amort) || 0;
-        const admin = parseFloat(data.admin) || 0;
-        const repair = parseFloat(data.repair) || 0;
-        const fin = parseFloat(data.fin) || 0;
-        const totalFleet = parseFloat(data.totalFleet) || 1;
-
-        const totalPodachaKm = podachaDist * carsCount;
-
-        const isRoundTrip = data.isRoundTrip === true;
-        const rtTransferDist = isRoundTrip ? (parseFloat(data.rtTransferDist) || 0) : 0;
-        const rtBackhaulDist = isRoundTrip ? (parseFloat(data.rtBackhaulDist) || 0) : 0;
-        const rtReturnDist = isRoundTrip ? (parseFloat(data.rtReturnDist) || 0) : 0;
-        const rtTotalVolumeAvailable = isRoundTrip ? (parseFloat(data.rtTotalVolume) || 0) : 0;
-        const rtRate = isRoundTrip ? (parseFloat(data.rtRate) || 0) : 0;
-
-        const numReturnLegs = (returnMode === 'разовий') ? 0 : Math.max(0, Math.round(tripsCount - carsCount));
-        const maxLegsByCapacity = normWeight > 0 ? Math.floor(rtTotalVolumeAvailable / normWeight) : 0;
-        const rtLegsUsed = isRoundTrip ? Math.min(numReturnLegs, maxLegsByCapacity) : 0;
-        const rtVolumeTotal = Math.min(rtTotalVolumeAvailable, rtLegsUsed * normWeight);
-        const rtIncome = rtVolumeTotal * rtRate;
-
-        if (rtLegsUsed > 0) {
-            totalEmptyKm = Math.max(0, totalEmptyKm - rtLegsUsed * dist + rtLegsUsed * (rtTransferDist + rtReturnDist));
-            totalLoadedKm += rtLegsUsed * rtBackhaulDist;
+        // --- ДОХІД ---
+        let grossIncome = actualVolume * rate;
+        if (isRoundTrip && rtVolume > 0) {
+            grossIncome += rtVolume * rtRate;
         }
 
-        const fuelCostEmptyPerKm = (fuelEmpty * fuelPrice) / 100 / (calcType === 'безготівковий' ? 1.2 : 1.0);
-        const podachaLitres = (fuelEmpty * totalPodachaKm) / 100;
-        const fuelPodachaTotal = fuelCostEmptyPerKm * totalPodachaKm;
+        let netIncome = calcType === 'безготівковий' ? grossIncome / 1.2 : grossIncome;
 
-        const fuelLoadedTotal = ((fuelPrice * fuelLoad) / 100 / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalLoadedKm;
-        const fuelEmptyTotal = fuelCostEmptyPerKm * totalEmptyKm;
-        
-        let refFuelTotal = 0;
-        if (trailerType === 'рефрижератор') {
-            refFuelTotal = (refFuelRate * refHours * (fuelPrice / (calcType === 'безготівковий' ? 1.2 : 1.0))) * (returnMode === 'разовий' ? carsCount : tripsCount);
-        }
+        // --- ПРЯМІ ВИТРАТИ ---
+        // Пальне (завантажений, пустий, подача)
+        const fuelLoadCost = (totalLoadedKm * fuelLoadRate / 100) * (fuelPrice / 1.2);
+        const fuelEmptyCost = (totalEmptyKm * fuelEmptyRate / 100) * (fuelPrice / 1.2);
+        const fuelPodachaCost = (totalPodachaKm * fuelEmptyRate / 100) * (fuelPrice / 1.2);
+        const fuelTotal = fuelLoadCost + fuelEmptyCost + fuelPodachaCost;
 
-        const fuelMainRouteTotal = fuelLoadedTotal + fuelEmptyTotal + refFuelTotal;
-        const fuelTotal = fuelMainRouteTotal + fuelPodachaTotal;
-        const adblueTotal = ((adbluePrice * adblueConsumption / 100) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * (totalLoadedKm + totalEmptyKm + totalPodachaKm);
+        // AdBlue
+        const totalAllKm = totalLoadedKm + totalEmptyKm + totalPodachaKm;
+        const adblueTotal = (totalAllKm * adblueRate / 100) * (adbluePrice / 1.2);
 
-        const idleCompensationTotal = idleDays * idleRate * (returnMode === 'разовий' ? carsCount : tripsCount);
-        const grossIncome = (rate * actualVolume) + rtIncome + idleCompensationTotal;
-
-        let tax5Total = 0;
-        let tax1Total = 0;
-        let netIncome = grossIncome;
-
-        if (calcType === 'безготівковий') {
-            netIncome = grossIncome / 1.2;
-        } else if (calcType === 'фоп') {
-            tax5Total = grossIncome * 0.05;
-            tax1Total = grossIncome * 0.01;
-            netIncome = grossIncome - tax5Total - tax1Total;
-        }
-
-        let driverTotal = 0;
+        // Зарплата водія та ЄСВ (22%)
+        let salaryTotal = 0;
         if (driverPayMode === 'km') {
-            driverTotal = (driverRateLoad * totalLoadedKm) + (driverRateEmpty * totalEmptyKm) + (driverRateEmpty * totalPodachaKm);
+            salaryTotal = (totalLoadedKm * driverRateLoad) + ((totalEmptyKm + totalPodachaKm) * driverRateEmpty);
         } else {
-            driverTotal = grossIncome * (driverPctVal / 100);
+            salaryTotal = grossIncome * (parseFloat(body.driverPctVal) || 12) / 100;
         }
+        const esvTotal = salaryTotal * 0.22;
 
-        const esvTotal = driverTotal * 0.22;
-        const actualTripDays = (daysPerTrip + idleDays) * (returnMode === 'разовий' ? 1 : (tripsCount / carsCount));
-        const perDiemTotal = perDiem * actualTripDays * carsCount;
+        // Добові водія (на основі діб рейсів)
+        const totalTripDays = tripsCount * daysPerTrip;
+        const perDiemTotal = totalTripDays * perDiem;
 
-        const totalMileageAll = totalLoadedKm + totalEmptyKm + totalPodachaKm;
-        const toTotal = ((toCost / toPeriod) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalMileageAll;
-        const tireTotal = (((tireCost * tireCount) / tireMileage) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * totalMileageAll;
+        // ТО та Шини на км пробігу
+        const toPerKm = (toCost / 1.2) / toPeriod;
+        const tirePerKm = (tireCost / 1.2) * tireCount / tireMileage;
+        const toTotal = totalAllKm * toPerKm;
+        const tireTotal = totalAllKm * tirePerKm;
 
-        const directCosts = fuelTotal + adblueTotal + driverTotal + esvTotal + perDiemTotal + toTotal + tireTotal;
-        const marginalIncome = netIncome - directCosts;
+        // Ремонти (пропорційно дням рейсів)
+        const repairDaily = (repairYear / 1.2) / (totalFleet * workDaysYear);
+        const repairTotal = repairDaily * totalTripDays;
 
-        const annualTankWashTotal = trailerType === 'цистерна' ? (washCost * washFreq) * totalFleet : 0;
-        const dailyOverheadAdminRepair = (admin + repair + (annualTankWashTotal / (calcType === 'безготівковий' ? 1.2 : 1.0))) / totalFleet / 365;
-        const dailyOverheadAmortFin = (amort + fin) / totalFleet / 365;
+        const directCostsTotal = fuelTotal + adblueTotal + salaryTotal + esvTotal + perDiemTotal + toTotal + tireTotal + repairTotal;
 
-        const adminRepairAllocated = dailyOverheadAdminRepair * actualTripDays * carsCount;
-        const amortFinAllocated = dailyOverheadAmortFin * actualTripDays * carsCount;
+        // --- МАРЖИНАЛЬНИЙ ДОХІД ---
+        const marginalIncome = netIncome - directCostsTotal;
 
-        const ebitda = marginalIncome - adminRepairAllocated;
-        const netProfit = ebitda - amortFinAllocated;
-        const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
-        const safeVolume = actualVolume > 0 ? actualVolume : 1;
+        // --- НАКЛАДНІ ВИТРАТИ ПІДПРИЄМСТВА (розподіл на дні рейсу) ---
+        const dailyAmort = (amortYear / 1.2) / (totalFleet * workDaysYear);
+        const dailyAdmin = (adminYear / 1.2) / (totalFleet * workDaysYear);
+        const dailyFin = (finYear / 1.2) / (totalFleet * workDaysYear);
 
-        const opCostPerTon = (directCosts + adminRepairAllocated) / safeVolume;
-        const fullCostPerTon = (directCosts + adminRepairAllocated + amortFinAllocated) / safeVolume;
-        let breakevenOpPerTon, breakevenFullPerTon;
+        const overheadTotal = (dailyAmort + dailyAdmin + dailyFin) * totalTripDays;
+
+        // --- EBITDA ТА ПРИБУТОК ---
+        const ebitda = marginalIncome - overheadTotal;
+        const netProfit = ebitda; // Чистий прибуток після всіх операційних та накладних витрат
+
+        // Податки (якщо ФОП 3 група: 5% + 1% ВЗ)
+        let taxesTotal = 0;
         if (calcType === 'фоп') {
-            breakevenOpPerTon = opCostPerTon / 0.94;
-            breakevenFullPerTon = fullCostPerTon / 0.94;
-        } else if (calcType === 'безготівковий') {
-            breakevenOpPerTon = opCostPerTon * 1.2;
-            breakevenFullPerTon = fullCostPerTon * 1.2;
-        } else {
-            breakevenOpPerTon = opCostPerTon;
-            breakevenFullPerTon = fullCostPerTon;
+            taxesTotal = grossIncome * 0.06;
         }
 
-        let tripVolumeText = returnMode === 'разовий' 
-            ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`
-            : `Повний вивіз: ${tripsCount.toFixed(1)} ходок (${actualVolume} тн)`;
+        const finalProfit = netProfit - taxesTotal;
+        const profitabilityPct = netIncome > 0 ? (finalProfit / netIncome) * 100 : 0;
 
-        if (isRoundTrip) {
-            tripVolumeText += rtLegsUsed > 0
-                ? ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок довантажено (${rtVolumeTotal.toFixed(1)} тн)`
-                : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
-        }
+        // Точка беззбитковості (грн/т)
+        const totalAllCosts = directCostsTotal + overheadTotal + taxesTotal;
+        const breakevenFullPerTon = actualVolume > 0 ? Math.round(totalAllCosts / actualVolume) : 0;
+        const breakevenOpPerTon = actualVolume > 0 ? Math.round((directCostsTotal + overheadTotal) / actualVolume) : 0;
 
-        const rtInfoText = numReturnLegs > 0
-            ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${numReturnLegs <= maxLegsByCapacity ? 'кількістю ходок' : 'обсягом вантажу'})`
-            : 'Немає порожніх зворотних ходок у цьому рейсі';
-
-        const podachaText = totalPodachaKm > 0 
-            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л (${Math.round(fuelPodachaTotal)} грн)` 
-            : '';
-
-        const totalFuelLitres = (fuelLoad * totalLoadedKm / 100) + (fuelEmpty * totalEmptyKm / 100) + podachaLitres + (trailerType === 'рефрижератор' ? refFuelRate * refHours * (returnMode === 'разовий' ? carsCount : tripsCount) : 0);
-        const adblueLitres = (adblueConsumption * (totalLoadedKm + totalEmptyKm + totalPodachaKm)) / 100;
-        const fuelSummaryText = `⛽ Паливний розрахунок: ${totalFuelLitres.toFixed(0)} л ДП (${Math.round(fuelTotal)} грн) + ${adblueLitres.toFixed(0)} л AdBlue (${Math.round(adblueTotal)} грн)`;
+        // Розшифровка витрат для таблиці
+        const detailedRows = [
+            { name: '⛽ Пальне (ДП завантажений + пустий + подача)', val: Math.round(fuelTotal) },
+            { name: '💧 Рідина AdBlue', val: Math.round(adblueTotal) },
+            { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%)', val: Math.round(salaryTotal + esvTotal) },
+            { name: '🍽️ Добові водія', val: Math.round(perDiemTotal) },
+            { name: '🔧 Технічне обслуговування (ТО)', val: Math.round(toTotal) },
+            { name: '🛞 Комплект шин', val: Math.round(tireTotal) },
+            { name: '🛠️ Поточні ремонти', val: Math.round(repairTotal) },
+            { name: '🏢 Накладні витрати (амортизація, адмін, фін)', val: Math.round(overheadTotal) },
+            { name: '🏛️ Податки (ФОП / ПДВ)', val: Math.round(taxesTotal) }
+        ];
 
         return res.status(200).json({
-            grossIncome,
-            netIncome,
-            marginalIncome,
-            ebitda,
-            netProfit,
+            grossIncome: Math.round(grossIncome),
+            netIncome: Math.round(netIncome),
+            marginalIncome: Math.round(marginalIncome),
+            marginPerTon: actualVolume > 0 ? Math.round(marginalIncome / actualVolume) : 0,
+            ebitda: Math.round(ebitda),
+            ebitdaPerTon: actualVolume > 0 ? Math.round(ebitda / actualVolume) : 0,
+            netProfit: Math.round(finalProfit),
             profitabilityPct,
-            marginPerTon: Math.round(marginalIncome / safeVolume),
-            ebitdaPerTon: Math.round(ebitda / safeVolume),
-            breakevenOpPerTon: Math.round(breakevenOpPerTon),
-            breakevenFullPerTon: Math.round(breakevenFullPerTon),
-
-            fuelTotal: fuelMainRouteTotal + fuelPodachaTotal + adblueTotal,
-            driverTotal: driverTotal + esvTotal + perDiemTotal,
-            toTotal,
-            tireTotal,
-            overheadTotal: adminRepairAllocated + amortFinAllocated,
-            taxesTotal: tax5Total + tax1Total,
-            
-            detailedRows: [
-                ...(tax5Total > 0 ? [{ name: 'Єдиний податок ФОП (5%)', val: tax5Total }] : []),
-                ...(tax1Total > 0 ? [{ name: 'Військовий збір ФОП (1%)', val: tax1Total }] : []),
-                { name: 'Пальне: Основний рейс + Подача', val: fuelMainRouteTotal + fuelPodachaTotal },
-                { name: 'AdBlue (Загалом)', val: adblueTotal },
-                { name: 'Екіпаж (ЗП + ЄСВ + Добові)', val: driverTotal + esvTotal + perDiemTotal },
-                { name: 'Технічне обслуговування (ТО)', val: toTotal },
-                { name: 'Знос шин', val: tireTotal },
-                { name: 'Адмін. та операційні витрати', val: adminRepairAllocated },
-                { name: 'Амортизація та фінансові витрати', val: amortFinAllocated }
-            ],
-
-            tripVolumeText,
-            rtInfoText,
-            podachaText,
-            fuelSummaryText
+            breakevenFullPerTon,
+            breakevenOpPerTon,
+            fuelTotal: Math.round(fuelTotal),
+            driverTotal: Math.round(salaryTotal + esvTotal + perDiemTotal),
+            toTotal: Math.round(toTotal + tireTotal + repairTotal),
+            overheadTotal: Math.round(overheadTotal),
+            taxesTotal: Math.round(taxesTotal),
+            detailedRows,
+            tripVolumeText: `Повний вивіз: ${tripsCount} ходок (${actualVolume} тн)`,
+            podachaText: `Витрати на подачу: ${Math.round(fuelPodachaCost)} грн (${totalPodachaKm} км)`,
+            fuelSummaryText: `⛽ Пальне: заг. пробіг ${totalAllKm} км | Витрати: ${Math.round(fuelTotal)} грн`
         });
 
-    } catch (error) {
-        // Додано логування помилки для зручного дебагу в логах Vercel
-        console.error('API Error:', error);
-        return res.status(500).json({ error: error.message });
+    } catch (err) {
+        console.error('Calculation error:', err);
+        return res.status(500).json({ error: err.message });
     }
 }
