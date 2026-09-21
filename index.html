@@ -646,7 +646,7 @@
         calculate();
     }
 
-    async function calculate() {
+async function calculate() {
         const payload = {
             calcType: document.getElementById('calc-type').value,
             returnMode: document.getElementById('return-mode').value,
@@ -701,7 +701,10 @@
         try {
             const response = await fetch('/api/calculate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + currentSessionToken 
+                },
                 body: JSON.stringify(payload)
             });
 
@@ -709,7 +712,7 @@
 
             const result = await response.json();
 
-            // Виводимо результати на екран
+            // Виводимо головні KPI показники
             document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
             document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}`;
             document.getElementById('res-margin').innerText = formatMoney(result.marginalIncome);
@@ -717,10 +720,12 @@
             document.getElementById('res-ebitda').innerText = formatMoney(result.ebitda);
             document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн`;
             document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
+            
             // Виводимо текстові підказки від сервера
             document.getElementById('trip-volume-info').innerText = result.tripVolumeText || '';
             document.getElementById('rt-info').innerText = result.rtInfoText || '';
             document.getElementById('podacha-info').innerText = result.podachaText || '';
+            document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
             
             const badge = document.getElementById('res-badge');
             badge.innerText = result.profitabilityPct.toFixed(1) + '%';
@@ -728,19 +733,11 @@
 
             document.getElementById('res-breakeven-full').innerText = `${Math.round(result.netProfit ? 0 : 0)} грн/т`;
 
-            // Формуємо таблицю витрат
+            // Заповнюємо таблицю розшифровки витрат з detailedRows від сервера
             const tbody = document.getElementById('cost-breakdown');
-            const rows = [
-                { name: `Пальне (Загалом)`, val: result.fuelTotal },
-                { name: 'Зарплата водіїв', val: result.driverTotal },
-                { name: 'Технічне обслуговування (ТО)', val: result.toTotal },
-                { name: 'Знос шин', val: result.tireTotal },
-                { name: 'Накладні витрати', val: result.overheadTotal },
-                { name: 'Податки', val: result.taxesTotal }
-            ];
-
-            let totalCostsSum = result.fuelTotal + result.driverTotal + result.toTotal + result.tireTotal + result.overheadTotal + result.taxesTotal;
-            tbody.innerHTML = rows.map(r => `
+            let totalCostsSum = (result.detailedRows || []).reduce((sum, r) => sum + r.val, 0);
+            
+            tbody.innerHTML = (result.detailedRows || []).map(r => `
                 <tr>
                     <td>${r.name}</td>
                     <td>${formatMoney(r.val)}</td>
@@ -749,7 +746,8 @@
                 </tr>
             `).join('');
 
-            renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal);
+            // Малюємо графік візуальної структури витрат
+            renderChart(result.fuelTotal, result.driverTotal, result.toTotal + result.tireTotal, result.overheadTotal, result.taxesTotal);
 
             lastCalcData = { 
                 routeName, 
