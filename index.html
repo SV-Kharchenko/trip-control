@@ -717,6 +717,10 @@
             document.getElementById('res-ebitda').innerText = formatMoney(result.ebitda);
             document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн`;
             document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
+            // Виводимо текстові підказки від сервера
+            document.getElementById('trip-volume-info').innerText = result.tripVolumeText || '';
+            document.getElementById('rt-info').innerText = result.rtInfoText || '';
+            document.getElementById('podacha-info').innerText = result.podachaText || '';
             
             const badge = document.getElementById('res-badge');
             badge.innerText = result.profitabilityPct.toFixed(1) + '%';
