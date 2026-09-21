@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     try {
         const body = req.body || {};
 
-        // Вхідні параметри з форми
+        // 1. Вхідні параметри з форми
         const calcType = body.calcType || 'фоп'; // безготівковий, фоп, готівка
         const returnMode = body.returnMode || 'циклічний'; // циклічний, разовий
         const dist = parseFloat(body.dist) || 300;
@@ -15,39 +15,38 @@ export default async function handler(req, res) {
         const normWeight = parseFloat(body.normWeight) || 21.5;
         const carsCount = parseFloat(body.carsCount) || 10;
         const daysPerTrip = parseFloat(body.daysPerTrip) || 1.33;
-        const rate = parseFloat(body.rate) || 1560; // грн за тн
+        const rate = parseFloat(body.rate) || 1560;
 
-        // Пальне та AdBlue
+        // 2. Пальне та AdBlue
         const fuelLoadRate = parseFloat(body.fuelLoad) || 37;
         const fuelEmptyRate = parseFloat(body.fuelEmpty) || 32;
         const fuelPrice = parseFloat(body.fuelPrice) || 53;
         const adblueRate = parseFloat(body.adblueConsumption) || 2.85;
         const adbluePrice = parseFloat(body.adbluePrice) || 18;
 
-        // Зарплата водія та добові
+        // 3. Зарплата водія та добові
         const driverPayMode = body.driverPayMode || 'km';
         const driverRateLoad = parseFloat(body.driverRateLoad) || 4.03;
         const driverRateEmpty = parseFloat(body.driverRateEmpty) || 2.30;
         const perDiem = parseFloat(body.perDiem) || 550;
 
-        // ТО та Шини
+        // 4. ТО та Шини
         const toCost = parseFloat(body.toCost) || 18000;
         const toPeriod = parseFloat(body.toPeriod) || 50000;
         const tireCost = parseFloat(body.tireCost) || 16500;
         const tireCount = parseFloat(body.tireCount) || 14;
         const tireMileage = parseFloat(body.tireMileage) || 150000;
 
-        // Накладні витрати підприємства (річні з Excel)
+        // 5. Накладні витрати підприємства (річні бюджети з Excel)
         const amortYear = parseFloat(body.amort) || 40139408;
         const adminYear = parseFloat(body.admin) || 17871209;
-        const repairYear = parseFloat(body.repair) || 16124943;
+        const repairYear = parseFloat(body.repair) || 14305000;
         const finYear = parseFloat(body.fin) || 4308097.69;
         const totalFleet = parseFloat(body.totalFleet) || 68;
-        const workDaysYear = 300; // 25 днів * 12 місяців
+        const workDaysYear = 300;
 
-        // Зворотний маршрут (якщо увімкнено)
+        // Зворотний маршрут (якщо є)
         const isRoundTrip = body.isRoundTrip || false;
-        const rtBackhaulDist = parseFloat(body.rtBackhaulDist) || 0;
         const rtRate = parseFloat(body.rtRate) || 0;
         const rtVolume = parseFloat(body.rtTotalVolume) || 0;
 
@@ -62,10 +61,12 @@ export default async function handler(req, res) {
             tripsCount = carsCount;
             actualVolume = normWeight * carsCount;
             totalLoadedKm = dist * carsCount;
-            totalEmptyKm = 0;
+            totalEmptyKm = 0; // Після разового вивантаження авто не повертається в облік цього контракту
         } else {
+            // Циклічний вивіз
             tripsCount = normWeight > 0 ? Math.ceil(contractVolume / normWeight) : 0;
             totalLoadedKm = dist * tripsCount;
+            // Порожній пробіг: авто повертаються назад, окрім першої подачі, яка рахується окремо
             totalEmptyKm = dist * Math.max(0, tripsCount - carsCount);
         }
 
@@ -75,20 +76,21 @@ export default async function handler(req, res) {
             grossIncome += rtVolume * rtRate;
         }
 
+        // Очищення від ПДВ для бази розрахунків (якщо вибрано безготівковий з ПДВ)
         let netIncome = calcType === 'безготівковий' ? grossIncome / 1.2 : grossIncome;
 
         // --- ПРЯМІ ВИТРАТИ ---
-        // Пальне (завантажений, пустий, подача)
+        // 1. Пальне (без ПДВ)
         const fuelLoadCost = (totalLoadedKm * fuelLoadRate / 100) * (fuelPrice / 1.2);
         const fuelEmptyCost = (totalEmptyKm * fuelEmptyRate / 100) * (fuelPrice / 1.2);
         const fuelPodachaCost = (totalPodachaKm * fuelEmptyRate / 100) * (fuelPrice / 1.2);
         const fuelTotal = fuelLoadCost + fuelEmptyCost + fuelPodachaCost;
 
-        // AdBlue
+        // 2. AdBlue
         const totalAllKm = totalLoadedKm + totalEmptyKm + totalPodachaKm;
         const adblueTotal = (totalAllKm * adblueRate / 100) * (adbluePrice / 1.2);
 
-        // Зарплата водія та ЄСВ (22%)
+        // 3. Зарплата екіпажу та ЄСВ (22%)
         let salaryTotal = 0;
         if (driverPayMode === 'km') {
             salaryTotal = (totalLoadedKm * driverRateLoad) + ((totalEmptyKm + totalPodachaKm) * driverRateEmpty);
@@ -97,44 +99,49 @@ export default async function handler(req, res) {
         }
         const esvTotal = salaryTotal * 0.22;
 
-        // Добові водія (на основі діб рейсів)
+        // 4. Добові водія (пропорційно до кількості діб на всі ходки)
         const totalTripDays = tripsCount * daysPerTrip;
         const perDiemTotal = totalTripDays * perDiem;
+        const driverTotal = salaryTotal + esvTotal + perDiemTotal;
 
-        // ТО та Шини на км пробігу
+        // 5. ТО, Шини та Ремонти
         const toPerKm = (toCost / 1.2) / toPeriod;
         const tirePerKm = (tireCost / 1.2) * tireCount / tireMileage;
         const toTotal = totalAllKm * toPerKm;
         const tireTotal = totalAllKm * tirePerKm;
-
-        // Ремонти (пропорційно дням рейсів)
+        
+        // Ремонти (пропорційно дням роботи авто за Excel: Річний бюджет / Дні / Авто)
         const repairDaily = (repairYear / 1.2) / (totalFleet * workDaysYear);
         const repairTotal = repairDaily * totalTripDays;
-
-        const directCostsTotal = fuelTotal + adblueTotal + salaryTotal + esvTotal + perDiemTotal + toTotal + tireTotal + repairTotal;
+        
+        const maintenanceTotal = toTotal + tireTotal + repairTotal;
 
         // --- МАРЖИНАЛЬНИЙ ДОХІД ---
+        const directCostsTotal = fuelTotal + adblueTotal + driverTotal + maintenanceTotal;
         const marginalIncome = netIncome - directCostsTotal;
 
-        // --- НАКЛАДНІ ВИТРАТИ ПІДПРИЄМСТВА (розподіл на дні рейсу) ---
-        const dailyAmort = (amortYear / 1.2) / (totalFleet * workDaysYear);
-        const dailyAdmin = (adminYear / 1.2) / (totalFleet * workDaysYear);
-        const dailyFin = (finYear / 1.2) / (totalFleet * workDaysYear);
-
+        // --- НАКЛАДНІ ВИТРАТИ ПІДПРИЄМСТВА (на дні рейсу) ---
+        // Амортизація та Адмін зазвичай не містять ПДВ або вже очищені в бюджеті
+        const dailyAmort = amortYear / (totalFleet * workDaysYear);
+        const dailyAdmin = adminYear / (totalFleet * workDaysYear);
+        const dailyFin = finYear / (totalFleet * workDaysYear);
         const overheadTotal = (dailyAmort + dailyAdmin + dailyFin) * totalTripDays;
 
-        // --- EBITDA ТА ПРИБУТОК ---
-        const ebitda = marginalIncome - overheadTotal;
-        const netProfit = ebitda; // Чистий прибуток після всіх операційних та накладних витрат
-
-        // Податки (якщо ФОП 3 група: 5% + 1% ВЗ)
+        // --- ПОДАТКИ ТА ПРИБУТОК ---
         let taxesTotal = 0;
         if (calcType === 'фоп') {
+            // ФОП 3 група: 5% єдиний податок + 1% військовий збір від брудного доходу
             taxesTotal = grossIncome * 0.06;
+        } else if (calcType === 'безготівковий') {
+            // ТОВ / Загальна система: умовний податок на прибуток (наприклад, 5% від чистого доходу або прибутку)
+            taxesTotal = netIncome * 0.05; 
         }
 
-        const finalProfit = netProfit - taxesTotal;
-        const profitabilityPct = netIncome > 0 ? (finalProfit / netIncome) * 100 : 0;
+        const ebitda = marginalIncome - overheadTotal;
+        const netProfit = ebitda - taxesTotal;
+        
+        // Відсоток прибутковості
+        const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
 
         // Точка беззбитковості (грн/т)
         const totalAllCosts = directCostsTotal + overheadTotal + taxesTotal;
@@ -145,11 +152,8 @@ export default async function handler(req, res) {
         const detailedRows = [
             { name: '⛽ Пальне (ДП завантажений + пустий + подача)', val: Math.round(fuelTotal) },
             { name: '💧 Рідина AdBlue', val: Math.round(adblueTotal) },
-            { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%)', val: Math.round(salaryTotal + esvTotal) },
-            { name: '🍽️ Добові водія', val: Math.round(perDiemTotal) },
-            { name: '🔧 Технічне обслуговування (ТО)', val: Math.round(toTotal) },
-            { name: '🛞 Комплект шин', val: Math.round(tireTotal) },
-            { name: '🛠️ Поточні ремонти', val: Math.round(repairTotal) },
+            { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові', val: Math.round(driverTotal) },
+            { name: '🔧 ТО, Шини та Ремонти', val: Math.round(maintenanceTotal) },
             { name: '🏢 Накладні витрати (амортизація, адмін, фін)', val: Math.round(overheadTotal) },
             { name: '🏛️ Податки (ФОП / ПДВ)', val: Math.round(taxesTotal) }
         ];
@@ -161,17 +165,20 @@ export default async function handler(req, res) {
             marginPerTon: actualVolume > 0 ? Math.round(marginalIncome / actualVolume) : 0,
             ebitda: Math.round(ebitda),
             ebitdaPerTon: actualVolume > 0 ? Math.round(ebitda / actualVolume) : 0,
-            netProfit: Math.round(finalProfit),
+            netProfit: Math.round(netProfit),
             profitabilityPct,
             breakevenFullPerTon,
             breakevenOpPerTon,
-            fuelTotal: Math.round(fuelTotal),
-            driverTotal: Math.round(salaryTotal + esvTotal + perDiemTotal),
-            toTotal: Math.round(toTotal + tireTotal + repairTotal),
+            
+            // Змінні для графіку (Блок 2 Візуалізація)
+            fuelTotal: Math.round(fuelTotal + adblueTotal),
+            driverTotal: Math.round(driverTotal),
+            toTotal: Math.round(maintenanceTotal),
             overheadTotal: Math.round(overheadTotal),
             taxesTotal: Math.round(taxesTotal),
+            
             detailedRows,
-            tripVolumeText: `Повний вивіз: ${tripsCount} ходок (${actualVolume} тн)`,
+            tripVolumeText: `Об'єм вивозу: ${tripsCount} ходок (${actualVolume} тн)`,
             podachaText: `Витрати на подачу: ${Math.round(fuelPodachaCost)} грн (${totalPodachaKm} км)`,
             fuelSummaryText: `⛽ Пальне: заг. пробіг ${totalAllKm} км | Витрати: ${Math.round(fuelTotal)} грн`
         });
