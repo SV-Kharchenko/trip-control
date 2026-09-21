@@ -588,6 +588,7 @@
     let currentSessionToken = null;
 
     let savedCalculations = [];
+    let calcRequestId = 0; // захист від застарілих відповідей при швидкому вводі
     let map, directionsService, directionsRenderer, directionsRendererBackhaul;
     let waypointCounter = 0;
     let poiMarkers = [];
