@@ -181,6 +181,24 @@ export default async function handler(req, res) {
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
         const safeVolume = actualVolume > 0 ? actualVolume : 1;
 
+        // --- Точка беззбитковості ---
+        // Рахуємо від чистої собівартості (без ПДВ/податків) і лише потім переводимо
+        // в ту саму "розцінку", яку вводить користувач — щоб не було циклічної залежності
+        // від самого тарифу (податок ФОП інакше рахувався б від ціни, яку перевіряємо).
+        const opCostPerTon = (directCosts + adminRepairAllocated) / safeVolume;
+        const fullCostPerTon = (directCosts + adminRepairAllocated + amortFinAllocated) / safeVolume;
+        let breakevenOpPerTon, breakevenFullPerTon;
+        if (calcType === 'фоп') {
+            breakevenOpPerTon = opCostPerTon / 0.94;
+            breakevenFullPerTon = fullCostPerTon / 0.94;
+        } else if (calcType === 'безготівковий') {
+            breakevenOpPerTon = opCostPerTon * 1.2;
+            breakevenFullPerTon = fullCostPerTon * 1.2;
+        } else {
+            breakevenOpPerTon = opCostPerTon;
+            breakevenFullPerTon = fullCostPerTon;
+        }
+
         let tripVolumeText = returnMode === 'разовий' 
             ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`
             : `Повний вивіз: ${tripsCount.toFixed(1)} ходок (${actualVolume} тн)`;
@@ -191,12 +209,17 @@ export default async function handler(req, res) {
                 : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
         }
 
+        // Раніше цей вираз завжди повертав "кількістю ходок", бо rtLegsUsed вже за
+        // визначенням обмежений об'ємом (min(...)), тож rtTotalVolumeAvailable < rtLegsUsed*normWeight
+        // структурно ніколи не могло бути true. Порівнюємо натомість те, що реально
+        // стало вузьким місцем: саму кількість доступних ходок проти місткості за об'ємом.
         const rtInfoText = numReturnLegs > 0
-            ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${rtTotalVolumeAvailable < rtLegsUsed*normWeight ? 'обсягом вантажу' : 'кількістю ходок'})`
+            ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${numReturnLegs <= maxLegsByCapacity ? 'кількістю ходок' : 'обсягом вантажу'})`
             : 'Немає порожніх зворотних ходок у цьому рейсі';
 
+        // Повернув суму в грн, яка раніше губилась при переписуванні на бекенд-версію
         const podachaText = totalPodachaKm > 0 
-            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л` 
+            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л (${Math.round(fuelPodachaTotal)} грн)` 
             : '';
 
         const totalFuelLitres = (fuelLoad * totalLoadedKm / 100) + (fuelEmpty * totalEmptyKm / 100) + podachaLitres + (trailerType === 'рефрижератор' ? refFuelRate * refHours * (returnMode === 'разовий' ? carsCount : tripsCount) : 0);
@@ -212,7 +235,9 @@ export default async function handler(req, res) {
             profitabilityPct,
             marginPerTon: Math.round(marginalIncome / safeVolume),
             ebitdaPerTon: Math.round(ebitda / safeVolume),
-            
+            breakevenOpPerTon: Math.round(breakevenOpPerTon),
+            breakevenFullPerTon: Math.round(breakevenFullPerTon),
+
             fuelTotal: fuelMainRouteTotal + fuelPodachaTotal + adblueTotal,
             driverTotal: driverTotal + esvTotal + perDiemTotal,
             toTotal,
