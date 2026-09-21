@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Калькулятор прибутковості вантажних перевезень v7.8</title>
+    <title>TripControl • Управління рейсами</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -11,16 +11,16 @@
             --bg-color: #0f172a; --card-bg: #1e293b; --border-color: #334155; 
             --text-main: #f8fafc; --text-muted: #94a3b8; --accent: #3b82f6; 
             --accent-hover: #2563eb; --success: #10b981; --warning: #f59e0b; 
-            --danger: #ef4444; --input-bg: #0f172a;
+            --danger: #ef4444; --input-bg: #0f172a; --section-bg: rgba(30, 41, 59, 0.5);
         }
         [data-theme="light"] {
             --bg-color: #f1f5f9; --card-bg: #ffffff; --border-color: #cbd5e1; 
             --text-main: #1e293b; --text-muted: #64748b; --accent: #2563eb; 
             --accent-hover: #1d4ed8; --success: #059669; --warning: #d97706; 
-            --danger: #dc2626; --input-bg: #f8fafc;
+            --danger: #dc2626; --input-bg: #f8fafc; --section-bg: #e2e8f0;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
-        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; min-height: 100vh; padding-top: 195px; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; min-height: 100vh; padding-top: 205px; }
         .container { max-width: 1400px; margin: 0 auto; display: none; }
         
         .sticky-header {
@@ -30,7 +30,11 @@
         }
         .header-content { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; }
         .top-row { display: flex; justify-content: space-between; align-items: center; }
-        h1 { font-size: 1.1rem; font-weight: 700; }
+        
+        /* Стильний Логотип без версії */
+        .brand-logo { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main); }
+        .brand-logo span { color: var(--accent); }
+
         .theme-btn { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
         
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
@@ -60,7 +64,7 @@
         .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
         @media (max-width: 1024px) { .grid-layout { grid-template-columns: 1fr; } }
         
-        .section-block { background: rgba(30, 41, 59, 0.5); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .section-block { background: var(--section-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         .section-title { font-size: 1.15rem; font-weight: 700; color: var(--accent); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px; }
 
         .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; margin-bottom: 15px; }
@@ -91,7 +95,7 @@
         #auth-screen { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-color); z-index: 9999; justify-content: center; align-items: center; padding: 20px; }
         .auth-card { background: var(--card-bg); border: 1px solid var(--border-color); padding: 30px; border-radius: 12px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.5net/npm/@supabase/supabase-js@2"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=places,geometry"></script>
 </head>
 <body data-theme="dark">
@@ -119,7 +123,7 @@
 <div class="sticky-header" id="sticky-kpi" style="display: none;">
     <div class="header-content">
         <div class="top-row">
-            <h1>🚛 TripControl v7.8</h1>
+            <div class="brand-logo">📊 <span>TripControl</span> • Управління перевезеннями</div>
             <div style="display:flex; gap:10px; align-items: center;">
                 <button class="theme-btn" onclick="toggleTheme()">🌓 Тема</button>
                 <button class="theme-btn" style="border-color: var(--danger); color: var(--danger);" onclick="handleLogout()">Вийти</button>
@@ -477,8 +481,10 @@
                 <span class="unit">грн/доба</span>
             </div>
 
-            <div id="fuel-summary-box" style="background: rgba(59, 130, 246, 0.08); padding: 12px; border-radius: 8px; font-size: 0.9rem; color: var(--accent); margin-top: 15px; font-weight: 500; text-align: center;">
-                ⛽ Паливний розрахунок: ...
+            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid var(--accent); padding: 12px; border-radius: 8px; margin-top: 15px; font-size: 0.85rem; display: flex; flex-direction: column; gap: 6px;">
+                <div id="fuel-summary-box" style="color: var(--accent); font-weight: 500;">⛽ Паливний розрахунок: ...</div>
+                <div id="fuel-per-trip-box" style="color: var(--success); font-weight: 600;">📊 Кількість пального на 1 рейс: ...</div>
+                <div id="cost-per-km-box" style="color: var(--warning); font-weight: 600;">📈 Собівартість 1 км шляху: ...</div>
             </div>
         </div>
     </div>
@@ -498,8 +504,7 @@
                     <span class="unit">грн</span>
                 </div>
                 <div class="form-row dynamic-field" id="field-wash-freq">
-                    <label>Кількість промивок на рік:</label>
-                    <input type="number" id="wash-freq" value="4" oninput="calculate()">
+                    <label>Кількість промивок на рік:</label><input type="number" id="wash-freq" value="4" oninput="calculate()">
                     <span class="unit">раз/рік</span>
                 </div>
 
@@ -789,6 +794,20 @@
             document.getElementById('podacha-info').innerText = result.podachaText || '';
             document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
             
+            // Розрахунок пального на 1 рейс (на 1 машину) та собівартості 1 км
+            const distVal = parseFloat(payload.dist) || 0;
+            const podachaVal = parseFloat(payload.podachaDist) || 0;
+            const fuelLoadRate = parseFloat(payload.fuelLoad) || 0;
+            const fuelEmptyRate = parseFloat(payload.fuelEmpty) || 0;
+            const totalKmPerCar = (distVal * 2) + (podachaVal * 2); // Туди і назад + подача
+            const fuelLitresPerCar = ((fuelLoadRate * distVal) / 100) + ((fuelEmptyRate * (distVal + podachaVal * 2)) / 100);
+            document.getElementById('fuel-per-trip-box').innerText = `📊 Пальне на 1 повний рейс авто: ~${fuelLitresPerCar.toFixed(1)} л ДП`;
+
+            const totalMileageAll = (distVal * 2 * (payload.volume / payload.normWeight)) + (podachaVal * payload.carsCount);
+            const totalDirectCosts = result.detailedRows.reduce((acc, row) => acc + row.val, 0);
+            const costPerKm = totalMileageAll > 0 ? (totalDirectCosts / totalMileageAll) : 0;
+            document.getElementById('cost-per-km-box').innerText = `📈 Орієнтовна собівартість 1 км шляху: ${Math.round(costPerKm)} грн/км`;
+
             const badge = document.getElementById('res-badge');
             badge.innerText = result.profitabilityPct.toFixed(1) + '%';
             badge.className = 'badge ' + (result.profitabilityPct >= 15 ? 'badge-success' : result.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
