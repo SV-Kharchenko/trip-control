@@ -31,7 +31,6 @@
         .header-content { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; }
         .top-row { display: flex; justify-content: space-between; align-items: center; }
         
-        /* Стильний Логотип без версії */
         .brand-logo { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; color: var(--text-main); }
         .brand-logo span { color: var(--accent); }
 
@@ -185,7 +184,7 @@
 
     <!-- МАРШРУТ ТА КАРТИ -->
     <div class="section-block">
-        <div class="section-title">📦 Параметри заявки та маршруту</div>
+        <div class="section-title">Параметри заявки та маршруту</div>
         <div class="grid-layout">
             <div>
                 <div class="card" style="margin-bottom: 0;">
@@ -379,7 +378,7 @@
 
     <!-- ЕКОНОМІКА РЕЙСУ ТА ДІАГРАМА -->
     <div class="section-block">
-        <div class="section-title">📊 Економіка рейсу та структура витрат</div>
+        <div class="section-title">Економіка рейсу та структура витрат</div>
         <div class="grid-layout">
             <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                 <h2>📊 Структура витрат (Діаграма)</h2>
@@ -407,7 +406,7 @@
 
     <!-- ПАЛЬНЕ ТА ЕКІПАЖ -->
     <div class="section-block">
-        <div class="section-title">⛽ Пальне та екіпаж</div>
+        <div class="section-title">Пальне та екіпаж</div>
         <div class="card" style="margin-bottom: 0; max-width: 800px; margin-left: auto; margin-right: auto;">
             <h2>⛽ Параметри палива та ЗП водія</h2>
             <div class="form-row">
@@ -491,7 +490,7 @@
 
     <!-- ТЕХНІЧНЕ ОБСЛУГОВУВАННЯ ТА НАКЛАДНІ -->
     <div class="section-block">
-        <div class="section-title">🛠️ Технічне обслуговування, шини та накладні витрати</div>
+        <div class="section-title">Технічне обслуговування та накладні витрати</div>
         <div class="grid-layout">
             <div class="card" style="margin-bottom: 0;">
                 <h2>🛠️ Технічне обслуговування та Шини</h2>
@@ -794,12 +793,10 @@
             document.getElementById('podacha-info').innerText = result.podachaText || '';
             document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
             
-            // Розрахунок пального на 1 рейс (на 1 машину) та собівартості 1 км
             const distVal = parseFloat(payload.dist) || 0;
             const podachaVal = parseFloat(payload.podachaDist) || 0;
             const fuelLoadRate = parseFloat(payload.fuelLoad) || 0;
             const fuelEmptyRate = parseFloat(payload.fuelEmpty) || 0;
-            const totalKmPerCar = (distVal * 2) + (podachaVal * 2); // Туди і назад + подача
             const fuelLitresPerCar = ((fuelLoadRate * distVal) / 100) + ((fuelEmptyRate * (distVal + podachaVal * 2)) / 100);
             document.getElementById('fuel-per-trip-box').innerText = `📊 Пальне на 1 повний рейс авто: ~${fuelLitresPerCar.toFixed(1)} л ДП`;
 
