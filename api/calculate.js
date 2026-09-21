@@ -129,18 +129,23 @@ export default async function handler(req, res) {
 
         // --- ПОДАТКИ ТА ПРИБУТОК ---
         let taxesTotal = 0;
+        
+        // Попередній розрахунок прибутку до оподаткування
+        const profitBeforeTax = marginalIncome - overheadTotal;
+
         if (calcType === 'фоп') {
-            // ФОП 3 група: 5% єдиний податок + 1% військовий збір від брудного доходу
+            // ФОП 3 група: 5% єдиний податок + 1% військовий збір від усього брудного доходу
             taxesTotal = grossIncome * 0.06;
         } else if (calcType === 'безготівковий') {
-            // ТОВ / Загальна система: умовний податок на прибуток (наприклад, 5% від чистого доходу або прибутку)
-            taxesTotal = netIncome * 0.05; 
+            // ТОВ з ПДВ (Загальна система): ПДВ вже відмінусовано (/ 1.2) у доходах і витратах.
+            // Рахуємо 18% податку на прибуток підприємства (лише якщо є плюсовий прибуток).
+            taxesTotal = profitBeforeTax > 0 ? profitBeforeTax * 0.18 : 0;
         }
 
-        const ebitda = marginalIncome - overheadTotal;
+        const ebitda = profitBeforeTax;
         const netProfit = ebitda - taxesTotal;
         
-        // Відсоток прибутковості
+        // Відсоток прибутковості (рентабельність)
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
 
         // Точка беззбитковості (грн/т)
