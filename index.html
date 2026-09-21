@@ -763,6 +763,7 @@
 
     async function calculate() {
         if (!currentSessionToken) return; // Подвійний захист від запуску без токена
+        const myRequestId = ++calcRequestId; // ФІКС: позначаємо цей виклик, щоб пізніше відрізнити застарілу відповідь
 
         const payload = {
             calcType: document.getElementById('calc-type').value,
@@ -829,6 +830,10 @@
 
             const result = await response.json();
 
+            // ФІКС: якщо за час очікування відповіді користувач встиг ще раз змінити поле —
+            // ця відповідь застаріла (прийшла не в тому порядку), ігноруємо її
+            if (myRequestId !== calcRequestId) return;
+
             document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
             document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}`;
             document.getElementById('res-margin').innerText = formatMoney(result.marginalIncome);
@@ -846,7 +851,12 @@
             badge.innerText = result.profitabilityPct.toFixed(1) + '%';
             badge.className = 'badge ' + (result.profitabilityPct >= 15 ? 'badge-success' : result.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
 
-            document.getElementById('res-breakeven-full').innerText = `${Math.round(result.netProfit ? 0 : 0)} грн/т`;
+            // ФІКС: раніше тут стояла заглушка Math.round(result.netProfit ? 0 : 0), яка завжди
+            // давала 0 незалежно від прибутку. Тепер виводимо реальні значення з сервера,
+            // і другий рядок (операційна беззбитковість) теж оновлюється — раніше він
+            // взагалі не чіпався і назавжди лишався "0 грн/т" зі статичної розмітки.
+            document.getElementById('res-breakeven-full').innerText = `${result.breakevenFullPerTon} грн/т`;
+            document.getElementById('res-breakeven-op').innerText = `Операційна: ${result.breakevenOpPerTon} грн/т`;
 
             const tbody = document.getElementById('cost-breakdown');
             let totalCostsSum = (result.detailedRows || []).reduce((sum, r) => sum + r.val, 0);
