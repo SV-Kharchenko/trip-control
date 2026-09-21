@@ -68,9 +68,11 @@ export default async function handler(req, res) {
             totalLoadedKm = dist * carsCount;
             totalEmptyKm = 0;
         } else {
-            tripsCount = contractVolume / normWeight;
+            // ФІКС: коректний розрахунок ходок та повного об'єму контракту для циклічного вивозу
+            tripsCount = normWeight > 0 ? Math.ceil(contractVolume / normWeight) : 0;
             actualVolume = contractVolume;
             totalLoadedKm = dist * tripsCount;
+            // У циклічному режимі авто їде туди з вантажем, а назад порожнім (крім перших виїздів машин)
             totalEmptyKm = dist * Math.max(0, tripsCount - carsCount);
         }
 
