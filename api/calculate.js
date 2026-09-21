@@ -1,9 +1,37 @@
-export default function handler(req, res) {
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.SUPABASE_URL || 'https://qkfqjorsxcajcneohoy.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; 
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
     try {
+        // Перевірка авторизації та схвалення
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Необхідна авторизація.' });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+            return res.status(401).json({ error: 'Недійсний токен.' });
+        }
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_approved')
+            .eq('id', user.id)
+            .single();
+
+        if (!profile || !profile.is_approved) {
+            return res.status(403).json({ error: 'Акаунт очікує підтвердження адміністратора.' });
+        }
+
         const data = req.body;
 
         const calcType = data.calcType || 'фоп';
@@ -104,7 +132,8 @@ export default function handler(req, res) {
             refFuelTotal = (refFuelRate * refHours * (fuelPrice / (calcType === 'безготівковий' ? 1.2 : 1.0))) * (returnMode === 'разовий' ? carsCount : tripsCount);
         }
 
-        const fuelTotal = fuelLoadedTotal + fuelEmptyTotal + refFuelTotal + fuelPodachaTotal;
+        const fuelMainRouteTotal = fuelLoadedTotal + fuelEmptyTotal + refFuelTotal;
+        const fuelTotal = fuelMainRouteTotal + fuelPodachaTotal;
         const adblueTotal = ((adbluePrice * adblueConsumption / 100) / (calcType === 'безготівковий' ? 1.2 : 1.0)) * (totalLoadedKm + totalEmptyKm + totalPodachaKm);
 
         const idleCompensationTotal = idleDays * idleRate * (returnMode === 'разовий' ? carsCount : tripsCount);
@@ -151,7 +180,7 @@ export default function handler(req, res) {
         const netProfit = ebitda - amortFinAllocated;
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
         const safeVolume = actualVolume > 0 ? actualVolume : 1;
-// Формуємо текстові підказки та дані для таблиці й графіка
+
         let tripVolumeText = returnMode === 'разовий' 
             ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`
             : `Повний вивіз: ${tripsCount.toFixed(1)} ходок (${actualVolume} тн)`;
@@ -164,9 +193,8 @@ export default function handler(req, res) {
 
         const rtInfoText = numReturnLegs > 0
             ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${rtTotalVolumeAvailable < rtLegsUsed*normWeight ? 'обсягом вантажу' : 'кількістю ходок'})`
-            : 'Немає порожніх зворотних ходок у цьому рейсі (перевірте об\'єм і кількість авто)';
+            : 'Немає порожніх зворотних ходок у цьому рейсі';
 
-        const podachaLitres = (fuelEmpty * totalPodachaKm) / 100;
         const podachaText = totalPodachaKm > 0 
             ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л` 
             : '';
@@ -185,7 +213,6 @@ export default function handler(req, res) {
             marginPerTon: Math.round(marginalIncome / safeVolume),
             ebitdaPerTon: Math.round(ebitda / safeVolume),
             
-            // Дані для витрат (таблиця та графік)
             fuelTotal: fuelMainRouteTotal + fuelPodachaTotal + adblueTotal,
             driverTotal: driverTotal + esvTotal + perDiemTotal,
             toTotal,
@@ -193,7 +220,6 @@ export default function handler(req, res) {
             overheadTotal: adminRepairAllocated + amortFinAllocated,
             taxesTotal: tax5Total + tax1Total,
             
-            // Деталізовані рядки для таблиці витрат рейсу
             detailedRows: [
                 ...(tax5Total > 0 ? [{ name: 'Єдиний податок ФОП (5%)', val: tax5Total }] : []),
                 ...(tax1Total > 0 ? [{ name: 'Військовий збір ФОП (1%)', val: tax1Total }] : []),
@@ -206,9 +232,13 @@ export default function handler(req, res) {
                 { name: 'Амортизація та фінансові витрати', val: amortFinAllocated }
             ],
 
-            // Текстові підказки для інтерфейсу
             tripVolumeText,
             rtInfoText,
             podachaText,
             fuelSummaryText
         });
+
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+}
