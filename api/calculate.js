@@ -151,7 +151,25 @@ export default function handler(req, res) {
         const netProfit = ebitda - amortFinAllocated;
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
         const safeVolume = actualVolume > 0 ? actualVolume : 1;
+// Формуємо текстові підказки для інтерфейсу
+        let tripVolumeText = returnMode === 'разовий' 
+            ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`
+            : `Повний вивіз: ${tripsCount.toFixed(1)} ходок (${actualVolume} тн)`;
 
+        if (isRoundTrip) {
+            tripVolumeText += rtLegsUsed > 0
+                ? ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок довантажено (${rtVolumeTotal.toFixed(1)} тн)`
+                : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
+        }
+
+        const rtInfoText = numReturnLegs > 0
+            ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${rtTotalVolumeAvailable < rtLegsUsed*normWeight ? 'обсягом вантажу' : 'кількістю ходок'})`
+            : 'Немає порожніх зворотних ходок у цьому рейсі (перевірте об\'єм і кількість авто)';
+
+        const podachaLitres = (fuelEmpty * totalPodachaKm) / 100;
+        const podachaText = totalPodachaKm > 0 
+            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л (${formatMoneyServer(fuelPodachaTotal)})` 
+            : '';
         return res.status(200).json({
             grossIncome,
             netIncome,
@@ -167,6 +185,9 @@ export default function handler(req, res) {
             tireTotal,
             overheadTotal: adminRepairAllocated + amortFinAllocated,
             taxesTotal: tax5Total + tax1Total
+            tripVolumeText,
+            rtInfoText,
+            podachaText
         });
 
     } catch (error) {
