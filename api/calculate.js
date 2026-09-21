@@ -151,7 +151,7 @@ export default function handler(req, res) {
         const netProfit = ebitda - amortFinAllocated;
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
         const safeVolume = actualVolume > 0 ? actualVolume : 1;
-// Формуємо текстові підказки для інтерфейсу
+// Формуємо текстові підказки та дані для таблиці й графіка
         let tripVolumeText = returnMode === 'разовий' 
             ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`
             : `Повний вивіз: ${tripsCount.toFixed(1)} ходок (${actualVolume} тн)`;
@@ -168,8 +168,13 @@ export default function handler(req, res) {
 
         const podachaLitres = (fuelEmpty * totalPodachaKm) / 100;
         const podachaText = totalPodachaKm > 0 
-            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л (${formatMoneyServer(fuelPodachaTotal)})` 
+            ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л` 
             : '';
+
+        const totalFuelLitres = (fuelLoad * totalLoadedKm / 100) + (fuelEmpty * totalEmptyKm / 100) + podachaLitres + (trailerType === 'рефрижератор' ? refFuelRate * refHours * (returnMode === 'разовий' ? carsCount : tripsCount) : 0);
+        const adblueLitres = (adblueConsumption * (totalLoadedKm + totalEmptyKm + totalPodachaKm)) / 100;
+        const fuelSummaryText = `⛽ Паливний розрахунок: ${totalFuelLitres.toFixed(0)} л ДП (${Math.round(fuelTotal)} грн) + ${adblueLitres.toFixed(0)} л AdBlue (${Math.round(adblueTotal)} грн)`;
+
         return res.status(200).json({
             grossIncome,
             netIncome,
@@ -179,18 +184,31 @@ export default function handler(req, res) {
             profitabilityPct,
             marginPerTon: Math.round(marginalIncome / safeVolume),
             ebitdaPerTon: Math.round(ebitda / safeVolume),
-            fuelTotal,
-            driverTotal,
+            
+            // Дані для витрат (таблиця та графік)
+            fuelTotal: fuelMainRouteTotal + fuelPodachaTotal + adblueTotal,
+            driverTotal: driverTotal + esvTotal + perDiemTotal,
             toTotal,
             tireTotal,
             overheadTotal: adminRepairAllocated + amortFinAllocated,
-            taxesTotal: tax5Total + tax1Total
+            taxesTotal: tax5Total + tax1Total,
+            
+            // Деталізовані рядки для таблиці витрат рейсу
+            detailedRows: [
+                ...(tax5Total > 0 ? [{ name: 'Єдиний податок ФОП (5%)', val: tax5Total }] : []),
+                ...(tax1Total > 0 ? [{ name: 'Військовий збір ФОП (1%)', val: tax1Total }] : []),
+                { name: 'Пальне: Основний рейс + Подача', val: fuelMainRouteTotal + fuelPodachaTotal },
+                { name: 'AdBlue (Загалом)', val: adblueTotal },
+                { name: 'Екіпаж (ЗП + ЄСВ + Добові)', val: driverTotal + esvTotal + perDiemTotal },
+                { name: 'Технічне обслуговування (ТО)', val: toTotal },
+                { name: 'Знос шин', val: tireTotal },
+                { name: 'Адмін. та операційні витрати', val: adminRepairAllocated },
+                { name: 'Амортизація та фінансові витрати', val: amortFinAllocated }
+            ],
+
+            // Текстові підказки для інтерфейсу
             tripVolumeText,
             rtInfoText,
-            podachaText
+            podachaText,
+            fuelSummaryText
         });
-
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-}
