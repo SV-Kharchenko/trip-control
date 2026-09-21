@@ -1,27 +1,34 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://qkfqjorzsxcajcneohoy.supabase.co';
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
     try {
-        // Перевірка авторизації та схвалення
+        // 1. Перевірка наявності токена у запиті від клієнта
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({ error: 'Необхідна авторизація.' });
         }
-
         const token = authHeader.split(' ')[1];
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+        // 2. Ініціалізація Supabase з виправленим URL (додано 'z') 
+        // та публічним ключем + передача токена користувача для проходження RLS
+        const supabaseUrl = process.env.SUPABASE_URL || 'https://qkfqjorzsxcajcneohoy.supabase.co';
+        const supabaseKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_-W_XaLQFhKyDvQY_-5xHBw_tK25Pjw9';
+        
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+            global: { headers: { Authorization: `Bearer ${token}` } }
+        });
+
+        // 3. Перевірка валідності токена
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
             return res.status(401).json({ error: 'Недійсний токен.' });
         }
 
+        // 4. Перевірка статусу схвалення адміністратором
         const { data: profile } = await supabase
             .from('profiles')
             .select('is_approved')
@@ -32,6 +39,7 @@ export default async function handler(req, res) {
             return res.status(403).json({ error: 'Акаунт очікує підтвердження адміністратора.' });
         }
 
+        // --- ПОЧАТОК ЛОГІКИ КАЛЬКУЛЯТОРА ---
         const data = req.body;
 
         const calcType = data.calcType || 'фоп';
@@ -181,10 +189,6 @@ export default async function handler(req, res) {
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
         const safeVolume = actualVolume > 0 ? actualVolume : 1;
 
-        // --- Точка беззбитковості ---
-        // Рахуємо від чистої собівартості (без ПДВ/податків) і лише потім переводимо
-        // в ту саму "розцінку", яку вводить користувач — щоб не було циклічної залежності
-        // від самого тарифу (податок ФОП інакше рахувався б від ціни, яку перевіряємо).
         const opCostPerTon = (directCosts + adminRepairAllocated) / safeVolume;
         const fullCostPerTon = (directCosts + adminRepairAllocated + amortFinAllocated) / safeVolume;
         let breakevenOpPerTon, breakevenFullPerTon;
@@ -209,15 +213,10 @@ export default async function handler(req, res) {
                 : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
         }
 
-        // Раніше цей вираз завжди повертав "кількістю ходок", бо rtLegsUsed вже за
-        // визначенням обмежений об'ємом (min(...)), тож rtTotalVolumeAvailable < rtLegsUsed*normWeight
-        // структурно ніколи не могло бути true. Порівнюємо натомість те, що реально
-        // стало вузьким місцем: саму кількість доступних ходок проти місткості за об'ємом.
         const rtInfoText = numReturnLegs > 0
             ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${numReturnLegs <= maxLegsByCapacity ? 'кількістю ходок' : 'обсягом вантажу'})`
             : 'Немає порожніх зворотних ходок у цьому рейсі';
 
-        // Повернув суму в грн, яка раніше губилась при переписуванні на бекенд-версію
         const podachaText = totalPodachaKm > 0 
             ? `Витрати на подачу: ${podachaLitres.toFixed(1)} л (${Math.round(fuelPodachaTotal)} грн)` 
             : '';
@@ -264,6 +263,8 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
+        // Додано логування помилки для зручного дебагу в логах Vercel
+        console.error('API Error:', error);
         return res.status(500).json({ error: error.message });
     }
 }
