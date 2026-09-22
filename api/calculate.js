@@ -168,9 +168,10 @@ export default async function handler(req, res) {
         ];
 
         // ==========================================
-        // КРОК 6. ПЕРЕДАЧА ДАНИХ ДЛЯ ВІЗУАЛІЗАЦІЇ
+        // КРОК 6. ПЕРЕДАЧА ДАНИХ ДЛЯ ФРОНТЕНДУ
         // ==========================================
         return res.status(200).json({
+            // --- Основні фінансові показники ---
             grossIncome: Math.round(grossIncome),
             netIncome: Math.round(netIncome),
             marginalIncome: Math.round(marginalIncome),
@@ -182,14 +183,31 @@ export default async function handler(req, res) {
             breakevenFullPerTon,
             breakevenOpPerTon,
             
-            // Змінні для графіка в Блоці 2 (обов'язково повертаються)
-            fuelTotal: Math.round(fuelTotal + adblueTotal),
-            driverTotal: Math.round(driverTotal),
-            toTotal: Math.round(maintenanceTotal),
+            // --- Змінні для текстових описів (щоб зникли дужки з коду) ---
+            tripsCount: tripsCount,
+            actualVolume: actualVolume,
+            totalAllKm: totalAllKm,
+            fuelPodachaCost: Math.round(fuelPodachaCost),
+            totalPodachaKm: totalPodachaKm,
+            
+            // --- Детальні витрати для Графіка (щоб відмалювалась візуалізація) ---
+            fuelTotal: Math.round(fuelTotal),
+            adblueTotal: Math.round(adblueTotal),
+            salaryTotal: Math.round(salaryTotal),
+            esvTotal: Math.round(esvTotal),
+            perDiemTotal: Math.round(perDiemTotal),
+            driverTotal: Math.round(driverTotal), // ЗП + ЄСВ + Добові
+            toTotal: Math.round(toTotalKmCost),
+            tireTotal: Math.round(tireTotalKmCost),
+            repairTotal: Math.round(repairTotal),
+            maintenanceTotal: Math.round(maintenanceTotal), // ТО + Шини + Ремонти
             overheadTotal: Math.round(overheadTotal),
             taxesTotal: Math.round(taxesTotal),
             
+            // --- Дані для таблиці Блоку 2 ---
             detailedRows,
+            
+            // (Резервні готові тексти на випадок, якщо фронт їх використовує напряму)
             tripVolumeText: `Об'єм вивозу: \({tripsCount} ходок (\){actualVolume} тн)`,
             podachaText: `Витрати на подачу: \({Math.round(fuelPodachaCost)} грн (\){totalPodachaKm} км)`,
             fuelSummaryText: `⛽ Пальне: заг. пробіг \({totalAllKm} км | Витрати:\){Math.round(fuelTotal)} грн`
