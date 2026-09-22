@@ -61,6 +61,8 @@ export default async function handler(req, res) {
         // 5. Накладні витрати (амортизація/фін. витрати — не VAT-товар, ремонт — VAT-товар)
         const amortYear = parseFloat(body.amort) || 40139408;
         const adminYear = parseFloat(body.admin) || 17871209;
+        const otherOpYear = parseFloat(body.otherOperating) || 0;   // "Інші операційні витрати"
+        const otherExpYear = parseFloat(body.otherExpenses) || 0;   // "Накладні витрати. Інші витрати"
         const repairYear = parseFloat(body.repair) || 14305000;
         const finYear = parseFloat(body.fin) || 4308097.69;
         const totalFleet = parseFloat(body.totalFleet) || 68;
@@ -181,14 +183,22 @@ export default async function handler(req, res) {
         const directCostsTotal = fuelTotal + adblueTotal + driverTotal + maintenanceTotal;
         const marginalIncome = netIncome - directCostsTotal;
 
-        // --- НАКЛАДНІ ВИТРАТИ (амортизація/адмін/фін — не є VAT-товаром, тому без vatDivisor) ---
-        const dailyAmort = amortYear / (totalFleet * workDaysYear);
+        // --- НАКЛАДНІ ВИТРАТИ ---
+        // EBITDA за визначенням — прибуток ДО амортизації й фінансових витрат, тому вони
+        // не повинні зменшувати EBITDA; віднімаються лише на етапі netProfit (як і в Excel:
+        // I41=I36-SUM(адмін,інші_оп,інші_витрати), I44=I41-SUM(амортизація,фін.витрати)).
         const dailyAdmin = adminYear / (totalFleet * workDaysYear);
+        const dailyOtherOp = otherOpYear / (totalFleet * workDaysYear);
+        const dailyOtherExp = otherExpYear / (totalFleet * workDaysYear);
+        const dailyAmort = amortYear / (totalFleet * workDaysYear);
         const dailyFin = finYear / (totalFleet * workDaysYear);
-        const overheadTotal = (dailyAmort + dailyAdmin + dailyFin) * totalTripDays;
 
-        const ebitda = marginalIncome - overheadTotal;
-        const netProfit = ebitda - taxesTotal; // податок віднімається один раз, для всіх типів однаково
+        const ebitdaOverheadTotal = (dailyAdmin + dailyOtherOp + dailyOtherExp) * totalTripDays;
+        const postEbitdaTotal = (dailyAmort + dailyFin) * totalTripDays;
+        const overheadTotal = ebitdaOverheadTotal + postEbitdaTotal; // повна сума, для беззбитковості й діаграми
+
+        const ebitda = marginalIncome - ebitdaOverheadTotal;
+        const netProfit = ebitda - postEbitdaTotal - taxesTotal; // тепер амортизація/фін віднімаються тут, а не в EBITDA
 
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
         const totalAllCosts = directCostsTotal + overheadTotal + taxesTotal;
@@ -200,7 +210,8 @@ export default async function handler(req, res) {
             { name: useAdblue ? '💧 Рідина AdBlue' : '💧 Рідина AdBlue (Вимкнено)', val: Math.round(adblueTotal) },
             { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові', val: Math.round(driverTotal) },
             { name: '🔧 ТО, Шини та Ремонти' + (tankWashTotal > 0 ? ' + промивка цистерни' : ''), val: Math.round(maintenanceTotal) },
-            { name: '🏢 Накладні витрати (амортизація, адмін, фін)', val: Math.round(overheadTotal) },
+            { name: '🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)', val: Math.round(ebitdaOverheadTotal) },
+            { name: '📉 Амортизація та фінансові витрати (після EBITDA)', val: Math.round(postEbitdaTotal) },
             { name: '🏛️ Податки (ФОП / ПДВ)', val: Math.round(taxesTotal) }
         ];
 
