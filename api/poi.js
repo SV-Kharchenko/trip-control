@@ -38,43 +38,64 @@ export default async function handler(req, res) {
         }
 
         const body = req.body || {};
-        const lat = parseFloat(body.lat);
-        const lon = parseFloat(body.lon);
-        if (isNaN(lat) || isNaN(lon)) {
-            return res.status(400).json({ error: 'Некоректні координати точки.' });
+        const points = Array.isArray(body.points) ? body.points : [];
+        if (points.length === 0) {
+            return res.status(400).json({ error: 'Не передано жодної точки маршруту.' });
         }
         const radius = Math.min(parseInt(body.radius) || 8000, 20000); // захист від надто широкого запиту
 
+        // Один комбінований запит на ВСІ точки одразу, замість окремого запиту на кожну —
+        // менше звернень до Overpass = менший ризик впертись у ліміт частоти (429).
         const filters = [];
-        if (body.wantGas) filters.push(`nwr["amenity"="fuel"](around:${radius},${lat},${lon});`);
-        if (body.wantCafe) filters.push(`nwr["amenity"="cafe"](around:${radius},${lat},${lon});`);
-        if (body.wantSto) filters.push(`nwr["shop"="car_repair"](around:${radius},${lat},${lon});`);
-        if (body.wantTir) {
-            filters.push(`nwr["amenity"="parking"]["hgv"](around:${radius},${lat},${lon});`);
-            filters.push(`nwr["highway"="rest_area"](around:${radius},${lat},${lon});`);
+        for (const pt of points) {
+            const lat = parseFloat(pt.lat);
+            const lon = parseFloat(pt.lon);
+            if (isNaN(lat) || isNaN(lon)) continue;
+            if (body.wantGas) filters.push(`nwr["amenity"="fuel"](around:${radius},${lat},${lon});`);
+            if (body.wantCafe) filters.push(`nwr["amenity"="cafe"](around:${radius},${lat},${lon});`);
+            if (body.wantSto) filters.push(`nwr["shop"="car_repair"](around:${radius},${lat},${lon});`);
+            if (body.wantTir) {
+                filters.push(`nwr["amenity"="parking"]["hgv"](around:${radius},${lat},${lon});`);
+                filters.push(`nwr["highway"="rest_area"](around:${radius},${lat},${lon});`);
+            }
         }
 
         if (filters.length === 0) {
             return res.status(200).json({ elements: [] });
         }
 
-        const query = `[out:json][timeout:25];(${filters.join('')});out center 15;`;
+        // Overpass повертає об'єднання (union) без дублів навіть якщо кілька "around" збігаються,
+        // тож ліміт виводу піднімаємо пропорційно кількості точок, а не лишаємо фіксовані 15 на все.
+        const outLimit = Math.min(points.length * 20, 200);
+        const query = `[out:json][timeout:8];(${filters.join('')});out center ${outLimit};`;
 
         let lastError = 'невідома помилка';
-        for (const mirror of OVERPASS_MIRRORS) {
+        for (let i = 0; i < OVERPASS_MIRRORS.length; i++) {
+            const mirror = OVERPASS_MIRRORS[i];
+            // Vercel Hobby вбиває функцію за 10с загалом — власний таймаут гарантує, що повільне
+            // дзеркало не з'їсть увесь бюджет часу, лишивши нуль секунд на спробу другого.
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
             try {
                 const overpassRes = await fetch(mirror, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'data=' + encodeURIComponent(query)
+                    body: 'data=' + encodeURIComponent(query),
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
                 if (overpassRes.ok) {
                     const data = await overpassRes.json();
                     return res.status(200).json(data);
                 }
                 lastError = `${mirror} відповів HTTP ${overpassRes.status}`;
             } catch (e) {
-                lastError = `${mirror}: ${e.message}`;
+                clearTimeout(timeoutId);
+                lastError = e.name === 'AbortError' ? `${mirror}: перевищено таймаут (4с)` : `${mirror}: ${e.message}`;
+            }
+            // Невелика пауза перед спробою дзеркала — щоб не бити в той самий ліміт частоти миттєво повторно
+            if (i < OVERPASS_MIRRORS.length - 1) {
+                await new Promise(r => setTimeout(r, 500));
             }
         }
 
