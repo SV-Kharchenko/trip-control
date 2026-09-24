@@ -60,7 +60,9 @@
         select { text-align: left; }
         input:focus, select:focus { outline: none; border-color: var(--accent); }
         .unit { font-size: 0.8rem; color: var(--text-muted); }
-        gmp-place-autocomplete { width: 100%; --gmpx-color-surface: var(--input-bg); --gmpx-color-on-surface: var(--text-main); --gmpx-color-on-surface-variant: var(--text-muted); --gmpx-font-family-base: 'Inter', sans-serif; }
+        gmp-place-autocomplete { width: 100%; }
+        [data-theme="dark"] gmp-place-autocomplete { color-scheme: dark; }
+        [data-theme="light"] gmp-place-autocomplete { color-scheme: light; }
         
         .preset-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
         .preset-btn { background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-muted); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: 500; }
@@ -116,29 +118,31 @@
 
 <div class="container" id="main-app">
     <div id="sticky-top">
-        <header>
-            <h1>🚛 TRIP-CONTROL, розрахунок прибутковості автомобільних перевезень</h1>
-            <div style="display:flex; gap:10px;">
+        <header style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;">
+            <span></span>
+            <h1 style="text-align: center; white-space: nowrap;">🧭 TRIP-CONTROL</h1>
+            <div style="display:flex; gap:8px; justify-self: end;">
                 <button class="theme-btn" onclick="toggleTheme()">🌓 Тема</button>
+                <button class="theme-btn" title="Скоро" disabled style="opacity: 0.6; cursor: not-allowed;">Особистий кабінет</button>
                 <button class="theme-btn" style="border-color: var(--danger); color: var(--danger);" onclick="handleLogout()">Вийти</button>
             </div>
         </header>
 
-        <div class="currency-bar">
-            <div class="currency-item">🇺🇸 USD НБУ: <span class="currency-val" id="rate-usd">...</span></div>
-            <div class="currency-item">🇪🇺 EUR НБУ: <span class="currency-val" id="rate-eur">...</span></div>
-            <div class="currency-item">🇵🇱 PLN НБУ: <span class="currency-val" id="rate-pln">...</span></div>
-            <div class="currency-item">⛽ Ціна ДП: <a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">перевірити актуальну →</a></div>
+        <div class="currency-bar" style="padding: 6px 14px; font-size: 0.75rem;">
+            <div class="currency-item" style="font-size: 0.75rem;">🇺🇸 USD: <span class="currency-val" id="rate-usd">...</span></div>
+            <div class="currency-item" style="font-size: 0.75rem;">🇪🇺 EUR: <span class="currency-val" id="rate-eur">...</span></div>
+            <div class="currency-item" style="font-size: 0.75rem;">🇵🇱 PLN: <span class="currency-val" id="rate-pln">...</span></div>
+            <div class="currency-item" style="font-size: 0.75rem;">⛽ ДП: <a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">перевірити →</a></div>
             
             <div class="converter-box">
-                <span style="font-size: 0.8rem; color: var(--text-muted);">Конвертер:</span>
-                <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
-                <select id="conv-curr" onchange="convertCurrency()" style="width: 75px;">
+                <span style="font-size: 0.72rem; color: var(--text-muted);">Конвертер:</span>
+                <input type="number" id="conv-amount" value="100" oninput="convertCurrency()" style="font-size: 0.75rem; padding: 4px 6px;">
+                <select id="conv-curr" onchange="convertCurrency()" style="width: 65px; font-size: 0.75rem; padding: 4px 6px;">
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
                     <option value="PLN">PLN</option>
                 </select>
-                <span id="conv-res" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);">0 грн</span>
+                <span id="conv-res" style="font-size: 0.75rem; font-weight: 700; color: var(--accent);">0 грн</span>
             </div>
         </div>
 
@@ -168,12 +172,6 @@
                 <div class="kpi-value" id="res-breakeven-full" style="font-size: 1.1rem; color: var(--warning);">0 грн/т</div>
                 <div class="kpi-sub" id="res-breakeven-op">Операційна: 0 грн/т</div>
             </div>
-        </div>
-
-        <div class="actions-bar">
-            <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
-            <button class="btn" onclick="window.print()">📄 Експорт у PDF</button>
-            <button class="btn btn-warning" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
         </div>
     </div>
 
@@ -510,6 +508,25 @@
 
         <div>
             <div class="card">
+                <h2>📊 Структура витрат</h2>
+                <div class="chart-box">
+                    <div class="bar-container" id="bar-chart"></div>
+                    <div class="chart-legend" id="chart-legend"></div>
+                </div>
+                <table style="margin-top: 16px;">
+                    <thead>
+                        <tr>
+                            <th>Стаття витрат</th>
+                            <th>Сума (грн)</th>
+                            <th>На 1 тн</th>
+                            <th>Частка</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cost-breakdown"></tbody>
+                </table>
+            </div>
+
+            <div class="card">
                 <h2>🏢 Накладні витрати та технічне обслуговування</h2>
                 <div class="form-row">
                     <label>Вартість ТО (з ПДВ):</label>
@@ -585,30 +602,11 @@
                     <span class="unit">шт</span>
                 </div>
             </div>
-
-            <div class="card">
-                <h2>📊 Структура витрат</h2>
-                <div class="chart-box">
-                    <div class="bar-container" id="bar-chart"></div>
-                    <div class="chart-legend" id="chart-legend"></div>
-                </div>
-                <table style="margin-top: 16px;">
-                    <thead>
-                        <tr>
-                            <th>Стаття витрат</th>
-                            <th>Сума (грн)</th>
-                            <th>На 1 тн</th>
-                            <th>Частка</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cost-breakdown"></tbody>
-                </table>
-            </div>
         </div>
     </div>
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
-        <h2>📊 Збережені розрахунки (Ротації)</h2>
+        <h2>📊 Збережені розрахунки</h2>
         <div class="comparison-table">
             <table id="saved-table">
                 <thead>
@@ -630,6 +628,12 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    <div class="actions-bar" style="margin-top: 20px;">
+        <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
+        <button class="btn" onclick="window.print()">📄 Експорт у PDF</button>
+        <button class="btn btn-warning" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
     </div>
 </div>
 
