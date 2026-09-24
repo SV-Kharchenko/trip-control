@@ -60,6 +60,7 @@
         select { text-align: left; }
         input:focus, select:focus { outline: none; border-color: var(--accent); }
         .unit { font-size: 0.8rem; color: var(--text-muted); }
+        gmp-place-autocomplete { width: 100%; --gmpx-color-surface: var(--input-bg); --gmpx-color-on-surface: var(--text-main); --gmpx-color-on-surface-variant: var(--text-muted); --gmpx-font-family-base: 'Inter', sans-serif; }
         
         .preset-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
         .preset-btn { background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-muted); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: 500; }
@@ -88,7 +89,7 @@
     </style>
     <!-- Supabase та Google Maps -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=geometry"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=places,geometry"></script>
 </head>
 <body data-theme="dark">
 
@@ -197,15 +198,18 @@
                     <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 6px;">🗺️ Розрахунок відстані Google Maps</div>
                     <div class="form-row two-cols" style="margin-bottom: 6px;">
                         <label>Пункт 0 (Стоянка авто - опц.):</label>
-                        <input type="text" id="osm-base" placeholder="напр. Київ" style="text-align: left;" autocomplete="off">
+                        <div id="osm-base-wrap"></div>
+                        <input type="hidden" id="osm-base">
                     </div>
                     <div class="form-row two-cols" style="margin-bottom: 6px;">
                         <label>Пункт A (Завантаження):</label>
-                        <input type="text" id="osm-from" placeholder="напр. Житомир" style="text-align: left;" autocomplete="off">
+                        <div id="osm-from-wrap"></div>
+                        <input type="hidden" id="osm-from">
                     </div>
                     <div class="form-row two-cols" style="margin-bottom: 6px;">
                         <label>Пункт B (Розвантаження):</label>
-                        <input type="text" id="osm-to" placeholder="напр. Одеса" style="text-align: left;" autocomplete="off">
+                        <div id="osm-to-wrap"></div>
+                        <input type="hidden" id="osm-to">
                     </div>
                     <div id="waypoints-list" style="margin-bottom: 6px;"></div>
                     <button type="button" class="preset-btn" style="margin-bottom: 8px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
@@ -216,7 +220,8 @@
                 <div id="map" style="height: 180px; width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);"></div>
 
                 <div style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
-                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (OpenStreetMap)</div>
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (Google Places)</div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">Платний сервіс: 5000 запитів/міс безкоштовно, далі $32/1000. Кожен клік — до 24 запитів залежно від кількості обраних категорій.</div>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.8rem;">
                         <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-gas" checked style="width:auto;"> ⛽ АЗС</label>
                         <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-tir" checked style="width:auto;"> 🅿️ Стоянки TIR</label>
@@ -341,11 +346,13 @@
                         </div>
                         <div class="form-row two-cols" style="margin-bottom: 6px;">
                             <label>Точка C (довантаження, порожнім з B):</label>
-                            <input type="text" id="rt-point-c" placeholder="напр. Жашків" style="text-align: left;" autocomplete="off">
+                            <div id="rt-point-c-wrap"></div>
+                            <input type="hidden" id="rt-point-c">
                         </div>
                         <div class="form-row two-cols" style="margin-bottom: 6px;">
                             <label>Точка D (вивантаження, вантаженим з C):</label>
-                            <input type="text" id="rt-point-d" placeholder="напр. Чорноморськ" style="text-align: left;" autocomplete="off">
+                            <div id="rt-point-d-wrap"></div>
+                            <input type="hidden" id="rt-point-d">
                         </div>
                         <button type="button" class="btn" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотній маршрут (Google)</button>
                         <div id="rt-status" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
@@ -1049,7 +1056,7 @@
         }
     }
 
-    function initMap() {
+    async function initMap() {
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 48.3794, lng: 31.1656 },
             zoom: 6
@@ -1061,9 +1068,48 @@
         directionsRendererBackhaul = new google.maps.DirectionsRenderer({ polylineOptions: { strokeColor: '#f59e0b', strokeWeight: 4 }, suppressMarkers: false });
         directionsRendererBackhaul.setMap(map);
 
-        // Автопідказки адрес прибрані: legacy Places Autocomplete недоступний для нових
-        // Google Cloud проєктів (ApiNotActivatedMapError), і його виклик міг зривати
-        // завантаження всього Maps-бандла. Directions API геокодує звичайний текст сам.
+        // Автопідказки адрес (Places API New, PlaceAutocompleteElement) — легасі-версія була
+        // заблокована для цього проєкту, ця нова версія працює через ту саму бібліотеку "places".
+        try {
+            await createAddressAutocomplete('osm-base-wrap', 'osm-base', 'напр. Київ');
+            await createAddressAutocomplete('osm-from-wrap', 'osm-from', 'напр. Житомир');
+            await createAddressAutocomplete('osm-to-wrap', 'osm-to', 'напр. Одеса');
+            await createAddressAutocomplete('rt-point-c-wrap', 'rt-point-c', 'напр. Жашків');
+            await createAddressAutocomplete('rt-point-d-wrap', 'rt-point-d', 'напр. Чорноморськ');
+        } catch (e) {
+            console.warn('Не вдалося ініціалізувати автопідказки адрес:', e);
+        }
+    }
+
+    // Створює віджет автопідказок Google Places у контейнері wrapId і дзеркалить обраний/введений
+    // текст у прихований <input id="hiddenId">, який читає решта коду (calculateGoogleRoute тощо) —
+    // так решту коду не довелось переписувати під новий тип елемента.
+    async function createAddressAutocomplete(wrapId, hiddenId, placeholderText) {
+        const { PlaceAutocompleteElement } = await google.maps.importLibrary('places');
+        const wrap = document.getElementById(wrapId);
+        const hidden = document.getElementById(hiddenId);
+        if (!wrap || !hidden) return null;
+
+        const el = new PlaceAutocompleteElement({ includedRegionCodes: ['ua'] });
+        el.placeholder = placeholderText;
+        wrap.appendChild(el);
+
+        // Обраний з випадаючого списку варіант — беремо текст підказки напряму,
+        // без окремого платного виклику fetchFields (він нам тут не потрібен).
+        el.addEventListener('gmp-select', (event) => {
+            hidden.value = event.placePrediction.text.toString();
+            calculate();
+        });
+
+        // Фолбек: якщо людина просто вводить текст і не обирає підказку зі списку —
+        // дзеркалимо сирий ввід, щоб поле й далі приймало довільний текст, як і раніше.
+        if (el.inputElement) {
+            el.inputElement.addEventListener('input', () => {
+                hidden.value = el.inputElement.value;
+            });
+        }
+
+        return el;
     }
 
     function addWaypointRow() {
@@ -1074,11 +1120,13 @@
         row.style.marginBottom = '6px';
         row.id = 'row-' + id;
         row.innerHTML = `<label>Проміжна зупинка:</label>
-            <div style="display:flex; gap:4px;">
-                <input type="text" id="${id}" class="waypoint-input" placeholder="напр. Вінниця" style="text-align:left;" autocomplete="off">
+            <div style="display:flex; gap:4px; align-items:center;">
+                <div id="${id}-wrap" style="flex:1;"></div>
+                <input type="hidden" id="${id}" class="waypoint-input">
                 <button type="button" onclick="removeWaypointRow('${id}')" style="flex:0 0 auto; width:32px; background:var(--danger); color:#fff; border:none; border-radius:6px; cursor:pointer;">✕</button>
             </div>`;
         document.getElementById('waypoints-list').appendChild(row);
+        createAddressAutocomplete(`${id}-wrap`, id, 'напр. Вінниця').catch(e => console.warn('Автопідказка для зупинки не створилась:', e));
     }
 
     function removeWaypointRow(id) {
@@ -1248,58 +1296,82 @@
             samplePoints = samplePoints.filter((_, i) => i % step === 0);
         }
 
-        statusEl.innerText = `🔍 OpenStreetMap: шукаємо у ${samplePoints.length} точках маршруту одним запитом...`;
+        statusEl.innerText = `🔍 Google Places: шукаємо у ${samplePoints.length} точках маршруту...`;
         statusEl.style.color = 'var(--text-muted)';
 
-        const points = samplePoints.map(pt => ({ lat: pt.lat(), lon: pt.lng() }));
+        const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
+
+        const categories = [];
+        if (wantGas) categories.push({ type: 'gas_station', icon: '⛽', label: 'АЗС' });
+        if (wantCafe) categories.push({ type: 'cafe', icon: '☕', label: 'Кафе' });
+        if (wantSto) categories.push({ type: 'car_repair', icon: '🔧', label: 'СТО' });
+
         const seenIds = new Set();
         let foundCount = 0;
+        let callCount = 0;
+        let errorCount = 0;
 
-        try {
-            const res = await fetch('/api/poi', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + currentSessionToken
-                },
-                body: JSON.stringify({ points, radius: 8000, wantGas, wantCafe, wantSto, wantTir })
-            });
-            const data = await res.json();
-            if (res.ok) {
-                (data.elements || []).forEach(el => {
-                    if (seenIds.has(el.id)) return;
-                    seenIds.add(el.id);
-                    const info = classifyOverpassElement(el);
-                    if (info) { foundCount++; addPOIMarkerOSM(el, info.icon, info.label); }
-                });
-                statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (OpenStreetMap)`;
-                statusEl.style.color = 'var(--success)';
-            } else {
-                statusEl.innerText = `❌ Не вдалося отримати дані: ${data.error || ('HTTP ' + res.status)}`;
-                statusEl.style.color = 'var(--danger)';
+        for (const pt of samplePoints) {
+            for (const cat of categories) {
+                callCount++;
+                try {
+                    const { places } = await Place.searchNearby({
+                        fields: ['id', 'displayName', 'location', 'formattedAddress'],
+                        locationRestriction: { center: pt, radius: 8000 },
+                        includedPrimaryTypes: [cat.type],
+                        maxResultCount: 3,
+                        rankPreference: SearchNearbyRankPreference.DISTANCE
+                    });
+                    (places || []).forEach(place => {
+                        if (seenIds.has(place.id)) return;
+                        seenIds.add(place.id);
+                        foundCount++;
+                        addPOIMarkerGoogle(place, cat.icon, cat.label);
+                    });
+                } catch (e) {
+                    errorCount++;
+                    console.warn('Places searchNearby помилка:', e);
+                }
             }
-        } catch (e) {
-            console.warn('POI proxy fetch помилка:', e);
-            statusEl.innerText = `❌ Не вдалося отримати дані: ${e.message}`;
+
+            if (wantTir) {
+                callCount++;
+                try {
+                    const { places } = await Place.searchByText({
+                        textQuery: 'truck parking TIR стоянка вантажівок',
+                        fields: ['id', 'displayName', 'location', 'formattedAddress'],
+                        locationBias: { center: pt, radius: 8000 },
+                        maxResultCount: 3
+                    });
+                    (places || []).forEach(place => {
+                        if (seenIds.has(place.id)) return;
+                        seenIds.add(place.id);
+                        foundCount++;
+                        addPOIMarkerGoogle(place, '🅿️', 'TIR стоянка');
+                    });
+                } catch (e) {
+                    errorCount++;
+                    console.warn('Places searchByText помилка:', e);
+                }
+            }
+        }
+
+        if (errorCount === callCount && callCount > 0) {
+            statusEl.innerText = `❌ Жоден запит не пройшов — перевірте консоль (F12) і статус Places API в Cloud Console`;
             statusEl.style.color = 'var(--danger)';
+        } else if (errorCount > 0) {
+            statusEl.innerText = `⚠️ Знайдено ${foundCount} об'єктів (${errorCount} з ${callCount} запитів не відповіли)`;
+            statusEl.style.color = 'var(--warning)';
+        } else {
+            statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (Google Places, ${callCount} запитів)`;
+            statusEl.style.color = 'var(--success)';
         }
     }
 
-    function classifyOverpassElement(el) {
-        const tags = el.tags || {};
-        if (tags.amenity === 'fuel') return { icon: '⛽', label: 'АЗС' };
-        if (tags.amenity === 'cafe') return { icon: '☕', label: 'Кафе' };
-        if (tags.shop === 'car_repair') return { icon: '🔧', label: 'СТО' };
-        if (tags.amenity === 'parking' || tags.highway === 'rest_area') return { icon: '🅿️', label: 'TIR стоянка' };
-        return null;
-    }
-
-    function addPOIMarkerOSM(el, icon, label) {
-        const lat = el.lat || (el.center && el.center.lat);
-        const lon = el.lon || (el.center && el.center.lon);
-        if (!lat || !lon) return;
-        const position = { lat, lng: lon };
-        const name = (el.tags && el.tags.name) || label;
+    function addPOIMarkerGoogle(place, icon, label) {
+        if (!place.location) return;
+        const position = place.location;
+        const name = place.displayName || label;
 
         const marker = new google.maps.Marker({
             position: position,
@@ -1310,7 +1382,7 @@
         poiMarkers.push(marker);
 
         const infoWindow = new google.maps.InfoWindow({
-            content: `<div style="color:#1e293b; font-size:0.85rem;"><b>${icon} ${name}</b><br>${label} · OpenStreetMap</div>`
+            content: `<div style="color:#1e293b; font-size:0.85rem;"><b>${icon} ${name}</b><br>${label}${place.formattedAddress ? '<br>' + place.formattedAddress : ''}</div>`
         });
         marker.addListener('click', () => infoWindow.open(map, marker));
 
