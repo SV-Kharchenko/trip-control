@@ -1,9 +1,35 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     try {
+        // --- Перевірка авторизації та схвалення акаунта ---
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'Необхідна авторизація.' });
+        }
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+            return res.status(401).json({ error: 'Недійсний токен.' });
+        }
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('is_approved')
+            .eq('id', user.id)
+            .single();
+        if (!profile || !profile.is_approved) {
+            return res.status(403).json({ error: 'Акаунт очікує підтвердження адміністратора.' });
+        }
+
         const body = req.body || {};
 
         // 1. Вхідні параметри
