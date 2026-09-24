@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Калькулятор прибутковості вантажних перевезень v7.8</title>
+    <title>TRIP-CONTROL, розрахунок прибутковості автомобільних перевезень</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -25,6 +25,7 @@
         h1 { font-size: 1.4rem; font-weight: 700; }
         .theme-btn { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; }
         
+        #sticky-top { position: sticky; top: 0; z-index: 40; background: var(--bg-color); padding-top: 4px; padding-bottom: 4px; margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
         .currency-bar { display: flex; gap: 16px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
         .currency-item { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: 600; }
         .currency-val { color: var(--accent); }
@@ -87,7 +88,7 @@
     </style>
     <!-- Supabase та Google Maps -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=places,geometry"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=geometry"></script>
 </head>
 <body data-theme="dark">
 
@@ -113,70 +114,72 @@
 </div>
 
 <div class="container" id="main-app">
-    <header>
-        <h1>🚛 Калькулятор прибутковості перевезень v7.8</h1>
-        <div style="display:flex; gap:10px;">
-            <button class="theme-btn" onclick="toggleTheme()">🌓 Тема</button>
-            <button class="theme-btn" style="border-color: var(--danger); color: var(--danger);" onclick="handleLogout()">Вийти</button>
-        </div>
-    </header>
+    <div id="sticky-top">
+        <header>
+            <h1>🚛 TRIP-CONTROL, розрахунок прибутковості автомобільних перевезень</h1>
+            <div style="display:flex; gap:10px;">
+                <button class="theme-btn" onclick="toggleTheme()">🌓 Тема</button>
+                <button class="theme-btn" style="border-color: var(--danger); color: var(--danger);" onclick="handleLogout()">Вийти</button>
+            </div>
+        </header>
 
-    <div class="currency-bar">
-        <div class="currency-item">🇺🇸 USD НБУ: <span class="currency-val" id="rate-usd">...</span></div>
-        <div class="currency-item">🇪🇺 EUR НБУ: <span class="currency-val" id="rate-eur">...</span></div>
-        <div class="currency-item">🇵🇱 PLN НБУ: <span class="currency-val" id="rate-pln">...</span></div>
-        <div class="currency-item">⛽ Ціна ДП: <a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">перевірити актуальну →</a></div>
-        
-        <div class="converter-box">
-            <span style="font-size: 0.8rem; color: var(--text-muted);">Конвертер:</span>
-            <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
-            <select id="conv-curr" onchange="convertCurrency()" style="width: 75px;">
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="PLN">PLN</option>
-            </select>
-            <span id="conv-res" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);">0 грн</span>
+        <div class="currency-bar">
+            <div class="currency-item">🇺🇸 USD НБУ: <span class="currency-val" id="rate-usd">...</span></div>
+            <div class="currency-item">🇪🇺 EUR НБУ: <span class="currency-val" id="rate-eur">...</span></div>
+            <div class="currency-item">🇵🇱 PLN НБУ: <span class="currency-val" id="rate-pln">...</span></div>
+            <div class="currency-item">⛽ Ціна ДП: <a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">перевірити актуальну →</a></div>
+            
+            <div class="converter-box">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Конвертер:</span>
+                <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
+                <select id="conv-curr" onchange="convertCurrency()" style="width: 75px;">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="PLN">PLN</option>
+                </select>
+                <span id="conv-res" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);">0 грн</span>
+            </div>
         </div>
-    </div>
 
-    <div class="actions-bar">
-        <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
-        <button class="btn" onclick="window.print()">📄 Експорт у PDF</button>
-        <button class="btn btn-warning" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
-    </div>
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-title">Загальний дохід</div>
+                <div class="kpi-value" id="res-income">0 грн</div>
+                <div class="kpi-sub" id="res-income-net">Чистий: 0 грн</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Маржинальний дохід</div>
+                <div class="kpi-value" id="res-margin">0 грн</div>
+                <div class="kpi-sub" id="res-margin-ton">на 1 т: 0 грн</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">EBITDA</div>
+                <div class="kpi-value" id="res-ebitda">0 грн</div>
+                <div class="kpi-sub" id="res-ebitda-ton">на 1 т: 0 грн</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Чистий прибуток</div>
+                <div class="kpi-value" id="res-profit">0 грн</div>
+                <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">🎯 Точка беззбитковості</div>
+                <div class="kpi-value" id="res-breakeven-full" style="font-size: 1.1rem; color: var(--warning);">0 грн/т</div>
+                <div class="kpi-sub" id="res-breakeven-op">Операційна: 0 грн/т</div>
+            </div>
+        </div>
 
-    <div class="kpi-grid">
-        <div class="kpi-card">
-            <div class="kpi-title">Загальний дохід</div>
-            <div class="kpi-value" id="res-income">0 грн</div>
-            <div class="kpi-sub" id="res-income-net">Чистий: 0 грн</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-title">Маржинальний дохід</div>
-            <div class="kpi-value" id="res-margin">0 грн</div>
-            <div class="kpi-sub" id="res-margin-ton">на 1 т: 0 грн</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-title">EBITDA</div>
-            <div class="kpi-value" id="res-ebitda">0 грн</div>
-            <div class="kpi-sub" id="res-ebitda-ton">на 1 т: 0 грн</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-title">Чистий прибуток</div>
-            <div class="kpi-value" id="res-profit">0 грн</div>
-            <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-title">🎯 Точка беззбитковості</div>
-            <div class="kpi-value" id="res-breakeven-full" style="font-size: 1.1rem; color: var(--warning);">0 грн/т</div>
-            <div class="kpi-sub" id="res-breakeven-op">Операційна: 0 грн/т</div>
+        <div class="actions-bar">
+            <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
+            <button class="btn" onclick="window.print()">📄 Експорт у PDF</button>
+            <button class="btn btn-warning" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
         </div>
     </div>
 
     <div class="grid-layout">
         <div>
             <div class="card">
-                <h2>📦 Параметри заявки та Маршруту</h2>
+                <h2>📦 Параметри заявки та маршруту</h2>
                 <div class="preset-bar">
                     <span style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">Швидкі пресети авто:</span>
                     <button class="preset-btn active" onclick="applyPreset('зерновоз', this)">🌾 Зерновоз</button>
@@ -189,7 +192,7 @@
                     <label>Назва / Маршрут заявки:</label>
                     <input type="text" id="route-name" value="Маршрут 1 (Зерно)" style="text-align: left;" oninput="calculate()">
                 </div>
-                
+
                 <div style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
                     <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 6px;">🗺️ Розрахунок відстані Google Maps</div>
                     <div class="form-row two-cols" style="margin-bottom: 6px;">
@@ -324,8 +327,7 @@
                     <span class="unit">грн/тн</span>
                 </div>
 
-                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-top: 10px;">
-                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                    <div class="form-row two-cols" style="margin-bottom: 6px; margin-top: 10px;">
                         <label style="color: var(--success); font-weight: 600;">🔄 Режим Кругорейсу (Зворотний вантаж):</label>
                         <select id="round-trip-enable" onchange="toggleRoundTrip()">
                             <option value="off" selected>Вимкнено (без зворотного вантажу)</option>
@@ -375,7 +377,42 @@
                         </div>
                         <div id="rt-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: 4px;"></div>
                     </div>
-                </div>
+
+                    <div class="form-row two-cols" style="margin-bottom: 6px; margin-top: 10px;">
+                        <label style="color: var(--warning); font-weight: 600;">🌍 Супутні витрати (дороги, кордон, брокер тощо):</label>
+                        <select id="extras-enable" onchange="onExtrasToggle()">
+                            <option value="off" selected>Вимкнено</option>
+                            <option value="on">Увімкнено</option>
+                        </select>
+                    </div>
+                    <div id="extras-box" style="display: none;">
+                        <div class="form-row">
+                            <label>Платні дороги (за рейс):</label>
+                            <input type="number" id="toll-cost" value="0" oninput="calculate()">
+                            <span class="unit">грн</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Проходження кордону:</label>
+                            <input type="number" id="border-cost" value="0" oninput="calculate()">
+                            <span class="unit">грн</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Послуги брокера:</label>
+                            <input type="number" id="broker-cost" value="0" oninput="calculate()">
+                            <span class="unit">грн</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Зелена карта:</label>
+                            <input type="number" id="green-card-cost" value="0" oninput="calculate()">
+                            <span class="unit">грн</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Паром:</label>
+                            <input type="number" id="ferry-cost" value="0" oninput="calculate()">
+                            <span class="unit">грн</span>
+                        </div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Сума за один рейс/ходку — множиться на кількість ходок автоматично.</div>
+                    </div>
             </div>
 
             <div class="card">
@@ -466,7 +503,7 @@
 
         <div>
             <div class="card">
-                <h2>🛠️ Технічне обслуговування та Шини</h2>
+                <h2>🏢 Накладні витрати та технічне обслуговування</h2>
                 <div class="form-row">
                     <label>Вартість ТО (з ПДВ):</label>
                     <input type="number" id="to-cost" value="18000" oninput="calculate()">
@@ -504,10 +541,7 @@
                     <input type="number" id="tire-mileage" value="150000" oninput="calculate()">
                     <span class="unit">км</span>
                 </div>
-            </div>
 
-            <div class="card">
-                <h2>🏢 Накладні витрати підприємства</h2>
                 <div class="form-row">
                     <label>Амортизація (річна):</label>
                     <input type="number" id="overhead-amort" value="40139408" oninput="calculate()">
@@ -546,16 +580,12 @@
             </div>
 
             <div class="card">
-                <h2>📊 Візуальна структура витрат</h2>
+                <h2>📊 Структура витрат</h2>
                 <div class="chart-box">
                     <div class="bar-container" id="bar-chart"></div>
                     <div class="chart-legend" id="chart-legend"></div>
                 </div>
-            </div>
-
-            <div class="card">
-                <h2>📋 Розшифровка витрат рейсу</h2>
-                <table>
+                <table style="margin-top: 16px;">
                     <thead>
                         <tr>
                             <th>Стаття витрат</th>
@@ -787,6 +817,12 @@
         calculate();
     }
 
+    function onExtrasToggle() {
+        const val = document.getElementById('extras-enable').value;
+        document.getElementById('extras-box').style.display = val === 'on' ? 'block' : 'none';
+        calculate();
+    }
+
     async function calculate() {
         if (!currentSessionToken) return; // Подвійний захист від запуску без токена
         const myRequestId = ++calcRequestId; // ФІКС: позначаємо цей виклик, щоб пізніше відрізнити застарілу відповідь
@@ -838,7 +874,13 @@
             rtBackhaulDist: document.getElementById('rt-backhaul-dist').value,
             rtReturnDist: document.getElementById('rt-return-dist').value,
             rtTotalVolume: document.getElementById('rt-total-volume').value,
-            rtRate: document.getElementById('rt-rate').value
+            rtRate: document.getElementById('rt-rate').value,
+            useExtras: document.getElementById('extras-enable').value === 'on',
+            tollCost: document.getElementById('toll-cost').value,
+            borderCost: document.getElementById('border-cost').value,
+            brokerCost: document.getElementById('broker-cost').value,
+            greenCardCost: document.getElementById('green-card-cost').value,
+            ferryCost: document.getElementById('ferry-cost').value
         };
 
         const routeName = document.getElementById('route-name').value || 'Заявка';
@@ -899,7 +941,7 @@
                 </tr>
             `).join('');
 
-            renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal);
+            renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
 
             lastCalcData = { 
                 routeName, trailerType, volume: payload.volume, rate: payload.rate, 
@@ -912,8 +954,9 @@
         }
     }
 
-    function renderChart(fuel, driver, maintenance, overhead, taxes) {
-        const total = fuel + driver + maintenance + overhead + taxes;
+    function renderChart(fuel, driver, maintenance, overhead, taxes, extras) {
+        extras = extras || 0;
+        const total = fuel + driver + maintenance + overhead + taxes + extras;
         if (total === 0 || isNaN(total)) {
             document.getElementById('bar-chart').innerHTML = '';
             document.getElementById('chart-legend').innerHTML = '';
@@ -925,6 +968,7 @@
         const pMaint = (maintenance / total) * 100;
         const pOverhead = (overhead / total) * 100;
         const pTaxes = (taxes / total) * 100;
+        const pExtras = (extras / total) * 100;
 
         document.getElementById('bar-chart').innerHTML = `
             <div class="bar-segment" style="width: ${pFuel}%; background: #3b82f6;" title="Пальне"></div>
@@ -932,6 +976,7 @@
             <div class="bar-segment" style="width: ${pMaint}%; background: #f59e0b;" title="ТО/Шини"></div>
             <div class="bar-segment" style="width: ${pOverhead}%; background: #8b5cf6;" title="Накладні"></div>
             <div class="bar-segment" style="width: ${pTaxes}%; background: #ef4444;" title="Податки"></div>
+            <div class="bar-segment" style="width: ${pExtras}%; background: #14b8a6;" title="Супутні витрати"></div>
         `;
 
         document.getElementById('chart-legend').innerHTML = `
@@ -940,6 +985,7 @@
             <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>ТО/Шини ${pMaint.toFixed(0)}%</div>
             <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Накладні ${pOverhead.toFixed(0)}%</div>
             ${pTaxes > 0 ? `<div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div>Податки ${pTaxes.toFixed(0)}%</div>` : ''}
+            ${pExtras > 0 ? `<div class="legend-item"><div class="legend-color" style="background: #14b8a6;"></div>Супутні ${pExtras.toFixed(0)}%</div>` : ''}
         `;
     }
 
@@ -1015,11 +1061,9 @@
         directionsRendererBackhaul = new google.maps.DirectionsRenderer({ polylineOptions: { strokeColor: '#f59e0b', strokeWeight: 4 }, suppressMarkers: false });
         directionsRendererBackhaul.setMap(map);
 
-        new google.maps.places.Autocomplete(document.getElementById('osm-base'));
-        new google.maps.places.Autocomplete(document.getElementById('osm-from'));
-        new google.maps.places.Autocomplete(document.getElementById('osm-to'));
-        new google.maps.places.Autocomplete(document.getElementById('rt-point-c'));
-        new google.maps.places.Autocomplete(document.getElementById('rt-point-d'));
+        // Автопідказки адрес прибрані: legacy Places Autocomplete недоступний для нових
+        // Google Cloud проєктів (ApiNotActivatedMapError), і його виклик міг зривати
+        // завантаження всього Maps-бандла. Directions API геокодує звичайний текст сам.
     }
 
     function addWaypointRow() {
@@ -1035,7 +1079,6 @@
                 <button type="button" onclick="removeWaypointRow('${id}')" style="flex:0 0 auto; width:32px; background:var(--danger); color:#fff; border:none; border-radius:6px; cursor:pointer;">✕</button>
             </div>`;
         document.getElementById('waypoints-list').appendChild(row);
-        new google.maps.places.Autocomplete(document.getElementById(id));
     }
 
     function removeWaypointRow(id) {
