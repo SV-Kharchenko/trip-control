@@ -1251,31 +1251,26 @@
         const seenIds = new Set();
         let foundCount = 0;
         let completed = 0;
+        let errorCount = 0;
+        let lastErrorMsg = '';
 
         for (const pt of samplePoints) {
             statusEl.innerText = `🔍 OpenStreetMap: опрацьовано ${completed}/${samplePoints.length} точок...`;
             statusEl.style.color = 'var(--text-muted)';
 
             const lat = pt.lat(), lon = pt.lng();
-            const filters = [];
-
-            if (wantGas) filters.push(`nwr["amenity"="fuel"](around:8000,${lat},${lon});`);
-            if (wantCafe) filters.push(`nwr["amenity"="cafe"](around:8000,${lat},${lon});`);
-            if (wantSto) filters.push(`nwr["shop"="car_repair"](around:8000,${lat},${lon});`);
-            if (wantTir) {
-                filters.push(`nwr["amenity"="parking"]["hgv"](around:8000,${lat},${lon});`);
-                filters.push(`nwr["highway"="rest_area"](around:8000,${lat},${lon});`);
-            }
-            const query = `[out:json][timeout:25];(${filters.join('')});out center 15;`;
 
             try {
-                const res = await fetch('https://overpass-api.de/api/interpreter', {
+                const res = await fetch('/api/poi', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'data=' + encodeURIComponent(query)
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + currentSessionToken
+                    },
+                    body: JSON.stringify({ lat, lon, radius: 8000, wantGas, wantCafe, wantSto, wantTir })
                 });
+                const data = await res.json();
                 if (res.ok) {
-                    const data = await res.json();
                     (data.elements || []).forEach(el => {
                         if (seenIds.has(el.id)) return;
                         seenIds.add(el.id);
@@ -1283,18 +1278,29 @@
                         if (info) { foundCount++; addPOIMarkerOSM(el, info.icon, info.label); }
                     });
                 } else {
-                    console.warn('Overpass HTTP помилка:', res.status);
+                    errorCount++;
+                    lastErrorMsg = data.error || ('HTTP ' + res.status);
+                    console.warn('POI proxy помилка:', lastErrorMsg);
                 }
             } catch (e) {
-                console.warn('Overpass fetch помилка:', e);
+                errorCount++;
+                lastErrorMsg = e.message;
+                console.warn('POI proxy fetch помилка:', e);
             }
 
             completed++;
-            await new Promise(r => setTimeout(r, 400));
         }
 
-        statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (OpenStreetMap)`;
-        statusEl.style.color = 'var(--success)';
+        if (errorCount === samplePoints.length && samplePoints.length > 0) {
+            statusEl.innerText = `❌ Не вдалося отримати дані: ${lastErrorMsg}`;
+            statusEl.style.color = 'var(--danger)';
+        } else if (errorCount > 0) {
+            statusEl.innerText = `⚠️ Знайдено ${foundCount} об'єктів (${errorCount} з ${samplePoints.length} точок не відповіли: ${lastErrorMsg})`;
+            statusEl.style.color = 'var(--warning)';
+        } else {
+            statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (OpenStreetMap)`;
+            statusEl.style.color = 'var(--success)';
+        }
     }
 
     function classifyOverpassElement(el) {
