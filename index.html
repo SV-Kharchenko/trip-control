@@ -1248,58 +1248,40 @@
             samplePoints = samplePoints.filter((_, i) => i % step === 0);
         }
 
+        statusEl.innerText = `🔍 OpenStreetMap: шукаємо у ${samplePoints.length} точках маршруту одним запитом...`;
+        statusEl.style.color = 'var(--text-muted)';
+
+        const points = samplePoints.map(pt => ({ lat: pt.lat(), lon: pt.lng() }));
         const seenIds = new Set();
         let foundCount = 0;
-        let completed = 0;
-        let errorCount = 0;
-        let lastErrorMsg = '';
 
-        for (const pt of samplePoints) {
-            statusEl.innerText = `🔍 OpenStreetMap: опрацьовано ${completed}/${samplePoints.length} точок...`;
-            statusEl.style.color = 'var(--text-muted)';
-
-            const lat = pt.lat(), lon = pt.lng();
-
-            try {
-                const res = await fetch('/api/poi', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + currentSessionToken
-                    },
-                    body: JSON.stringify({ lat, lon, radius: 8000, wantGas, wantCafe, wantSto, wantTir })
+        try {
+            const res = await fetch('/api/poi', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + currentSessionToken
+                },
+                body: JSON.stringify({ points, radius: 8000, wantGas, wantCafe, wantSto, wantTir })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                (data.elements || []).forEach(el => {
+                    if (seenIds.has(el.id)) return;
+                    seenIds.add(el.id);
+                    const info = classifyOverpassElement(el);
+                    if (info) { foundCount++; addPOIMarkerOSM(el, info.icon, info.label); }
                 });
-                const data = await res.json();
-                if (res.ok) {
-                    (data.elements || []).forEach(el => {
-                        if (seenIds.has(el.id)) return;
-                        seenIds.add(el.id);
-                        const info = classifyOverpassElement(el);
-                        if (info) { foundCount++; addPOIMarkerOSM(el, info.icon, info.label); }
-                    });
-                } else {
-                    errorCount++;
-                    lastErrorMsg = data.error || ('HTTP ' + res.status);
-                    console.warn('POI proxy помилка:', lastErrorMsg);
-                }
-            } catch (e) {
-                errorCount++;
-                lastErrorMsg = e.message;
-                console.warn('POI proxy fetch помилка:', e);
+                statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (OpenStreetMap)`;
+                statusEl.style.color = 'var(--success)';
+            } else {
+                statusEl.innerText = `❌ Не вдалося отримати дані: ${data.error || ('HTTP ' + res.status)}`;
+                statusEl.style.color = 'var(--danger)';
             }
-
-            completed++;
-        }
-
-        if (errorCount === samplePoints.length && samplePoints.length > 0) {
-            statusEl.innerText = `❌ Не вдалося отримати дані: ${lastErrorMsg}`;
+        } catch (e) {
+            console.warn('POI proxy fetch помилка:', e);
+            statusEl.innerText = `❌ Не вдалося отримати дані: ${e.message}`;
             statusEl.style.color = 'var(--danger)';
-        } else if (errorCount > 0) {
-            statusEl.innerText = `⚠️ Знайдено ${foundCount} об'єктів (${errorCount} з ${samplePoints.length} точок не відповіли: ${lastErrorMsg})`;
-            statusEl.style.color = 'var(--warning)';
-        } else {
-            statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (OpenStreetMap)`;
-            statusEl.style.color = 'var(--success)';
         }
     }
 
