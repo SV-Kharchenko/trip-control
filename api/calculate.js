@@ -58,6 +58,14 @@ export default async function handler(req, res) {
         const refFuelRate = parseFloat(body.refFuelRate) || 0; // рефрижератор: л/год
         const refHours = parseFloat(body.refHours) || 0;       // годин/рейс
 
+        // 4б. Супутні витрати (платні дороги, кордон, брокер, страховка, паром) — за рейс/ходку
+        const useExtras = body.useExtras === true;
+        const tollCost = useExtras ? (parseFloat(body.tollCost) || 0) : 0;
+        const borderCost = useExtras ? (parseFloat(body.borderCost) || 0) : 0;
+        const brokerCost = useExtras ? (parseFloat(body.brokerCost) || 0) : 0;
+        const greenCardCost = useExtras ? (parseFloat(body.greenCardCost) || 0) : 0;
+        const ferryCost = useExtras ? (parseFloat(body.ferryCost) || 0) : 0;
+
         // 5. Накладні витрати (амортизація/фін. витрати — не VAT-товар, ремонт — VAT-товар)
         const amortYear = parseFloat(body.amort) || 40139408;
         const adminYear = parseFloat(body.admin) || 17871209;
@@ -114,20 +122,23 @@ export default async function handler(req, res) {
         const idleCompensationTotal = idleDays * idleRate * (returnMode === 'разовий' ? carsCount : tripsCount);
         const grossIncome = (actualVolume * rate) + rtIncome + idleCompensationTotal;
 
-        // --- ПОДАТКИ (рахуємо один раз, тим самим уникаючи подвійного списання ПДВ) ---
+        // --- ПДВ і "Чистий дохід" ---
+        // Для безготівкового доходу база для маржі/прибутку — це дохід БЕЗ ПДВ (gross/1.2),
+        // так само як витрати рахуються без ПДВ (vatDivisor вище). ПДВ тут не окрема "витрата" —
+        // це податок, що йде транзитом державі, і його просто виключають з бази, а не віднімають
+        // окремим рядком (інакше він списався б двічі: і тут, і в taxesTotal нижче).
+        let netIncome = grossIncome;
+        if (calcType === 'безготівковий') {
+            netIncome = grossIncome / 1.2;
+        }
+
+        // --- ПОДАТКИ ФОП (рахуються один раз, після EBITDA) ---
+        // Для безготівкового тут 0: ПДВ уже виключений вище через netIncome, а не через цю статтю.
         let taxesTotal = 0;
         if (calcType === 'фоп') {
             taxesTotal = grossIncome * 0.06; // 5% ЄП + 1% ВЗ
-        } else if (calcType === 'безготівковий') {
-            // Реальна сума ПДВ у складі ціни, що вже включає ПДВ: gross - gross/1.2 (≈16.67%),
-            // а не gross*0.20 — 20% рахується від бази БЕЗ ПДВ, а не від ціни з ПДВ.
-            taxesTotal = grossIncome - (grossIncome / 1.2);
         }
-        // 'готівка' — податок не рахуємо
-
-        // Дохід для маржі лишається повним (VAT-inclusive) — податок віднімається
-        // рівно один раз, нижче, при виведенні netProfit. Це прибирає подвійне списання.
-        const netIncome = grossIncome;
+        // 'готівка' і 'безготівковий' — податок тут не рахуємо (для 'готівка' його й немає)
 
         // --- ПРЯМІ ВИТРАТИ ---
         const fuelLoadCost = (totalLoadedKm * fuelLoadRate / 100) * (fuelPrice / vatDivisor);
@@ -180,7 +191,11 @@ export default async function handler(req, res) {
 
         const maintenanceTotal = toTotal + tireTotal + repairTotal + tankWashTotal;
 
-        const directCostsTotal = fuelTotal + adblueTotal + driverTotal + maintenanceTotal;
+        // Супутні витрати — разові на рейс/ходку (платні дороги, кордон, брокер, зелена карта, паром)
+        const extrasPerTrip = tollCost + borderCost + brokerCost + greenCardCost + ferryCost;
+        const extrasTotal = extrasPerTrip * (returnMode === 'разовий' ? carsCount : tripsCount);
+
+        const directCostsTotal = fuelTotal + adblueTotal + driverTotal + maintenanceTotal + extrasTotal;
         const marginalIncome = netIncome - directCostsTotal;
 
         // --- НАКЛАДНІ ВИТРАТИ ---
@@ -210,6 +225,7 @@ export default async function handler(req, res) {
             { name: useAdblue ? '💧 Рідина AdBlue' : '💧 Рідина AdBlue (Вимкнено)', val: Math.round(adblueTotal) },
             { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові', val: Math.round(driverTotal) },
             { name: '🔧 ТО, Шини та Ремонти' + (tankWashTotal > 0 ? ' + промивка цистерни' : ''), val: Math.round(maintenanceTotal) },
+            ...(useExtras ? [{ name: '🌍 Супутні витрати (дороги, кордон, брокер, страховка, паром)', val: Math.round(extrasTotal) }] : []),
             { name: '🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)', val: Math.round(ebitdaOverheadTotal) },
             { name: '📉 Амортизація та фінансові витрати (після EBITDA)', val: Math.round(postEbitdaTotal) },
             { name: '🏛️ Податки (ФОП / ПДВ)', val: Math.round(taxesTotal) }
@@ -252,6 +268,7 @@ export default async function handler(req, res) {
             fuelTotal: Math.round(fuelTotal + adblueTotal),
             driverTotal: Math.round(driverTotal),
             toTotal: Math.round(maintenanceTotal),
+            extrasTotal: Math.round(extrasTotal),
             overheadTotal: Math.round(overheadTotal),
             taxesTotal: Math.round(taxesTotal),
             detailedRows,
