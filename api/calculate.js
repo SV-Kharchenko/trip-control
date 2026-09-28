@@ -242,9 +242,34 @@ export default async function handler(req, res) {
         const netProfit = ebitda - postEbitdaTotal - taxesTotal; // тепер амортизація/фін віднімаються тут, а не в EBITDA
 
         const profitabilityPct = netIncome > 0 ? (netProfit / netIncome) * 100 : 0;
-        const totalAllCosts = directCostsTotal + overheadTotal + taxesTotal;
-        const breakevenFullPerTon = actualVolume > 0 ? Math.round(totalAllCosts / actualVolume) : 0;
-        const breakevenOpPerTon = actualVolume > 0 ? Math.round((directCostsTotal + overheadTotal) / actualVolume) : 0;
+
+        // --- Точка беззбитковості: розцінка (грн/т, у тих же одиницях, що вводить користувач —
+        // з ПДВ для безготівкового), при якій відповідний показник дорівнює нулю. ---
+        // Дохід залежить від розцінки R: gross(R) = R*об'єм + фіксований дохід (зворотний вантаж, простій).
+        // База для маржі: gross/1.2 (безготівковий) або gross. Податок ФОП = 6% від gross.
+        // Якщо ЗП водія у % від фрахту — вона теж залежить від R (ЗП + ЄСВ = 1.22*pct*gross).
+        const vatFactor = calcType === 'безготівковий' ? 1.2 : 1.0;
+        const taxRate = calcType === 'фоп' ? 0.06 : 0;
+        const driverPctK = driverPayMode === 'pct' ? 1.22 * driverPctVal / 100 : 0;
+        const nonRateDirect = directCostsTotal - (driverPayMode === 'pct' ? salaryTotal + esvTotal : 0);
+        const fixedIncome = rtIncome + idleCompensationTotal;
+
+        const breakevenRate = (costBase, extraCoef) => {
+            const k = 1 / vatFactor - driverPctK - extraCoef; // частка кожної гривні брудного доходу, що лишається після ПДВ/ЗП%/податку
+            if (actualVolume <= 0 || k <= 0) return null;     // за такої схеми беззбитковість недосяжна
+            return Math.max(0, (costBase / k - fixedIncome) / actualVolume);
+        };
+        const beMargin = breakevenRate(nonRateDirect, 0);
+        const beEbitda = breakevenRate(nonRateDirect + ebitdaOverheadTotal, 0);
+        const beFull = breakevenRate(nonRateDirect + ebitdaOverheadTotal + postEbitdaTotal, taxRate);
+
+        const roundOrNull = v => (v === null ? null : Math.round(v));
+        const breakevenMarginPerTon = roundOrNull(beMargin);
+        const breakevenEbitdaPerTon = roundOrNull(beEbitda);
+        const breakevenFullPerTon = roundOrNull(beFull);
+        const breakevenGapPerTon = beFull === null ? null : Math.round(rate - beFull);           // >0 запас, <0 дефіцит
+        const breakevenExVatPerTon = (calcType === 'безготівковий' && beFull !== null) ? Math.round(beFull / 1.2) : null;
+        const rateExVatPerTon = Math.round(rate / 1.2);
 
         const detailedRows = [
             { name: '⛽ Пальне (ДП завантажений + пустий + подача' + (refFuelCost > 0 ? ' + реф' : '') + ')', val: Math.round(fuelTotal) },
@@ -289,8 +314,12 @@ export default async function handler(req, res) {
             ebitdaPerTon: actualVolume > 0 ? Math.round(ebitda / actualVolume) : 0,
             netProfit: Math.round(netProfit),
             profitabilityPct,
+            breakevenMarginPerTon,
+            breakevenEbitdaPerTon,
             breakevenFullPerTon,
-            breakevenOpPerTon,
+            breakevenGapPerTon,
+            breakevenExVatPerTon,
+            rateExVatPerTon,
             fuelTotal: Math.round(fuelTotal + adblueTotal),
             driverTotal: Math.round(driverTotal),
             toTotal: Math.round(maintenanceTotal),
