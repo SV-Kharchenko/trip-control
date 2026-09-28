@@ -168,10 +168,11 @@
                 <div class="kpi-value" id="res-profit">0 грн</div>
                 <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
             </div>
-            <div class="kpi-chip">
+            <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
                 <div class="kpi-title">🎯 Беззбитковість</div>
                 <div class="kpi-value" id="res-breakeven-full" style="font-size: 1rem; color: var(--warning);">0 грн/т</div>
-                <div class="kpi-sub" id="res-breakeven-op">Оп.: 0 грн/т</div>
+                <div class="kpi-sub" id="res-breakeven-op">маржа 0 · EBITDA 0</div>
+                <div class="kpi-sub" id="res-breakeven-gap" style="font-weight: 600;"></div>
             </div>
         </div>
     </div>
@@ -933,8 +934,37 @@
             // давала 0 незалежно від прибутку. Тепер виводимо реальні значення з сервера,
             // і другий рядок (операційна беззбитковість) теж оновлюється — раніше він
             // взагалі не чіпався і назавжди лишався "0 грн/т" зі статичної розмітки.
-            document.getElementById('res-breakeven-full').innerText = `${result.breakevenFullPerTon} грн/т`;
-            document.getElementById('res-breakeven-op').innerText = `Операційна: ${result.breakevenOpPerTon} грн/т`;
+            // --- Точка беззбитковості: 3 рівні + запас/дефіцит + підказка ---
+            const fmtBE = v => Math.round(v).toLocaleString('uk-UA');
+            const beFullEl = document.getElementById('res-breakeven-full');
+            const beOpEl = document.getElementById('res-breakeven-op');
+            const beGapEl = document.getElementById('res-breakeven-gap');
+            const beChip = document.getElementById('kpi-breakeven-chip');
+            const rateNow = parseFloat(payload.rate) || 0;
+
+            if (result.breakevenFullPerTon === null || result.breakevenFullPerTon === undefined) {
+                beFullEl.innerText = 'недосяжна';
+                beOpEl.innerText = 'за цієї схеми оплати';
+                beGapEl.innerText = '';
+                beChip.title = 'Беззбитковість недосяжна: відсоток ЗП водія, ПДВ і податок разом «з\'їдають» усю розцінку. Перевірте модель оплати водія.';
+            } else {
+                beFullEl.innerText = `${fmtBE(result.breakevenFullPerTon)} грн/т`;
+                const m = result.breakevenMarginPerTon, e = result.breakevenEbitdaPerTon;
+                beOpEl.innerText = `маржа ${m === null ? '—' : fmtBE(m)} · EBITDA ${e === null ? '—' : fmtBE(e)}`;
+                const gap = result.breakevenGapPerTon;
+                if (gap >= 0) {
+                    beGapEl.innerText = `Запас +${fmtBE(gap)} грн/т`;
+                    beGapEl.style.color = 'var(--success)';
+                } else {
+                    beGapEl.innerText = `Дефіцит ${fmtBE(gap)} грн/т`;
+                    beGapEl.style.color = 'var(--danger)';
+                }
+                let tip = `Розцінка (грн/т), при якій чистий прибуток = 0. При розцінці ${fmtBE(result.breakevenEbitdaPerTon)} EBITDA = 0, при ${fmtBE(result.breakevenMarginPerTon)} маржа = 0.`;
+                if (result.breakevenExVatPerTon !== null && result.breakevenExVatPerTon !== undefined) {
+                    tip += ` Розцінка вводиться з ПДВ, тому й беззбитковість показана з ПДВ. Без ПДВ: ${fmtBE(result.breakevenExVatPerTon)} грн/т (ваша розцінка без ПДВ: ${fmtBE(result.rateExVatPerTon)} грн/т).`;
+                }
+                beChip.title = tip;
+            }
 
             const tbody = document.getElementById('cost-breakdown');
             let totalCostsSum = (result.detailedRows || []).reduce((sum, r) => sum + r.val, 0);
@@ -1056,7 +1086,11 @@
         }
     }
 
+    let mapInitialized = false;
+
     async function initMap() {
+        if (mapInitialized) return; // захист від повторного запуску (checkUserAccess може спрацювати двічі)
+        mapInitialized = true;
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 48.3794, lng: 31.1656 },
             zoom: 6
@@ -1092,6 +1126,7 @@
 
         const el = new PlaceAutocompleteElement({ includedRegionCodes: ['ua'] });
         el.placeholder = placeholderText;
+        wrap.innerHTML = ''; // прибираємо можливий попередній віджет — інакше при повторному виклику поле дублюється
         wrap.appendChild(el);
 
         // Обраний з випадаючого списку варіант — беремо текст підказки напряму,
