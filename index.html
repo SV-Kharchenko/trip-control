@@ -51,6 +51,24 @@
         .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
         
         .grid-layout-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
+        /* Картка параметрів: дві колонки (маршрут+карта | параметри рейсу), низ вирівнюється за вищою колонкою */
+        .params-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
+        .params-left { display: flex; flex-direction: column; min-width: 0; }
+        .params-right { min-width: 0; }
+        .params-left .poi-box { flex: 1; display: flex; flex-direction: column; margin-bottom: 0 !important; }
+        .params-left .poi-box > .btn { flex: none; } /* .btn має flex:1 для ряду кнопок дій — тут кнопка не повинна рости по висоті */
+        .params-left .poi-box #poi-results { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+        .params-left .poi-box #poi-results:not(:empty) { min-height: 180px; }
+        .params-left .poi-box #poi-results:empty::before { content: "Результати пошуку з'являться тут"; color: var(--text-muted); font-size: 0.75rem; }
+        @media (min-width: 1025px) {
+            .params-left .form-row.two-cols { grid-template-columns: 1fr 1.6fr; }
+            .params-right .form-row { grid-template-columns: 1.7fr 1fr 0.5fr; }
+            .params-right .form-row.two-cols { grid-template-columns: 1fr 1.5fr; }
+        }
+        @media (max-width: 1024px) {
+            .params-two-col { grid-template-columns: 1fr; }
+            .params-left .poi-box #poi-results { flex: none; max-height: 220px; }
+        }
         @media (max-width: 1024px) { .grid-layout-3col { grid-template-columns: 1fr; } }
         @media (max-width: 700px) { .top-row { flex-direction: column; align-items: stretch !important; } }
         .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; margin-bottom: 20px; }
@@ -178,6 +196,8 @@
     </div>
 
     <div class="card" style="margin-bottom: 20px;">                <h2>📦 Параметри заявки та маршруту</h2>
+                <div class="params-two-col">
+                <div class="params-left">
                 <div class="preset-bar">
                     <span style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">Швидкі пресети авто:</span>
                     <button class="preset-btn active" onclick="applyPreset('зерновоз', this)">🌾 Зерновоз</button>
@@ -216,7 +236,7 @@
                 
                 <div id="map" style="height: 180px; width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);"></div>
 
-                <div style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                <div class="poi-box" style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
                     <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (Google Places)</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">Платний сервіс: 5000 запитів/міс безкоштовно, далі $32/1000. Кожен клік — до 24 запитів залежно від кількості обраних категорій.</div>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.8rem;">
@@ -227,9 +247,11 @@
                     </div>
                     <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти вздовж маршруту</button>
                     <div id="poi-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
-                    <div id="poi-results" style="max-height: 220px; overflow-y: auto; margin-top: 8px; font-size: 0.8rem;"></div>
+                    <div id="poi-results" style="margin-top: 8px; font-size: 0.8rem;"></div>
                 </div>
+                </div><!-- /params-left -->
 
+                <div class="params-right">
                 <div class="form-row two-cols">
                     <label>Логістика повернення:</label>
                     <select id="return-mode" onchange="calculate()">
@@ -417,6 +439,8 @@
                         </div>
                         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Сума за один рейс/ходку — множиться на кількість ходок автоматично.</div>
                     </div>
+                </div><!-- /params-right -->
+                </div><!-- /params-two-col -->
             </div>
 
             <div class="grid-layout-3col">
