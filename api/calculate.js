@@ -5,6 +5,9 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Скільки розрахунків на добу дозволено в демо-режимі (акаунт без схвалення адміністратором)
+const DEMO_DAILY_LIMIT = 5;
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -23,11 +26,47 @@ export default async function handler(req, res) {
         }
         const { data: profile } = await supabase
             .from('profiles')
-            .select('is_approved')
+            .select('is_approved, org_id, organizations(status)')
             .eq('id', user.id)
             .single();
-        if (!profile || !profile.is_approved) {
-            return res.status(403).json({ error: 'Акаунт очікує підтвердження адміністратора.' });
+        if (!profile || !profile.org_id) {
+            return res.status(403).json({ code: 'NO_PROFILE', error: 'Профіль користувача не знайдено.' });
+        }
+        if (!profile.organizations || profile.organizations.status === 'blocked') {
+            return res.status(403).json({ code: 'ORG_BLOCKED', error: 'Доступ компанії заблоковано адміністратором.' });
+        }
+
+        // --- Демо-режим: акаунт без схвалення (is_approved = false) теж може рахувати, але з лімітом на добу ---
+        const isDemo = !profile.is_approved;
+        let demoInfo = null;
+        if (isDemo) {
+            // Лічильник атомарний на рівні бази: паралельними запитами ліміт не обійти
+            const { data: allowed, error: bumpError } = await supabase.rpc('bump_calc_usage', {
+                p_org: profile.org_id,
+                p_limit: DEMO_DAILY_LIMIT
+            });
+            if (bumpError) {
+                console.error('bump_calc_usage error:', bumpError);
+                return res.status(500).json({ error: 'Не вдалося перевірити ліміт демо-режиму.' });
+            }
+            // Найсвіжіший рядок лічильника — це сьогоднішній (щойно оновлений у bump_calc_usage)
+            const { data: usage } = await supabase
+                .from('usage_counters')
+                .select('calc_count')
+                .eq('org_id', profile.org_id)
+                .order('day', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            const used = usage ? usage.calc_count : (allowed ? 1 : DEMO_DAILY_LIMIT);
+            demoInfo = { used, limit: DEMO_DAILY_LIMIT };
+            if (!allowed) {
+                return res.status(429).json({
+                    code: 'DEMO_LIMIT',
+                    error: `Ліміт демо-режиму вичерпано: ${DEMO_DAILY_LIMIT} розрахунків на добу. Спробуйте завтра або отримайте повний доступ.`,
+                    used: DEMO_DAILY_LIMIT,
+                    limit: DEMO_DAILY_LIMIT
+                });
+            }
         }
 
         const body = req.body || {};
@@ -306,6 +345,7 @@ export default async function handler(req, res) {
             : '💧 AdBlue: не використовується';
 
         return res.status(200).json({
+            demo: demoInfo, // null для повного доступу, {used, limit} для демо
             grossIncome: Math.round(grossIncome),
             netIncome: Math.round(netIncome),
             marginalIncome: Math.round(marginalIncome),
