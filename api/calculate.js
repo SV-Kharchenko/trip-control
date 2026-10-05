@@ -36,6 +36,22 @@ export default async function handler(req, res) {
             return res.status(403).json({ code: 'ORG_BLOCKED', error: 'Доступ компанії заблоковано адміністратором.' });
         }
 
+        // --- Обов'язкові поля: без них результат був би вигаданим, тому відхиляємо ДО зарахування в ліміт демо ---
+        const reqBody = req.body || {};
+        const REQUIRED = {
+            dist: 'Відстань', volume: 'Обсяг', normWeight: 'Норма завантаження', carsCount: 'Кількість авто',
+            daysPerTrip: 'Днів на рейс', rate: 'Ставка', fuelLoad: 'Витрата з вантажем', fuelEmpty: 'Витрата порожнім',
+            fuelPrice: 'Ціна палива', totalFleet: 'Авто в парку', toPeriod: 'Пробіг між ТО', tireMileage: 'Ресурс шин'
+        };
+        const missingFields = Object.keys(REQUIRED).filter(k => !(parseFloat(reqBody[k]) > 0));
+        if (missingFields.length) {
+            return res.status(400).json({
+                code: 'MISSING_FIELDS',
+                error: 'Заповніть: ' + missingFields.map(k => REQUIRED[k]).join(', '),
+                fields: missingFields
+            });
+        }
+
         // --- Демо-режим: акаунт без схвалення (is_approved = false) теж може рахувати, але з лімітом на добу ---
         const isDemo = !profile.is_approved;
         let demoInfo = null;
@@ -76,15 +92,15 @@ export default async function handler(req, res) {
         const returnMode = body.returnMode || 'циклічний';
         const trailerType = body.trailerType || 'зерновоз';
         const roadQuality = parseFloat(body.roadQuality) || 1.0;
-        const dist = parseFloat(body.dist) || 300;
-        const podachaDist = parseFloat(body.podachaDist) || 30;
-        const contractVolume = parseFloat(body.volume) || 3000;
-        const normWeight = parseFloat(body.normWeight) || 21.5;
-        const carsCount = parseFloat(body.carsCount) || 10;
-        const daysPerTrip = parseFloat(body.daysPerTrip) || 1.33;
+        const dist = parseFloat(body.dist);
+        const podachaDist = parseFloat(body.podachaDist) || 0;
+        const contractVolume = parseFloat(body.volume);
+        const normWeight = parseFloat(body.normWeight);
+        const carsCount = parseFloat(body.carsCount);
+        const daysPerTrip = parseFloat(body.daysPerTrip);
         const idleDays = parseFloat(body.idleDays) || 0;
         const idleRate = parseFloat(body.idleRate) || 0;
-        const rate = parseFloat(body.rate) || 1560;
+        const rate = parseFloat(body.rate);
 
         // ПДВ-кредит на вхідні витрати отримує лише платник ПДВ (безготівковий розрахунок).
         // ФОП і готівка платять повну ціну — тому дільник застосовуємо умовно, а не завжди.
@@ -96,27 +112,27 @@ export default async function handler(req, res) {
         if (season === 'літо') seasonCoeff = 1.05;
         else if (season === 'зима') seasonCoeff = 1.10;
 
-        const fuelLoadRate = (parseFloat(body.fuelLoad) || 37) * seasonCoeff * roadQuality;
-        const fuelEmptyRate = (parseFloat(body.fuelEmpty) || 32) * seasonCoeff * roadQuality;
-        const fuelPrice = parseFloat(body.fuelPrice) || 53;
+        const fuelLoadRate = parseFloat(body.fuelLoad) * seasonCoeff * roadQuality;
+        const fuelEmptyRate = parseFloat(body.fuelEmpty) * seasonCoeff * roadQuality;
+        const fuelPrice = parseFloat(body.fuelPrice);
 
         const useAdblue = body.useAdblue !== false; // за замовчуванням увімкнено, якщо не передано інше
-        const adblueRate = parseFloat(body.adblueConsumption) || 2.85;
-        const adbluePrice = parseFloat(body.adbluePrice) || 18;
+        const adblueRate = parseFloat(body.adblueConsumption) || 0;
+        const adbluePrice = parseFloat(body.adbluePrice) || 0;
 
         // 3. Зарплата та добові
         const driverPayMode = body.driverPayMode || 'km';
-        const driverRateLoad = parseFloat(body.driverRateLoad) || 4.03;
-        const driverRateEmpty = parseFloat(body.driverRateEmpty) || 2.30;
-        const driverPctVal = parseFloat(body.driverPctVal) || 12;
-        const perDiem = parseFloat(body.perDiem) || 550;
+        const driverRateLoad = parseFloat(body.driverRateLoad) || 0;
+        const driverRateEmpty = parseFloat(body.driverRateEmpty) || 0;
+        const driverPctVal = parseFloat(body.driverPctVal) || 0;
+        const perDiem = parseFloat(body.perDiem) || 0;
 
         // 4. ТО, Шини, спецвитрати причепа
-        const toCost = parseFloat(body.toCost) || 18000;
-        const toPeriod = parseFloat(body.toPeriod) || 50000;
-        const tireCost = parseFloat(body.tireCost) || 16500;
-        const tireCount = parseFloat(body.tireCount) || 14;
-        const tireMileage = parseFloat(body.tireMileage) || 150000;
+        const toCost = parseFloat(body.toCost) || 0;
+        const toPeriod = parseFloat(body.toPeriod);
+        const tireCost = parseFloat(body.tireCost) || 0;
+        const tireCount = parseFloat(body.tireCount) || 0;
+        const tireMileage = parseFloat(body.tireMileage);
 
         const washCost = parseFloat(body.washCost) || 0;      // цистерна: промивка
         const washFreq = parseFloat(body.washFreq) || 0;      // раз/рік
@@ -132,13 +148,13 @@ export default async function handler(req, res) {
         const ferryCost = useExtras ? (parseFloat(body.ferryCost) || 0) : 0;
 
         // 5. Накладні витрати (амортизація/фін. витрати — не VAT-товар, ремонт — VAT-товар)
-        const amortYear = parseFloat(body.amort) || 40139408;
-        const adminYear = parseFloat(body.admin) || 17871209;
+        const amortYear = parseFloat(body.amort) || 0;
+        const adminYear = parseFloat(body.admin) || 0;
         const otherOpYear = parseFloat(body.otherOperating) || 0;   // "Інші операційні витрати"
         const otherExpYear = parseFloat(body.otherExpenses) || 0;   // "Накладні витрати. Інші витрати"
-        const repairYear = parseFloat(body.repair) || 14305000;
-        const finYear = parseFloat(body.fin) || 4308097.69;
-        const totalFleet = parseFloat(body.totalFleet) || 68;
+        const repairYear = parseFloat(body.repair) || 0;
+        const finYear = parseFloat(body.fin) || 0;
+        const totalFleet = parseFloat(body.totalFleet);
         const workDaysYear = 300;
 
         // --- ХОДКИ ТА ПРОБІГИ ---
