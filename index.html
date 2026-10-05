@@ -82,6 +82,25 @@
         input:focus, select:focus { outline: none; border-color: var(--accent); }
         .unit { font-size: 0.8rem; color: var(--text-muted); }
         gmp-place-autocomplete { width: 100%; }
+
+        /* ===== Демо-режим (акаунт без схвалення): без карт, експорту й надсилання ===== */
+        .demo-only { display: none; }
+        body.demo-mode .demo-only { display: block; }
+        body.demo-mode .lock-ph.demo-only[style*="flex-direction"] { display: flex; }
+        body.demo-mode .btn.demo-only { display: inline-block !important; }
+        body.demo-mode .full-only { display: none !important; }
+        .lock-ph { border: 1px dashed var(--border-color); background: rgba(148,163,184,0.08); border-radius: 8px; padding: 12px; margin-bottom: 12px; text-align: center; color: var(--text-muted); font-size: 0.8rem; line-height: 1.4; }
+        .lock-ph b { display: block; color: var(--text-main); font-size: 0.85rem; margin-bottom: 2px; }
+        .lock-ph small { font-size: 0.72rem; }
+        .btn.btn-locked { opacity: 0.55; cursor: not-allowed; }
+        #demo-banner { display: none; }
+        body.demo-mode #demo-banner { display: flex; }
+        #demo-banner { align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: rgba(245, 158, 11, 0.12); border: 1px solid var(--warning); border-radius: 12px; padding: 8px 16px; margin-bottom: 10px; font-size: 0.8rem; color: var(--text-main); }
+        /* Друк (Ctrl+P / «Зберегти як PDF») у демо вимкнений */
+        @media print {
+            body.demo-mode > * { display: none !important; }
+            body.demo-mode::before { content: "Друк та експорт недоступні в демо-режимі."; display: block; padding: 40px; font-size: 20px; color: #000; }
+        }
         [data-theme="dark"] gmp-place-autocomplete { color-scheme: dark; }
         [data-theme="light"] gmp-place-autocomplete { color-scheme: light; }
         
@@ -110,9 +129,10 @@
         #auth-screen { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-color); z-index: 9999; justify-content: center; align-items: center; padding: 20px; }
         .auth-card { background: var(--card-bg); border: 1px solid var(--border-color); padding: 30px; border-radius: 12px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     </style>
-    <!-- Supabase та Google Maps -->
+    <!-- Supabase. Google Maps вантажиться динамічно (loadGoogleMaps) і ТІЛЬКИ для повного доступу —
+         демо-акаунти не створюють платних запитів до Google. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=places,geometry"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
 <body data-theme="dark">
 
@@ -165,6 +185,15 @@
             </div>
         </div>
 
+        <div id="demo-banner">
+            <div>🧪 <b>Демо-режим.</b> Повний доступ — після оплати підписки. У демо немає карт, експорту й надсилання.</div>
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span>Розрахунків сьогодні: <b id="demo-used">—</b> з <b id="demo-limit">5</b></span>
+                <button class="btn btn-success" id="demo-calc-btn" style="flex: none; min-width: 0; padding: 6px 16px;" onclick="runDemoCalc()">▶ Розрахувати</button>
+            </div>
+            <div id="demo-hint" style="width: 100%; font-size: 0.75rem; color: var(--text-muted);">Введіть параметри заявки і натисніть «Розрахувати». Результат не оновлюється наживо.</div>
+        </div>
+
         <div class="kpi-strip">
             <div class="kpi-chip">
                 <div class="kpi-title">Дохід</div>
@@ -211,7 +240,13 @@
                     <input type="text" id="route-name" value="Маршрут 1 (Зерно)" style="text-align: left;" oninput="calculate()">
                 </div>
 
-                <div style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                <div class="demo-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed var(--warning); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; line-height: 1.5;">
+                    <div style="font-weight: 600; color: var(--warning); margin-bottom: 4px;">🧪 Що доступно в демо</div>
+                    Відстань, подачу та інші параметри вводьте вручну в полях справа. Автоматичний розрахунок маршруту на карті Google, підказки міст і пошук АЗС/кафе/СТО доступні після оплати. Експорт у PDF/Excel та надсилання у Viber/Telegram теж лише в повному доступі. У демо можна зберегти до 3 розрахунків.
+                </div>
+
+                <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
+                <div class="full-only" style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
                     <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 6px;">🗺️ Розрахунок відстані Google Maps</div>
                     <div class="form-row two-cols" style="margin-bottom: 6px;">
                         <label>Пункт 0 (Стоянка авто - опц.):</label>
@@ -234,9 +269,11 @@
                     <div id="osm-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
                 </div>
                 
-                <div id="map" style="height: 180px; width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);"></div>
+                <div class="lock-ph demo-only" style="height: 180px; flex-direction: column; justify-content: center;"><b>🔒 Доступно після оплати</b><small>🗺️ Карта маршруту</small></div>
+                <div id="map" class="full-only" style="height: 180px; width: 100%; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color);"></div>
 
-                <div class="poi-box" style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>📍 Пошук АЗС, стоянок TIR, кафе і СТО вздовж маршруту</small></div>
+                <div class="poi-box full-only" style="background: rgba(59, 130, 246, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
                     <div style="font-size: 0.85rem; font-weight: 600; color: var(--accent); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (Google Places)</div>
                     <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 8px;">Платний сервіс: 5000 запитів/міс безкоштовно, далі $32/1000. Кожен клік — до 24 запитів залежно від кількості обраних категорій.</div>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.8rem;">
@@ -363,18 +400,19 @@
                             Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C,
                             звідти <b>вантаженим</b> зворотнім вантажем до точки D, і <b>порожнім</b> повертається у пункт A під нове завантаження.
                         </div>
-                        <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🔁 Розрахунок зворотнього маршруту B→C→D→A за картами Google</small></div>
+                        <div class="form-row two-cols full-only" style="margin-bottom: 6px;">
                             <label>Точка C (довантаження, порожнім з B):</label>
                             <div id="rt-point-c-wrap"></div>
                             <input type="hidden" id="rt-point-c">
                         </div>
-                        <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <div class="form-row two-cols full-only" style="margin-bottom: 6px;">
                             <label>Точка D (вивантаження, вантаженим з C):</label>
                             <div id="rt-point-d-wrap"></div>
                             <input type="hidden" id="rt-point-d">
                         </div>
-                        <button type="button" class="btn" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотній маршрут (Google)</button>
-                        <div id="rt-status" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
+                        <button type="button" class="btn full-only" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотній маршрут (Google)</button>
+                        <div id="rt-status" class="full-only" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
 
                         <div class="form-row">
                             <label>Плече B→C (порожнім):</label>
@@ -653,8 +691,10 @@
 
     <div class="actions-bar" style="margin-top: 20px;">
         <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
-        <button class="btn" onclick="window.print()">📄 Експорт у PDF</button>
-        <button class="btn btn-warning" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
+        <button class="btn full-only" onclick="window.print()">📄 Експорт у PDF</button>
+        <button class="btn full-only" onclick="exportExcel()">📊 Експорт у Excel</button>
+        <button class="btn btn-warning full-only" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
+        <button class="btn btn-locked demo-only" disabled>🔒 PDF · Excel · Viber/Telegram — доступно після оплати</button>
     </div>
 </div>
 
@@ -665,6 +705,10 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     let currentSessionToken = null;
+    let currentUserId = null;
+    let isDemo = false;   // true = акаунт без схвалення: обмежений демо-режим
+    let isAdmin = false;
+    let demoForce = false; // true лише на час одного виклику calculate() з кнопки «Розрахувати»
 
     let savedCalculations = [];
     let calcRequestId = 0; // захист від застарілих відповідей при швидкому вводі
@@ -698,27 +742,100 @@
 
         currentSessionToken = session.access_token;
 
+        currentUserId = session.user.id;
+
         const { data: profile, error } = await supabaseClient
             .from('profiles')
-            .select('is_approved')
+            .select('is_approved, role, org_id, organizations(status)')
             .eq('id', session.user.id)
             .single();
 
-        if (error || !profile || !profile.is_approved) {
+        const showBlockingMessage = (html) => {
             authScreen.style.display = 'flex';
             mainApp.style.display = 'none';
             authFormBox.style.display = 'none';
             logoutBtn.style.display = 'block';
-            authMsg.innerHTML = '⏳ Ваш акаунт зареєстровано, але <b>очікує підтвердження адміністратором</b>.';
+            authMsg.innerHTML = html;
+        };
+
+        if (error || !profile) {
+            showBlockingMessage('⚠️ Не вдалося завантажити профіль. Оновіть сторінку або зверніться до адміністратора.');
+        } else if (profile.organizations && profile.organizations.status === 'blocked') {
+            showBlockingMessage('⛔ Доступ вашої компанії <b>заблоковано адміністратором</b>.');
         } else {
-            // Доступ дозволено! Приховуємо логін, показуємо додаток
+            // Доступ є: або повний (is_approved = true), або демо (is_approved = false)
+            isDemo = !profile.is_approved;
+            isAdmin = profile.role === 'admin';
+            document.body.classList.toggle('demo-mode', isDemo);
+
             authScreen.style.display = 'none';
             mainApp.style.display = 'block';
-            
-            // Тепер можна безпечно запускати калькулятор
+
+            loadSavedCalculations();
+
+            // Тепер можна безпечно запускати калькулятор.
+            // У демо calculate() всередині нічого не відправляє, доки не натиснуто «Розрахувати».
             onTrailerChange();
-            initMap();
+            if (isDemo) {
+                loadDemoUsage(profile.org_id);
+            } else {
+                // Google Maps (платні запити) підвантажуємо лише для повного доступу
+                loadGoogleMaps().then(initMap).catch(e => console.warn('Google Maps не завантажився:', e));
+            }
         }
+    }
+
+    // Завантаження скрипта Google Maps один раз, лише коли він справді потрібен
+    let googleMapsPromise = null;
+    function loadGoogleMaps() {
+        if (googleMapsPromise) return googleMapsPromise;
+        googleMapsPromise = new Promise((resolve, reject) => {
+            if (window.google && window.google.maps) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=places,geometry';
+            s.async = true;
+            s.onload = () => resolve();
+            s.onerror = () => { googleMapsPromise = null; reject(new Error('script load error')); };
+            document.head.appendChild(s);
+        });
+        return googleMapsPromise;
+    }
+
+    // ===== Демо-режим =====
+    const DEMO_MAX_SAVED = 3;
+
+    function updateDemoCounter(used, limit) {
+        if (used !== undefined && used !== null) document.getElementById('demo-used').innerText = used;
+        if (limit !== undefined && limit !== null) document.getElementById('demo-limit').innerText = limit;
+    }
+
+    function setDemoHint(text, isWarning) {
+        const el = document.getElementById('demo-hint');
+        if (!el) return;
+        el.innerText = text;
+        el.style.color = isWarning ? 'var(--danger)' : 'var(--text-muted)';
+    }
+
+    // Скільки розрахунків уже використано сьогодні (за київською датою) — щоб лічильник був правдивий одразу після входу
+    async function loadDemoUsage(orgId) {
+        try {
+            const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Kyiv' }); // YYYY-MM-DD
+            const { data } = await supabaseClient
+                .from('usage_counters')
+                .select('calc_count')
+                .eq('org_id', orgId)
+                .eq('day', today)
+                .maybeSingle();
+            updateDemoCounter(data ? data.calc_count : 0);
+        } catch (e) { updateDemoCounter(0); }
+    }
+
+    // Кнопка «Розрахувати» (демо): рівно один запит на сервер, який зараховується в ліміт
+    async function runDemoCalc() {
+        demoForce = true;
+        const btn = document.getElementById('demo-calc-btn');
+        btn.disabled = true;
+        try { await calculate(); } finally { btn.disabled = false; }
     }
 
     async function handleAuth(type) {
@@ -855,8 +972,65 @@
         calculate();
     }
 
+    let demoHasResult = false;
+
+    let lastExport = null;
+
+    async function exportExcel() {
+        if (isDemo) return;
+        if (!lastExport) { alert('Спочатку дочекайтесь розрахунку.'); return; }
+        if (typeof ExcelJS === 'undefined') { alert('Не вдалося завантажити модуль Excel. Оновіть сторінку.'); return; }
+        const { payload: p, result: r, routeName } = lastExport;
+        const lbl = id => { const el = document.getElementById(id); return el && el.options ? el.options[el.selectedIndex].text : (el ? el.value : ''); };
+        const num = v => { const n = parseFloat(v); return isNaN(n) ? (v ?? '') : n; };
+        const rnd = v => (v === null || v === undefined) ? '—' : Math.round(v);
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Розрахунок');
+        ws.columns = [{ width: 44 }, { width: 22 }, { width: 14 }];
+        const head = t => { const row = ws.addRow([t]); row.font = { bold: true, size: 12 }; row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }; ws.mergeCells(row.number, 1, row.number, 3); };
+        const line = (a, b, c) => ws.addRow([a, b, c || '']);
+        const t = ws.addRow(['TripControl — розрахунок рейсу']); t.font = { bold: true, size: 14 };
+        line('Маршрут / заявка', routeName);
+        line('Дата', new Date().toLocaleDateString('uk-UA'));
+        ws.addRow([]);
+        head('Вхідні параметри');
+        line('Оподаткування', lbl('calc-type'));
+        line('Тип причепа', lbl('trailer-type')); line('Сезон', lbl('season-type')); line('Якість доріг', lbl('road-quality'));
+        line('Відстань', num(p.dist), 'км'); line('Подача', num(p.podachaDist), 'км');
+        line('Обсяг', num(p.volume), 'т'); line('Авто', num(p.carsCount), 'шт');
+        line('Ставка', num(p.rate), 'грн/т'); line('Ціна палива', num(p.fuelPrice), 'грн/л');
+        line('Витрата палива (вантажем)', num(p.fuelLoad), 'л/100км'); line('Витрата палива (порожнім)', num(p.fuelEmpty), 'л/100км');
+        line('Днів на рейс', num(p.daysPerTrip), 'дн');
+        if (p.isRoundTrip) { line('Зворотній рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотній рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотній рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотній обсяг', num(p.rtTotalVolume), 'т'); line('Зворотня ставка', num(p.rtRate), 'грн/т'); }
+        ws.addRow([]);
+        head('Результати');
+        line('Валовий дохід', Math.round(r.grossIncome), 'грн'); line('Чистий дохід', Math.round(r.netIncome), 'грн');
+        line('Маржинальний дохід', Math.round(r.marginalIncome), 'грн'); line('Маржа на 1 т', num(r.marginPerTon), 'грн/т');
+        line('EBITDA', Math.round(r.ebitda), 'грн'); line('EBITDA на 1 т', num(r.ebitdaPerTon), 'грн/т');
+        line('Чистий прибуток', Math.round(r.netProfit), 'грн'); line('Рентабельність', Math.round(r.profitabilityPct * 10) / 10, '%');
+        ws.addRow([]);
+        head('Беззбитковість, грн/т');
+        line('Повна', rnd(r.breakevenFullPerTon)); line('По маржі', rnd(r.breakevenMarginPerTon)); line('По EBITDA', rnd(r.breakevenEbitdaPerTon));
+        line('Запас / дефіцит', rnd(r.breakevenGapPerTon));
+        ws.eachRow(row => { const c = row.getCell(2); if (typeof c.value === 'number') { c.numFmt = '#,##0.##'; c.alignment = { horizontal: 'right' }; } });
+        const buf = await wb.xlsx.writeBuffer();
+        const safe = (routeName || 'Розрахунок').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 60);
+        const d = new Date().toISOString().slice(0, 10);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+        a.download = 'TripControl_' + safe + '_' + d + '.xlsx';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+
     async function calculate() {
         if (!currentSessionToken) return; // Подвійний захист від запуску без токена
+        // Демо: живого перерахунку немає. Запит на сервер (і зарахування в ліміт) лише з кнопки «Розрахувати».
+        if (isDemo && !demoForce) {
+            if (demoHasResult) setDemoHint('Параметри змінено. Натисніть «Розрахувати», щоб оновити результат.');
+            return;
+        }
+        demoForce = false;
         const myRequestId = ++calcRequestId; // ФІКС: позначаємо цей виклик, щоб пізніше відрізнити застарілу відповідь
 
         const payload = {
@@ -920,22 +1094,43 @@
         const safeVolume = parseFloat(payload.volume) > 0 ? parseFloat(payload.volume) : 1;
 
         try {
+            // Токен доступу живе ~1 годину: беремо актуальний (getSession сам оновлює його при потребі),
+            // інакше після години роботи розрахунки почали б віддавати 401
+            const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
+            if (freshSession) currentSessionToken = freshSession.access_token;
+
             const response = await fetch('/api/calculate', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + currentSessionToken 
+                    'Authorization': 'Bearer ' + currentSessionToken
                 },
                 body: JSON.stringify(payload)
             });
 
-            if (!response.ok) throw new Error('Помилка сервера розрахунків');
+            if (!response.ok) {
+                let errInfo = null;
+                try { errInfo = await response.json(); } catch (e) {}
+                if (response.status === 429 && errInfo && errInfo.code === 'DEMO_LIMIT') {
+                    updateDemoCounter(errInfo.used, errInfo.limit);
+                    setDemoHint('🚫 ' + errInfo.error, true);
+                    return;
+                }
+                throw new Error('Помилка сервера розрахунків');
+            }
 
             const result = await response.json();
 
             // ФІКС: якщо за час очікування відповіді користувач встиг ще раз змінити поле —
             // ця відповідь застаріла (прийшла не в тому порядку), ігноруємо її
             if (myRequestId !== calcRequestId) return;
+            lastExport = { payload, result, routeName };
+
+            if (result.demo) {
+                updateDemoCounter(result.demo.used, result.demo.limit);
+                demoHasResult = true;
+                setDemoHint('Результат актуальний. Змінили параметри — натисніть «Розрахувати» ще раз.');
+            }
 
             document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
             document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}`;
@@ -1050,22 +1245,49 @@
         `;
     }
 
+    // Збережені розрахунки зберігаються окремо для кожного користувача (раніше був один спільний ключ на браузер,
+    // тож на одному комп'ютері різні акаунти бачили б розрахунки один одного). Перенос у хмару — наступний етап.
+    function savedStorageKey() { return 'saved_freight_calcs_' + currentUserId; }
+
+    function persistSaved() {
+        localStorage.setItem(savedStorageKey(), JSON.stringify(savedCalculations));
+    }
+
+    function loadSavedCalculations() {
+        savedCalculations = [];
+        let raw = localStorage.getItem(savedStorageKey());
+        // Старі розрахунки, збережені до появи окремих кабінетів, підтягуємо лише адміну (власнику)
+        if (!raw && isAdmin) raw = localStorage.getItem('saved_freight_calcs');
+        if (raw) {
+            try { savedCalculations = JSON.parse(raw) || []; } catch (e) {}
+        }
+        renderSavedTable();
+    }
+
     function saveCalculation() {
         if (!lastCalcData || !lastCalcData.routeName) return;
+        if (isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
+            alert(`Демо-режим: можна зберегти до ${DEMO_MAX_SAVED} розрахунків. Видаліть один зі збережених або отримайте повний доступ.`);
+            return;
+        }
         savedCalculations.push({ ...lastCalcData, id: Date.now() });
-        localStorage.setItem('saved_freight_calcs', JSON.stringify(savedCalculations));
+        persistSaved();
         renderSavedTable();
 
-        fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify(lastCalcData),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        }).then(res => console.log('Успішно відправлено у Google Таблицю!')).catch(err => console.error('Помилка відправки:', err));
+        // Відправка у Google Таблицю власника — лише з адмінського акаунта. Розрахунки інших компаній
+        // не повинні потрапляти в чужу таблицю (для них буде своє сховище в кабінеті).
+        if (isAdmin) {
+            fetch(GOOGLE_SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify(lastCalcData),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            }).then(res => console.log('Успішно відправлено у Google Таблицю!')).catch(err => console.error('Помилка відправки:', err));
+        }
     }
 
     function removeSaved(id) {
         savedCalculations = savedCalculations.filter(c => c.id !== id);
-        localStorage.setItem('saved_freight_calcs', JSON.stringify(savedCalculations));
+        persistSaved();
         renderSavedTable();
     }
 
@@ -1455,10 +1677,7 @@
 
     // ЗАПУСК ПРОГРАМИ
     window.onload = function() {
-        const localData = localStorage.getItem('saved_freight_calcs');
-        if (localData) {
-            try { savedCalculations = JSON.parse(localData); renderSavedTable(); } catch(e){}
-        }
+        // Збережені розрахунки підтягуються в checkUserAccess(), коли вже відомо, хто користувач
         fetchNBURates();
         
         // Відразу перевіряємо авторизацію, і ТІЛЬКИ ПІСЛЯ НЕЇ викликаємо калькулятор
