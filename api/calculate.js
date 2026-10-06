@@ -43,7 +43,8 @@ export default async function handler(req, res) {
             daysPerTrip: 'Днів на рейс', rate: 'Ставка', fuelLoad: 'Витрата з вантажем', fuelEmpty: 'Витрата порожнім',
             fuelPrice: 'Ціна палива', totalFleet: 'Авто в парку', toPeriod: 'Пробіг між ТО', tireMileage: 'Ресурс шин'
         };
-        const missingFields = Object.keys(REQUIRED).filter(k => !(parseFloat(reqBody[k]) > 0));
+        const isOneOff = reqBody.returnMode === 'разовий'; // разовий рейс: обсяг = норма × кількість авто, поле «Обсяг» не потрібне
+        const missingFields = Object.keys(REQUIRED).filter(k => !(isOneOff && k === 'volume') && !(parseFloat(reqBody[k]) > 0));
         if (missingFields.length) {
             return res.status(400).json({
                 code: 'MISSING_FIELDS',
@@ -94,7 +95,7 @@ export default async function handler(req, res) {
         const roadQuality = parseFloat(body.roadQuality) || 1.0;
         const dist = parseFloat(body.dist);
         const podachaDist = parseFloat(body.podachaDist) || 0;
-        const contractVolume = parseFloat(body.volume);
+        const contractVolume = parseFloat(body.volume) || 0; // у разовому рейсі обсяг не використовується (норма × авто)
         const normWeight = parseFloat(body.normWeight);
         const carsCount = parseFloat(body.carsCount);
         const daysPerTrip = parseFloat(body.daysPerTrip);
