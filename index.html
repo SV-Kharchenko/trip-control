@@ -1085,12 +1085,23 @@
             { key: 'tireCost', id: 'tire-cost', label: 'Ціна однієї шини', unit: 'грн' },
             { key: 'tireCount', id: 'tire-count', label: 'Кількість шин на авто', unit: 'шт' },
             { key: 'tireMileage', id: 'tire-mileage', label: 'Ресурс шини', unit: 'км' } ] },
-        { title: '📦 Типові параметри рейсу', fields: [
-            { key: 'normWeight', id: 'norm-weight', label: 'Норма завантаження авто', unit: 'т', step: '0.5' },
-            { key: 'daysPerTrip', id: 'days-per-trip', label: 'Днів на один рейс', unit: 'дн', step: '0.01' },
-            { key: 'washCost', id: 'wash-cost', label: 'Промивка цистерни (за раз)', unit: 'грн' },
-            { key: 'washFreq', id: 'wash-freq', label: 'Промивок на рік', unit: 'раз' } ] }
     ];
+    // Ці параметри вводяться в калькуляторі для кожного розрахунку; зі старих налаштувань їх прибираємо при збереженні
+    const LEGACY_SETTINGS_KEYS = ['normWeight', 'daysPerTrip', 'washCost', 'washFreq'];
+    // Поле показується в кабінеті лише коли обрано відповідний варіант
+    const CAB_SHOW_IF = {
+        driverRateLoad: () => document.getElementById('cab-driverPayMode').value === 'km',
+        driverRateEmpty: () => document.getElementById('cab-driverPayMode').value === 'km',
+        driverPctVal: () => document.getElementById('cab-driverPayMode').value === 'pct',
+        adblueConsumption: () => document.getElementById('cab-adblueEnable').value === 'on',
+        adbluePrice: () => document.getElementById('cab-adblueEnable').value === 'on'
+    };
+    function updateCabVisibility() {
+        Object.keys(CAB_SHOW_IF).forEach(key => {
+            const row = document.getElementById('cabrow-' + key);
+            if (row) row.style.display = CAB_SHOW_IF[key]() ? '' : 'none';
+        });
+    }
     const SETTINGS_MAP = {};
     CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));
 
@@ -1131,7 +1142,7 @@
         CAB_SECTIONS.forEach(sec => {
             html += '<div class="cab-card"><h3>' + sec.title + '</h3>';
             sec.fields.forEach(f => {
-                html += '<div class="cab-row"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>';
+                html += '<div class="cab-row" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>';
                 if (f.select) {
                     html += '<select id="cab-' + f.key + '">' + f.select.map(o => '<option value="' + o[0] + '">' + esc(o[1]) + '</option>').join('') + '</select><span></span>';
                 } else {
@@ -1143,6 +1154,7 @@
         });
         box.innerHTML = html;
         box.dataset.built = '1';
+        ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
     }
 
     function openCabinet() {
@@ -1156,6 +1168,7 @@
             if (v !== undefined && v !== null) el.value = v;
             else el.value = SETTINGS_MAP[key].select ? SETTINGS_MAP[key].select[0][0] : '';
         });
+        updateCabVisibility();
         document.getElementById('cab-message').innerText = '';
         document.getElementById('cabinet-screen').style.display = 'block';
         document.body.style.overflow = 'hidden';
@@ -1175,6 +1188,7 @@
         if (!currentOrgId) { setMsg('Не вдалося визначити компанію. Оновіть сторінку.', true); return; }
 
         const next = Object.assign({}, companySettings);
+        LEGACY_SETTINGS_KEYS.forEach(k => { delete next[k]; });
         for (const key of Object.keys(SETTINGS_MAP)) {
             const f = SETTINGS_MAP[key];
             const raw = document.getElementById('cab-' + key).value;
@@ -1264,7 +1278,8 @@
         demoForce = false;
 
         // Обов'язкові поля: без них результат був би вигаданим — запит не відправляємо (і в демо він не рахується в ліміт)
-        const missing = REQUIRED_FIELDS.filter(([id]) => !(parseFloat(document.getElementById(id).value) > 0));
+        const oneOff = document.getElementById('return-mode').value === 'разовий'; // разовий рейс: «Обсяг» не потрібен
+        const missing = REQUIRED_FIELDS.filter(([id]) => !(oneOff && id === 'volume') && !(parseFloat(document.getElementById(id).value) > 0));
         const mh = document.getElementById('missing-hint');
         if (missing.length) {
             mh.innerHTML = '⚠️ Щоб порахувати, заповніть: <b>' + missing.map(m => m[1]).join(', ') + '</b>. Постійні параметри компанії (парк, накладні, пальне, ТО, шини) задаються в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.';
