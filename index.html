@@ -694,6 +694,7 @@
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
         <h2>📊 Збережені розрахунки</h2>
+        <div id="migrate-box" style="display:none; background: rgba(59,130,246,0.10); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.8rem;"></div>
         <div class="comparison-table">
             <table id="saved-table">
                 <thead>
@@ -1501,50 +1502,132 @@
         `;
     }
 
-    // Збережені розрахунки зберігаються окремо для кожного користувача (раніше був один спільний ключ на браузер,
-    // тож на одному комп'ютері різні акаунти бачили б розрахунки один одного). Перенос у хмару — наступний етап.
-    function savedStorageKey() { return 'saved_freight_calcs_' + currentUserId; }
+    // ==========================================
+    // ЗБЕРЕЖЕНІ РОЗРАХУНКИ (Supabase, таблиця calculations; кожна компанія бачить лише свої)
+    // ==========================================
+    const escHtml = t => String(t === undefined || t === null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-    function persistSaved() {
-        localStorage.setItem(savedStorageKey(), JSON.stringify(savedCalculations));
+    // Старі розрахунки з браузера (до переходу в хмару) — лише для одноразового переносу
+    function legacyKeys() {
+        const keys = ['saved_freight_calcs_' + currentUserId];
+        if (isAdmin) keys.push('saved_freight_calcs');
+        return keys;
+    }
+    function readLegacy() {
+        const out = [];
+        legacyKeys().forEach(k => {
+            try { const arr = JSON.parse(localStorage.getItem(k) || '[]'); if (Array.isArray(arr)) arr.forEach(c => { if (c && c.routeName) out.push(c); }); } catch (e) {}
+        });
+        return out;
     }
 
-    function loadSavedCalculations() {
+    async function loadSavedCalculations() {
         savedCalculations = [];
-        let raw = localStorage.getItem(savedStorageKey());
-        // Старі розрахунки, збережені до появи окремих кабінетів, підтягуємо лише адміну (власнику)
-        if (!raw && isAdmin) raw = localStorage.getItem('saved_freight_calcs');
-        if (raw) {
-            try { savedCalculations = JSON.parse(raw) || []; } catch (e) {}
+        try {
+            const { data, error } = await supabaseClient
+                .from('calculations')
+                .select('id, name, results, created_at')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            savedCalculations = (data || []).map(r => Object.assign({}, r.results, { id: r.id }));
+        } catch (e) {
+            console.error('Не вдалося завантажити збережені розрахунки:', e);
+            document.getElementById('saved-tbody').innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--danger);">Не вдалося завантажити збережені розрахунки. Оновіть сторінку.</td></tr>';
+            return;
         }
         renderSavedTable();
+        refreshMigrateBox();
     }
 
-    function saveCalculation() {
+    async function saveCalculation() {
         if (!lastCalcData || !lastCalcData.routeName) return;
         if (isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
             alert(`Демо-режим: можна зберегти до ${DEMO_MAX_SAVED} розрахунків. Видаліть один зі збережених або отримайте повний доступ.`);
             return;
         }
-        savedCalculations.push({ ...lastCalcData, id: Date.now() });
-        persistSaved();
-        renderSavedTable();
+        if (!currentOrgId) { alert('Не вдалося визначити компанію. Оновіть сторінку.'); return; }
+        const snapshot = Object.assign({}, lastCalcData);
+        try {
+            const { data, error } = await supabaseClient
+                .from('calculations')
+                .insert({
+                    org_id: currentOrgId, user_id: currentUserId,
+                    name: snapshot.routeName,
+                    inputs: lastExport && lastExport.payload ? lastExport.payload : {},
+                    results: snapshot
+                })
+                .select('id')
+                .single();
+            if (error) throw error;
+            savedCalculations.unshift(Object.assign({}, snapshot, { id: data.id }));
+            renderSavedTable();
+        } catch (e) {
+            if (String(e && e.message).indexOf('DEMO_SAVE_LIMIT') !== -1) {
+                alert(`Демо-режим: можна зберегти до ${DEMO_MAX_SAVED} розрахунків. Видаліть один зі збережених або отримайте повний доступ.`);
+            } else {
+                alert('Не вдалося зберегти розрахунок: ' + ((e && e.message) || e));
+            }
+            return;
+        }
 
         // Відправка у Google Таблицю власника — лише з адмінського акаунта. Розрахунки інших компаній
-        // не повинні потрапляти в чужу таблицю (для них буде своє сховище в кабінеті).
+        // не повинні потрапляти в чужу таблицю.
         if (isAdmin) {
             fetch(GOOGLE_SCRIPT_URL, {
                 method: 'POST',
-                body: JSON.stringify(lastCalcData),
+                body: JSON.stringify(snapshot),
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' }
             }).then(res => console.log('Успішно відправлено у Google Таблицю!')).catch(err => console.error('Помилка відправки:', err));
         }
     }
 
-    function removeSaved(id) {
-        savedCalculations = savedCalculations.filter(c => c.id !== id);
-        persistSaved();
+    async function removeSaved(id) {
+        try {
+            const { error } = await supabaseClient.from('calculations').delete().eq('id', id);
+            if (error) throw error;
+            savedCalculations = savedCalculations.filter(c => c.id !== id);
+            renderSavedTable();
+        } catch (e) {
+            alert('Не вдалося видалити розрахунок: ' + ((e && e.message) || e));
+        }
+    }
+
+    // Кнопка одноразового переносу старих розрахунків з браузера в хмару
+    function refreshMigrateBox() {
+        const box = document.getElementById('migrate-box');
+        const legacy = readLegacy();
+        if (!legacy.length) { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        box.innerHTML = `Знайдено <b>${legacy.length}</b> розрахунків, збережених у цьому браузері раніше. ` +
+            `<button class="link-btn" id="migrate-btn" onclick="migrateLegacy()">☁️ Перенести в хмару</button>` +
+            (isDemo ? ` <span style="color: var(--text-muted);">(у демо в хмарі вміститься до ${DEMO_MAX_SAVED})</span>` : '');
+    }
+
+    async function migrateLegacy() {
+        const legacy = readLegacy();
+        const btn = document.getElementById('migrate-btn');
+        if (btn) btn.disabled = true;
+        let moved = 0, stopped = '';
+        for (const c of legacy) {
+            const item = Object.assign({}, c); delete item.id;
+            try {
+                const { data, error } = await supabaseClient.from('calculations')
+                    .insert({ org_id: currentOrgId, user_id: currentUserId, name: item.routeName, inputs: {}, results: item })
+                    .select('id').single();
+                if (error) throw error;
+                savedCalculations.push(Object.assign({}, item, { id: data.id }));
+                moved++;
+            } catch (e) {
+                stopped = String(e && e.message).indexOf('DEMO_SAVE_LIMIT') !== -1 ? 'Досягнуто ліміт демо-режиму.' : ('Помилка: ' + ((e && e.message) || e));
+                break;
+            }
+        }
+        if (moved === legacy.length) {
+            legacyKeys().forEach(k => localStorage.removeItem(k)); // усе перенесено — локальні копії більше не потрібні
+        }
         renderSavedTable();
+        refreshMigrateBox();
+        alert(`Перенесено в хмару: ${moved} з ${legacy.length}.` + (stopped ? ' ' + stopped + ' Решта лишилась у браузері.' : ''));
     }
 
     function renderSavedTable() {
@@ -1555,16 +1638,16 @@
         }
         tbody.innerHTML = savedCalculations.map(c => `
             <tr>
-                <td><b>${c.routeName}</b></td>
-                <td>${c.trailerType}</td>
-                <td>${c.volume} тн</td>
-                <td>${c.rate} грн</td>
+                <td><b>${escHtml(c.routeName)}</b></td>
+                <td>${escHtml(c.trailerType)}</td>
+                <td>${escHtml(c.volume)} тн</td>
+                <td>${escHtml(c.rate)} грн</td>
                 <td>${formatMoney(c.grossIncome)}</td>
                 <td>${formatMoney(c.marginalIncome)}</td>
                 <td>${formatMoney(c.ebitda)}</td>
                 <td>${formatMoney(c.netProfit)}</td>
-                <td><span class="badge ${c.profitabilityPct >= 15 ? 'badge-success' : c.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger'}">${c.profitabilityPct.toFixed(1)}%</span></td>
-                <td><button onclick="removeSaved(${c.id})" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:bold;">✕</button></td>
+                <td><span class="badge ${c.profitabilityPct >= 15 ? 'badge-success' : c.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger'}">${Number(c.profitabilityPct).toFixed(1)}%</span></td>
+                <td><button onclick="removeSaved('${escHtml(c.id)}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:bold;">✕</button></td>
             </tr>
         `).join('');
     }
