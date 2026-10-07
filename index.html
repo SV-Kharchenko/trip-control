@@ -218,19 +218,25 @@
         .tc-route-bar .route-ok { color: var(--success); font-weight: 700; }
 
         /* Main asymmetric grid: map | params */
-        .tc-main { display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 14px; margin-bottom: 14px; align-items: start; }
+        .tc-main { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
         .tc-map-panel, .tc-work { min-width: 0; }
         .tc-work { display: flex; flex-direction: column; gap: 12px; }
         .tc-map-panel .card { margin-bottom: 0; }
-        /* Lower row: costs | fuel+overhead — не один довгий стовпчик */
-        .tc-lower {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-            margin-bottom: 14px; align-items: start;
+        /* Витрати на всю ширину; пальне | накладні — 2 колонки */
+        .tc-costs { margin-bottom: 12px; }
+        .tc-costs-body {
+            display: grid;
+            grid-template-columns: 112px minmax(160px, 260px) minmax(0, 1fr);
+            gap: 12px 16px; align-items: center;
         }
-        .tc-lower-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+        .tc-costs-body table { margin-top: 0; width: 100%; }
+        .tc-lower {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+            margin-bottom: 12px; align-items: start;
+        }
         .tc-lower .card { margin-bottom: 0; }
         .tc-map-frame {
-            position: relative; width: 100%; height: min(48vh, 420px); min-height: 260px;
+            position: relative; width: 100%; height: min(34vh, 300px); min-height: 220px;
             border-radius: 12px; overflow: hidden;
             border: 1px solid color-mix(in srgb, var(--steel) 25%, var(--border-color));
             background:
@@ -344,8 +350,8 @@
 
         .card {
             position: relative; background: var(--card-bg); border: 1px solid var(--border-color);
-            border-radius: 14px; padding: 16px 16px 16px 18px; margin-bottom: 12px;
-            box-shadow: 0 10px 26px rgba(0,0,0,0.16);
+            border-radius: 12px; padding: 12px 12px 12px 14px; margin-bottom: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.14);
             overflow: hidden;
         }
         .card::before {
@@ -354,27 +360,32 @@
             opacity: 0.85;
         }
         .card h2 {
-            font-size: 0.98rem; margin-bottom: 14px; padding-bottom: 10px;
+            font-size: 0.9rem; margin-bottom: 10px; padding-bottom: 8px;
             border-bottom: 1px solid var(--border-color); color: var(--text-main);
-            display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 0.02em;
+            display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: 0.02em;
         }
         .tc-sec-ico {
-            width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
-            display: grid; place-items: center; font-size: 0.85rem;
+            width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0;
+            display: grid; place-items: center; font-size: 0.78rem;
             background: color-mix(in srgb, var(--amber) 14%, var(--input-bg));
             border: 1px solid color-mix(in srgb, var(--amber) 30%, var(--border-color));
             color: var(--amber);
         }
-        .form-row { display: grid; grid-template-columns: 150px 1.4fr 0.6fr; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .form-row.two-cols { grid-template-columns: 150px 1fr; }
-        label { font-size: 0.82rem; color: var(--text-muted); font-weight: 500; }
+        /* Лейбл тягнеться, інпут фіксований справа — без «дірки» посередині */
+        .form-row {
+            display: grid; grid-template-columns: minmax(0, 1fr) 128px 36px;
+            gap: 6px 8px; align-items: center; margin-bottom: 6px;
+        }
+        .form-row.two-cols { grid-template-columns: minmax(110px, 36%) minmax(0, 1fr); }
+        .form-row > label { line-height: 1.25; }
+        label { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; }
         input, select {
             width: 100%; background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color);
-            padding: 7px 10px; border-radius: 6px; font-size: 0.88rem; text-align: right; font-family: var(--font-ui);
+            padding: 6px 8px; border-radius: 6px; font-size: 0.84rem; text-align: right; font-family: var(--font-ui);
         }
         select { text-align: left; }
         input:focus, select:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(125,211,252,0.12); }
-        .unit { font-size: 0.78rem; color: var(--text-muted); }
+        .unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
         gmp-place-autocomplete { width: 100%; }
 
         .demo-only { display: none; }
@@ -486,9 +497,9 @@
         .dynamic-field { display: none; }
         .dynamic-field.active { display: grid; }
         .chart-box { margin-top: 8px; }
-        .donut-wrap { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; margin-top: 6px; }
+        .donut-wrap { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 14px 18px; align-items: center; margin-top: 4px; }
         .donut-svg-box {
-            position: relative; width: 150px; height: 150px; margin: 0 auto;
+            position: relative; width: 112px; height: 112px; margin: 0;
             border-radius: 50%;
             background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--steel) 10%, transparent), transparent 62%);
             box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-color) 80%, transparent);
@@ -554,12 +565,18 @@
         .tc-footer { margin-top: 14px; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.04em; }
 
         @media (min-width: 1025px) {
-            .tc-work .form-row, .tc-lower .form-row { grid-template-columns: 1.4fr 1fr 0.5fr; }
-            .tc-work .form-row.two-cols, .tc-lower .form-row.two-cols { grid-template-columns: 1fr 1.4fr; }
-            .tc-map-panel .form-row.two-cols { grid-template-columns: 140px 1fr; }
+            .tc-work .form-row, .tc-lower .form-row, .tc-costs .form-row {
+                grid-template-columns: minmax(0, 1fr) 140px 40px;
+            }
+            .tc-work .form-row.two-cols, .tc-lower .form-row.two-cols {
+                grid-template-columns: minmax(120px, 34%) minmax(0, 1fr);
+            }
+            .tc-map-panel .form-row.two-cols { grid-template-columns: 120px minmax(0, 1fr); }
         }
         @media (max-width: 1100px) {
             .tc-kpi { grid-template-columns: repeat(3, 1fr); }
+            .tc-costs-body { grid-template-columns: 112px 1fr; }
+            .tc-costs-body table { grid-column: 1 / -1; }
         }
         @media (max-width: 1024px) {
             .tc-main { grid-template-columns: 1fr; }
@@ -571,7 +588,10 @@
             .tc-kpi .kpi-chip:last-child { grid-column: 1 / -1; }
             .kpi-value { font-size: 1rem; }
             .preset-tiles { grid-template-columns: repeat(2, 1fr); }
-            .donut-wrap { grid-template-columns: 1fr; }
+            .donut-wrap, .tc-costs-body { grid-template-columns: 1fr; }
+            .donut-svg-box { margin: 0 auto; }
+            .form-row { grid-template-columns: minmax(0, 1fr) 108px 34px; }
+            .form-row.two-cols { grid-template-columns: 1fr; }
             .tc-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
             .tc-map-frame { height: 220px; min-height: 220px; }
         }
@@ -1028,11 +1048,9 @@
       </div>
     </div><!-- /tc-main: map | params -->
 
-    <div class="tc-lower">
-            <div class="card">
+    <div class="card tc-costs">
                 <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
-                <div class="chart-box">
-                    <div class="donut-wrap" id="bar-chart">
+                <div class="tc-costs-body" id="bar-chart">
                         <div class="donut-svg-box">
                             <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true"></svg>
                             <div class="donut-center">
@@ -1041,9 +1059,7 @@
                             </div>
                         </div>
                         <div class="donut-legend" id="chart-legend"></div>
-                    </div>
-                </div>
-                <table style="margin-top: 16px;">
+                <table>
                     <thead>
                         <tr>
                             <th>Стаття витрат</th>
@@ -1054,9 +1070,10 @@
                     </thead>
                     <tbody id="cost-breakdown"></tbody>
                 </table>
-            </div>
+                </div>
+    </div>
 
-            <div class="tc-lower-side">
+    <div class="tc-lower">
             <div class="card">
                 <h2><span class="tc-sec-ico" aria-hidden="true">⛽</span>Пальне та екіпаж</h2>
                 <div class="form-row">
@@ -1218,7 +1235,6 @@
                     <span class="unit">шт</span>
                 </div>
             </div>
-            </div><!-- /tc-lower-side -->
     </div><!-- /tc-lower -->
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
