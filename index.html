@@ -402,28 +402,137 @@
         .btn.btn-locked { opacity: 0.55; cursor: not-allowed; }
 
         #cabinet-screen {
-            display: none; position: fixed; inset: 0; z-index: 3000; background: rgba(8,10,14,0.88);
-            overflow-y: auto; padding: 24px 16px 60px; backdrop-filter: blur(6px);
+            display: none; position: fixed; inset: 0; z-index: 3000; overflow-y: auto;
+            padding: 28px 16px 48px; backdrop-filter: blur(8px);
+            background:
+                radial-gradient(ellipse 50% 40% at 15% 20%, rgba(245,158,11,0.1), transparent 55%),
+                radial-gradient(ellipse 45% 35% at 90% 80%, rgba(125,211,252,0.08), transparent 50%),
+                rgba(6,8,12,0.92);
         }
         #cabinet-screen .cab-wrap {
-            max-width: 920px; margin: 0 auto; background: var(--card-bg); border: 1px solid var(--border-color);
-            border-radius: 12px; padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            position: relative; max-width: 980px; margin: 0 auto;
+            background:
+                linear-gradient(180deg, color-mix(in srgb, var(--card-bg) 92%, #1c2230), var(--card-bg));
+            border: 1px solid var(--border-color); border-radius: 18px; padding: 0 0 18px;
+            box-shadow: 0 28px 70px rgba(0,0,0,0.55), 0 0 0 1px rgba(245,158,11,0.08);
+            overflow: hidden;
         }
-        #cabinet-screen .cab-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        #cabinet-screen .cab-wrap::before {
+            content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+            background: linear-gradient(90deg, var(--amber), var(--steel));
+        }
+        #cabinet-screen .cab-head {
+            display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+            gap: 10px; padding: 22px 22px 14px; text-align: center;
+        }
+        #cabinet-screen .cab-brand {
+            grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        #cabinet-screen .cab-brand-mark {
+            width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+            color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--border-color));
+            background: linear-gradient(145deg, #1a1f29, #0a0c10);
+            box-shadow: 0 0 20px rgba(245,158,11,0.16);
+        }
+        #cabinet-screen .cab-brand-mark svg { width: 22px; height: 22px; }
+        #cabinet-screen .cab-brand h2 {
+            margin: 0; font-size: 1.05rem; letter-spacing: 0.12em; text-transform: uppercase;
+            font-family: var(--font-display); color: var(--text-main); font-weight: 800;
+        }
+        #cabinet-screen .cab-brand .cab-sub {
+            font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-muted);
+        }
+        #cabinet-screen .cab-close {
+            grid-column: 3; justify-self: end; width: 36px; height: 36px; border-radius: 10px;
+            border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-muted);
+            cursor: pointer; display: grid; place-items: center; font-size: 1.1rem;
+        }
+        #cabinet-screen .cab-close:hover { color: var(--amber); border-color: var(--amber); }
+        #cabinet-screen .cab-intro {
+            padding: 0 22px 12px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; text-align: center;
+        }
+        #cabinet-screen .cab-tabs {
+            display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
+            padding: 0 18px 14px; margin: 0;
+            border-bottom: none;
+        }
         #cabinet-screen .cab-tab {
-            background: transparent; border: 1px solid var(--border-color); color: var(--text-muted);
-            border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.78rem; font-weight: 600; font-family: var(--font-ui);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+            min-height: 72px; padding: 10px 6px; cursor: pointer;
+            background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 12px;
+            color: var(--text-muted); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+            text-transform: uppercase; font-family: var(--font-ui);
+            transition: border-color 0.18s, color 0.18s, box-shadow 0.18s, background 0.18s;
         }
-        #cabinet-screen .cab-tab.active { color: #1a1205; background: var(--amber); border-color: transparent; }
-        #cabinet-screen .cab-panel { display: none; }
+        #cabinet-screen .cab-tab .cab-tab-ico {
+            width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 0.95rem;
+            background: color-mix(in srgb, var(--steel) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--steel) 22%, var(--border-color));
+        }
+        #cabinet-screen .cab-tab.active {
+            color: var(--text-main); border-color: var(--amber);
+            background: color-mix(in srgb, var(--amber) 10%, var(--input-bg));
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--amber) 28%, transparent), 0 8px 18px rgba(245,158,11,0.12);
+        }
+        #cabinet-screen .cab-tab.active .cab-tab-ico {
+            background: color-mix(in srgb, var(--amber) 18%, transparent);
+            border-color: color-mix(in srgb, var(--amber) 40%, transparent); color: var(--amber);
+        }
+        #cabinet-screen .cab-panel { display: none; padding: 14px 18px 0; }
         #cabinet-screen .cab-panel.active { display: block; }
-        #cabinet-screen .cab-card { background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
-        #cabinet-screen .cab-card h3 { font-size: 0.9rem; color: var(--steel); margin-bottom: 10px; font-family: var(--font-display); }
-        #cabinet-screen .cab-row { display: grid; grid-template-columns: 1fr 230px 70px; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 0.85rem; }
-        #cabinet-screen .cab-row input, #cabinet-screen .cab-row select { width: 100%; text-align: right; }
-        #cabinet-screen .cab-row input[type=text] { text-align: left; }
-        #cabinet-screen .cab-unit { font-size: 0.75rem; color: var(--text-muted); }
-        #cab-message { font-size: 0.85rem; margin: 8px 0; min-height: 1.2em; }
+        #cabinet-screen .cab-card {
+            background: transparent; border: 1px solid var(--border-color); border-radius: 14px;
+            padding: 14px; margin-bottom: 0;
+        }
+        #cabinet-screen .cab-card-head {
+            display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+        #cabinet-screen .cab-card h3 {
+            font-size: 0.95rem; color: var(--text-main); margin: 0; font-family: var(--font-display); font-weight: 700;
+        }
+        #cabinet-screen .cab-autosave {
+            font-size: 0.68rem; color: var(--success); display: inline-flex; align-items: center; gap: 5px;
+        }
+        #cabinet-screen .cab-grid {
+            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 14px;
+        }
+        #cabinet-screen .cab-field {
+            display: flex; flex-direction: column; gap: 5px; min-width: 0;
+        }
+        #cabinet-screen .cab-field > label {
+            font-size: 0.68rem; color: var(--text-muted); font-weight: 600; letter-spacing: 0.03em;
+        }
+        #cabinet-screen .cab-input {
+            display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center;
+        }
+        #cabinet-screen .cab-field input,
+        #cabinet-screen .cab-field select {
+            width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px;
+        }
+        #cabinet-screen .cab-field input[type=number] { text-align: right; }
+        #cabinet-screen .cab-unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; min-width: 2.5em; }
+        #cabinet-screen .cab-actions {
+            display: flex; justify-content: flex-end; gap: 10px; padding: 14px 18px 0;
+        }
+        #cabinet-screen .cab-save {
+            flex: none; min-width: 180px; width: auto;
+        }
+        #cabinet-screen .cab-foot {
+            margin-top: 14px; padding: 0 18px; text-align: center;
+            font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.03em;
+        }
+        #cab-message { font-size: 0.85rem; margin: 8px 18px 0; min-height: 1.2em; }
+        @media (max-width: 800px) {
+            #cabinet-screen .cab-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            #cabinet-screen .cab-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 520px) {
+            #cabinet-screen .cab-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            #cabinet-screen .cab-grid { grid-template-columns: 1fr; }
+            #cabinet-screen .cab-head { grid-template-columns: 1fr auto; }
+            #cabinet-screen .cab-brand { grid-column: 1; align-items: flex-start; text-align: left; }
+        }
         #missing-hint, #cab-warning, #onboard-banner {
             display: none; background: rgba(248,113,113,0.08); border: 1px solid var(--danger);
             border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; font-size: 0.8rem; line-height: 1.45;
@@ -1274,16 +1383,25 @@
 
 <div id="cabinet-screen">
     <div class="cab-wrap">
-        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;">
-            <h2 style="font-size: 1.2rem; color: var(--steel); margin: 0;">Особистий кабінет</h2>
-            <button class="btn" style="flex: none; min-width: 0;" onclick="closeCabinet()">← До калькулятора</button>
+        <div class="cab-head">
+            <div class="cab-brand">
+                <div class="cab-brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9"/><path d="M12 8l3 8-3-2-3 2 3-8z" fill="currentColor" stroke="currentColor"/>
+                    </svg>
+                </div>
+                <h2>TRIP-CONTROL</h2>
+                <div class="cab-sub">Особистий кабінет · Dispatch</div>
+            </div>
+            <button type="button" class="cab-close" title="Закрити" onclick="closeCabinet()" aria-label="Закрити">✕</button>
         </div>
-        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;">
-            Постійні параметри компанії. Підставляються в калькулятор при вході; для рейсу можна змінити на місці. Порожнє поле = 0.
-        </div>
+        <div class="cab-intro">Постійні параметри компанії. Підставляються в калькулятор при вході; для рейсу можна змінити на місці. Порожнє поле = 0.</div>
         <div id="cabinet-fields"></div>
         <div id="cab-message"></div>
-        <button class="btn btn-success" id="cab-save-btn" style="width: 100%; margin-top: 8px;" onclick="saveCabinet()">💾 Зберегти</button>
+        <div class="cab-actions">
+            <button class="btn btn-success cab-save" id="cab-save-btn" onclick="saveCabinet()">💾 Зберегти зміни</button>
+        </div>
+        <div class="cab-foot">Дані компанії зберігаються в захищеному профілі організації</div>
     </div>
 </div>
 
@@ -1709,7 +1827,7 @@
 
     const OPT_ON_OFF = [['on', 'Увімкнено'], ['off', 'Вимкнено']];
     const CAB_SECTIONS = [
-        { title: '🚛 Парк і накладні витрати', fields: [
+        { title: 'Парк і накладні', tab: 'Парк', ico: '🚛', fields: [
             { key: 'totalFleet', id: 'total-fleet', label: 'Всього авто в парку', unit: 'шт' },
             { key: 'amort', id: 'overhead-amort', label: 'Амортизація (річна)', unit: 'грн' },
             { key: 'admin', id: 'overhead-admin', label: 'Адміністративні витрати (річні)', unit: 'грн' },
@@ -1717,20 +1835,20 @@
             { key: 'otherExpenses', id: 'overhead-other', label: 'Інші витрати', unit: 'грн' },
             { key: 'repair', id: 'overhead-repair', label: 'Ремонти та інші оп. витрати', unit: 'грн' },
             { key: 'fin', id: 'overhead-fin', label: 'Фінансові витрати (кредити)', unit: 'грн' } ] },
-        { title: '⛽ Пальне та AdBlue', fields: [
+        { title: 'Пальне та AdBlue', tab: 'Пальне', ico: '⛽', fields: [
             { key: 'fuelLoad', id: 'fuel-load', label: 'Витрата з вантажем', unit: 'л/100км', step: '0.1' },
             { key: 'fuelEmpty', id: 'fuel-empty', label: 'Витрата порожнім', unit: 'л/100км', step: '0.1' },
             { key: 'fuelPrice', id: 'fuel-price', label: 'Ціна пального', unit: 'грн/л', step: '0.01' },
             { key: 'adblueEnable', id: 'adblue-enable', label: 'Рахувати AdBlue', select: OPT_ON_OFF },
             { key: 'adblueConsumption', id: 'adblue-consumption', label: 'Витрата AdBlue', unit: 'л/100км', step: '0.05' },
             { key: 'adbluePrice', id: 'adblue-price', label: 'Ціна AdBlue', unit: 'грн/л', step: '0.5' } ] },
-        { title: '👤 Водій', fields: [
+        { title: 'Водій', tab: 'Водій', ico: '👤', fields: [
             { key: 'driverPayMode', id: 'driver-pay-mode', label: 'Модель оплати', select: [['km', 'За км (грн/км)'], ['pct', 'Відсоток від фрахту']] },
             { key: 'driverRateLoad', id: 'driver-rate-load', label: 'Ставка з вантажем', unit: 'грн/км', step: '0.01' },
             { key: 'driverRateEmpty', id: 'driver-rate-empty', label: 'Ставка порожнім', unit: 'грн/км', step: '0.01' },
             { key: 'driverPctVal', id: 'driver-pct-val', label: 'Відсоток від фрахту', unit: '%', step: '0.5' },
             { key: 'perDiem', id: 'per-diem', label: 'Добові', unit: 'грн/день' } ] },
-        { title: '🔧 ТО та шини', fields: [
+        { title: 'ТО та шини', tab: 'ТО', ico: '🔧', fields: [
             { key: 'toCost', id: 'to-cost', label: 'Вартість ТО', unit: 'грн' },
             { key: 'toPeriod', id: 'to-period', label: 'Пробіг між ТО', unit: 'км' },
             { key: 'tireCost', id: 'tire-cost', label: 'Ціна однієї шини', unit: 'грн' },
@@ -1865,31 +1983,41 @@
         const box = document.getElementById('cabinet-fields');
         if (box.dataset.built) return;
         const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        const tabs = [{ id: 'company', title: 'Компанія' }].concat(
-            CAB_SECTIONS.map((sec, i) => ({ id: 's' + i, title: sec.title.replace(/^[^\s]+\s/, '') }))
+        const tabs = [{ id: 'company', title: 'Компанія', ico: '🏢' }].concat(
+            CAB_SECTIONS.map((sec, i) => ({ id: 's' + i, title: sec.tab || sec.title, ico: sec.ico || '◆' }))
         );
         let html = '<div class="cab-tabs">' + tabs.map((t, i) =>
-            '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' + esc(t.title) + '</button>'
+            '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' +
+            '<span class="cab-tab-ico" aria-hidden="true">' + t.ico + '</span>' + esc(t.title) + '</button>'
         ).join('') + '</div>';
 
-        html += '<div class="cab-panel active" data-panel="company"><div class="cab-card"><h3>Компанія</h3>' +
-            '<div class="cab-row"><label>Назва компанії</label><input type="text" id="cab-name" maxlength="100"><span></span></div>' +
-            '<div class="cab-row"><label>Оподаткування за замовчуванням</label><select id="cab-tax">' +
+        function fieldHtml(f) {
+            let inner = '';
+            if (f.select) {
+                inner = '<select id="cab-' + f.key + '">' + f.select.map(o => '<option value="' + o[0] + '">' + esc(o[1]) + '</option>').join('') + '</select>';
+            } else if (f.text) {
+                inner = '<input type="text" id="cab-' + f.key + '" maxlength="' + (f.max || 100) + '">';
+            } else {
+                inner = '<input type="number" id="cab-' + f.key + '" min="0" step="' + (f.step || '1') + '">';
+            }
+            const unit = f.unit ? '<span class="cab-unit">' + esc(f.unit) + '</span>' : '';
+            return '<div class="cab-field" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>' +
+                '<div class="cab-input">' + inner + unit + '</div></div>';
+        }
+
+        html += '<div class="cab-panel active" data-panel="company"><div class="cab-card">' +
+            '<div class="cab-card-head"><h3>Налаштування компанії</h3><span class="cab-autosave">✓ Параметри зберігаються вручну</span></div>' +
+            '<div class="cab-grid">' +
+            '<div class="cab-field"><label for="cab-name">Назва компанії</label><div class="cab-input"><input type="text" id="cab-name" maxlength="100"></div></div>' +
+            '<div class="cab-field"><label for="cab-tax">Оподаткування за замовчуванням</label><div class="cab-input"><select id="cab-tax">' +
             '<option value="безготівковий">Безготівковий (з ПДВ)</option><option value="фоп">ФОП (3 група: 5% + ВЗ 1%)</option><option value="готівка">Готівка</option>' +
-            '</select><span></span></div></div></div>';
+            '</select></div></div>' +
+            '</div></div></div>';
 
         CAB_SECTIONS.forEach((sec, i) => {
-            html += '<div class="cab-panel" data-panel="s' + i + '"><div class="cab-card"><h3>' + esc(sec.title) + '</h3>';
-            sec.fields.forEach(f => {
-                html += '<div class="cab-row" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>';
-                if (f.select) {
-                    html += '<select id="cab-' + f.key + '">' + f.select.map(o => '<option value="' + o[0] + '">' + esc(o[1]) + '</option>').join('') + '</select><span></span>';
-                } else {
-                    html += '<input type="number" id="cab-' + f.key + '" min="0" step="' + (f.step || '1') + '"><span class="cab-unit">' + esc(f.unit || '') + '</span>';
-                }
-                html += '</div>';
-            });
-            html += '</div></div>';
+            html += '<div class="cab-panel" data-panel="s' + i + '"><div class="cab-card">' +
+                '<div class="cab-card-head"><h3>' + esc(sec.title) + '</h3></div>' +
+                '<div class="cab-grid">' + sec.fields.map(fieldHtml).join('') + '</div></div></div>';
         });
         box.innerHTML = html;
         box.dataset.built = '1';
@@ -2499,7 +2627,10 @@
     }
 
     document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && mapExpanded) toggleMapExpand();
+        if (e.key !== 'Escape') return;
+        if (mapExpanded) { toggleMapExpand(); return; }
+        const cab = document.getElementById('cabinet-screen');
+        if (cab && cab.style.display === 'block') closeCabinet();
     });
 
     async function initMap() {
