@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TRIP-CONTROL — калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧭%3C/text%3E%3C/svg%3E">
     <title>TRIP-CONTROL, розрахунок прибутковості автомобільних перевезень</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -102,8 +104,9 @@
         #cabinet-screen .cab-row input[type=text] { text-align: left; }
         #cabinet-screen .cab-unit { font-size: 0.75rem; color: var(--text-muted); }
         #cab-message { font-size: 0.85rem; margin: 8px 0; min-height: 1.2em; }
-        #missing-hint, #cab-warning { display: none; background: rgba(239,68,68,0.10); border: 1px solid var(--danger); border-radius: 12px; padding: 8px 16px; margin-bottom: 10px; font-size: 0.8rem; line-height: 1.45; }
+        #missing-hint, #cab-warning, #onboard-banner { display: none; background: rgba(239,68,68,0.10); border: 1px solid var(--danger); border-radius: 12px; padding: 8px 16px; margin-bottom: 10px; font-size: 0.8rem; line-height: 1.45; }
         #cab-warning { background: rgba(245,158,11,0.12); border-color: var(--warning); }
+        #onboard-banner { background: rgba(59,130,246,0.12); border-color: var(--accent); color: var(--text-main); }
         .link-btn { background: none; border: none; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
         #signup-extra { display: none; }
         #demo-banner { display: none; }
@@ -152,14 +155,15 @@
 <!-- Екран авторизації -->
 <div id="auth-screen">
     <div class="auth-card">
-        <h2 style="margin-bottom: 20px; color: var(--accent);">🔐 TripControl</h2>
+        <h2 style="margin-bottom: 8px; color: var(--accent);">🧭 TRIP-CONTROL</h2>
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.45;">Калькулятор прибутковості рейсів для перевізників. Після реєстрації — демо: <b>5 розрахунків на добу</b>.</p>
         
         <div id="auth-form-box">
             <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
-                <input type="email" id="auth-email" placeholder="Email" style="text-align: left;">
+                <input type="email" id="auth-email" placeholder="Email" autocomplete="email" style="text-align: left;">
             </div>
             <div class="form-row two-cols" style="margin-bottom: 16px; grid-template-columns: 1fr;">
-                <input type="password" id="auth-password" placeholder="Пароль" style="text-align: left;">
+                <input type="password" id="auth-password" placeholder="Пароль" autocomplete="current-password" style="text-align: left;">
             </div>
             <div id="signup-extra">
                 <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
@@ -216,11 +220,12 @@
                 <span>Розрахунків сьогодні: <b id="demo-used">—</b> з <b id="demo-limit">5</b></span>
                 <button class="btn btn-success" id="demo-calc-btn" style="flex: none; min-width: 0; padding: 6px 16px;" onclick="runDemoCalc()">▶ Розрахувати</button>
             </div>
-            <div id="demo-hint" style="width: 100%; font-size: 0.75rem; color: var(--text-muted);">Введіть параметри заявки і натисніть «Розрахувати». Результат не оновлюється наживо.</div>
+            <div id="demo-hint" style="width: 100%; font-size: 0.75rem; color: var(--text-muted);">Перевірте параметри заявки і натисніть «Розрахувати». Результат не оновлюється наживо.</div>
         </div>
 
         <div id="missing-hint"></div>
-        <div id="cab-warning">⚠️ Накладні витрати не заповнені — EBITDA і чистий прибуток рахуються <b>без них</b>. <button class="link-btn" onclick="openCabinet()">Відкрити особистий кабінет</button></div>
+        <div id="onboard-banner">👋 Підставлено <b>стартовий шаблон</b> (зерновоз, типовий парк). Перевірте відстань і ставку, натисніть «Розрахувати». Для точнішого прибутку заповніть накладні в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.</div>
+        <div id="cab-warning">⚠️ Накладні витрати не заповнені — EBITDA і чистий прибуток рахуються <b>без них</b> (маржа може збігатися з EBITDA). <button class="link-btn" onclick="openCabinet()">Відкрити особистий кабінет</button></div>
 
         <div class="kpi-strip">
             <div class="kpi-chip">
@@ -830,7 +835,11 @@
                     .from('company_settings').select('settings').eq('org_id', profile.org_id).maybeSingle();
                 companySettings = (cs && cs.settings) || {};
             } catch (e) { companySettings = {}; }
+
+            // Порожній кабінет (новий демо) → стартовий шаблон, щоб можна було порахувати одразу
+            await ensureStarterTemplate();
             applySettingsToForm();
+            applySampleTripIfEmpty();
 
             // Тепер можна безпечно запускати калькулятор.
             // У демо calculate() всередині нічого не відправляє, доки не натиснуто «Розрахувати».
@@ -903,7 +912,9 @@
         const authMsg = document.getElementById('auth-message');
 
         if (!email || !password) {
-            authMsg.innerText = 'Введіть email та пароль!';
+            authMsg.innerText = type === 'signup'
+                ? 'Спочатку введіть email і пароль, потім натисніть «Зареєструватися» ще раз.'
+                : 'Введіть email та пароль.';
             return;
         }
 
@@ -917,7 +928,7 @@
                 // Перший клік: показуємо поля компанії
                 box.style.display = 'block';
                 document.getElementById('auth-signup-btn').innerText = 'Створити акаунт';
-                authMsg.innerText = 'Вкажіть назву компанії та оподаткування, потім натисніть «Створити акаунт».';
+                authMsg.innerText = 'Вкажіть компанію та оподаткування. Після реєстрації відкриється демо з готовим шаблоном розрахунку.';
                 return;
             }
             const company = document.getElementById('auth-company').value.trim();
@@ -929,7 +940,7 @@
             });
             if (error) authMsg.innerText = 'Помилка реєстрації: ' + error.message;
             else {
-                authMsg.innerText = '✅ Реєстрація успішна! Очікуйте схвалення.';
+                authMsg.innerText = '✅ Акаунт створено. Відкриваємо демо з стартовим шаблоном…';
                 setTimeout(() => checkUserAccess(), 1500);
             }
         }
@@ -1105,6 +1116,81 @@
     }
     const SETTINGS_MAP = {};
     CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));
+
+    // Стартовий шаблон для нового акаунта (зерновоз). Накладні навмисно порожні — користувач заповнить у кабінеті.
+    const STARTER_SETTINGS = {
+        totalFleet: 5,
+        fuelLoad: 37,
+        fuelEmpty: 32,
+        fuelPrice: 57,
+        adblueEnable: 'on',
+        adblueConsumption: 2.85,
+        adbluePrice: 18,
+        driverPayMode: 'km',
+        driverRateLoad: 4.03,
+        driverRateEmpty: 2.3,
+        driverPctVal: 12,
+        perDiem: 850,
+        toCost: 18000,
+        toPeriod: 50000,
+        tireCost: 16500,
+        tireCount: 14,
+        tireMileage: 150000
+    };
+    const STARTER_TRIP = {
+        'route-name': 'Демо: типовий рейс зерновоза',
+        'podacha-dist': 40,
+        dist: 350,
+        volume: 500,
+        'norm-weight': 21.5,
+        'cars-count': 2,
+        'days-per-trip': 1.5,
+        rate: 1800
+    };
+    let usedStarterTemplate = false;
+
+    function isCompanySettingsEmpty(settings) {
+        if (!settings || typeof settings !== 'object') return true;
+        const essential = ['fuelLoad', 'fuelEmpty', 'fuelPrice', 'totalFleet', 'toPeriod', 'tireMileage'];
+        return essential.every(k => !(parseFloat(settings[k]) > 0));
+    }
+
+    async function ensureStarterTemplate() {
+        const banner = document.getElementById('onboard-banner');
+        usedStarterTemplate = false;
+        if (!isCompanySettingsEmpty(companySettings)) {
+            if (banner) banner.style.display = 'none';
+            return;
+        }
+        companySettings = Object.assign({}, STARTER_SETTINGS, companySettings || {});
+        usedStarterTemplate = true;
+        if (banner) banner.style.display = 'block';
+        // Зберігаємо шаблон у кабінет, щоб наступний вхід теж був з готовими нормами
+        if (currentOrgId) {
+            try {
+                await supabaseClient.from('company_settings')
+                    .upsert({ org_id: currentOrgId, settings: companySettings, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
+            } catch (e) { console.warn('Не вдалося зберегти стартовий шаблон:', e); }
+        }
+    }
+
+    function applySampleTripIfEmpty() {
+        if (!usedStarterTemplate) return;
+        Object.keys(STARTER_TRIP).forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const empty = el.value === '' || el.value === null || (el.type === 'number' && !(parseFloat(el.value) > 0) && id !== 'route-name');
+            if (id === 'route-name') {
+                if (!el.value || el.value === 'Маршрут 1') el.value = STARTER_TRIP[id];
+            } else if (empty) {
+                el.value = STARTER_TRIP[id];
+            }
+        });
+        document.getElementById('trailer-type').value = 'зерновоз';
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.textContent.indexOf('Зерновоз') !== -1);
+        });
+    }
 
     // Підставляє збережені параметри компанії в поля калькулятора (порожні ключі поля не чіпають)
     function applySettingsToForm() {
