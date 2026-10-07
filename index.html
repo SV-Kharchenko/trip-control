@@ -49,10 +49,42 @@
         }
         .brand-mark svg { width: 18px; height: 18px; }
         .brand-title { font-size: 1.05rem; font-weight: 800; letter-spacing: 0.08em; margin: 0; white-space: nowrap; }
-        .brand-title .trip { color: var(--gold); }
-        .brand-title .control { color: var(--teal); }
-        .theme-btn { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.82rem; }
-        .theme-btn:hover { border-color: var(--accent); }
+        .brand-title .trip { color: #f8fafc; }
+        .brand-title .control { color: #f8fafc; }
+        .brand-sub { font-size: 0.62rem; letter-spacing: 0.14em; color: var(--text-muted); text-transform: uppercase; margin-top: 2px; }
+        .theme-btn { background: transparent; color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 0.78rem; }
+        .theme-btn:hover { border-color: var(--teal); color: var(--teal); }
+        .deck-header {
+            display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+            background: rgba(10, 16, 28, 0.72); border: 1px solid rgba(148,163,184,0.18);
+            border-radius: 14px; padding: 10px 16px; margin-bottom: 10px;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+        .deck-header-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .deck-header-brand .brand-text { display: flex; flex-direction: column; }
+        .deck-header-sep { width: 1px; height: 34px; background: rgba(148,163,184,0.28); flex-shrink: 0; }
+        .deck-header-meta { display: flex; align-items: center; gap: 10px; flex: 1; flex-wrap: wrap; min-width: 0; }
+        .deck-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            border: 1px solid rgba(148,163,184,0.28); border-radius: 999px;
+            padding: 6px 12px; background: rgba(0,0,0,0.22); font-size: 0.72rem; color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .deck-pill b { color: var(--teal); font-weight: 700; }
+        .deck-pill input, .deck-pill select {
+            width: auto; min-width: 0; background: transparent; border: none; padding: 0 2px;
+            font-size: 0.72rem; color: var(--text-main); text-align: left;
+        }
+        .deck-pill input { width: 52px; text-align: center; }
+        .deck-header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+        .deck-icon-btn {
+            width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(148,163,184,0.35);
+            background: transparent; color: var(--text-main); cursor: pointer;
+            display: grid; place-items: center; font-size: 0.95rem;
+        }
+        .deck-icon-btn:hover { border-color: var(--teal); color: var(--teal); }
+        .deck-icon-btn.profile { border-color: var(--teal); }
+        .deck-icon-btn.danger { border-color: rgba(239,68,68,0.55); color: #f87171; }
         
         #sticky-top { position: sticky; top: 0; z-index: 40; background: linear-gradient(180deg, var(--bg-color) 70%, transparent); padding-top: 4px; padding-bottom: 8px; margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
         .currency-bar { display: flex; gap: 16px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 20px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
@@ -96,26 +128,44 @@
         }
         .deck-hero .kpi-strip {
             position: relative; z-index: 2; display: grid; grid-template-columns: repeat(5, 1fr);
-            gap: 10px; padding: 14px 14px 0; margin: 0; height: 100%; align-content: start;
+            gap: 12px; padding: 16px 16px 0; margin: 0; height: 100%; align-content: start;
         }
         .kpi-chip {
-            position: relative; overflow: hidden; text-align: left;
-            background: rgba(10, 16, 28, 0.55); border: 1px solid rgba(148, 163, 184, 0.28);
-            border-radius: 14px; padding: 12px 12px 28px;
-            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            box-shadow: 0 8px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+            --kpi-accent: #2dd4bf;
+            position: relative; overflow: hidden; text-align: left; min-height: 118px;
+            background: rgba(8, 14, 26, 0.62); border: 1px solid color-mix(in srgb, var(--kpi-accent) 55%, transparent);
+            border-radius: 16px; padding: 12px 14px 36px;
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            box-shadow:
+                0 10px 32px rgba(0,0,0,0.35),
+                0 0 0 1px rgba(255,255,255,0.04) inset,
+                0 0 24px color-mix(in srgb, var(--kpi-accent) 22%, transparent);
         }
-        .kpi-chip::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--teal); }
-        .kpi-chip:nth-child(2)::before { background: #34d399; }
-        .kpi-chip:nth-child(3)::before { background: #38bdf8; }
-        .kpi-chip:nth-child(4)::before { background: #a78bfa; }
-        .kpi-chip:nth-child(5)::before { background: var(--gold); }
-        .kpi-spark { position: absolute; left: 0; right: 0; bottom: 0; height: 48%; opacity: 0.72; pointer-events: none; z-index: 0; }
+        .kpi-chip:nth-child(1) { --kpi-accent: #2dd4bf; }
+        .kpi-chip:nth-child(2) { --kpi-accent: #34d399; }
+        .kpi-chip:nth-child(3) { --kpi-accent: #38bdf8; }
+        .kpi-chip:nth-child(4) { --kpi-accent: #a78bfa; }
+        .kpi-chip:nth-child(5) { --kpi-accent: #d4a017; }
+        .kpi-chip::before { display: none; }
+        .kpi-head { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .kpi-ico {
+            width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+            display: grid; place-items: center;
+            background: color-mix(in srgb, var(--kpi-accent) 22%, transparent);
+            border: 1px solid color-mix(in srgb, var(--kpi-accent) 55%, transparent);
+            box-shadow: 0 0 12px color-mix(in srgb, var(--kpi-accent) 35%, transparent);
+            color: var(--kpi-accent); font-size: 0.72rem; font-weight: 800;
+        }
+        .kpi-spark {
+            position: absolute; left: -2%; right: -2%; bottom: 0; height: 52%;
+            opacity: 0.95; pointer-events: none; z-index: 0;
+        }
         .kpi-spark svg { width: 100%; height: 100%; display: block; }
         .kpi-title, .kpi-value, .kpi-sub { position: relative; z-index: 1; }
-        .kpi-title { font-size: 0.66rem; color: rgba(226,232,240,0.78); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; padding-left: 8px; }
-        .kpi-value { font-size: 1.12rem; font-weight: 800; padding-left: 8px; letter-spacing: -0.02em; color: #f8fafc; }
-        .kpi-sub { font-size: 0.68rem; color: rgba(203,213,225,0.75); margin-top: 3px; padding-left: 8px; }
+        .kpi-title { font-size: 0.64rem; color: rgba(226,232,240,0.82); margin: 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; padding: 0; }
+        .kpi-value { font-size: 1.22rem; font-weight: 800; padding: 0; letter-spacing: -0.03em; color: #f8fafc; line-height: 1.15; }
+        .kpi-sub { font-size: 0.68rem; color: rgba(203,213,225,0.8); margin-top: 4px; padding: 0; }
+        .kpi-chip:nth-child(5) .kpi-value { color: #fbbf24; }
         .deck-route-bar {
             display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
             background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px;
@@ -142,10 +192,11 @@
         }
         @media (max-width: 1024px) { .deck-lower { grid-template-columns: 1fr; } }
         @media (max-width: 700px) {
-            .top-row { flex-direction: column; align-items: stretch !important; }
+            .deck-header { align-items: flex-start; }
             .deck-hero { height: 260px; }
             .deck-hero .kpi-strip { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 10px; }
             .kpi-value { font-size: 0.95rem; }
+            .kpi-chip { min-height: 104px; padding-bottom: 30px; }
         }
         .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
         .card h2 { font-size: 1.05rem; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); color: var(--teal); display: flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: 0.02em; }
@@ -157,6 +208,47 @@
         select { text-align: left; }
         input:focus, select:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
         .preset-btn.active { background: linear-gradient(135deg, #14b8a6, #0f766e) !important; color: #ffffff !important; border-color: transparent !important; font-weight: 700; }
+        .preset-tiles {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px;
+        }
+        .preset-tile {
+            position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 8px; min-height: 92px; padding: 12px 8px; cursor: pointer;
+            background: rgba(8, 14, 26, 0.45); border: 1px solid rgba(148,163,184,0.28);
+            border-radius: 14px; color: var(--text-muted); font-size: 0.72rem; font-weight: 700;
+            letter-spacing: 0.04em; text-transform: uppercase; text-align: center;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            transition: border-color 0.15s, box-shadow 0.15s, color 0.15s, background 0.15s;
+        }
+        .preset-tile .pt-ico { font-size: 1.45rem; line-height: 1; }
+        .preset-tile:hover { border-color: rgba(45,212,191,0.55); color: var(--text-main); }
+        .preset-tile.active {
+            color: #ecfeff; border-color: rgba(45,212,191,0.75);
+            background: rgba(20, 184, 166, 0.16);
+            box-shadow: 0 0 0 1px rgba(45,212,191,0.25), 0 8px 24px rgba(20,184,166,0.15);
+        }
+        .preset-tile.active::after {
+            content: '✓'; position: absolute; top: 8px; right: 10px; font-size: 0.75rem; color: var(--teal);
+        }
+        @media (max-width: 700px) { .preset-tiles { grid-template-columns: repeat(2, 1fr); } }
+        .donut-wrap {
+            display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: center; margin-top: 8px;
+        }
+        .donut-svg-box { position: relative; width: 150px; height: 150px; margin: 0 auto; }
+        .donut-svg-box svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .donut-center {
+            position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            pointer-events: none; text-align: center; padding: 12px;
+        }
+        .donut-center .donut-total { font-size: 0.95rem; font-weight: 800; color: var(--text-main); line-height: 1.2; }
+        .donut-center .donut-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+        .donut-legend { display: flex; flex-direction: column; gap: 8px; font-size: 0.78rem; }
+        .donut-legend-row { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: center; }
+        .donut-legend-row .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .donut-legend-row .name { color: var(--text-muted); }
+        .donut-legend-row .pct { color: var(--teal); font-weight: 700; min-width: 42px; text-align: right; }
+        .donut-legend-row .sum { color: var(--text-main); font-weight: 600; min-width: 88px; text-align: right; }
+        @media (max-width: 700px) { .donut-wrap { grid-template-columns: 1fr; } }
         .unit { font-size: 0.8rem; color: var(--text-muted); }
         gmp-place-autocomplete { width: 100%; }
 
@@ -201,8 +293,13 @@
         [data-theme="light"] gmp-place-autocomplete { color-scheme: light; }
         
         .preset-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+        .preset-bar-label { font-size: 0.72rem; color: var(--text-muted); width: 100%; margin-bottom: 2px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; }
         .preset-btn { background: var(--input-bg); border: 1px solid var(--border-color); color: var(--text-muted); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-weight: 500; }
         .preset-btn:hover { border-color: var(--accent); color: var(--text-main); }
+        @media (max-width: 900px) {
+            .deck-header-sep { display: none; }
+            .deck-header-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
+        }
         
         .dynamic-field { display: none; }
         .dynamic-field.active { display: grid; }
@@ -299,36 +396,40 @@
 
 <div class="container" id="main-app">
     <div id="sticky-top">
-        <div class="top-row" style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 10px 16px; margin-bottom: 10px;">
-            <div class="brand-lockup">
+        <div class="deck-header top-row">
+            <div class="deck-header-brand">
                 <div class="brand-mark" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="#d4a017" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="9"/><path d="M12 8l3 8-3-2-3 2 3-8z" fill="#2dd4bf" stroke="#2dd4bf"/>
                     </svg>
                 </div>
-                <h1 class="brand-title"><span class="trip">TRIP</span><span class="control">-CONTROL</span></h1>
+                <div class="brand-text">
+                    <h1 class="brand-title">TRIP-CONTROL</h1>
+                    <div class="brand-sub">Command Deck</div>
+                </div>
             </div>
-
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 0.72rem; color: var(--text-muted); flex: 1;">
-                <span>USD <span class="currency-val" id="rate-usd">...</span></span>
-                <span>EUR <span class="currency-val" id="rate-eur">...</span></span>
-                <span>PLN <span class="currency-val" id="rate-pln">...</span></span>
-                <a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">ДП →</a>
-                <span style="display: flex; align-items: center; gap: 4px;">
-                    <input type="number" id="conv-amount" value="100" oninput="convertCurrency()" style="width: 60px; font-size: 0.72rem; padding: 3px 5px;">
-                    <select id="conv-curr" onchange="convertCurrency()" style="width: 58px; font-size: 0.72rem; padding: 3px 5px;">
+            <div class="deck-header-sep" aria-hidden="true"></div>
+            <div class="deck-header-meta">
+                <div class="deck-pill">USD <b id="rate-usd">...</b></div>
+                <div class="deck-pill">EUR <b id="rate-eur">...</b></div>
+                <div class="deck-pill">PLN <b id="rate-pln">...</b></div>
+                <div class="deck-pill">
+                    <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
+                    <select id="conv-curr" onchange="convertCurrency()">
                         <option value="USD">USD</option>
                         <option value="EUR">EUR</option>
                         <option value="PLN">PLN</option>
                     </select>
-                    <span id="conv-res" style="font-weight: 700; color: var(--accent);">0 грн</span>
-                </span>
+                    <b id="conv-res">0 грн</b>
+                </div>
+                <div class="deck-pill" id="deck-clock-pill"><b id="deck-clock">—</b></div>
+                <div class="deck-pill" id="deck-date-pill"><span id="deck-date">—</span></div>
+                <a class="deck-pill" href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="text-decoration:none; color:inherit;">ДП →</a>
             </div>
-
-            <div style="display:flex; gap:8px;">
-                <button class="theme-btn" onclick="toggleTheme()">🌓 Тема</button>
-                <button class="theme-btn" onclick="openCabinet()">🏢 Особистий кабінет</button>
-                <button class="theme-btn" style="border-color: var(--danger); color: var(--danger);" onclick="handleLogout()">Вийти</button>
+            <div class="deck-header-actions">
+                <button class="deck-icon-btn" type="button" title="Тема" onclick="toggleTheme()">🌓</button>
+                <button class="deck-icon-btn profile" type="button" title="Особистий кабінет" onclick="openCabinet()">👤</button>
+                <button class="deck-icon-btn danger" type="button" title="Вийти" onclick="handleLogout()">⎋</button>
             </div>
         </div>
 
@@ -356,32 +457,32 @@
         <div class="kpi-strip">
             <div class="kpi-chip">
                 <div class="kpi-spark" id="spark-income"></div>
-                <div class="kpi-title">Дохід</div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">₴</span><div class="kpi-title">Дохід</div></div>
                 <div class="kpi-value" id="res-income">0 грн</div>
                 <div class="kpi-sub" id="res-income-net">Чистий: 0 грн</div>
             </div>
             <div class="kpi-chip">
                 <div class="kpi-spark" id="spark-margin"></div>
-                <div class="kpi-title">Маржа</div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">%</span><div class="kpi-title">Маржа</div></div>
                 <div class="kpi-value" id="res-margin">0 грн</div>
                 <div class="kpi-sub" id="res-margin-ton">на 1 т: 0 грн</div>
             </div>
             <div class="kpi-chip">
                 <div class="kpi-spark" id="spark-ebitda"></div>
-                <div class="kpi-title">EBITDA</div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◆</span><div class="kpi-title">EBITDA</div></div>
                 <div class="kpi-value" id="res-ebitda">0 грн</div>
                 <div class="kpi-sub" id="res-ebitda-ton">на 1 т: 0 грн</div>
             </div>
             <div class="kpi-chip">
                 <div class="kpi-spark" id="spark-profit"></div>
-                <div class="kpi-title">Прибуток</div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">↑</span><div class="kpi-title">Прибуток</div></div>
                 <div class="kpi-value" id="res-profit">0 грн</div>
                 <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
             </div>
             <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
                 <div class="kpi-spark" id="spark-breakeven"></div>
-                <div class="kpi-title">Беззбитковість</div>
-                <div class="kpi-value" id="res-breakeven-full" style="font-size: 1rem; color: var(--gold);">0 грн/т</div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◎</span><div class="kpi-title">Беззбитковість</div></div>
+                <div class="kpi-value" id="res-breakeven-full">0 грн/т</div>
                 <div class="kpi-sub" id="res-breakeven-op">маржа 0 · EBITDA 0</div>
                 <div class="kpi-sub" id="res-breakeven-gap" style="font-weight: 600;"></div>
             </div>
@@ -397,12 +498,12 @@
       <div class="stack">
         <div class="card">
                 <h2>📦 Параметри рейсу</h2>
-                <div class="preset-bar">
-                    <span style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">Швидкі пресети авто:</span>
-                    <button class="preset-btn active" onclick="applyPreset('зерновоз', this)">🌾 Зерновоз</button>
-                    <button class="preset-btn" onclick="applyPreset('рефрижератор', this)">❄️ Рефрижератор</button>
-                    <button class="preset-btn" onclick="applyPreset('тент', this)">🚛 Тент</button>
-                    <button class="preset-btn" onclick="applyPreset('цистерна', this)">🥛 Цистерна</button>
+                <div class="preset-bar-label">Пресети причепа</div>
+                <div class="preset-tiles">
+                    <button type="button" class="preset-tile active" data-preset="зерновоз" onclick="applyPreset('зерновоз', this)"><span class="pt-ico">🌾</span>Зерновоз</button>
+                    <button type="button" class="preset-tile" data-preset="рефрижератор" onclick="applyPreset('рефрижератор', this)"><span class="pt-ico">❄️</span>Реф</button>
+                    <button type="button" class="preset-tile" data-preset="тент" onclick="applyPreset('тент', this)"><span class="pt-ico">🚛</span>Тент</button>
+                    <button type="button" class="preset-tile" data-preset="цистерна" onclick="applyPreset('цистерна', this)"><span class="pt-ico">🥛</span>Цистерна</button>
                 </div>
 
                 <div class="form-row two-cols">
@@ -649,8 +750,16 @@
             <div class="card">
                 <h2>📊 Структура витрат</h2>
                 <div class="chart-box">
-                    <div class="bar-container" id="bar-chart"></div>
-                    <div class="chart-legend" id="chart-legend"></div>
+                    <div class="donut-wrap" id="bar-chart">
+                        <div class="donut-svg-box">
+                            <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true"></svg>
+                            <div class="donut-center">
+                                <div class="donut-total" id="donut-total">—</div>
+                                <div class="donut-label">витрати</div>
+                            </div>
+                        </div>
+                        <div class="donut-legend" id="chart-legend"></div>
+                    </div>
                 </div>
                 <table style="margin-top: 16px;">
                     <thead>
@@ -916,25 +1025,42 @@
 
     function sparkPath(values, w, h) {
         w = w || 120; h = h || 40;
-        if (!values.length) return '';
+        if (!values.length) return { line: '', area: '' };
         const min = Math.min.apply(null, values);
         const max = Math.max.apply(null, values);
         const range = (max - min) || 1;
-        return values.map(function (v, i) {
+        const pts = values.map(function (v, i) {
             const x = (i / Math.max(values.length - 1, 1)) * w;
-            const y = h - ((v - min) / range) * (h * 0.82) - h * 0.08;
-            return (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1);
+            const y = h - ((v - min) / range) * (h * 0.78) - h * 0.1;
+            return [x, y];
+        });
+        const line = pts.map(function (p, i) {
+            return (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1);
         }).join(' ');
+        const last = pts[pts.length - 1];
+        const first = pts[0];
+        const area = line + ' L' + last[0].toFixed(1) + ',' + h + ' L' + first[0].toFixed(1) + ',' + h + ' Z';
+        return { line: line, area: area };
     }
 
     function renderKpiSparklines() {
         Object.keys(kpiHistory).forEach(function (key) {
             const el = document.getElementById('spark-' + key);
             if (!el) return;
-            const series = kpiHistory[key].length ? kpiHistory[key] : KPI_SPARK_SEED[key];
-            const d = sparkPath(series);
-            el.innerHTML = d
-                ? '<svg viewBox="0 0 120 40" preserveAspectRatio="none"><path d="' + d + '" fill="none" stroke="' + KPI_SPARK_COLORS[key] + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            // Після 1–2 розрахунків лінія майже невидима — тримаємо seed, доки не накопичиться історія
+            const series = kpiHistory[key].length >= 3 ? kpiHistory[key] : KPI_SPARK_SEED[key];
+            const paths = sparkPath(series);
+            const color = KPI_SPARK_COLORS[key];
+            const gid = 'sparkfill-' + key;
+            el.innerHTML = paths.line
+                ? '<svg viewBox="0 0 120 40" preserveAspectRatio="none">' +
+                    '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
+                    '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.35"/>' +
+                    '<stop offset="100%" stop-color="' + color + '" stop-opacity="0"/>' +
+                    '</linearGradient></defs>' +
+                    '<path d="' + paths.area + '" fill="url(#' + gid + ')"/>' +
+                    '<path d="' + paths.line + '" fill="none" stroke="' + color + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
+                  '</svg>'
                 : '';
         });
     }
@@ -1195,8 +1321,10 @@
         document.getElementById('trailer-type').value = type;
         
         if (btnElement) {
-            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.preset-tile').forEach(btn => btn.classList.remove('active'));
             btnElement.classList.add('active');
+        } else {
+            document.querySelectorAll('.preset-tile').forEach(btn => btn.classList.toggle('active', btn.dataset.preset === type));
         }
 
         if (type === 'зерновоз') {
@@ -1393,8 +1521,8 @@
             }
         });
         document.getElementById('trailer-type').value = 'зерновоз';
-        document.querySelectorAll('.preset-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.textContent.indexOf('Зерновоз') !== -1);
+        document.querySelectorAll('.preset-tile').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.preset === 'зерновоз');
         });
     }
 
@@ -1777,37 +1905,60 @@
 
     function renderChart(fuel, driver, maintenance, overhead, taxes, extras) {
         extras = extras || 0;
-        const total = fuel + driver + maintenance + overhead + taxes + extras;
+        const items = [
+            { name: 'Пальне+AdBlue', val: fuel, color: '#3b82f6' },
+            { name: 'Екіпаж', val: driver, color: '#10b981' },
+            { name: 'ТО/Шини', val: maintenance, color: '#f59e0b' },
+            { name: 'Накладні', val: overhead, color: '#8b5cf6' },
+            { name: 'Податки', val: taxes, color: '#ef4444' },
+            { name: 'Супутні', val: extras, color: '#14b8a6' }
+        ].filter(function (x) { return x.val > 0; });
+
+        const svg = document.getElementById('donut-svg');
+        const legend = document.getElementById('chart-legend');
+        const totalEl = document.getElementById('donut-total');
+        const total = items.reduce(function (s, x) { return s + x.val; }, 0);
+
+        if (!svg || !legend || !totalEl) return;
         if (total === 0 || isNaN(total)) {
-            document.getElementById('bar-chart').innerHTML = '';
-            document.getElementById('chart-legend').innerHTML = '';
+            svg.innerHTML = '<circle cx="21" cy="21" r="15.5" fill="none" stroke="rgba(148,163,184,0.25)" stroke-width="5"/>';
+            totalEl.innerText = '—';
+            legend.innerHTML = '<div style="color:var(--text-muted);font-size:0.78rem;">Немає даних для діаграми</div>';
             return;
         }
 
-        const pFuel = (fuel / total) * 100;
-        const pDriver = (driver / total) * 100;
-        const pMaint = (maintenance / total) * 100;
-        const pOverhead = (overhead / total) * 100;
-        const pTaxes = (taxes / total) * 100;
-        const pExtras = (extras / total) * 100;
+        const r = 15.5;
+        const c = 2 * Math.PI * r;
+        let offset = 0;
+        svg.innerHTML = '<circle cx="21" cy="21" r="' + r + '" fill="none" stroke="rgba(148,163,184,0.12)" stroke-width="5"/>' +
+            items.map(function (item) {
+                const len = (item.val / total) * c;
+                const dash = len + ' ' + (c - len);
+                const html = '<circle cx="21" cy="21" r="' + r + '" fill="none" stroke="' + item.color + '" stroke-width="5" stroke-dasharray="' + dash + '" stroke-dashoffset="' + (-offset) + '" stroke-linecap="butt"/>';
+                offset += len;
+                return html;
+            }).join('');
 
-        document.getElementById('bar-chart').innerHTML = `
-            <div class="bar-segment" style="width: ${pFuel}%; background: #3b82f6;" title="Пальне"></div>
-            <div class="bar-segment" style="width: ${pDriver}%; background: #10b981;" title="Водій/Добові"></div>
-            <div class="bar-segment" style="width: ${pMaint}%; background: #f59e0b;" title="ТО/Шини"></div>
-            <div class="bar-segment" style="width: ${pOverhead}%; background: #8b5cf6;" title="Накладні"></div>
-            <div class="bar-segment" style="width: ${pTaxes}%; background: #ef4444;" title="Податки"></div>
-            <div class="bar-segment" style="width: ${pExtras}%; background: #14b8a6;" title="Супутні витрати"></div>
-        `;
+        totalEl.innerText = formatMoney(total);
+        legend.innerHTML = items.map(function (item) {
+            const pct = (item.val / total * 100).toFixed(1);
+            return '<div class="donut-legend-row">' +
+                '<span class="dot" style="background:' + item.color + '"></span>' +
+                '<span class="name">' + item.name + '</span>' +
+                '<span class="pct">' + pct + '%</span>' +
+                '<span class="sum">' + formatMoney(item.val) + '</span>' +
+                '</div>';
+        }).join('');
+    }
 
-        document.getElementById('chart-legend').innerHTML = `
-            <div class="legend-item"><div class="legend-color" style="background: #3b82f6;"></div>Пальне+AdBlue ${pFuel.toFixed(0)}%</div>
-            <div class="legend-item"><div class="legend-color" style="background: #10b981;"></div>Екіпаж ${pDriver.toFixed(0)}%</div>
-            <div class="legend-item"><div class="legend-color" style="background: #f59e0b;"></div>ТО/Шини ${pMaint.toFixed(0)}%</div>
-            <div class="legend-item"><div class="legend-color" style="background: #8b5cf6;"></div>Накладні ${pOverhead.toFixed(0)}%</div>
-            ${pTaxes > 0 ? `<div class="legend-item"><div class="legend-color" style="background: #ef4444;"></div>Податки ${pTaxes.toFixed(0)}%</div>` : ''}
-            ${pExtras > 0 ? `<div class="legend-item"><div class="legend-color" style="background: #14b8a6;"></div>Супутні ${pExtras.toFixed(0)}%</div>` : ''}
-        `;
+    function updateDeckClock() {
+        const clock = document.getElementById('deck-clock');
+        const dateEl = document.getElementById('deck-date');
+        if (!clock || !dateEl) return;
+        const now = new Date();
+        const pad = function (n) { return String(n).padStart(2, '0'); };
+        clock.textContent = 'UTC ' + pad(now.getUTCHours()) + ':' + pad(now.getUTCMinutes()) + ':' + pad(now.getUTCSeconds());
+        dateEl.textContent = now.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase();
     }
 
     // ==========================================
@@ -2335,6 +2486,8 @@
         fetchNBURates();
         renderKpiSparklines();
         updateRouteBar();
+        updateDeckClock();
+        setInterval(updateDeckClock, 1000);
         // Відразу перевіряємо авторизацію, і ТІЛЬКИ ПІСЛЯ НЕЇ викликаємо калькулятор
         checkUserAccess();
     };
