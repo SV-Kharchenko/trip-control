@@ -20,6 +20,16 @@
             --accent-hover: #0d9488; --success: #059669; --warning: #d97706;
             --danger: #dc2626; --input-bg: #f8fafc; --gold: #b45309; --teal: #0f766e;
         }
+        [data-theme="light"] .kpi-chip {
+            background: rgba(255,255,255,0.82); border-color: rgba(15,23,42,0.12);
+        }
+        [data-theme="light"] .kpi-title { color: #64748b; }
+        [data-theme="light"] .kpi-value { color: #0f172a; }
+        [data-theme="light"] .kpi-sub { color: #64748b; }
+        [data-theme="light"] .deck-hero-shade {
+            background:
+                linear-gradient(180deg, rgba(238,242,247,0.35) 0%, rgba(238,242,247,0.05) 45%, rgba(15,23,42,0.25) 100%);
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Manrope', sans-serif; }
         body {
             background: var(--bg-color); color: var(--text-main); padding: 16px 20px 40px; min-height: 100vh;
@@ -57,46 +67,86 @@
         .btn-success { background: linear-gradient(135deg, #14b8a6, #059669); color: #fff; }
         .btn-warning { background: var(--warning); color: #111; }
         
-        .kpi-strip { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; background: transparent; border: none; padding: 0; margin-bottom: 14px; }
+        /* ===== Command Deck hero: карта як фон KPI ===== */
+        .deck-hero {
+            position: relative; overflow: hidden; border-radius: 16px; margin-bottom: 12px;
+            height: clamp(280px, 40vh, 420px); border: 1px solid var(--border-color);
+            box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+        }
+        .deck-hero-map {
+            position: absolute; inset: 0; z-index: 0;
+            background:
+                radial-gradient(ellipse 60% 50% at 70% 60%, rgba(20,184,166,0.12), transparent 55%),
+                linear-gradient(160deg, #0b1220, #111827 50%, #0a1628);
+        }
+        .deck-hero-map #map {
+            width: 100% !important; height: 100% !important; border: none !important; border-radius: 0 !important; margin: 0 !important;
+        }
+        .deck-hero-map .lock-ph {
+            position: absolute; inset: 0; margin: 0; border: none; border-radius: 0;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            background: linear-gradient(160deg, #0b1220, #111827 55%, #0a1628);
+        }
+        body.demo-mode .deck-hero-map .lock-ph.demo-only { display: flex !important; }
+        .deck-hero-shade {
+            position: absolute; inset: 0; z-index: 1; pointer-events: none;
+            background:
+                linear-gradient(180deg, rgba(6,10,18,0.55) 0%, rgba(6,10,18,0.15) 42%, rgba(6,10,18,0.55) 100%),
+                linear-gradient(90deg, rgba(6,10,18,0.25), transparent 20%, transparent 80%, rgba(6,10,18,0.25));
+        }
+        .deck-hero .kpi-strip {
+            position: relative; z-index: 2; display: grid; grid-template-columns: repeat(5, 1fr);
+            gap: 10px; padding: 14px 14px 0; margin: 0; height: 100%; align-content: start;
+        }
         .kpi-chip {
             position: relative; overflow: hidden; text-align: left;
-            background: linear-gradient(160deg, rgba(18,26,43,0.95), rgba(15,23,42,0.9));
-            border: 1px solid var(--border-color); border-radius: 14px; padding: 14px 14px 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+            background: rgba(10, 16, 28, 0.55); border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: 14px; padding: 12px 12px 28px;
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            box-shadow: 0 8px 28px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
         }
-        .kpi-chip::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 2px; background: var(--teal); }
+        .kpi-chip::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--teal); }
         .kpi-chip:nth-child(2)::before { background: #34d399; }
         .kpi-chip:nth-child(3)::before { background: #38bdf8; }
         .kpi-chip:nth-child(4)::before { background: #a78bfa; }
         .kpi-chip:nth-child(5)::before { background: var(--gold); }
-        .kpi-spark { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; opacity: 0.45; pointer-events: none; z-index: 0; }
+        .kpi-spark { position: absolute; left: 0; right: 0; bottom: 0; height: 48%; opacity: 0.72; pointer-events: none; z-index: 0; }
         .kpi-spark svg { width: 100%; height: 100%; display: block; }
         .kpi-title, .kpi-value, .kpi-sub { position: relative; z-index: 1; }
-        .kpi-title { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; padding-left: 8px; }
-        .kpi-value { font-size: 1.15rem; font-weight: 800; padding-left: 8px; letter-spacing: -0.02em; }
-        .kpi-sub { font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; padding-left: 8px; }
-        @media (max-width: 1100px) { .kpi-strip { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 700px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
-
-        .deck-map-card { margin-bottom: 16px; }
-        .deck-map-card #map { height: 280px !important; border-radius: 12px; border: 1px solid var(--border-color); }
-        .deck-map-card .lock-ph[style*="height"] { min-height: 220px; height: auto !important; }
-        .deck-lower { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 16px; margin-bottom: 16px; }
-        @media (max-width: 1024px) { .deck-lower { grid-template-columns: 1fr; } }
-        .deck-lower .stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .kpi-title { font-size: 0.66rem; color: rgba(226,232,240,0.78); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; padding-left: 8px; }
+        .kpi-value { font-size: 1.12rem; font-weight: 800; padding-left: 8px; letter-spacing: -0.02em; color: #f8fafc; }
+        .kpi-sub { font-size: 0.68rem; color: rgba(203,213,225,0.75); margin-top: 3px; padding-left: 8px; }
+        .deck-route-bar {
+            display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px;
+            padding: 8px 14px; margin-bottom: 14px; font-size: 0.78rem; color: var(--text-muted);
+        }
+        .deck-route-bar strong { color: var(--text-main); font-weight: 700; }
+        .deck-route-bar .route-ok { color: var(--success); font-weight: 700; }
+        .deck-lower { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; align-items: start; }
+        .deck-lower .stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+        .deck-lower .card { margin-bottom: 0; }
         .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
         .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
         .badge-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
         .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
-        
-        .deck-lower .poi-box #poi-results { max-height: 220px; overflow-y: auto; }
+        .deck-lower .poi-box #poi-results { max-height: 180px; overflow-y: auto; }
         .deck-lower .poi-box #poi-results:empty::before { content: "Результати пошуку з'являться тут"; color: var(--text-muted); font-size: 0.75rem; }
         @media (min-width: 1025px) {
-            .deck-lower .form-row { grid-template-columns: 1.5fr 1fr 0.55fr; }
-            .deck-lower .form-row.two-cols { grid-template-columns: 1fr 1.5fr; }
-            .deck-map-card .form-row.two-cols { grid-template-columns: 180px 1fr; }
+            .deck-lower .form-row { grid-template-columns: 1.45fr 1fr 0.55fr; }
+            .deck-lower .form-row.two-cols { grid-template-columns: 1fr 1.45fr; }
         }
-        @media (max-width: 700px) { .top-row { flex-direction: column; align-items: stretch !important; } }
+        @media (max-width: 1100px) {
+            .deck-hero .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+            .deck-hero { height: clamp(300px, 44vh, 460px); }
+        }
+        @media (max-width: 1024px) { .deck-lower { grid-template-columns: 1fr; } }
+        @media (max-width: 700px) {
+            .top-row { flex-direction: column; align-items: stretch !important; }
+            .deck-hero { height: 260px; }
+            .deck-hero .kpi-strip { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 10px; }
+            .kpi-value { font-size: 0.95rem; }
+        }
         .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
         .card h2 { font-size: 1.05rem; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); color: var(--teal); display: flex; align-items: center; gap: 6px; font-weight: 700; letter-spacing: 0.02em; }
         
@@ -294,7 +344,15 @@
         <div id="missing-hint"></div>
         <div id="onboard-banner">👋 Підставлено <b>стартовий шаблон</b> (зерновоз, типовий парк). Перевірте відстань і ставку, натисніть «Розрахувати». Для точнішого прибутку заповніть накладні в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.</div>
         <div id="cab-warning">⚠️ Накладні витрати не заповнені — EBITDA і чистий прибуток рахуються <b>без них</b> (маржа може збігатися з EBITDA). <button class="link-btn" onclick="openCabinet()">Відкрити особистий кабінет</button></div>
+    </div>
 
+    <!-- Hero: карта як фон + KPI поверх -->
+    <div class="deck-hero">
+        <div class="deck-hero-map">
+            <div class="lock-ph demo-only"><b>🔒 Карта доступна після оплати</b><small>KPI поверх демо-фону · маршрут Google — у повному доступі</small></div>
+            <div id="map" class="full-only"></div>
+        </div>
+        <div class="deck-hero-shade" aria-hidden="true"></div>
         <div class="kpi-strip">
             <div class="kpi-chip">
                 <div class="kpi-spark" id="spark-income"></div>
@@ -330,40 +388,15 @@
         </div>
     </div>
 
-    <!-- Карта зверху (Command Deck V3) -->
-    <div class="card deck-map-card">
-        <h2>🗺️ Маршрут</h2>
-        <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
-        <div class="full-only" style="background: rgba(20, 184, 166, 0.08); border: 1px dashed rgba(45,212,191,0.35); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
-            <div style="font-size: 0.85rem; font-weight: 600; color: var(--teal); margin-bottom: 6px;">🗺️ Розрахунок відстані Google Maps</div>
-            <div class="form-row two-cols" style="margin-bottom: 6px;">
-                <label>Пункт 0 (Стоянка авто - опц.):</label>
-                <div id="osm-base-wrap"></div>
-                <input type="hidden" id="osm-base">
-            </div>
-            <div class="form-row two-cols" style="margin-bottom: 6px;">
-                <label>Пункт A (Завантаження):</label>
-                <div id="osm-from-wrap"></div>
-                <input type="hidden" id="osm-from">
-            </div>
-            <div class="form-row two-cols" style="margin-bottom: 6px;">
-                <label>Пункт B (Розвантаження):</label>
-                <div id="osm-to-wrap"></div>
-                <input type="hidden" id="osm-to">
-            </div>
-            <div id="waypoints-list" style="margin-bottom: 6px;"></div>
-            <button type="button" class="preset-btn" style="margin-bottom: 8px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
-            <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="calculateGoogleRoute()">Розрахувати відстань за картами Google</button>
-            <div id="osm-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
-        </div>
-        <div class="lock-ph demo-only" style="height: 220px; flex-direction: column; justify-content: center;"><b>🔒 Доступно після оплати</b><small>🗺️ Карта маршруту</small></div>
-        <div id="map" class="full-only" style="height: 280px; width: 100%; border-radius: 12px; margin-bottom: 0; border: 1px solid var(--border-color);"></div>
+    <div class="deck-route-bar">
+        <div><strong id="route-bar-name">Маршрут 1</strong> · <span id="route-bar-dist">відстань —</span></div>
+        <div id="route-bar-extra" class="route-ok">Заповніть параметри рейсу нижче</div>
     </div>
 
     <div class="deck-lower">
       <div class="stack">
-        <div class="card" style="margin-bottom: 0;">
-                <h2>📦 Параметри заявки</h2>
+        <div class="card">
+                <h2>📦 Параметри рейсу</h2>
                 <div class="preset-bar">
                     <span style="font-size: 0.75rem; color: var(--text-muted); width: 100%;">Швидкі пресети авто:</span>
                     <button class="preset-btn active" onclick="applyPreset('зерновоз', this)">🌾 Зерновоз</button>
@@ -374,12 +407,36 @@
 
                 <div class="form-row two-cols">
                     <label>Назва / Маршрут заявки:</label>
-                    <input type="text" id="route-name" value="Маршрут 1" style="text-align: left;" oninput="calculate()">
+                    <input type="text" id="route-name" value="Маршрут 1" style="text-align: left;" oninput="onRouteNameInput()">
                 </div>
 
                 <div class="demo-only" style="background: rgba(20, 184, 166, 0.08); border: 1px dashed rgba(45,212,191,0.35); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; line-height: 1.5;">
                     <div style="font-weight: 600; color: var(--teal); margin-bottom: 4px;">🧪 Що доступно в демо</div>
                     Відстань, подачу та інші параметри вводьте вручну. Карта Google, підказки міст і пошук АЗС/кафе/СТО — після оплати. Експорт і надсилання теж у повному доступі. У демо можна зберегти до 3 розрахунків.
+                </div>
+
+                <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
+                <div class="full-only" style="background: rgba(20, 184, 166, 0.08); border: 1px dashed rgba(45,212,191,0.35); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
+                    <div style="font-size: 0.85rem; font-weight: 600; color: var(--teal); margin-bottom: 6px;">🗺️ Розрахунок відстані Google Maps</div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт 0 (Стоянка авто - опц.):</label>
+                        <div id="osm-base-wrap"></div>
+                        <input type="hidden" id="osm-base">
+                    </div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт A (Завантаження):</label>
+                        <div id="osm-from-wrap"></div>
+                        <input type="hidden" id="osm-from">
+                    </div>
+                    <div class="form-row two-cols" style="margin-bottom: 6px;">
+                        <label>Пункт B (Розвантаження):</label>
+                        <div id="osm-to-wrap"></div>
+                        <input type="hidden" id="osm-to">
+                    </div>
+                    <div id="waypoints-list" style="margin-bottom: 6px;"></div>
+                    <button type="button" class="preset-btn" style="margin-bottom: 8px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
+                    <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="calculateGoogleRoute()">Розрахувати відстань за картами Google</button>
+                    <div id="osm-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
                 </div>
 
                 <div class="form-row two-cols">
@@ -589,7 +646,26 @@
       </div><!-- /left stack -->
 
       <div class="stack">
-            <div class="card" style="margin-bottom: 0;">
+            <div class="card">
+                <h2>📊 Структура витрат</h2>
+                <div class="chart-box">
+                    <div class="bar-container" id="bar-chart"></div>
+                    <div class="chart-legend" id="chart-legend"></div>
+                </div>
+                <table style="margin-top: 16px;">
+                    <thead>
+                        <tr>
+                            <th>Стаття витрат</th>
+                            <th>Сума (грн)</th>
+                            <th>На 1 тн</th>
+                            <th>Частка</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cost-breakdown"></tbody>
+                </table>
+            </div>
+
+            <div class="card">
                 <h2>⛽ Пальне та Екіпаж</h2>
                 <div class="form-row">
                     <label>Витрата ДП (завантажений):</label>
@@ -669,31 +745,12 @@
                     <span class="unit">грн/доба</span>
                 </div>
 
-                <div id="fuel-summary-box" style="background: rgba(59, 130, 246, 0.08); padding: 10px; border-radius: 8px; font-size: 0.85rem; color: var(--accent); margin-top: 10px; font-weight: 500;">
+                <div id="fuel-summary-box" style="background: rgba(20, 184, 166, 0.08); padding: 10px; border-radius: 8px; font-size: 0.85rem; color: var(--teal); margin-top: 10px; font-weight: 500;">
                     ⛽ Паливний розрахунок: ...
                 </div>
             </div>
 
-            <div class="card" style="margin-bottom: 0;">
-                <h2>📊 Структура витрат</h2>
-                <div class="chart-box">
-                    <div class="bar-container" id="bar-chart"></div>
-                    <div class="chart-legend" id="chart-legend"></div>
-                </div>
-                <table style="margin-top: 16px;">
-                    <thead>
-                        <tr>
-                            <th>Стаття витрат</th>
-                            <th>Сума (грн)</th>
-                            <th>На 1 тн</th>
-                            <th>Частка</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cost-breakdown"></tbody>
-                </table>
-            </div>
-
-            <div class="card" style="margin-bottom: 0;">
+            <div class="card">
                 <h2>🏢 Накладні витрати та технічне обслуговування</h2>
                 <div class="form-row">
                     <label>Вартість ТО (з ПДВ):</label>
@@ -849,6 +906,13 @@
     const KPI_HIST_MAX = 12;
     const kpiHistory = { income: [], margin: [], ebitda: [], profit: [], breakeven: [] };
     const KPI_SPARK_COLORS = { income: '#2dd4bf', margin: '#34d399', ebitda: '#38bdf8', profit: '#a78bfa', breakeven: '#d4a017' };
+    const KPI_SPARK_SEED = {
+        income: [42, 48, 45, 52, 58, 55, 62, 68, 64, 72, 78, 74],
+        margin: [30, 34, 32, 38, 36, 42, 40, 46, 44, 50, 48, 54],
+        ebitda: [28, 32, 30, 36, 40, 38, 44, 48, 46, 52, 50, 56],
+        profit: [22, 26, 24, 30, 28, 34, 32, 38, 36, 42, 40, 46],
+        breakeven: [55, 52, 54, 50, 48, 51, 47, 45, 49, 46, 44, 42]
+    };
 
     function sparkPath(values, w, h) {
         w = w || 120; h = h || 40;
@@ -863,6 +927,18 @@
         }).join(' ');
     }
 
+    function renderKpiSparklines() {
+        Object.keys(kpiHistory).forEach(function (key) {
+            const el = document.getElementById('spark-' + key);
+            if (!el) return;
+            const series = kpiHistory[key].length ? kpiHistory[key] : KPI_SPARK_SEED[key];
+            const d = sparkPath(series);
+            el.innerHTML = d
+                ? '<svg viewBox="0 0 120 40" preserveAspectRatio="none"><path d="' + d + '" fill="none" stroke="' + KPI_SPARK_COLORS[key] + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                : '';
+        });
+    }
+
     function updateKpiSparklines(result) {
         const push = function (key, val) {
             const arr = kpiHistory[key];
@@ -874,14 +950,32 @@
         push('ebitda', result.ebitda);
         push('profit', result.netProfit);
         push('breakeven', result.breakevenFullPerTon == null ? 0 : result.breakevenFullPerTon);
-        Object.keys(kpiHistory).forEach(function (key) {
-            const el = document.getElementById('spark-' + key);
-            if (!el) return;
-            const d = sparkPath(kpiHistory[key]);
-            el.innerHTML = d
-                ? '<svg viewBox="0 0 120 40" preserveAspectRatio="none"><path d="' + d + '" fill="none" stroke="' + KPI_SPARK_COLORS[key] + '" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-                : '';
-        });
+        renderKpiSparklines();
+    }
+
+    function updateRouteBar() {
+        const nameEl = document.getElementById('route-bar-name');
+        const distEl = document.getElementById('route-bar-dist');
+        const extraEl = document.getElementById('route-bar-extra');
+        if (!nameEl) return;
+        const name = (document.getElementById('route-name') || {}).value || 'Маршрут';
+        const dist = parseFloat((document.getElementById('dist') || {}).value) || 0;
+        const podacha = parseFloat((document.getElementById('podacha-dist') || {}).value) || 0;
+        nameEl.textContent = name;
+        distEl.textContent = dist > 0 ? ('відстань ' + dist + ' км' + (podacha > 0 ? ' · подача ' + podacha + ' км' : '')) : 'відстань —';
+        const profit = (document.getElementById('res-profit') || {}).innerText || '';
+        if (profit && profit !== '0 грн') {
+            extraEl.textContent = 'Прибуток: ' + profit;
+            extraEl.className = 'route-ok';
+        } else {
+            extraEl.textContent = 'Заповніть параметри рейсу нижче';
+            extraEl.className = '';
+        }
+    }
+
+    function onRouteNameInput() {
+        updateRouteBar();
+        calculate();
     }
     const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsikMeho5FrbfPSOfy6Dekz6RfVj169_BCvPSEYNFeKpI1yT4RuCBneDDwjP1-xGjW/exec';
 
@@ -1482,6 +1576,7 @@
     async function calculate() {
         if (!currentSessionToken) return; // Подвійний захист від запуску без токена
         refreshCabWarning();
+        updateRouteBar();
         // Демо: живого перерахунку немає. Запит на сервер (і зарахування в ліміт) лише з кнопки «Розрахувати».
         if (isDemo && !demoForce) {
             if (demoHasResult) setDemoHint('Параметри змінено. Натисніть «Розрахувати», щоб оновити результат.');
@@ -1608,6 +1703,7 @@
             document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн`;
             document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
             updateKpiSparklines(result);
+            updateRouteBar();
             
             document.getElementById('trip-volume-info').innerText = result.tripVolumeText || '';
             document.getElementById('rt-info').innerText = result.rtInfoText || '';
@@ -1890,14 +1986,21 @@
         mapInitialized = true;
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 48.3794, lng: 31.1656 },
-            zoom: 6
+            zoom: 6,
+            disableDefaultUI: false,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true
         });
 
         directionsService = new google.maps.DirectionsService();
-        directionsRenderer = new google.maps.DirectionsRenderer({ polylineOptions: { strokeColor: '#3b82f6', strokeWeight: 5 } });
+        directionsRenderer = new google.maps.DirectionsRenderer({ polylineOptions: { strokeColor: '#14b8a6', strokeWeight: 5 } });
         directionsRenderer.setMap(map);
         directionsRendererBackhaul = new google.maps.DirectionsRenderer({ polylineOptions: { strokeColor: '#f59e0b', strokeWeight: 4 }, suppressMarkers: false });
         directionsRendererBackhaul.setMap(map);
+        setTimeout(function () {
+            if (map && google.maps.event) google.maps.event.trigger(map, 'resize');
+        }, 200);
 
         // Автопідказки адрес (Places API New, PlaceAutocompleteElement) — легасі-версія була
         // заблокована для цього проєкту, ця нова версія працює через ту саму бібліотеку "places".
@@ -2230,9 +2333,10 @@
     window.onload = function() {
         // Збережені розрахунки підтягуються в checkUserAccess(), коли вже відомо, хто користувач
         fetchNBURates();
-        
+        renderKpiSparklines();
+        updateRouteBar();
         // Відразу перевіряємо авторизацію, і ТІЛЬКИ ПІСЛЯ НЕЇ викликаємо калькулятор
-        checkUserAccess(); 
+        checkUserAccess();
     };
 </script>
 </body>
