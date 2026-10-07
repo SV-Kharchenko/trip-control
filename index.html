@@ -8,21 +8,39 @@
     <title>TRIP-CONTROL, розрахунок прибутковості автомобільних перевезень</title>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
 <style>
-        :root {
-            --bg-color: #0c0e12; --card-bg: #14181f; --border-color: #2a3140;
-            --text-main: #e8edf5; --text-muted: #8b93a7; --accent: #f59e0b;
-            --accent-hover: #d97706; --success: #34d399; --warning: #fbbf24;
-            --danger: #f87171; --input-bg: #0a0c10; --steel: #7dd3fc;
-            --amber: #f59e0b; --panel: #14181f;
+        :root, [data-theme="night"] {
+            --bg-color: #0b111b; --card-bg: rgba(16,22,34,0.82); --border-color: rgba(125,211,252,0.18);
+            --text-main: #e8edf5; --text-muted: #8b9bb4; --accent: #38bdf8;
+            --accent-hover: #0ea5e9; --success: #34d399; --warning: #fbbf24;
+            --danger: #f87171; --input-bg: rgba(8,12,20,0.88); --steel: #7dd3fc;
+            --amber: #38bdf8; --panel: rgba(16,22,34,0.82); --glass: blur(14px);
+            --kpi-glow: rgba(52,211,153,0.35);
             --font-ui: 'IBM Plex Sans', sans-serif;
             --font-display: 'Syne', sans-serif;
         }
+        [data-theme="amber"] {
+            --bg-color: #0c0e12; --card-bg: rgba(20,24,31,0.88); --border-color: #2a3140;
+            --text-main: #e8edf5; --text-muted: #8b93a7; --accent: #f59e0b;
+            --accent-hover: #d97706; --success: #34d399; --warning: #fbbf24;
+            --danger: #f87171; --input-bg: #0a0c10; --steel: #7dd3fc;
+            --amber: #f59e0b; --panel: rgba(20,24,31,0.88); --glass: blur(12px);
+            --kpi-glow: rgba(245,158,11,0.28);
+        }
+        [data-theme="ocean"] {
+            --bg-color: #071018; --card-bg: rgba(10,28,40,0.85); --border-color: rgba(34,211,238,0.22);
+            --text-main: #e6fbff; --text-muted: #7fadc0; --accent: #22d3ee;
+            --accent-hover: #06b6d4; --success: #2dd4bf; --warning: #fbbf24;
+            --danger: #fb7185; --input-bg: rgba(4,16,24,0.9); --steel: #67e8f9;
+            --amber: #22d3ee; --panel: rgba(10,28,40,0.85); --glass: blur(14px);
+            --kpi-glow: rgba(34,211,238,0.3);
+        }
         [data-theme="light"] {
-            --bg-color: #f4f5f7; --card-bg: #ffffff; --border-color: #d5dae3;
-            --text-main: #12151c; --text-muted: #5c6578; --accent: #c2410c;
-            --accent-hover: #9a3412; --success: #059669; --warning: #d97706;
-            --danger: #dc2626; --input-bg: #f8fafc; --steel: #0369a1;
-            --amber: #c2410c; --panel: #ffffff;
+            --bg-color: #eef2f7; --card-bg: rgba(255,255,255,0.82); --border-color: #c9d4e3;
+            --text-main: #12151c; --text-muted: #5c6578; --accent: #0284c7;
+            --accent-hover: #0369a1; --success: #059669; --warning: #d97706;
+            --danger: #dc2626; --input-bg: rgba(248,250,252,0.95); --steel: #0369a1;
+            --amber: #0284c7; --panel: rgba(255,255,255,0.82); --glass: blur(12px);
+            --kpi-glow: rgba(2,132,199,0.2);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-ui); }
         body {
@@ -142,55 +160,44 @@
         .btn-warning { background: var(--warning); color: #1a1205; box-shadow: none; }
         .btn-danger { background: var(--danger); color: #fff; box-shadow: none; }
 
-        /* KPI strip — no map behind */
+        /* Variant A: compact glass KPI strip ON MAP (top ~18%) */
         .tc-kpi {
-            display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px;
+            position: absolute; left: 12px; right: 56px; top: 12px; z-index: 5;
+            display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
+            pointer-events: none; max-height: 18%;
         }
+        .tc-kpi .kpi-chip { pointer-events: auto; }
         .kpi-chip {
-            --kpi-accent: var(--steel);
-            position: relative; overflow: hidden; text-align: left; min-height: 124px;
-            background:
-                radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--kpi-accent) 16%, transparent), transparent 55%),
-                linear-gradient(165deg, color-mix(in srgb, var(--card-bg) 92%, var(--kpi-accent)), var(--card-bg));
-            border: 1px solid color-mix(in srgb, var(--kpi-accent) 28%, var(--border-color));
-            border-radius: 14px; padding: 14px 14px 40px;
-            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
-            box-shadow: 0 8px 22px rgba(0,0,0,0.18);
+            --kpi-accent: var(--success);
+            position: relative; overflow: hidden; text-align: left; min-height: 0;
+            background: color-mix(in srgb, var(--card-bg) 78%, transparent);
+            border: 1px solid color-mix(in srgb, var(--kpi-accent) 35%, var(--border-color));
+            border-radius: 12px; padding: 8px 10px 22px;
+            backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+            transition: border-color 0.2s, transform 0.2s;
         }
-        .kpi-chip:hover { transform: translateY(-2px); box-shadow: 0 14px 28px rgba(0,0,0,0.28); border-color: color-mix(in srgb, var(--kpi-accent) 55%, var(--border-color)); }
+        .kpi-chip:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--kpi-accent) 65%, var(--border-color)); }
         .kpi-chip:nth-child(1) { --kpi-accent: #7dd3fc; }
         .kpi-chip:nth-child(2) { --kpi-accent: #34d399; }
         .kpi-chip:nth-child(3) { --kpi-accent: #60a5fa; }
-        .kpi-chip:nth-child(4) { --kpi-accent: #f59e0b; }
+        .kpi-chip:nth-child(4) { --kpi-accent: #a78bfa; }
         .kpi-chip:nth-child(5) { --kpi-accent: #fbbf24; }
-        .kpi-chip::before {
-            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-            background: linear-gradient(180deg, var(--kpi-accent), transparent);
-        }
-        .kpi-chip::after {
-            content: ''; position: absolute; right: 10px; top: 10px; width: 28px; height: 28px;
-            border: 1px solid color-mix(in srgb, var(--kpi-accent) 35%, transparent);
-            border-radius: 8px; opacity: 0.55;
-            background:
-                linear-gradient(var(--kpi-accent), var(--kpi-accent)) top left / 8px 1px no-repeat,
-                linear-gradient(var(--kpi-accent), var(--kpi-accent)) top left / 1px 8px no-repeat,
-                linear-gradient(var(--kpi-accent), var(--kpi-accent)) bottom right / 8px 1px no-repeat,
-                linear-gradient(var(--kpi-accent), var(--kpi-accent)) bottom right / 1px 8px no-repeat;
-        }
-        .kpi-head { position: relative; z-index: 1; display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+        .kpi-chip::before { display: none; }
+        .kpi-chip::after { display: none; }
+        .kpi-head { position: relative; z-index: 1; display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
         .kpi-ico {
-            width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
+            width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0; display: grid; place-items: center;
             background: color-mix(in srgb, var(--kpi-accent) 22%, transparent);
-            border: 1px solid color-mix(in srgb, var(--kpi-accent) 35%, transparent);
-            color: var(--kpi-accent); font-size: 0.78rem; font-weight: 800;
+            color: var(--kpi-accent); font-size: 0.62rem; font-weight: 800;
         }
-        .kpi-spark { position: absolute; left: 0; right: 0; bottom: 0; height: 46%; opacity: 0.9; pointer-events: none; z-index: 0; }
+        .kpi-spark { position: absolute; left: 0; right: 0; bottom: 0; height: 38%; opacity: 0.95; pointer-events: none; z-index: 0; filter: drop-shadow(0 0 6px var(--kpi-glow)); }
         .kpi-spark svg { width: 100%; height: 100%; display: block; }
         .kpi-title, .kpi-value, .kpi-sub { position: relative; z-index: 1; }
-        .kpi-title { font-size: 0.62rem; color: var(--text-muted); margin: 0; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; font-family: var(--font-ui); }
-        .kpi-value { font-size: 1.28rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-main); line-height: 1.12; }
-        .kpi-sub { font-size: 0.7rem; color: var(--text-muted); margin-top: 5px; }
-        .kpi-chip:nth-child(5) .kpi-value { color: var(--amber); }
+        .kpi-title { font-size: 0.55rem; color: var(--text-muted); margin: 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; font-family: var(--font-ui); }
+        .kpi-value { font-size: 0.95rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-main); line-height: 1.1; }
+        .kpi-sub { font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .kpi-chip:nth-child(5) .kpi-value { color: var(--warning); }
 
         .tc-route-bar {
             display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -217,26 +224,23 @@
         .tc-route-bar strong { color: var(--text-main); font-weight: 700; }
         .tc-route-bar .route-ok { color: var(--success); font-weight: 700; }
 
-        /* Main asymmetric grid: map | params */
-        .tc-main { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
-        .tc-map-panel, .tc-work { min-width: 0; }
-        .tc-work { display: flex; flex-direction: column; gap: 12px; }
-        .tc-map-panel .card { margin-bottom: 0; }
-        /* Витрати на всю ширину; пальне | накладні — 2 колонки */
-        .tc-costs { margin-bottom: 12px; }
-        .tc-costs-body {
-            display: grid;
-            grid-template-columns: 112px minmax(160px, 260px) minmax(0, 1fr);
-            gap: 12px 16px; align-items: center;
-        }
-        .tc-costs-body table { margin-top: 0; width: 100%; }
-        .tc-lower {
+        /* Variant A: full-width hero map, then 50/50 deck */
+        .tc-hero { margin-bottom: 12px; }
+        .tc-hero > .card { margin-bottom: 0; padding-top: 12px; }
+        .tc-deck {
             display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
             margin-bottom: 12px; align-items: start;
         }
-        .tc-lower .card { margin-bottom: 0; }
+        .tc-map-panel, .tc-work, .tc-costs-visual { min-width: 0; }
+        .tc-work { display: flex; flex-direction: column; gap: 12px; }
+        .tc-costs-visual .card, .tc-deck .card { margin-bottom: 0; }
+        .tc-costs-table { margin-bottom: 12px; }
+        .tc-costs-body {
+            display: grid; grid-template-columns: 120px minmax(0, 1fr);
+            gap: 12px 16px; align-items: center;
+        }
         .tc-map-frame {
-            position: relative; width: 100%; height: min(34vh, 300px); min-height: 220px;
+            position: relative; width: 100%; height: min(52vh, 520px); min-height: 320px;
             border-radius: 12px; overflow: hidden;
             border: 1px solid color-mix(in srgb, var(--steel) 25%, var(--border-color));
             background:
@@ -258,7 +262,13 @@
         }
         .tc-map-overlay > * { pointer-events: auto; }
         .tc-map-hud {
-            display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+            display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px;
+            margin-top: 0;
+        }
+        .tc-map-hud .tc-map-badge { display: none; }
+        @media (max-width: 1024px) {
+            .tc-map-hud { justify-content: space-between; }
+            .tc-map-hud .tc-map-badge { display: inline-flex; }
         }
         .tc-map-badge {
             display: inline-flex; align-items: center; gap: 7px;
@@ -350,8 +360,9 @@
 
         .card {
             position: relative; background: var(--card-bg); border: 1px solid var(--border-color);
-            border-radius: 12px; padding: 12px 12px 12px 14px; margin-bottom: 12px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.14);
+            border-radius: 14px; padding: 12px 12px 12px 14px; margin-bottom: 12px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.04);
+            backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
             overflow: hidden;
         }
         .card::before {
@@ -673,36 +684,60 @@
         }
         .tc-footer { margin-top: 14px; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.04em; }
 
+        .tc-action-btn {
+            display: inline-flex; align-items: center; gap: 7px;
+            height: 36px; padding: 0 12px; border-radius: 10px; cursor: pointer;
+            border: 1px solid var(--border-color); background: color-mix(in srgb, var(--input-bg) 80%, transparent);
+            color: var(--text-main); font-size: 0.78rem; font-weight: 600; font-family: var(--font-ui);
+            backdrop-filter: var(--glass); transition: border-color 0.15s, color 0.15s;
+        }
+        .tc-action-btn:hover { border-color: var(--steel); color: var(--steel); }
+        .tc-action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+        .tc-demo-badge {
+            display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px;
+            background: rgba(245,158,11,0.18); border: 1px solid rgba(245,158,11,0.45);
+            color: #fbbf24; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em;
+        }
+        body:not(.demo-mode) .tc-demo-badge { display: none; }
+        .rate-delta { font-size: 0.62rem; font-weight: 700; margin-left: 4px; }
+        .rate-delta.up { color: var(--success); }
+        .rate-delta.down { color: var(--danger); }
+        .rate-delta.flat { color: var(--text-muted); }
+
         @media (min-width: 1025px) {
-            .tc-work .form-row, .tc-lower .form-row, .tc-costs .form-row {
+            .tc-work .form-row, .tc-deck .form-row {
                 grid-template-columns: minmax(0, 1fr) 140px 40px;
             }
-            .tc-work .form-row.two-cols, .tc-lower .form-row.two-cols {
+            .tc-work .form-row.two-cols, .tc-deck .form-row.two-cols {
                 grid-template-columns: minmax(120px, 34%) minmax(0, 1fr);
             }
-            .tc-map-panel .form-row.two-cols { grid-template-columns: 120px minmax(0, 1fr); }
+            .tc-hero .form-row.two-cols { grid-template-columns: 120px minmax(0, 1fr); }
         }
         @media (max-width: 1100px) {
-            .tc-kpi { grid-template-columns: repeat(3, 1fr); }
-            .tc-costs-body { grid-template-columns: 112px 1fr; }
-            .tc-costs-body table { grid-column: 1 / -1; }
+            .tc-kpi { grid-template-columns: repeat(3, 1fr); right: 12px; }
+            .tc-kpi .kpi-chip:nth-child(n+4) { display: none; }
         }
         @media (max-width: 1024px) {
-            .tc-main { grid-template-columns: 1fr; }
-            .tc-lower { grid-template-columns: 1fr; }
-            .tc-map-frame { height: 240px; min-height: 220px; }
+            .tc-deck { grid-template-columns: 1fr; }
+            .tc-map-frame { height: min(42vh, 360px); min-height: 260px; }
+            .tc-kpi {
+                position: static; max-height: none; margin: 10px 0 0; right: auto; left: auto; top: auto;
+                grid-template-columns: repeat(5, 1fr);
+            }
+            .tc-kpi .kpi-chip:nth-child(n+4) { display: block; }
+            .kpi-value { font-size: 0.88rem; }
         }
         @media (max-width: 700px) {
             .tc-kpi { grid-template-columns: repeat(2, 1fr); }
             .tc-kpi .kpi-chip:last-child { grid-column: 1 / -1; }
-            .kpi-value { font-size: 1rem; }
             .preset-tiles { grid-template-columns: repeat(2, 1fr); }
             .donut-wrap, .tc-costs-body { grid-template-columns: 1fr; }
             .donut-svg-box { margin: 0 auto; }
             .form-row { grid-template-columns: minmax(0, 1fr) 108px 34px; }
             .form-row.two-cols { grid-template-columns: 1fr; }
             .tc-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
-            .tc-map-frame { height: 220px; min-height: 220px; }
+            .tc-map-frame { height: 240px; min-height: 220px; }
+            .tc-action-btn .tc-action-label { display: none; }
         }
     </style>
     <!-- Supabase. Google Maps вантажиться динамічно (loadGoogleMaps) і ТІЛЬКИ для повного доступу —
@@ -710,7 +745,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 </head>
-<body data-theme="dark">
+<body data-theme="night">
 
 <!-- Екран авторизації — Dispatch Console -->
 <div id="auth-screen">
@@ -767,14 +802,14 @@
                 </div>
                 <div class="brand-text">
                     <h1 class="brand-title">TRIP-CONTROL</h1>
-                    <div class="brand-sub">Dispatch Console</div>
+                    <div class="brand-sub">Night Steel · V3 Hero</div>
                 </div>
+                <span class="tc-demo-badge">DEMO</span>
             </div>
-            <div class="tc-sep" style="display:none" aria-hidden="true"></div>
             <div class="tc-meta">
-                <div class="tc-pill">USD <b id="rate-usd">...</b></div>
-                <div class="tc-pill">EUR <b id="rate-eur">...</b></div>
-                <div class="tc-pill">PLN <b id="rate-pln">...</b></div>
+                <div class="tc-pill">USD <b id="rate-usd">...</b><span class="rate-delta flat" id="rate-usd-delta">—</span></div>
+                <div class="tc-pill">EUR <b id="rate-eur">...</b><span class="rate-delta flat" id="rate-eur-delta">—</span></div>
+                <div class="tc-pill">PLN <b id="rate-pln">...</b><span class="rate-delta flat" id="rate-pln-delta">—</span></div>
                 <div class="tc-pill">
                     <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
                     <select id="conv-curr" onchange="convertCurrency()">
@@ -785,13 +820,12 @@
                     <b id="conv-res">0 грн</b>
                 </div>
                 <div class="tc-pill" id="deck-clock-pill"><b id="deck-clock">—</b></div>
-                <div class="tc-pill" id="deck-date-pill"><span id="deck-date">—</span></div>
                 <a class="tc-pill" href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="text-decoration:none; color:inherit;">ДП →</a>
             </div>
             <div class="tc-actions">
-                <button class="tc-icon-btn" type="button" title="Тема" onclick="toggleTheme()">🌓</button>
-                <button class="tc-icon-btn profile" type="button" title="Особистий кабінет" onclick="openCabinet()">👤</button>
-                <button class="tc-icon-btn danger" type="button" title="Вийти" onclick="handleLogout()">⎋</button>
+                <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Night</span></button>
+                <button class="tc-action-btn" type="button" title="Особистий кабінет" onclick="openCabinet()">📂 <span class="tc-action-label">Кабінет</span></button>
+                <button class="tc-action-btn danger" type="button" title="Вийти" onclick="handleLogout()">⎋ <span class="tc-action-label">Вийти</span></button>
             </div>
         </div>
 
@@ -809,50 +843,70 @@
         <div id="cab-warning">⚠️ Накладні витрати не заповнені — EBITDA і чистий прибуток рахуються <b>без них</b> (маржа може збігатися з EBITDA). <button class="link-btn" onclick="openCabinet()">Відкрити особистий кабінет</button></div>
     </div>
 
-    <div class="tc-status-rail" aria-hidden="true">
-        <div class="tc-chip live"><span class="dot"></span>Консоль активна</div>
-        <div class="tc-chip amber"><span class="dot"></span>Рейсовий розрахунок</div>
-        <div class="tc-chip"><span class="dot"></span>KPI · паливо · маржа</div>
-    </div>
-
-    <div class="tc-kpi kpi-strip"><div class="kpi-chip">
-                <div class="kpi-spark" id="spark-income"></div>
-                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">₴</span><div class="kpi-title">Дохід</div></div>
-                <div class="kpi-value" id="res-income">0 грн</div>
-                <div class="kpi-sub" id="res-income-net">Чистий: 0 грн</div>
-            </div>
-            <div class="kpi-chip">
-                <div class="kpi-spark" id="spark-margin"></div>
-                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">%</span><div class="kpi-title">Маржа</div></div>
-                <div class="kpi-value" id="res-margin">0 грн</div>
-                <div class="kpi-sub" id="res-margin-ton">на 1 т: 0 грн</div>
-            </div>
-            <div class="kpi-chip">
-                <div class="kpi-spark" id="spark-ebitda"></div>
-                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◆</span><div class="kpi-title">EBITDA</div></div>
-                <div class="kpi-value" id="res-ebitda">0 грн</div>
-                <div class="kpi-sub" id="res-ebitda-ton">на 1 т: 0 грн</div>
-            </div>
-            <div class="kpi-chip">
-                <div class="kpi-spark" id="spark-profit"></div>
-                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">↑</span><div class="kpi-title">Прибуток</div></div>
-                <div class="kpi-value" id="res-profit">0 грн</div>
-                <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
-            </div>
-            <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
-                <div class="kpi-spark" id="spark-breakeven"></div>
-                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◎</span><div class="kpi-title">Беззбитковість</div></div>
-                <div class="kpi-value" id="res-breakeven-full">0 грн/т</div>
-                <div class="kpi-sub" id="res-breakeven-op">маржа 0 · EBITDA 0</div>
-                <div class="kpi-sub" id="res-breakeven-gap" style="font-weight: 600;"></div>
-            </div>
-    </div>
-
-    <div class="tc-main">
-      <div class="tc-map-panel">
+    <div class="tc-hero">
         <div class="card">
-            <h2><span class="tc-sec-ico" aria-hidden="true">⌖</span>Маршрут і карта</h2>
-            <div class="tc-route-bar">
+            <div class="tc-map-frame" id="tc-map-frame">
+                <div class="tc-kpi kpi-strip">
+                    <div class="kpi-chip">
+                        <div class="kpi-spark" id="spark-income"></div>
+                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">₴</span><div class="kpi-title">Дохід</div></div>
+                        <div class="kpi-value" id="res-income">0 грн</div>
+                        <div class="kpi-sub" id="res-income-net">Чистий: 0 грн</div>
+                    </div>
+                    <div class="kpi-chip">
+                        <div class="kpi-spark" id="spark-margin"></div>
+                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">%</span><div class="kpi-title">Маржа</div></div>
+                        <div class="kpi-value" id="res-margin">0 грн</div>
+                        <div class="kpi-sub" id="res-margin-ton">на 1 т: 0 грн</div>
+                    </div>
+                    <div class="kpi-chip">
+                        <div class="kpi-spark" id="spark-ebitda"></div>
+                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◆</span><div class="kpi-title">EBITDA</div></div>
+                        <div class="kpi-value" id="res-ebitda">0 грн</div>
+                        <div class="kpi-sub" id="res-ebitda-ton">на 1 т: 0 грн</div>
+                    </div>
+                    <div class="kpi-chip">
+                        <div class="kpi-spark" id="spark-profit"></div>
+                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">↑</span><div class="kpi-title">Прибуток</div></div>
+                        <div class="kpi-value" id="res-profit">0 грн</div>
+                        <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
+                    </div>
+                    <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
+                        <div class="kpi-spark" id="spark-breakeven"></div>
+                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◎</span><div class="kpi-title">Беззбитковість</div></div>
+                        <div class="kpi-value" id="res-breakeven-full">0 грн/т</div>
+                        <div class="kpi-sub" id="res-breakeven-op">маржа 0 · EBITDA 0</div>
+                        <div class="kpi-sub" id="res-breakeven-gap" style="font-weight: 600;"></div>
+                    </div>
+                </div>
+                <div class="lock-ph demo-only">
+                    <svg class="map-art" viewBox="0 0 220 110" aria-hidden="true">
+                        <path d="M18 78 C48 78, 52 28, 88 28 S128 88, 160 62 198 30, 206 30" stroke="rgba(125,211,252,0.25)" stroke-width="8" fill="none" stroke-linecap="round"/>
+                        <path class="route" d="M18 78 C48 78, 52 28, 88 28 S128 88, 160 62 198 30, 206 30"/>
+                        <circle cx="18" cy="78" r="5"/><circle cx="206" cy="30" r="5"/>
+                        <circle cx="88" cy="28" r="3.5" fill="#7dd3fc"/>
+                    </svg>
+                    <b>Карта після оплати</b>
+                    <small>У демо вводьте відстань вручну в параметрах рейсу</small>
+                </div>
+                <div id="map" class="full-only"></div>
+                <div class="tc-map-overlay">
+                    <div class="tc-map-hud">
+                        <div class="tc-map-badge"><span class="dot"></span><span id="map-hud-label">Route · UA</span></div>
+                        <div class="tc-map-controls">
+                            <button type="button" class="tc-map-btn" title="Збільшити" onclick="mapZoom(1)">+</button>
+                            <button type="button" class="tc-map-btn" title="Зменшити" onclick="mapZoom(-1)">−</button>
+                            <button type="button" class="tc-map-btn" title="Вмістити маршрут" onclick="mapFitRoute()">⤢</button>
+                            <button type="button" class="tc-map-btn" id="map-expand-btn" title="Розгорнути" onclick="toggleMapExpand()">⛶</button>
+                        </div>
+                    </div>
+                    <div class="tc-map-legend">
+                        <span><i class="lg-main"></i>Основний</span>
+                        <span><i class="lg-back"></i>Зворотний</span>
+                    </div>
+                </div>
+            </div>
+            <div class="tc-route-bar" style="margin-top:12px;">
                 <div class="route-track">
                     <span class="route-node">A</span>
                     <span class="route-line" aria-hidden="true"></span>
@@ -872,34 +926,6 @@
                 <span class="rp-line"></span>
                 <span class="rp-node b">B</span>
                 <span class="rp-meta" id="route-progress-meta">Маршрут готовий до розрахунку</span>
-            </div>
-            <div class="tc-map-frame" id="tc-map-frame">
-                <div class="lock-ph demo-only">
-                    <svg class="map-art" viewBox="0 0 220 110" aria-hidden="true">
-                        <path d="M18 78 C48 78, 52 28, 88 28 S128 88, 160 62 198 30, 206 30" stroke="rgba(125,211,252,0.25)" stroke-width="8" fill="none" stroke-linecap="round"/>
-                        <path class="route" d="M18 78 C48 78, 52 28, 88 28 S128 88, 160 62 198 30, 206 30"/>
-                        <circle cx="18" cy="78" r="5"/><circle cx="206" cy="30" r="5"/>
-                        <circle cx="88" cy="28" r="3.5" fill="#7dd3fc"/>
-                    </svg>
-                    <b>Карта після оплати</b>
-                    <small>У демо вводьте відстань вручну справа</small>
-                </div>
-                <div id="map" class="full-only"></div>
-                <div class="tc-map-overlay">
-                    <div class="tc-map-hud">
-                        <div class="tc-map-badge"><span class="dot"></span><span id="map-hud-label">Dispatch map</span></div>
-                        <div class="tc-map-controls">
-                            <button type="button" class="tc-map-btn" title="Збільшити" onclick="mapZoom(1)">+</button>
-                            <button type="button" class="tc-map-btn" title="Зменшити" onclick="mapZoom(-1)">−</button>
-                            <button type="button" class="tc-map-btn" title="Вмістити маршрут" onclick="mapFitRoute()">⤢</button>
-                            <button type="button" class="tc-map-btn" id="map-expand-btn" title="Розгорнути" onclick="toggleMapExpand()">⛶</button>
-                        </div>
-                    </div>
-                    <div class="tc-map-legend">
-                        <span><i class="lg-main"></i>Основний</span>
-                        <span><i class="lg-back"></i>Зворотний</span>
-                    </div>
-                </div>
             </div>
             <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
             <div class="full-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245,158,11,0.35); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
@@ -939,8 +965,9 @@
                 <div id="poi-results" style="margin-top: 8px; font-size: 0.8rem;"></div>
             </div>
         </div>
-      </div>
+    </div><!-- /tc-hero -->
 
+    <div class="tc-deck">
       <div class="tc-work">
         <div class="card">
                 <h2><span class="tc-sec-ico" aria-hidden="true">▤</span>Параметри рейсу</h2>
@@ -1154,35 +1181,7 @@
                     </div>
 
         </div>
-      </div>
-    </div><!-- /tc-main: map | params -->
 
-    <div class="card tc-costs">
-                <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
-                <div class="tc-costs-body" id="bar-chart">
-                        <div class="donut-svg-box">
-                            <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true"></svg>
-                            <div class="donut-center">
-                                <div class="donut-total" id="donut-total">—</div>
-                                <div class="donut-label">витрати</div>
-                            </div>
-                        </div>
-                        <div class="donut-legend" id="chart-legend"></div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Стаття витрат</th>
-                            <th>Сума (грн)</th>
-                            <th>На 1 тн</th>
-                            <th>Частка</th>
-                        </tr>
-                    </thead>
-                    <tbody id="cost-breakdown"></tbody>
-                </table>
-                </div>
-    </div>
-
-    <div class="tc-lower">
             <div class="card">
                 <h2><span class="tc-sec-ico" aria-hidden="true">⛽</span>Пальне та екіпаж</h2>
                 <div class="form-row">
@@ -1344,7 +1343,39 @@
                     <span class="unit">шт</span>
                 </div>
             </div>
-    </div><!-- /tc-lower -->
+      </div><!-- /tc-work -->
+
+      <div class="tc-costs-visual">
+        <div class="card">
+            <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
+            <div class="tc-costs-body" id="bar-chart">
+                <div class="donut-svg-box">
+                    <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true"></svg>
+                    <div class="donut-center">
+                        <div class="donut-total" id="donut-total">—</div>
+                        <div class="donut-label">витрати</div>
+                    </div>
+                </div>
+                <div class="donut-legend" id="chart-legend"></div>
+            </div>
+        </div>
+      </div>
+    </div><!-- /tc-deck -->
+
+    <div class="card tc-costs-table">
+        <h2><span class="tc-sec-ico" aria-hidden="true">▦</span>Розшифровка витрат</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Стаття витрат</th>
+                    <th>Сума (грн)</th>
+                    <th>На 1 тн</th>
+                    <th>Частка</th>
+                </tr>
+            </thead>
+            <tbody id="cost-breakdown"></tbody>
+        </table>
+    </div>
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
         <h2><span class="tc-sec-ico" aria-hidden="true">◫</span>Збережені розрахунки</h2>
@@ -1710,25 +1741,92 @@
     // ==========================================
     // ЛОГІКА КАЛЬКУЛЯТОРА
     // ==========================================
-    function toggleTheme() {
+    const THEME_ORDER = ['night', 'amber', 'ocean', 'light'];
+    const THEME_LABELS = { night: 'Night', amber: 'Amber', ocean: 'Ocean', light: 'Light' };
+    function cycleTheme() {
         const body = document.body;
-        const currentTheme = body.getAttribute('data-theme');
-        body.setAttribute('data-theme', currentTheme === 'dark' ? 'light' : 'dark');
+        const cur = body.getAttribute('data-theme') || 'night';
+        const next = THEME_ORDER[(THEME_ORDER.indexOf(cur) + 1) % THEME_ORDER.length];
+        body.setAttribute('data-theme', next);
+        try { localStorage.setItem('tc_theme', next); } catch (e) {}
+        const lab = document.getElementById('theme-label');
+        if (lab) lab.textContent = THEME_LABELS[next] || next;
+    }
+    function restoreTheme() {
+        let t = 'night';
+        try { t = localStorage.getItem('tc_theme') || 'night'; } catch (e) {}
+        if (t === 'dark') t = 'night';
+        if (!THEME_ORDER.includes(t)) t = 'night';
+        document.body.setAttribute('data-theme', t);
+        const lab = document.getElementById('theme-label');
+        if (lab) lab.textContent = THEME_LABELS[t] || t;
     }
 
     function formatMoney(amount) {
         return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(amount) + ' грн';
     }
 
+    const RATE_HIST_KEY = 'tc_nbu_rate_hist_v1';
+    function readRateHist() {
+        try { return JSON.parse(localStorage.getItem(RATE_HIST_KEY) || '{}') || {}; } catch (e) { return {}; }
+    }
+    function writeRateHist(hist) {
+        try { localStorage.setItem(RATE_HIST_KEY, JSON.stringify(hist)); } catch (e) {}
+    }
+    function setRateDelta(elId, prev, next) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        if (!(prev > 0) || !(next > 0)) {
+            el.textContent = '—';
+            el.className = 'rate-delta flat';
+            return;
+        }
+        const pct = ((next - prev) / prev) * 100;
+        const abs = Math.abs(pct);
+        if (abs < 0.005) {
+            el.textContent = '0.00%';
+            el.className = 'rate-delta flat';
+            return;
+        }
+        const up = pct > 0;
+        el.textContent = (up ? '▲ ' : '▼ ') + abs.toFixed(2) + '%';
+        el.className = 'rate-delta ' + (up ? 'up' : 'down');
+    }
     async function fetchNBURates() {
         try {
             const res = await fetch('https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json');
             const data = await res.json();
+            const next = {};
             data.forEach(item => {
-                if (item.cc === 'USD') { nbuRates.USD = item.rate; document.getElementById('rate-usd').innerText = item.rate.toFixed(2) + ' грн'; }
-                if (item.cc === 'EUR') { nbuRates.EUR = item.rate; document.getElementById('rate-eur').innerText = item.rate.toFixed(2) + ' грн'; }
-                if (item.cc === 'PLN') { nbuRates.PLN = item.rate; document.getElementById('rate-pln').innerText = item.rate.toFixed(2) + ' грн'; }
+                if (item.cc === 'USD' || item.cc === 'EUR' || item.cc === 'PLN') next[item.cc] = item.rate;
             });
+            const today = new Date().toISOString().slice(0, 10);
+            const hist = readRateHist();
+            // Якір для ±%: вчорашній latest при зміні дня, інакше snapshot з початку сьогодні
+            let anchor = hist.snapshot;
+            if (!hist.day || hist.day !== today) {
+                anchor = hist.latest || hist.snapshot || null;
+                writeRateHist({ day: today, snapshot: anchor || next, latest: next });
+            } else {
+                if (!hist.snapshot) hist.snapshot = next;
+                writeRateHist({ day: today, snapshot: hist.snapshot, latest: next });
+                anchor = hist.snapshot;
+            }
+            if (next.USD) {
+                nbuRates.USD = next.USD;
+                document.getElementById('rate-usd').innerText = next.USD.toFixed(2);
+                setRateDelta('rate-usd-delta', anchor && anchor.USD, next.USD);
+            }
+            if (next.EUR) {
+                nbuRates.EUR = next.EUR;
+                document.getElementById('rate-eur').innerText = next.EUR.toFixed(2);
+                setRateDelta('rate-eur-delta', anchor && anchor.EUR, next.EUR);
+            }
+            if (next.PLN) {
+                nbuRates.PLN = next.PLN;
+                document.getElementById('rate-pln').innerText = next.PLN.toFixed(2);
+                setRateDelta('rate-pln-delta', anchor && anchor.PLN, next.PLN);
+            }
             convertCurrency();
         } catch(e) { console.log('NBU rates error', e); }
     }
@@ -3022,6 +3120,7 @@
 
     // ЗАПУСК ПРОГРАМИ
     window.onload = function() {
+        restoreTheme();
         // Збережені розрахунки підтягуються в checkUserAccess(), коли вже відомо, хто користувач
         fetchNBURates();
         renderKpiSparklines();
