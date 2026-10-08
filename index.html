@@ -94,9 +94,32 @@
             pointer-events: none;
         }
         .tc-meta {
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
+            display: flex; align-items: center; min-width: 0;
             justify-self: start; position: relative; z-index: 1;
         }
+        /* Одна смуга: курси + конвертер + ДП */
+        .tc-rates-strip {
+            display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 0;
+            border: 1px solid var(--border-color); border-radius: 10px;
+            background: color-mix(in srgb, var(--input-bg) 92%, var(--steel));
+            padding: 0 2px; max-width: 100%; overflow-x: auto;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+        .tc-rates-strip::-webkit-scrollbar { height: 0; }
+        .tc-rates-item {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 7px 10px; font-size: 0.7rem; color: var(--text-muted);
+            white-space: nowrap; border-right: 1px solid var(--border-color);
+        }
+        .tc-rates-item:last-child { border-right: none; }
+        .tc-rates-item b { color: var(--steel); font-weight: 700; font-family: var(--font-ui); }
+        .tc-rates-item input, .tc-rates-item select {
+            width: auto; min-width: 0; background: transparent; border: none; padding: 0 2px;
+            font-size: 0.7rem; color: var(--text-main);
+        }
+        .tc-rates-item input { width: 44px; text-align: center; }
+        .tc-rates-item a { color: inherit; text-decoration: none; font-weight: 700; }
+        .tc-rates-item a:hover { color: var(--steel); }
         .tc-brand {
             display: flex; align-items: center; justify-content: center; gap: 10px;
             position: relative; z-index: 1; justify-self: center; text-align: center;
@@ -119,14 +142,8 @@
             border: 1px solid var(--border-color); border-radius: 9px;
             padding: 6px 11px; background: color-mix(in srgb, var(--input-bg) 90%, var(--steel));
             font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
         }
         .tc-pill b { color: var(--steel); font-weight: 700; font-family: var(--font-ui); }
-        .tc-pill input, .tc-pill select {
-            width: auto; min-width: 0; background: transparent; border: none; padding: 0 2px;
-            font-size: 0.72rem; color: var(--text-main); text-align: left;
-        }
-        .tc-pill input { width: 52px; text-align: center; }
         .tc-actions { display: flex; align-items: center; gap: 6px; justify-self: end; position: relative; z-index: 1; }
         .tc-icon-btn {
             width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border-color);
@@ -825,19 +842,21 @@
     <div id="sticky-top">
         <div class="tc-topbar">
             <div class="tc-meta">
-                <div class="tc-pill">USD <b id="rate-usd">...</b><span class="rate-delta flat" id="rate-usd-delta">—</span></div>
-                <div class="tc-pill">EUR <b id="rate-eur">...</b><span class="rate-delta flat" id="rate-eur-delta">—</span></div>
-                <div class="tc-pill">PLN <b id="rate-pln">...</b><span class="rate-delta flat" id="rate-pln-delta">—</span></div>
-                <div class="tc-pill">
-                    <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
-                    <select id="conv-curr" onchange="convertCurrency()">
-                        <option value="USD">USD</option>
-                        <option value="EUR">EUR</option>
-                        <option value="PLN">PLN</option>
-                    </select>
-                    <b id="conv-res">0 грн</b>
+                <div class="tc-rates-strip" aria-label="Курси та пальне">
+                    <div class="tc-rates-item">USD <b id="rate-usd">...</b><span class="rate-delta flat" id="rate-usd-delta">—</span></div>
+                    <div class="tc-rates-item">EUR <b id="rate-eur">...</b><span class="rate-delta flat" id="rate-eur-delta">—</span></div>
+                    <div class="tc-rates-item">PLN <b id="rate-pln">...</b><span class="rate-delta flat" id="rate-pln-delta">—</span></div>
+                    <div class="tc-rates-item">
+                        <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
+                        <select id="conv-curr" onchange="convertCurrency()">
+                            <option value="USD">USD</option>
+                            <option value="EUR">EUR</option>
+                            <option value="PLN">PLN</option>
+                        </select>
+                        <b id="conv-res">0 грн</b>
+                    </div>
+                    <div class="tc-rates-item"><a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener">ДП →</a></div>
                 </div>
-                <a class="tc-pill" href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="text-decoration:none; color:inherit;">ДП →</a>
             </div>
             <div class="tc-brand">
                 <div class="tc-brand-mark" aria-hidden="true">
