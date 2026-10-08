@@ -71,13 +71,16 @@
         @keyframes routeDash { to { stroke-dashoffset: -24; } }
         .kpi-value.tc-flash { animation: kpiFlash 0.4s ease; }
 
-        /* Topbar */
+        /* Topbar: rates left · brand center · actions right */
         .tc-topbar {
-            position: relative; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+            position: relative; display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            align-items: center; gap: 12px;
             background:
                 linear-gradient(180deg, color-mix(in srgb, var(--card-bg) 88%, #1e2430), var(--card-bg));
             border: 1px solid var(--border-color);
-            border-radius: 12px; padding: 12px 16px 12px 14px; margin-bottom: 10px;
+            border-radius: 12px; padding: 10px 16px;
+            margin-bottom: 10px;
             box-shadow: 0 10px 28px rgba(0,0,0,0.22);
             overflow: hidden;
         }
@@ -87,28 +90,30 @@
         }
         .tc-topbar::after {
             content: ''; position: absolute; right: -40px; top: -40px; width: 120px; height: 120px;
-            background: radial-gradient(circle, rgba(245,158,11,0.12), transparent 70%);
+            background: radial-gradient(circle, rgba(125,211,252,0.12), transparent 70%);
             pointer-events: none;
         }
-        .tc-brand { display: flex; align-items: center; gap: 12px; position: relative; z-index: 1; }
+        .tc-meta {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
+            justify-self: start; position: relative; z-index: 1;
+        }
+        .tc-brand {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            position: relative; z-index: 1; justify-self: center; text-align: center;
+        }
         .tc-brand-mark {
-            width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+            width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
             background: linear-gradient(145deg, #1a1f29, #0a0c10);
             border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--border-color));
             display: grid; place-items: center; color: var(--amber);
-            box-shadow: inset 0 0 0 1px rgba(245,158,11,0.12), 0 0 18px rgba(245,158,11,0.12);
+            box-shadow: inset 0 0 0 1px rgba(245,158,11,0.12), 0 0 18px rgba(125,211,252,0.12);
         }
         .tc-brand-mark svg { width: 20px; height: 20px; }
-        .brand-title { font-size: 1.12rem; font-weight: 800; letter-spacing: 0.07em; margin: 0; color: var(--text-main); }
-        .brand-sub {
-            font-size: 0.6rem; letter-spacing: 0.18em; color: var(--steel); text-transform: uppercase;
-            margin-top: 2px; font-family: var(--font-ui); display: flex; align-items: center; gap: 6px;
+        .brand-title {
+            font-size: 1.45rem; font-weight: 800; letter-spacing: 0.14em; margin: 0;
+            color: var(--text-main); line-height: 1;
         }
-        .brand-sub::before {
-            content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--success);
-            box-shadow: 0 0 8px var(--success); animation: pulseDot 2.2s ease infinite;
-        }
-        .tc-meta { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; min-width: 0; position: relative; z-index: 1; }
+        .brand-sub { display: none; }
         .tc-pill {
             display: inline-flex; align-items: center; gap: 6px;
             border: 1px solid var(--border-color); border-radius: 9px;
@@ -122,7 +127,7 @@
             font-size: 0.72rem; color: var(--text-main); text-align: left;
         }
         .tc-pill input { width: 52px; text-align: center; }
-        .tc-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; position: relative; z-index: 1; }
+        .tc-actions { display: flex; align-items: center; gap: 6px; justify-self: end; position: relative; z-index: 1; }
         .tc-icon-btn {
             width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border-color);
             background: var(--input-bg); color: var(--text-main); cursor: pointer;
@@ -195,7 +200,12 @@
         .kpi-spark svg { width: 100%; height: 100%; display: block; }
         .kpi-title, .kpi-value, .kpi-sub { position: relative; z-index: 1; }
         .kpi-title { font-size: 0.55rem; color: var(--text-muted); margin: 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; font-family: var(--font-ui); }
-        .kpi-value { font-size: 0.95rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text-main); line-height: 1.1; }
+        .kpi-value {
+            font-size: 1.05rem; font-weight: 800; color: var(--text-main); line-height: 1.1;
+            letter-spacing: 0.08em; font-stretch: expanded;
+            transform: scaleX(1.12); transform-origin: left center;
+            display: inline-block; max-width: 100%;
+        }
         .kpi-sub { font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .kpi-chip:nth-child(5) .kpi-value { color: var(--warning); }
 
@@ -806,18 +816,6 @@
 <div class="container" id="main-app">
     <div id="sticky-top">
         <div class="tc-topbar">
-            <div class="tc-brand">
-                <div class="tc-brand-mark" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="9"/><path d="M12 8l3 8-3-2-3 2 3-8z" fill="currentColor" stroke="currentColor"/>
-                    </svg>
-                </div>
-                <div class="brand-text">
-                    <h1 class="brand-title">TRIP-CONTROL</h1>
-                    <div class="brand-sub">Night Steel · V3 Hero</div>
-                </div>
-                <span class="tc-demo-badge">DEMO</span>
-            </div>
             <div class="tc-meta">
                 <div class="tc-pill">USD <b id="rate-usd">...</b><span class="rate-delta flat" id="rate-usd-delta">—</span></div>
                 <div class="tc-pill">EUR <b id="rate-eur">...</b><span class="rate-delta flat" id="rate-eur-delta">—</span></div>
@@ -831,8 +829,16 @@
                     </select>
                     <b id="conv-res">0 грн</b>
                 </div>
-                <div class="tc-pill" id="deck-clock-pill"><b id="deck-clock">—</b></div>
                 <a class="tc-pill" href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener" style="text-decoration:none; color:inherit;">ДП →</a>
+            </div>
+            <div class="tc-brand">
+                <div class="tc-brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="9"/><path d="M12 8l3 8-3-2-3 2 3-8z" fill="currentColor" stroke="currentColor"/>
+                    </svg>
+                </div>
+                <h1 class="brand-title">TRIP-CONTROL</h1>
+                <span class="tc-demo-badge">DEMO</span>
             </div>
             <div class="tc-actions">
                 <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Night</span></button>
