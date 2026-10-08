@@ -233,7 +233,18 @@
         }
         .tc-map-panel, .tc-work, .tc-costs-visual { min-width: 0; }
         .tc-work { display: flex; flex-direction: column; gap: 12px; }
+        .tc-costs-visual { position: sticky; top: 72px; align-self: start; }
         .tc-costs-visual .card, .tc-deck .card { margin-bottom: 0; }
+        .tc-costs-visual .donut-svg-box { width: 150px; height: 150px; margin: 0 auto; }
+        .tc-costs-visual .tc-costs-body {
+            grid-template-columns: 1fr; justify-items: center; text-align: left;
+        }
+        .tc-costs-visual .donut-legend { width: 100%; margin-top: 10px; }
+        .tc-lower {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+            margin-bottom: 12px; align-items: start;
+        }
+        .tc-lower .card { margin-bottom: 0; }
         .tc-costs-table { margin-bottom: 12px; }
         .tc-costs-body {
             display: grid; grid-template-columns: 120px minmax(0, 1fr);
@@ -705,10 +716,10 @@
         .rate-delta.flat { color: var(--text-muted); }
 
         @media (min-width: 1025px) {
-            .tc-work .form-row, .tc-deck .form-row {
+            .tc-work .form-row, .tc-deck .form-row, .tc-lower .form-row {
                 grid-template-columns: minmax(0, 1fr) 140px 40px;
             }
-            .tc-work .form-row.two-cols, .tc-deck .form-row.two-cols {
+            .tc-work .form-row.two-cols, .tc-deck .form-row.two-cols, .tc-lower .form-row.two-cols {
                 grid-template-columns: minmax(120px, 34%) minmax(0, 1fr);
             }
             .tc-hero .form-row.two-cols { grid-template-columns: 120px minmax(0, 1fr); }
@@ -718,7 +729,8 @@
             .tc-kpi .kpi-chip:nth-child(n+4) { display: none; }
         }
         @media (max-width: 1024px) {
-            .tc-deck { grid-template-columns: 1fr; }
+            .tc-deck, .tc-lower { grid-template-columns: 1fr; }
+            .tc-costs-visual { position: static; }
             .tc-map-frame { height: min(42vh, 360px); min-height: 260px; }
             .tc-kpi {
                 position: static; max-height: none; margin: 10px 0 0; right: auto; left: auto; top: auto;
@@ -1181,7 +1193,26 @@
                     </div>
 
         </div>
+      </div><!-- /tc-work: only trip params -->
 
+      <div class="tc-costs-visual">
+        <div class="card">
+            <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
+            <div class="tc-costs-body" id="bar-chart">
+                <div class="donut-svg-box">
+                    <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true"></svg>
+                    <div class="donut-center">
+                        <div class="donut-total" id="donut-total">—</div>
+                        <div class="donut-label">витрати</div>
+                    </div>
+                </div>
+                <div class="donut-legend" id="chart-legend"></div>
+            </div>
+        </div>
+      </div>
+    </div><!-- /tc-deck -->
+
+    <div class="tc-lower">
             <div class="card">
                 <h2><span class="tc-sec-ico" aria-hidden="true">⛽</span>Пальне та екіпаж</h2>
                 <div class="form-row">
@@ -1343,24 +1374,7 @@
                     <span class="unit">шт</span>
                 </div>
             </div>
-      </div><!-- /tc-work -->
-
-      <div class="tc-costs-visual">
-        <div class="card">
-            <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
-            <div class="tc-costs-body" id="bar-chart">
-                <div class="donut-svg-box">
-                    <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true"></svg>
-                    <div class="donut-center">
-                        <div class="donut-total" id="donut-total">—</div>
-                        <div class="donut-label">витрати</div>
-                    </div>
-                </div>
-                <div class="donut-legend" id="chart-legend"></div>
-            </div>
-        </div>
-      </div>
-    </div><!-- /tc-deck -->
+    </div><!-- /tc-lower -->
 
     <div class="card tc-costs-table">
         <h2><span class="tc-sec-ico" aria-hidden="true">▦</span>Розшифровка витрат</h2>
