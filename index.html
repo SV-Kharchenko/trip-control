@@ -62,7 +62,7 @@
                 linear-gradient(90deg, rgba(213,218,227,0.55) 1px, transparent 1px);
             background-size: auto, auto, 48px 48px, 48px 48px;
         }
-        h1, h2, .brand-title, .kpi-value, .donut-total { font-family: var(--font-display); }
+        h1, h2, .brand-title, .donut-total { font-family: var(--font-display); }
         .container { max-width: 1520px; margin: 0 auto; display: none; }
         .container.tc-enter { animation: tcFadeIn 0.5s ease both; }
         @keyframes tcFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -74,7 +74,7 @@
         /* Topbar: rates left · brand center · actions right */
         .tc-topbar {
             position: relative; display: grid;
-            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             align-items: center; gap: 12px;
             background:
                 linear-gradient(180deg, color-mix(in srgb, var(--card-bg) 88%, #1e2430), var(--card-bg));
@@ -83,6 +83,7 @@
             margin-bottom: 10px;
             box-shadow: 0 10px 28px rgba(0,0,0,0.22);
             overflow: hidden;
+            min-height: 58px;
         }
         .tc-topbar::before {
             content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
@@ -94,36 +95,50 @@
             pointer-events: none;
         }
         .tc-meta {
-            display: flex; align-items: center; min-width: 0;
-            justify-self: start; position: relative; z-index: 1;
+            display: flex; align-items: center; min-width: 0; width: 100%;
+            justify-self: start; position: relative; z-index: 1; grid-column: 1;
+            overflow: hidden; padding-right: 200px; /* місце під абсолютний логотип */
         }
-        /* Одна смуга: курси + конвертер + ДП */
+        /* Одна смуга: ДП зліва + курси + конвертер */
         .tc-rates-strip {
             display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 0;
             border: 1px solid var(--border-color); border-radius: 10px;
             background: color-mix(in srgb, var(--input-bg) 92%, var(--steel));
-            padding: 0 2px; max-width: 100%; overflow-x: auto;
+            padding: 0 2px; min-width: 0; max-width: 100%; overflow-x: auto;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+        }
+        .tc-rates-item.tc-dp-item {
+            position: sticky; left: 0; z-index: 2; flex-shrink: 0;
+            background: color-mix(in srgb, var(--input-bg) 96%, var(--steel));
+            color: var(--steel); font-weight: 700;
         }
         .tc-rates-strip::-webkit-scrollbar { height: 0; }
         .tc-rates-item {
-            display: inline-flex; align-items: center; gap: 5px;
-            padding: 7px 10px; font-size: 0.7rem; color: var(--text-muted);
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 6px 7px; font-size: 0.66rem; color: var(--text-muted);
             white-space: nowrap; border-right: 1px solid var(--border-color);
+            flex-shrink: 0;
         }
+        .tc-rates-item .rate-delta { margin-left: 2px; }
         .tc-rates-item:last-child { border-right: none; }
         .tc-rates-item b { color: var(--steel); font-weight: 700; font-family: var(--font-ui); }
         .tc-rates-item input, .tc-rates-item select {
             width: auto; min-width: 0; background: transparent; border: none; padding: 0 2px;
-            font-size: 0.7rem; color: var(--text-main);
+            font-size: 0.68rem; color: var(--text-main);
         }
-        .tc-rates-item input { width: 44px; text-align: center; }
+        .tc-rates-item input { width: 40px; text-align: center; }
         .tc-rates-item a { color: inherit; text-decoration: none; font-weight: 700; }
         .tc-rates-item a:hover { color: var(--steel); }
         .tc-brand {
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-            position: relative; z-index: 1; justify-self: center; text-align: center;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            z-index: 3; text-align: center; pointer-events: none;
+            padding: 4px 12px; border-radius: 10px;
+            background: linear-gradient(180deg, color-mix(in srgb, var(--card-bg) 96%, #1e2430), var(--card-bg));
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-color) 70%, transparent);
+            max-width: min(360px, 40vw);
         }
+        .tc-brand .tc-demo-badge, .tc-brand .brand-title { pointer-events: auto; }
         .tc-brand-mark {
             width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
             background: linear-gradient(145deg, #1a1f29, #0a0c10);
@@ -133,8 +148,8 @@
         }
         .tc-brand-mark svg { width: 20px; height: 20px; }
         .brand-title {
-            font-size: 1.45rem; font-weight: 800; letter-spacing: 0.14em; margin: 0;
-            color: var(--text-main); line-height: 1;
+            font-size: 1.28rem; font-weight: 800; letter-spacing: 0.08em; margin: 0;
+            color: var(--text-main); line-height: 1; white-space: nowrap;
         }
         .brand-sub { display: none; }
         .tc-pill {
@@ -144,7 +159,11 @@
             font-size: 0.72rem; color: var(--text-muted); white-space: nowrap;
         }
         .tc-pill b { color: var(--steel); font-weight: 700; font-family: var(--font-ui); }
-        .tc-actions { display: flex; align-items: center; gap: 6px; justify-self: end; position: relative; z-index: 1; }
+        .tc-actions {
+            display: flex; align-items: center; gap: 6px; justify-self: end; width: 100%;
+            position: relative; z-index: 1; grid-column: 2; justify-content: flex-end;
+            padding-left: 220px;
+        }
         .tc-icon-btn {
             width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border-color);
             background: var(--input-bg); color: var(--text-main); cursor: pointer;
@@ -218,9 +237,10 @@
         .kpi-title, .kpi-value, .kpi-sub { position: relative; z-index: 1; }
         .kpi-title { font-size: 0.55rem; color: var(--text-muted); margin: 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; font-family: var(--font-ui); }
         .kpi-value {
-            font-size: 1.05rem; font-weight: 800; color: var(--text-main); line-height: 1.1;
-            letter-spacing: 0.12em; font-stretch: ultra-expanded;
-            transform: scaleX(1.22); transform-origin: left center;
+            font-family: var(--font-ui);
+            font-size: 1.08rem; font-weight: 700; color: var(--text-main); line-height: 1.2;
+            letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+            transform: scaleX(1.05); transform-origin: left center;
             display: inline-block; max-width: 100%;
         }
         .kpi-sub { font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -262,17 +282,34 @@
         .tc-work { display: flex; flex-direction: column; gap: 12px; }
         .tc-costs-visual { position: sticky; top: 72px; align-self: start; }
         .tc-costs-visual .card, .tc-deck .card { margin-bottom: 0; }
-        .tc-costs-visual .donut-svg-box { width: 150px; height: 150px; margin: 0 auto; }
+        .tc-costs-visual .donut-svg-box { width: 140px; height: 140px; margin: 0 auto; }
         .tc-costs-visual .tc-costs-body {
             grid-template-columns: 1fr; justify-items: center; text-align: left;
         }
         .tc-costs-visual .donut-legend { width: 100%; margin-top: 10px; }
+        .tc-costs-visual .tc-costs-table-wrap {
+            margin-top: 14px; padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+            width: 100%; overflow-x: auto;
+        }
+        .tc-costs-visual .tc-costs-table-wrap table { width: 100%; font-size: 0.78rem; }
         .tc-lower {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-            margin-bottom: 12px; align-items: start;
+            display: block; margin-bottom: 12px;
         }
         .tc-lower .card { margin-bottom: 0; }
-        .tc-costs-table { margin-bottom: 12px; }
+        .tc-fuel-compact {
+            display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px 14px; align-items: end;
+        }
+        .tc-fuel-compact .form-row,
+        .tc-fuel-compact .form-row.two-cols {
+            grid-template-columns: 1fr !important;
+            gap: 6px;
+            margin-bottom: 0;
+        }
+        .tc-fuel-compact .form-row .unit { display: none; }
+        .tc-fuel-compact .form-row label { margin-bottom: 0; }
+        #main-sync-fields { display: none !important; }
         .tc-costs-body {
             display: grid; grid-template-columns: 120px minmax(0, 1fr);
             gap: 12px 16px; align-items: center;
@@ -583,20 +620,35 @@
             #cabinet-screen .cab-brand { grid-column: 1; align-items: flex-start; text-align: left; }
         }
         #missing-hint, #cab-warning, #onboard-banner {
-            display: none; background: rgba(248,113,113,0.08); border: 1px solid var(--danger);
-            border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; font-size: 0.8rem; line-height: 1.45;
+            display: none; align-items: flex-start; gap: 10px;
+            background: rgba(248,113,113,0.08); border: 1px solid var(--danger);
+            border-radius: 8px; padding: 8px 10px 8px 14px; margin-bottom: 8px; font-size: 0.8rem; line-height: 1.45;
         }
+        #missing-hint .hint-text, #cab-warning .hint-text, #onboard-banner .hint-text { flex: 1; min-width: 0; }
         #cab-warning { background: rgba(251,191,36,0.08); border-color: var(--warning); }
         #onboard-banner { background: rgba(125,211,252,0.08); border-color: var(--steel); color: var(--text-main); }
+        .hint-close {
+            flex: none; width: 28px; height: 28px; margin: -2px 0 0 auto;
+            border: none; border-radius: 6px; background: transparent;
+            color: var(--text-muted); cursor: pointer; font-size: 1.2rem; line-height: 1;
+            display: grid; place-items: center;
+        }
+        .hint-close:hover { color: var(--text-main); background: rgba(255,255,255,0.06); }
         .link-btn { background: none; border: none; color: var(--steel); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
         #signup-extra { display: none; }
         #demo-banner { display: none; }
-        body.demo-mode #demo-banner { display: flex; }
+        body.demo-mode #demo-banner:not([data-dismissed="1"]) { display: flex; }
+        #demo-banner[data-dismissed="1"],
+        #missing-hint[data-dismissed="1"],
+        #cab-warning[data-dismissed="1"],
+        #onboard-banner[data-dismissed="1"] { display: none !important; }
         #demo-banner {
+            position: relative;
             align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
             background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35);
-            border-radius: 8px; padding: 8px 14px; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-main);
+            border-radius: 8px; padding: 8px 40px 8px 14px; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-main);
         }
+        #demo-banner > .hint-close { position: absolute; top: 6px; right: 6px; margin: 0; }
         @media print {
             body.demo-mode > * { display: none !important; }
             body.demo-mode::before { content: "Друк та експорт недоступні в демо-режимі."; display: block; padding: 40px; font-size: 20px; color: #000; }
@@ -756,7 +808,7 @@
             .tc-kpi .kpi-chip:nth-child(n+4) { display: none; }
         }
         @media (max-width: 1024px) {
-            .tc-deck, .tc-lower { grid-template-columns: 1fr; }
+            .tc-deck { grid-template-columns: 1fr; }
             .tc-costs-visual { position: static; }
             .tc-map-frame { height: min(42vh, 360px); min-height: 260px; }
             .tc-kpi {
@@ -767,11 +819,16 @@
             .kpi-value { font-size: 0.88rem; }
         }
         @media (max-width: 900px) {
-            .tc-topbar { grid-template-columns: 1fr; justify-items: stretch; }
-            .tc-meta, .tc-brand, .tc-actions { justify-self: stretch; }
-            .tc-brand { justify-content: flex-start; }
+            .tc-topbar { grid-template-columns: 1fr; justify-items: stretch; min-height: 0; }
+            .tc-meta, .tc-actions { justify-self: stretch; max-width: 100%; width: 100%; grid-column: auto; padding-left: 0; padding-right: 0; }
+            .tc-brand {
+                position: relative; left: auto; top: auto; transform: none;
+                justify-content: flex-start; justify-self: stretch;
+                background: transparent; box-shadow: none; padding: 0; max-width: none; pointer-events: auto;
+            }
             .tc-actions { justify-content: flex-end; }
-            .brand-title { font-size: 1.2rem; letter-spacing: 0.1em; }
+            .brand-title { font-size: 1.15rem; letter-spacing: 0.06em; }
+            .tc-fuel-compact { grid-template-columns: 1fr; }
         }
         @media (max-width: 700px) {
             .tc-kpi { grid-template-columns: repeat(2, 1fr); }
@@ -784,7 +841,7 @@
             .tc-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
             .tc-map-frame { height: 240px; min-height: 220px; }
             .tc-action-btn .tc-action-label { display: none; }
-            .kpi-value { transform: scaleX(1.14); font-size: 0.95rem; }
+            .kpi-value { transform: scaleX(1.03); font-size: 0.95rem; }
         }
     </style>
     <!-- Supabase. Google Maps вантажиться динамічно (loadGoogleMaps) і ТІЛЬКИ для повного доступу —
@@ -843,6 +900,7 @@
         <div class="tc-topbar">
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
+                    <div class="tc-rates-item tc-dp-item"><a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener">ДП →</a></div>
                     <div class="tc-rates-item">USD <b id="rate-usd">...</b><span class="rate-delta flat" id="rate-usd-delta">—</span></div>
                     <div class="tc-rates-item">EUR <b id="rate-eur">...</b><span class="rate-delta flat" id="rate-eur-delta">—</span></div>
                     <div class="tc-rates-item">PLN <b id="rate-pln">...</b><span class="rate-delta flat" id="rate-pln-delta">—</span></div>
@@ -855,7 +913,6 @@
                         </select>
                         <b id="conv-res">0 грн</b>
                     </div>
-                    <div class="tc-rates-item"><a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener">ДП →</a></div>
                 </div>
             </div>
             <div class="tc-brand">
@@ -881,11 +938,18 @@
                 <button class="btn btn-success" id="demo-calc-btn" style="flex: none; min-width: 0; padding: 6px 16px;" onclick="runDemoCalc()">▶ Розрахувати</button>
             </div>
             <div id="demo-hint" style="width: 100%; font-size: 0.75rem; color: var(--text-muted);">Перевірте параметри заявки і натисніть «Розрахувати». Результат не оновлюється наживо.</div>
+            <button type="button" class="hint-close" onclick="dismissHint('demo-banner')" aria-label="Закрити" title="Закрити">×</button>
         </div>
 
         <div id="missing-hint"></div>
-        <div id="onboard-banner">👋 Підставлено <b>стартовий шаблон</b> (зерновоз, типовий парк). Перевірте відстань і ставку, натисніть «Розрахувати». Для точнішого прибутку заповніть накладні в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.</div>
-        <div id="cab-warning">⚠️ Накладні витрати не заповнені — EBITDA і чистий прибуток рахуються <b>без них</b> (маржа може збігатися з EBITDA). <button class="link-btn" onclick="openCabinet()">Відкрити особистий кабінет</button></div>
+        <div id="onboard-banner">
+            <div class="hint-text">👋 Підставлено <b>стартовий шаблон</b> (зерновоз, типовий парк). Перевірте відстань і ставку, натисніть «Розрахувати». Для точнішого прибутку заповніть накладні в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.</div>
+            <button type="button" class="hint-close" onclick="dismissHint('onboard-banner')" aria-label="Закрити" title="Закрити">×</button>
+        </div>
+        <div id="cab-warning">
+            <div class="hint-text">⚠️ Накладні витрати не заповнені — EBITDA і чистий прибуток рахуються <b>без них</b> (маржа може збігатися з EBITDA). <button class="link-btn" onclick="openCabinet()">Відкрити особистий кабінет</button>.</div>
+            <button type="button" class="hint-close" onclick="dismissHint('cab-warning')" aria-label="Закрити" title="Закрити">×</button>
+        </div>
     </div>
 
     <div class="tc-hero">
@@ -1240,187 +1304,92 @@
                 </div>
                 <div class="donut-legend" id="chart-legend"></div>
             </div>
+            <div class="tc-costs-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Стаття витрат</th>
+                            <th>Сума (грн)</th>
+                            <th>На 1 тн</th>
+                            <th>Частка</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cost-breakdown"></tbody>
+                </table>
+            </div>
         </div>
       </div>
     </div><!-- /tc-deck -->
 
     <div class="tc-lower">
             <div class="card">
-                <h2><span class="tc-sec-ico" aria-hidden="true">⛽</span>Пальне та екіпаж</h2>
-                <div class="form-row">
-                    <label>Витрата ДП (завантажений):</label>
-                    <input type="number" id="fuel-load" step="0.1" oninput="calculate()">
-                    <span class="unit">л/100км</span>
-                </div>
-
-                <div class="form-row two-cols">
-                    <label>Сезон / Клімат:</label>
-                    <select id="season-type" onchange="calculate()">
-                        <option value="літо">Літо (+5% Кондиціонер)</option>
-                        <option value="стандарт" selected>Норма (0%)</option>
-                        <option value="зима">Зима (+10% Прогрів/Зима)</option>
-                    </select>
-                </div>
-
-                <div class="form-row">
-                    <label>Витрата ДП (пустий/подача):</label>
-                    <input type="number" id="fuel-empty" step="0.1" oninput="calculate()">
-                    <span class="unit">л/100км</span>
-                </div>
-                <div class="form-row">
-                    <label>Вартість ДП:</label>
-                    <input type="number" id="fuel-price" oninput="calculate()">
-                    <span class="unit">грн/л</span>
-                </div>
-                <div class="form-row two-cols">
-                    <label>Використання AdBlue:</label>
-                    <select id="adblue-enable" onchange="onAdblueToggle()">
-                        <option value="on" selected>Увімкнено (100% пробігу парку)</option>
-                        <option value="off">Вимкнено (не рахувати)</option>
-                    </select>
-                </div>
-                <div class="form-row dynamic-field active" id="field-adblue-consumption">
-                    <label>Витрата AdBlue:</label>
-                    <input type="number" id="adblue-consumption" step="0.05" oninput="calculate()">
-                    <span class="unit">л/100км</span>
-                </div>
-                <div class="form-row dynamic-field active" id="field-adblue-price">
-                    <label>Вартість AdBlue:</label>
-                    <input type="number" id="adblue-price" step="0.5" oninput="calculate()">
-                    <span class="unit">грн/л</span>
-                </div>
-
-                <div class="form-row two-cols">
-                    <label>Модель ЗП водія:</label>
-                    <select id="driver-pay-mode" onchange="onDriverPayModeChange()">
-                        <option value="km" selected>Оплата за км (грн/км)</option>
-                        <option value="pct">Відсоток від фрахту (% від суми)</option>
-                    </select>
-                </div>
-
-                <div id="driver-km-box">
-                    <div class="form-row">
-                        <label>ЗП водія (завантажений):</label>
-                        <input type="number" id="driver-rate-load" step="0.01" oninput="calculate()">
-                        <span class="unit">грн/км</span>
+                <h2><span class="tc-sec-ico" aria-hidden="true">⛽</span>Пальне</h2>
+                <div class="tc-fuel-compact">
+                    <div class="form-row two-cols">
+                        <label>Сезон:</label>
+                        <select id="season-type" onchange="calculate()">
+                            <option value="літо">Літо (+5% Кондиціонер)</option>
+                            <option value="стандарт" selected>Норма (0%)</option>
+                            <option value="зима">Зима (+10% Прогрів/Зима)</option>
+                        </select>
                     </div>
                     <div class="form-row">
-                        <label>ЗП водія (пустий/подача):</label>
-                        <input type="number" id="driver-rate-empty" step="0.01" oninput="calculate()">
-                        <span class="unit">грн/км</span>
+                        <label>Вартість ДП:</label>
+                        <input type="number" id="fuel-price" oninput="calculate()">
+                        <span class="unit">грн/л</span>
                     </div>
-                </div>
-
-                <div id="driver-pct-box" style="display: none;">
-                    <div class="form-row">
-                        <label>Відсоток водія від фрахту:</label>
-                        <input type="number" id="driver-pct-val" step="0.5" oninput="calculate()">
-                        <span class="unit">%</span>
+                    <div class="form-row two-cols">
+                        <label>Використання AdBlue:</label>
+                        <select id="adblue-enable" onchange="onAdblueToggle()">
+                            <option value="on" selected>Увімкнено</option>
+                            <option value="off">Вимкнено</option>
+                        </select>
                     </div>
-                </div>
-
-                <div class="form-row">
-                    <label>Добові водія:</label>
-                    <input type="number" id="per-diem" oninput="calculate()">
-                    <span class="unit">грн/доба</span>
-                </div>
-
-                <div id="fuel-summary-box" style="background: rgba(245, 158, 11, 0.08); padding: 10px; border-radius: 8px; font-size: 0.85rem; color: var(--steel); margin-top: 10px; font-weight: 500;">
-                    ⛽ Паливний розрахунок: ...
-                </div>
-            </div>
-
-            <div class="card">
-                <h2><span class="tc-sec-ico" aria-hidden="true">⚙</span>Накладні та ТО</h2>
-                <div class="form-row">
-                    <label>Вартість ТО (з ПДВ):</label>
-                    <input type="number" id="to-cost" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Періодичність ТО:</label>
-                    <input type="number" id="to-period" oninput="calculate()">
-                    <span class="unit">км</span>
-                </div>
-
-                <div class="form-row dynamic-field" id="field-wash-cost">
-                    <label>Вартість промивки цистерни:</label>
-                    <input type="number" id="wash-cost" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row dynamic-field" id="field-wash-freq">
-                    <label>Кількість промивок на рік:</label>
-                    <input type="number" id="wash-freq" oninput="calculate()">
-                    <span class="unit">раз/рік</span>
-                </div>
-
-                <div class="form-row">
-                    <label>Вартість шини (з ПДВ):</label>
-                    <input type="number" id="tire-cost" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Кількість шин на авто:</label>
-                    <input type="number" id="tire-count" oninput="calculate()">
-                    <span class="unit">шт</span>
-                </div>
-                <div class="form-row">
-                    <label>Пробіг шини (ресурс):</label>
-                    <input type="number" id="tire-mileage" oninput="calculate()">
-                    <span class="unit">км</span>
-                </div>
-
-                <div class="form-row">
-                    <label>Амортизація (річна):</label>
-                    <input type="number" id="overhead-amort" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Адміністративні витрати:</label>
-                    <input type="number" id="overhead-admin" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Інші операційні витрати:</label>
-                    <input type="number" id="overhead-other-op" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Інші витрати:</label>
-                    <input type="number" id="overhead-other" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Ремонти та інші оп. витрати:</label>
-                    <input type="number" id="overhead-repair" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Фінансові витрати (кредити):</label>
-                    <input type="number" id="overhead-fin" oninput="calculate()">
-                    <span class="unit">грн</span>
-                </div>
-                <div class="form-row">
-                    <label>Загальний парк авто:</label>
-                    <input type="number" id="total-fleet" oninput="calculate()">
-                    <span class="unit">шт</span>
                 </div>
             </div>
     </div><!-- /tc-lower -->
 
-    <div class="card tc-costs-table">
-        <h2><span class="tc-sec-ico" aria-hidden="true">▦</span>Розшифровка витрат</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Стаття витрат</th>
-                    <th>Сума (грн)</th>
-                    <th>На 1 тн</th>
-                    <th>Частка</th>
-                </tr>
-            </thead>
-            <tbody id="cost-breakdown"></tbody>
-        </table>
+    <!-- Поля з кабінету: лишаються в DOM для розрахунку, на головній не показуємо -->
+    <div id="main-sync-fields" aria-hidden="true">
+        <input type="number" id="fuel-load" step="0.1" oninput="calculate()">
+        <input type="number" id="fuel-empty" step="0.1" oninput="calculate()">
+        <div class="form-row dynamic-field active" id="field-adblue-consumption">
+            <input type="number" id="adblue-consumption" step="0.05" oninput="calculate()">
+        </div>
+        <div class="form-row dynamic-field active" id="field-adblue-price">
+            <input type="number" id="adblue-price" step="0.5" oninput="calculate()">
+        </div>
+        <select id="driver-pay-mode" onchange="onDriverPayModeChange()">
+            <option value="km" selected>km</option>
+            <option value="pct">pct</option>
+        </select>
+        <div id="driver-km-box">
+            <input type="number" id="driver-rate-load" step="0.01" oninput="calculate()">
+            <input type="number" id="driver-rate-empty" step="0.01" oninput="calculate()">
+        </div>
+        <div id="driver-pct-box" style="display: none;">
+            <input type="number" id="driver-pct-val" step="0.5" oninput="calculate()">
+        </div>
+        <input type="number" id="per-diem" oninput="calculate()">
+        <div id="fuel-summary-box"></div>
+        <input type="number" id="to-cost" oninput="calculate()">
+        <input type="number" id="to-period" oninput="calculate()">
+        <div class="form-row dynamic-field" id="field-wash-cost">
+            <input type="number" id="wash-cost" oninput="calculate()">
+        </div>
+        <div class="form-row dynamic-field" id="field-wash-freq">
+            <input type="number" id="wash-freq" oninput="calculate()">
+        </div>
+        <input type="number" id="tire-cost" oninput="calculate()">
+        <input type="number" id="tire-count" oninput="calculate()">
+        <input type="number" id="tire-mileage" oninput="calculate()">
+        <input type="number" id="overhead-amort" oninput="calculate()">
+        <input type="number" id="overhead-admin" oninput="calculate()">
+        <input type="number" id="overhead-other-op" oninput="calculate()">
+        <input type="number" id="overhead-other" oninput="calculate()">
+        <input type="number" id="overhead-repair" oninput="calculate()">
+        <input type="number" id="overhead-fin" oninput="calculate()">
+        <input type="number" id="total-fleet" oninput="calculate()">
     </div>
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
@@ -2056,6 +2025,18 @@
         return essential.every(k => !(parseFloat(settings[k]) > 0));
     }
 
+    function dismissHint(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.dataset.dismissed = '1';
+        el.style.display = 'none';
+    }
+
+    function showHintBanner(el) {
+        if (!el || el.dataset.dismissed === '1') return;
+        el.style.display = 'flex';
+    }
+
     async function ensureStarterTemplate() {
         const banner = document.getElementById('onboard-banner');
         usedStarterTemplate = false;
@@ -2065,7 +2046,7 @@
         }
         companySettings = Object.assign({}, STARTER_SETTINGS, companySettings || {});
         usedStarterTemplate = true;
-        if (banner) banner.style.display = 'block';
+        if (banner) showHintBanner(banner);
         // Зберігаємо шаблон у кабінет, щоб наступний вхід теж був з готовими нормами
         if (currentOrgId) {
             try {
@@ -2113,9 +2094,11 @@
 
     // М'яке попередження: усі накладні порожні → результат без накладних
     function refreshCabWarning() {
+        const el = document.getElementById('cab-warning');
         const ids = ['overhead-amort', 'overhead-admin', 'overhead-other-op', 'overhead-other', 'overhead-repair', 'overhead-fin'];
         const allEmpty = ids.every(id => !(parseFloat(document.getElementById(id).value) > 0));
-        document.getElementById('cab-warning').style.display = allEmpty ? 'block' : 'none';
+        if (!allEmpty) { el.style.display = 'none'; return; }
+        showHintBanner(el);
     }
 
     function switchCabTab(id) {
@@ -2294,11 +2277,18 @@
         const missing = REQUIRED_FIELDS.filter(([id]) => !(oneOff && id === 'volume') && !(parseFloat(document.getElementById(id).value) > 0));
         const mh = document.getElementById('missing-hint');
         if (missing.length) {
-            mh.innerHTML = '⚠️ Щоб порахувати, заповніть: <b>' + missing.map(m => m[1]).join(', ') + '</b>. Постійні параметри компанії (парк, накладні, пальне, ТО, шини) задаються в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.';
-            mh.style.display = 'block';
+            const dismissKey = missing.map(m => m[0]).join(',');
+            if (mh.dataset.dismissKey !== dismissKey) {
+                mh.dataset.dismissed = '';
+                mh.dataset.dismissKey = dismissKey;
+            }
+            mh.innerHTML = '<div class="hint-text">⚠️ Щоб порахувати, заповніть: <b>' + missing.map(m => m[1]).join(', ') + '</b>. Постійні параметри компанії (парк, накладні, пальне, ТО, шини) задаються в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.</div><button type="button" class="hint-close" onclick="dismissHint(\'missing-hint\')" aria-label="Закрити" title="Закрити">×</button>';
+            showHintBanner(mh);
             return;
         }
         mh.style.display = 'none';
+        mh.dataset.dismissed = '';
+        mh.dataset.dismissKey = '';
         const myRequestId = ++calcRequestId; // ФІКС: позначаємо цей виклик, щоб пізніше відрізнити застарілу відповідь
 
         const payload = {
