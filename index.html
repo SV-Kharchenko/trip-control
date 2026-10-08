@@ -325,15 +325,38 @@
         .tc-route-tools .form-row label {
             font-size: 0.68rem; color: var(--text-muted); line-height: 1.2;
         }
-        .tc-route-tools gmp-place-autocomplete,
-        .tc-maps-box gmp-place-autocomplete {
-            --gmp-mat-color-surface: transparent;
-            min-height: 0 !important; height: 34px !important;
-            font-size: 0.78rem !important;
+        /* Поля Google Places — як select/input у «Параметри рейсу» */
+        .tc-place-field {
+            width: 100%; min-width: 0;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            min-height: 34px;
+            overflow: hidden;
+            transition: border-color 0.15s, box-shadow 0.15s;
         }
-        .tc-route-tools .tc-maps-box input,
-        .tc-maps-box input {
-            min-height: 34px; height: 34px; padding-top: 4px; padding-bottom: 4px; font-size: 0.78rem;
+        .tc-place-field:focus-within {
+            border-color: var(--steel);
+            box-shadow: 0 0 0 3px rgba(125,211,252,0.12);
+        }
+        .tc-place-field gmp-place-autocomplete {
+            width: 100% !important;
+            height: 34px !important;
+            min-height: 34px !important;
+            max-height: 34px !important;
+            display: block !important;
+            background: transparent !important;
+            color: var(--text-main) !important;
+            border: none !important;
+            border-radius: 0 !important;
+            padding: 0 8px !important;
+            font-size: 0.84rem !important;
+            font-family: var(--font-ui) !important;
+            color-scheme: dark;
+            --gmp-mat-color-surface: transparent;
+            --gmp-mat-color-on-surface: var(--text-main);
+            --gmp-mat-color-primary: var(--steel);
+            --gmp-mat-color-outline: transparent;
         }
         .tc-route-tools .btn,
         .tc-route-tools .preset-btn {
@@ -548,7 +571,28 @@
         select { text-align: left; }
         input:focus, select:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(125,211,252,0.12); }
         .unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
-        gmp-place-autocomplete { width: 100%; max-height: 36px; }
+        gmp-place-autocomplete {
+            width: 100%;
+            background: var(--input-bg) !important;
+            color: var(--text-main) !important;
+            border: 1px solid var(--border-color) !important;
+            border-radius: 6px !important;
+            min-height: 34px !important;
+            height: 34px !important;
+            padding: 0 8px !important;
+            font-size: 0.84rem !important;
+            font-family: var(--font-ui) !important;
+            box-sizing: border-box !important;
+            color-scheme: dark;
+            --gmp-mat-color-surface: var(--input-bg);
+            --gmp-mat-color-on-surface: var(--text-main);
+            --gmp-mat-color-primary: var(--steel);
+            --gmp-mat-color-outline: var(--border-color);
+        }
+        .tc-place-field gmp-place-autocomplete {
+            border: none !important;
+            background: transparent !important;
+        }
 
         .demo-only { display: none; }
         body.demo-mode .demo-only { display: block; }
@@ -2978,6 +3022,7 @@
 
         const el = new PlaceAutocompleteElement({ includedRegionCodes: ['ua'] });
         el.placeholder = placeholderText;
+        wrap.classList.add('tc-place-field');
         wrap.innerHTML = ''; // прибираємо можливий попередній віджет — інакше при повторному виклику поле дублюється
         wrap.appendChild(el);
 
@@ -2990,11 +3035,29 @@
 
         // Фолбек: якщо людина просто вводить текст і не обирає підказку зі списку —
         // дзеркалимо сирий ввід, щоб поле й далі приймало довільний текст, як і раніше.
-        if (el.inputElement) {
-            el.inputElement.addEventListener('input', () => {
-                hidden.value = el.inputElement.value;
-            });
-        }
+        let inputBound = false;
+        const syncInputLook = () => {
+            const inp = el.inputElement || (el.shadowRoot && el.shadowRoot.querySelector('input'));
+            if (!inp) return;
+            inp.style.background = 'transparent';
+            inp.style.color = 'var(--text-main)';
+            inp.style.border = 'none';
+            inp.style.outline = 'none';
+            inp.style.boxShadow = 'none';
+            inp.style.fontSize = '0.84rem';
+            inp.style.fontFamily = 'var(--font-ui)';
+            inp.style.height = '34px';
+            inp.style.padding = '6px 0';
+            inp.style.textAlign = 'left';
+            if (!inputBound) {
+                inputBound = true;
+                inp.addEventListener('input', () => { hidden.value = inp.value; });
+            }
+        };
+        syncInputLook();
+        // Shadow DOM інколи з’являється з затримкою
+        setTimeout(syncInputLook, 50);
+        setTimeout(syncInputLook, 250);
 
         return el;
     }
