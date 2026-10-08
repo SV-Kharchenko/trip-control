@@ -275,24 +275,74 @@
         .tc-hero { margin-bottom: 12px; }
         .tc-hero > .card { margin-bottom: 0; padding-top: 12px; }
         .tc-deck {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+            display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 12px;
             margin-bottom: 12px; align-items: start;
         }
-        .tc-map-panel, .tc-work, .tc-costs-visual { min-width: 0; }
+        .tc-map-panel, .tc-work, .tc-route-tools, .tc-costs-visual { min-width: 0; }
         .tc-work { display: flex; flex-direction: column; gap: 12px; }
-        .tc-costs-visual { position: sticky; top: 72px; align-self: start; }
-        .tc-costs-visual .card, .tc-deck .card { margin-bottom: 0; }
-        .tc-costs-visual .donut-svg-box { width: 140px; height: 140px; margin: 0 auto; }
-        .tc-costs-visual .tc-costs-body {
-            grid-template-columns: 1fr; justify-items: center; text-align: left;
+        .tc-route-tools {
+            display: flex; flex-direction: column; gap: 10px;
+            position: sticky; top: 72px; align-self: start;
         }
-        .tc-costs-visual .donut-legend { width: 100%; margin-top: 10px; }
+        .tc-route-tools .lock-ph {
+            min-height: 72px; padding: 12px; margin: 0;
+        }
+        .tc-maps-box, .tc-route-tools .poi-box {
+            background: rgba(245, 158, 11, 0.06);
+            border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 10px 12px; margin: 0;
+        }
+        .tc-maps-box {
+            border-style: dashed; border-color: rgba(245,158,11,0.35);
+            background: rgba(245, 158, 11, 0.08);
+        }
+        .tc-maps-box .tc-tools-title,
+        .tc-route-tools .poi-box .tc-tools-title {
+            font-size: 0.78rem; font-weight: 700; color: var(--steel);
+            margin-bottom: 8px; letter-spacing: 0.02em;
+        }
+        .tc-route-tools .form-row {
+            margin-bottom: 6px !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 4px;
+        }
+        .tc-route-tools .form-row label {
+            font-size: 0.72rem; color: var(--text-muted);
+        }
+        .tc-route-tools .btn,
+        .tc-route-tools .preset-btn {
+            padding: 5px 10px; font-size: 0.75rem;
+        }
+        .tc-route-tools .poi-checks {
+            display: flex; gap: 8px 12px; flex-wrap: wrap;
+            margin-bottom: 8px; font-size: 0.75rem;
+        }
+        .tc-route-tools .poi-checks label {
+            display: flex; align-items: center; gap: 4px;
+            color: var(--text-main); font-weight: 400;
+        }
+        .tc-route-tools #poi-results { max-height: 140px; overflow-y: auto; font-size: 0.75rem; }
+        .tc-costs-visual { margin-bottom: 12px; }
+        .tc-costs-visual .card, .tc-deck .card { margin-bottom: 0; }
+        .tc-costs-visual .donut-svg-box { width: 130px; height: 130px; margin: 0; }
+        .tc-costs-visual .tc-costs-body {
+            grid-template-columns: 130px minmax(0, 1fr);
+            justify-items: stretch; text-align: left; align-items: center;
+        }
+        .tc-costs-visual .donut-legend { width: 100%; margin-top: 0; }
         .tc-costs-visual .tc-costs-table-wrap {
             margin-top: 14px; padding-top: 12px;
             border-top: 1px solid var(--border-color);
             width: 100%; overflow-x: auto;
         }
         .tc-costs-visual .tc-costs-table-wrap table { width: 100%; font-size: 0.78rem; }
+        @media (min-width: 1025px) {
+            .tc-costs-visual .tc-costs-body {
+                grid-template-columns: 150px minmax(0, 1fr);
+                gap: 16px 24px;
+            }
+            .tc-costs-visual .donut-svg-box { width: 150px; height: 150px; }
+        }
         .tc-lower {
             display: block; margin-bottom: 12px;
         }
@@ -733,7 +783,7 @@
         th { color: var(--text-muted); font-weight: 600; }
         td:nth-child(2), td:nth-child(3), td:nth-child(4) { text-align: right; }
         .comparison-table { overflow-x: auto; }
-        .tc-work .poi-box #poi-results, .tc-map-panel .poi-box #poi-results { max-height: 160px; overflow-y: auto; }
+        .tc-route-tools .poi-box #poi-results { max-height: 140px; overflow-y: auto; }
         .poi-box #poi-results:empty::before { content: "Результати пошуку з'являться тут"; color: var(--text-muted); font-size: 0.75rem; }
 
         /* Auth */
@@ -809,7 +859,6 @@
         }
         @media (max-width: 1024px) {
             .tc-deck { grid-template-columns: 1fr; }
-            .tc-costs-visual { position: static; }
             .tc-map-frame { height: min(42vh, 360px); min-height: 260px; }
             .tc-kpi {
                 position: static; max-height: none; margin: 10px 0 0; right: auto; left: auto; top: auto;
@@ -1036,42 +1085,6 @@
                 <span class="rp-node b">B</span>
                 <span class="rp-meta" id="route-progress-meta">Маршрут готовий до розрахунку</span>
             </div>
-            <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
-            <div class="full-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245,158,11,0.35); padding: 10px; border-radius: 8px; margin-bottom: 12px;">
-                <div style="font-size: 0.85rem; font-weight: 600; color: var(--steel); margin-bottom: 6px;">🗺️ Розрахунок відстані Google Maps</div>
-                <div class="form-row two-cols" style="margin-bottom: 6px;">
-                    <label>Пункт 0 (Стоянка авто - опц.):</label>
-                    <div id="osm-base-wrap"></div>
-                    <input type="hidden" id="osm-base">
-                </div>
-                <div class="form-row two-cols" style="margin-bottom: 6px;">
-                    <label>Пункт A (Завантаження):</label>
-                    <div id="osm-from-wrap"></div>
-                    <input type="hidden" id="osm-from">
-                </div>
-                <div class="form-row two-cols" style="margin-bottom: 6px;">
-                    <label>Пункт B (Розвантаження):</label>
-                    <div id="osm-to-wrap"></div>
-                    <input type="hidden" id="osm-to">
-                </div>
-                <div id="waypoints-list" style="margin-bottom: 6px;"></div>
-                <button type="button" class="preset-btn" style="margin-bottom: 8px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
-                <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="calculateGoogleRoute()">Розрахувати відстань за картами Google</button>
-                <div id="osm-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
-            </div>
-            <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>📍 Пошук АЗС, стоянок TIR, кафе і СТО вздовж маршруту</small></div>
-            <div class="poi-box full-only" style="background: rgba(245, 158, 11, 0.06); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 0; margin-top: 12px;">
-                <div style="font-size: 0.85rem; font-weight: 600; color: var(--steel); margin-bottom: 8px;">📍 Об'єкти вздовж маршруту (Google Places)</div>
-                <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; font-size: 0.8rem;">
-                    <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-gas" checked style="width:auto;"> ⛽ АЗС</label>
-                    <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-tir" checked style="width:auto;"> 🅿️ Стоянки TIR</label>
-                    <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-cafe" style="width:auto;"> ☕ Кафе</label>
-                    <label style="display:flex; align-items:center; gap:4px; color: var(--text-main); font-weight: 400;"><input type="checkbox" id="poi-sto" style="width:auto;"> 🔧 СТО</label>
-                </div>
-                <button type="button" class="btn" style="width: 100%; padding: 6px;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти вздовж маршруту</button>
-                <div id="poi-status" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
-                <div id="poi-results" style="margin-top: 8px; font-size: 0.8rem;"></div>
-            </div>
         </div>
     </div><!-- /tc-hero -->
 
@@ -1291,7 +1304,47 @@
         </div>
       </div><!-- /tc-work: only trip params -->
 
-      <div class="tc-costs-visual">
+      <div class="tc-route-tools">
+            <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
+            <div class="tc-maps-box full-only">
+                <div class="tc-tools-title">🗺️ Розрахунок відстані Google Maps</div>
+                <div class="form-row two-cols">
+                    <label>Пункт 0 (Стоянка авто - опц.):</label>
+                    <div id="osm-base-wrap"></div>
+                    <input type="hidden" id="osm-base">
+                </div>
+                <div class="form-row two-cols">
+                    <label>Пункт A (Завантаження):</label>
+                    <div id="osm-from-wrap"></div>
+                    <input type="hidden" id="osm-from">
+                </div>
+                <div class="form-row two-cols">
+                    <label>Пункт B (Розвантаження):</label>
+                    <div id="osm-to-wrap"></div>
+                    <input type="hidden" id="osm-to">
+                </div>
+                <div id="waypoints-list"></div>
+                <button type="button" class="preset-btn" style="margin-bottom: 6px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
+                <button type="button" class="btn" style="width: 100%;" onclick="calculateGoogleRoute()">Розрахувати відстань</button>
+                <div id="osm-status" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
+            </div>
+            <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>📍 Пошук АЗС, стоянок TIR, кафе і СТО вздовж маршруту</small></div>
+            <div class="poi-box full-only">
+                <div class="tc-tools-title">📍 Об'єкти вздовж маршруту</div>
+                <div class="poi-checks">
+                    <label><input type="checkbox" id="poi-gas" checked style="width:auto;"> ⛽ АЗС</label>
+                    <label><input type="checkbox" id="poi-tir" checked style="width:auto;"> 🅿️ TIR</label>
+                    <label><input type="checkbox" id="poi-cafe" style="width:auto;"> ☕ Кафе</label>
+                    <label><input type="checkbox" id="poi-sto" style="width:auto;"> 🔧 СТО</label>
+                </div>
+                <button type="button" class="btn" style="width: 100%;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти</button>
+                <div id="poi-status" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
+                <div id="poi-results" style="margin-top: 6px;"></div>
+            </div>
+      </div>
+    </div><!-- /tc-deck -->
+
+    <div class="tc-costs-visual">
         <div class="card">
             <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
             <div class="tc-costs-body" id="bar-chart">
@@ -1318,8 +1371,7 @@
                 </table>
             </div>
         </div>
-      </div>
-    </div><!-- /tc-deck -->
+    </div>
 
     <div class="tc-lower">
             <div class="card">
