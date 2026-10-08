@@ -749,6 +749,13 @@
             .tc-kpi .kpi-chip:nth-child(n+4) { display: block; }
             .kpi-value { font-size: 0.88rem; }
         }
+        @media (max-width: 900px) {
+            .tc-topbar { grid-template-columns: 1fr; justify-items: stretch; }
+            .tc-meta, .tc-brand, .tc-actions { justify-self: stretch; }
+            .tc-brand { justify-content: flex-start; }
+            .tc-actions { justify-content: flex-end; }
+            .brand-title { font-size: 1.2rem; letter-spacing: 0.1em; }
+        }
         @media (max-width: 700px) {
             .tc-kpi { grid-template-columns: repeat(2, 1fr); }
             .tc-kpi .kpi-chip:last-child { grid-column: 1 / -1; }
@@ -760,6 +767,7 @@
             .tc-actions { margin-left: 0; width: 100%; justify-content: flex-end; }
             .tc-map-frame { height: 240px; min-height: 220px; }
             .tc-action-btn .tc-action-label { display: none; }
+            .kpi-value { transform: scaleX(1.06); font-size: 0.95rem; }
         }
     </style>
     <!-- Supabase. Google Maps вантажиться динамічно (loadGoogleMaps) і ТІЛЬКИ для повного доступу —
