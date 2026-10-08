@@ -315,6 +315,22 @@
         .tc-maps-box {
             border-style: dashed; border-color: rgba(245,158,11,0.35);
             background: rgba(245, 158, 11, 0.08);
+            overflow: visible; /* підказки Places не обрізати */
+            position: relative; z-index: 20;
+        }
+        /* Places dropdown: батьки не кліпають; blur на card теж кліпає overflow у WebKit/Chromium */
+        .tc-deck,
+        .tc-work,
+        .tc-route-tools,
+        #round-trip-box,
+        #waypoints-list {
+            overflow: visible;
+        }
+        .card:has(.tc-place-field),
+        .form-row:has(.tc-place-field) {
+            overflow: visible !important;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
         }
         .tc-maps-box .tc-tools-title,
         .tc-route-tools .poi-box .tc-tools-title {
@@ -329,44 +345,75 @@
         .tc-route-tools .form-row label {
             font-size: 0.68rem; color: var(--text-muted); line-height: 1.2;
         }
-        /* Поля Google Places — як select/input у «Параметри рейсу» */
+        /* Поля Google Places — хром як select; дропдаун через ::part, без кліпу */
         .tc-place-field {
             width: 100%; min-width: 0;
             background: var(--input-bg);
             border: 1px solid var(--border-color);
             border-radius: 6px;
             min-height: 34px;
-            height: 34px;
-            overflow: hidden;
+            overflow: visible;
             transition: border-color 0.15s, box-shadow 0.15s;
-            display: flex; align-items: stretch;
+            position: relative; z-index: 1;
         }
         .tc-place-field:focus-within {
             border-color: var(--steel);
             box-shadow: 0 0 0 3px rgba(125,211,252,0.12);
+            z-index: 120;
         }
         .tc-place-field gmp-place-autocomplete {
             width: 100% !important;
-            flex: 1 1 auto;
-            height: 32px !important;
-            min-height: 32px !important;
-            max-height: 32px !important;
+            min-height: 34px !important;
+            height: auto !important;
+            max-height: none !important;
             display: block !important;
             background: transparent !important;
             color: var(--text-main) !important;
             border: none !important;
-            border-radius: 0 !important;
-            padding: 0 8px !important;
+            border-radius: 6px !important;
+            padding: 0 !important;
             margin: 0 !important;
             font-size: 0.84rem !important;
             font-family: var(--font-ui) !important;
+            overflow: visible !important;
             color-scheme: dark;
-            --gmp-mat-color-surface: transparent;
+            /* surface лишаємо непрозорим — інакше prediction-list стає невидимим */
+            --gmp-mat-color-surface: var(--input-bg);
             --gmp-mat-color-on-surface: var(--text-main);
             --gmp-mat-color-on-surface-variant: var(--text-muted);
             --gmp-mat-color-primary: var(--steel);
             --gmp-mat-color-outline: transparent;
             --gmp-mat-color-outline-decorative: transparent;
+        }
+        .tc-place-field gmp-place-autocomplete::part(input) {
+            background: transparent;
+            color: var(--text-main);
+            font-size: 0.84rem;
+            font-family: var(--font-ui);
+            padding: 6px 8px;
+            min-height: 32px;
+            box-shadow: none;
+            outline: none;
+        }
+        .tc-place-field gmp-place-autocomplete::part(prediction-list) {
+            background: var(--input-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+            margin-top: 4px;
+            z-index: 200;
+            overflow: auto;
+            max-height: min(280px, 50vh);
+        }
+        .tc-place-field gmp-place-autocomplete::part(prediction-item),
+        .tc-place-field gmp-place-autocomplete::part(prediction-item-main-text),
+        .tc-place-field gmp-place-autocomplete::part(prediction-item-secondary-text) {
+            color: var(--text-main);
+            font-family: var(--font-ui);
+        }
+        .tc-place-field gmp-place-autocomplete::part(prediction-item-selected) {
+            background: color-mix(in srgb, var(--steel) 18%, var(--input-bg));
         }
         [data-theme="light"] .tc-place-field gmp-place-autocomplete { color-scheme: light; }
         .tc-route-tools .btn,
@@ -589,11 +636,13 @@
             border: 1px solid var(--border-color) !important;
             border-radius: 6px !important;
             min-height: 34px !important;
-            height: 34px !important;
-            padding: 0 8px !important;
+            height: auto !important;
+            max-height: none !important;
+            padding: 0 !important;
             font-size: 0.84rem !important;
             font-family: var(--font-ui) !important;
             box-sizing: border-box !important;
+            overflow: visible !important;
             color-scheme: dark;
             --gmp-mat-color-surface: var(--input-bg);
             --gmp-mat-color-on-surface: var(--text-main);
@@ -3050,6 +3099,9 @@
 
         const el = new PlaceAutocompleteElement({ includedRegionCodes: ['ua'] });
         el.placeholder = placeholderText;
+        // Офіційні прапорці UI (не чіпаємо shadow DOM — від того зникав dropdown)
+        el.noInputIcon = true;
+        el.noClearButton = true;
         wrap.classList.add('tc-place-field');
         wrap.innerHTML = ''; // прибираємо можливий попередній віджет — інакше при повторному виклику поле дублюється
         wrap.appendChild(el);
@@ -3061,40 +3113,24 @@
             calculate();
         });
 
-        // Фолбек: якщо людина просто вводить текст і не обирає підказку зі списку —
-        // дзеркалимо сирий ввід, щоб поле й далі приймало довільний текст, як і раніше.
-        let inputBound = false;
-        const syncInputLook = () => {
-            const root = el.shadowRoot;
-            const inp = el.inputElement || (root && root.querySelector('input'));
-            if (!inp) return;
-            inp.style.background = 'transparent';
-            inp.style.color = getComputedStyle(document.body).getPropertyValue('--text-main').trim() || '#e8edf5';
-            inp.style.border = 'none';
-            inp.style.outline = 'none';
-            inp.style.boxShadow = 'none';
-            inp.style.fontSize = '0.84rem';
-            inp.style.fontFamily = getComputedStyle(document.body).getPropertyValue('--font-ui').trim() || 'IBM Plex Sans, sans-serif';
-            inp.style.height = '32px';
-            inp.style.padding = '6px 0';
-            inp.style.textAlign = 'left';
-            inp.style.width = '100%';
-            // Ховаємо внутрішні іконки Google, щоб поле виглядало як звичайний select/input
-            if (root) {
-                root.querySelectorAll('button, .clear-button, [class*="icon"], [part*="icon"], svg').forEach(node => {
-                    if (node === inp || inp.contains(node)) return;
-                    try { node.style.display = 'none'; } catch (e) {}
-                });
-            }
-            if (!inputBound) {
-                inputBound = true;
-                inp.addEventListener('input', () => { hidden.value = inp.value; });
-            }
+        // Фолбек: сирий ввід без вибору зі списку — дзеркалимо в hidden input.
+        // Без стилізації shadowRoot: вигляд через CSS ::part(input).
+        const mirrorValue = () => {
+            hidden.value = (typeof el.value === 'string' ? el.value : '') ||
+                (el.inputElement && el.inputElement.value) ||
+                hidden.value;
         };
-        syncInputLook();
-        // Shadow DOM інколи з’являється з затримкою
-        setTimeout(syncInputLook, 50);
-        setTimeout(syncInputLook, 250);
+        el.addEventListener('input', mirrorValue);
+        let inputBound = false;
+        const bindInputMirror = () => {
+            const inp = el.inputElement || (el.shadowRoot && el.shadowRoot.querySelector('input'));
+            if (!inp || inputBound) return;
+            inputBound = true;
+            inp.addEventListener('input', () => { hidden.value = inp.value; });
+        };
+        bindInputMirror();
+        setTimeout(bindInputMirror, 50);
+        setTimeout(bindInputMirror, 250);
 
         return el;
     }
