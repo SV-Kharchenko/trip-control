@@ -1,20 +1,32 @@
 # Supabase (TRIP-CONTROL)
 
-## Week-1 security migration
+## Week-1 security migration ✅
 
 Файл: `migrations/20261008_week1_rls_and_limits.sql`
 
-Увімкнює RLS на `profiles`, `organizations`, `company_settings`, `calculations`, `usage_counters`; блокує клієнтську зміну `role` / `is_approved` / `org.status`; обмежує демо-збереження (3) на рівні БД; тримає `bump_calc_usage` для серверного денного ліміту розрахунків.
+RLS на `profiles`, `organizations`, `company_settings`, `calculations`, `usage_counters`; блок `role` / `is_approved` / `org.status`; демо-save ≤ 3; `bump_calc_usage`.
+
+## Week-2 security migration
+
+Файл: `migrations/20261008_week2_admin_auth_audit.sql`
+
+- Таблиця `org_company_profiles` (PII компанії) + backfill з `company_settings`
+- `security_audit_log` + тригер на зміни профілю
+- `is_platform_admin()` — admin бачить усі org/profiles/settings (CRM)
+- Операційні норми лишаються в `company_settings` без `co*` ключів
 
 ### Як застосувати (ручна дія)
 
-1. Відкрийте [Supabase Dashboard](https://supabase.com/dashboard) → проєкт TRIP-CONTROL → **SQL Editor**.
-2. Вставте вміст `migrations/20261008_week1_rls_and_limits.sql` і виконайте.
-3. Перевірте **Authentication → Policies** (або Table Editor → RLS): політики з’явились, RLS увімкнено.
-4. Smoke-тест:
-   - логін демо-юзера → SELECT лише своєї org;
-   - спроба `update profiles set is_approved = true` з anon-ключа клієнта → помилка;
-   - 4-те збереження розрахунку в демо → `DEMO_SAVE_LIMIT`;
-   - `/api/calculate` для демо далі рахує ліміт через RPC.
+1. [Supabase Dashboard](https://supabase.com/dashboard) → **SQL Editor**.
+2. Вставте **вміст** файлу міграції (не шлях) і **Run**.
+3. Спочатку week-1 (якщо ще ні), потім week-2.
+4. Smoke week-2:
+   - зберегти вкладку «Компанія» → рядок у `org_company_profiles`, запис у `security_audit_log`;
+   - звичайний юзер не читає чужі org;
+   - `role = admin` може `select` усі `org_company_profiles`.
 
-`service_role` (Vercel env `SUPABASE_SERVICE_ROLE_KEY`) обходить RLS — ним користуються лише Edge/API функції, ніколи фронт.
+Auth / MFA / Confirm email: `docs/AUTH-HARDENING.md`.  
+Секрети: `docs/SECRETS.md`.  
+Webhook оплати: `api/billing-webhook.js` + env `BILLING_WEBHOOK_SECRET`.
+
+`service_role` (Vercel `SUPABASE_SERVICE_ROLE_KEY`) — лише `/api/*`, ніколи фронт.

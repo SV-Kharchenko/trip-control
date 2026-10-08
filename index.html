@@ -1065,7 +1065,7 @@
                 <input type="email" id="auth-email" placeholder="Користувач або email" autocomplete="email" style="text-align: left;">
             </div>
             <div class="form-row two-cols" style="margin-bottom: 8px; grid-template-columns: 1fr;">
-                <input type="password" id="auth-password" placeholder="Пароль" autocomplete="current-password" style="text-align: left;">
+                <input type="password" id="auth-password" placeholder="Пароль (мін. 8, літера + цифра)" autocomplete="current-password" minlength="8" style="text-align: left;">
             </div>
             <a class="auth-forgot" href="#" onclick="return false;">Забули пароль?</a>
             <div id="signup-extra">
@@ -1668,7 +1668,8 @@
     let currentOrgId = null;
     let companyName = '';
     let companyTax = 'фоп';
-    let companySettings = {}; // company_settings.settings (JSON з особистого кабінету)
+    let companySettings = {}; // company_settings.settings (операційні норми, без PII)
+    let companyProfile = {};  // org_company_profiles (ЄДРПОУ, телефон тощо)
 
     let savedCalculations = [];
     let calcRequestId = 0; // захист від застарілих відповідей при швидкому вводі
@@ -1839,6 +1840,11 @@
                     .from('company_settings').select('settings').eq('org_id', profile.org_id).maybeSingle();
                 companySettings = (cs && cs.settings) || {};
             } catch (e) { companySettings = {}; }
+            try {
+                const { data: cp } = await supabaseClient
+                    .from('org_company_profiles').select('*').eq('org_id', profile.org_id).maybeSingle();
+                companyProfile = cp || {};
+            } catch (e) { companyProfile = {}; }
 
             // Порожній кабінет (новий демо) → стартовий шаблон, щоб можна було порахувати одразу
             await ensureStarterTemplate();
@@ -1913,6 +1919,42 @@
         try { await calculate(); } finally { btn.disabled = false; }
     }
 
+    const AUTH_RATE = { maxFails: 5, lockMs: 15 * 60 * 1000, key: 'tc_auth_fails' };
+    function authRateState() {
+        try {
+            const raw = sessionStorage.getItem(AUTH_RATE.key);
+            return raw ? JSON.parse(raw) : { n: 0, until: 0 };
+        } catch (e) { return { n: 0, until: 0 }; }
+    }
+    function authRateSave(s) {
+        try { sessionStorage.setItem(AUTH_RATE.key, JSON.stringify(s)); } catch (e) {}
+    }
+    function authRateLocked() {
+        const s = authRateState();
+        if (s.until && Date.now() < s.until) {
+            const min = Math.ceil((s.until - Date.now()) / 60000);
+            return 'Забагато спроб входу. Спробуйте через ~' + min + ' хв.';
+        }
+        return null;
+    }
+    function authRateFail() {
+        const s = authRateState();
+        s.n = (s.n || 0) + 1;
+        if (s.n >= AUTH_RATE.maxFails) {
+            s.until = Date.now() + AUTH_RATE.lockMs;
+            s.n = 0;
+        }
+        authRateSave(s);
+    }
+    function authRateOk() { authRateSave({ n: 0, until: 0 }); }
+    function passwordStrongEnough(pw) {
+        if (!pw || pw.length < 8) return 'Пароль мінімум 8 символів.';
+        if (!/[A-Za-zА-Яа-яІіЇїЄєҐґ]/.test(pw) || !/\d/.test(pw)) {
+            return 'Пароль має містити літеру та цифру.';
+        }
+        return null;
+    }
+
     async function handleAuth(type) {
         const email = document.getElementById('auth-email').value.trim();
         const password = document.getElementById('auth-password').value.trim();
@@ -1926,10 +1968,19 @@
         }
 
         if (type === 'login') {
+            const locked = authRateLocked();
+            if (locked) { authMsg.innerText = locked; return; }
             const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) authMsg.innerText = 'Помилка входу: ' + error.message;
-            else checkUserAccess();
+            if (error) {
+                authRateFail();
+                authMsg.innerText = 'Помилка входу: ' + error.message;
+            } else {
+                authRateOk();
+                checkUserAccess();
+            }
         } else {
+            const weak = passwordStrongEnough(password);
+            if (weak) { authMsg.innerText = weak; return; }
             const box = document.getElementById('signup-extra');
             if (box.style.display !== 'block') {
                 // Перший клік: показуємо поля компанії
@@ -1941,12 +1992,14 @@
             const company = document.getElementById('auth-company').value.trim();
             const taxMode = document.getElementById('auth-tax').value;
             if (!company) { authMsg.innerText = 'Введіть назву компанії або ФОП.'; return; }
-            const { error } = await supabaseClient.auth.signUp({
+            const { data, error } = await supabaseClient.auth.signUp({
                 email, password,
                 options: { data: { company_name: company, tax_mode: taxMode } }
             });
             if (error) authMsg.innerText = 'Помилка реєстрації: ' + error.message;
-            else {
+            else if (data && data.user && !data.session) {
+                authMsg.innerText = '✅ Акаунт створено. Підтвердіть email за посиланням у листі, потім увійдіть.';
+            } else {
                 authMsg.innerText = '✅ Акаунт створено. Відкриваємо демо з стартовим шаблоном…';
                 setTimeout(() => checkUserAccess(), 1500);
             }
@@ -2159,25 +2212,36 @@
 
     const OPT_ON_OFF = [['on', 'Увімкнено'], ['off', 'Вимкнено']];
     // Профіль компанії (вкладка Компанія). Обов'язкові лише назва + оподаткування.
+    // key = UI id; col = колонка org_company_profiles (PII окремо від company_settings)
     const COMPANY_PROFILE_FIELDS = [
-        { key: 'coCountry', label: 'Країна', text: true, max: 80 },
-        { key: 'coEdrpou', label: 'ЄДРПОУ / ІПН', text: true, max: 20 },
-        { key: 'coOwnership', label: 'Форма власності', select: [
+        { key: 'coCountry', col: 'country', label: 'Країна', text: true, max: 80 },
+        { key: 'coEdrpou', col: 'edrpou', label: 'ЄДРПОУ / ІПН', text: true, max: 20 },
+        { key: 'coOwnership', col: 'ownership', label: 'Форма власності', select: [
             ['', '—'], ['тов', 'ТОВ'], ['fop', 'ФОП'], ['at', 'АТ'], ['other', 'Інше']
         ] },
-        { key: 'coCity', label: 'Місто / Регіон', text: true, max: 100 },
-        { key: 'coAddress', label: 'Адреса', text: true, max: 160 },
-        { key: 'coZip', label: 'Поштовий індекс', text: true, max: 16 },
-        { key: 'coTimezone', label: 'Часовий пояс', select: [
+        { key: 'coCity', col: 'city', label: 'Місто / Регіон', text: true, max: 100 },
+        { key: 'coAddress', col: 'address', label: 'Адреса', text: true, max: 160 },
+        { key: 'coZip', col: 'zip', label: 'Поштовий індекс', text: true, max: 16 },
+        { key: 'coTimezone', col: 'timezone', label: 'Часовий пояс', select: [
             ['', '—'], ['Europe/Kyiv', 'Europe/Kyiv'], ['Europe/Warsaw', 'Europe/Warsaw'], ['UTC', 'UTC']
         ] },
-        { key: 'coPhone', label: 'Телефон', text: true, max: 40 },
-        { key: 'coWebsite', label: 'Веб-сайт', text: true, max: 120 },
-        { key: 'coReportEmail', label: 'Email для звітів', text: true, max: 120 },
-        { key: 'coLang', label: 'Мова інтерфейсу', select: [
+        { key: 'coPhone', col: 'phone', label: 'Телефон', text: true, max: 40 },
+        { key: 'coWebsite', col: 'website', label: 'Веб-сайт', text: true, max: 120 },
+        { key: 'coReportEmail', col: 'report_email', label: 'Email для звітів', text: true, max: 120 },
+        { key: 'coLang', col: 'lang', label: 'Мова інтерфейсу', select: [
             ['uk', 'Українська'], ['en', 'English'], ['pl', 'Polski']
         ] }
     ];
+    function profileValue(f) {
+        if (companyProfile && companyProfile[f.col] != null && companyProfile[f.col] !== '') {
+            return companyProfile[f.col];
+        }
+        // fallback зі старих збережень у company_settings (до міграції week-2)
+        if (companySettings && companySettings[f.key] != null && companySettings[f.key] !== '') {
+            return companySettings[f.key];
+        }
+        return '';
+    }
     const CAB_SECTIONS = [
         { title: 'Парк і накладні', tab: 'Парк', ico: '🚛', fields: [
             { key: 'totalFleet', id: 'total-fleet', label: 'Всього авто в парку', unit: 'шт' },
@@ -2428,8 +2492,8 @@
         COMPANY_PROFILE_FIELDS.forEach(f => {
             const el = document.getElementById('cab-' + f.key);
             if (!el) return;
-            const v = companySettings[f.key];
-            if (v !== undefined && v !== null && v !== '') el.value = v;
+            const v = profileValue(f);
+            if (v !== '') el.value = v;
             else el.value = f.select ? (f.select[0][0] || '') : '';
         });
         updateCabVisibility();
@@ -2453,6 +2517,7 @@
 
         const next = Object.assign({}, companySettings);
         LEGACY_SETTINGS_KEYS.forEach(k => { delete next[k]; });
+        COMPANY_PROFILE_FIELDS.forEach(f => { delete next[f.key]; }); // PII більше не в company_settings
         for (const key of Object.keys(SETTINGS_MAP)) {
             const f = SETTINGS_MAP[key];
             const raw = document.getElementById('cab-' + key).value;
@@ -2462,12 +2527,12 @@
             if (isNaN(n) || n < 0) { setMsg('Некоректне значення в полі «' + f.label + '».', true); return; }
             next[key] = n;
         }
+        const profileRow = { org_id: currentOrgId, updated_at: new Date().toISOString() };
         COMPANY_PROFILE_FIELDS.forEach(f => {
             const el = document.getElementById('cab-' + f.key);
             if (!el) return;
             const raw = (el.value || '').trim();
-            if (!raw) { delete next[f.key]; return; }
-            next[f.key] = raw;
+            profileRow[f.col] = raw || null;
         });
 
         const btn = document.getElementById('cab-save-btn');
@@ -2478,7 +2543,10 @@
             const r2 = await supabaseClient.from('company_settings')
                 .upsert({ org_id: currentOrgId, settings: next, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
             if (r2 && r2.error) throw r2.error;
-            companyName = name; companyTax = tax; companySettings = next;
+            const r3 = await supabaseClient.from('org_company_profiles')
+                .upsert(profileRow, { onConflict: 'org_id' });
+            if (r3 && r3.error) throw r3.error;
+            companyName = name; companyTax = tax; companySettings = next; companyProfile = profileRow;
             applySettingsToForm();
             calculate();
             setMsg('✅ Збережено. Значення підставлено в калькулятор.');
