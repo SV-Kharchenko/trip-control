@@ -1857,6 +1857,9 @@
         }
     }
 
+    // Google Maps JS key (browser). Обмежте HTTP referrer + API у Google Cloud — див. docs/GOOGLE-MAPS-API-KEY.md
+    const GOOGLE_MAPS_BROWSER_KEY = 'AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk';
+
     // Завантаження скрипта Google Maps один раз, лише коли він справді потрібен
     let googleMapsPromise = null;
     function loadGoogleMaps() {
@@ -1864,7 +1867,7 @@
         googleMapsPromise = new Promise((resolve, reject) => {
             if (window.google && window.google.maps) { resolve(); return; }
             const s = document.createElement('script');
-            s.src = 'https://maps.googleapis.com/maps/api/js?key=AIzaSyASPRpvSkldFZv_t01EMinfma008wAThJk&libraries=places,geometry';
+            s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY) + '&libraries=places,geometry';
             s.async = true;
             s.onload = () => resolve();
             s.onerror = () => { googleMapsPromise = null; reject(new Error('script load error')); };
@@ -3417,7 +3420,16 @@
         resultsBox.appendChild(row);
     }
 
-    // Локальний прев’ю UI без логіну: ?preview=1
+    // UI-прев’ю без логіну (?preview=1) — лише localhost / явний staging-хост, не prod
+    function isUiPreviewHostAllowed() {
+        const h = (location.hostname || '').toLowerCase();
+        if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') return true;
+        if (location.protocol === 'file:') return true;
+        // Додайте сюди staging-хост за потреби, напр. 'staging.example.com'
+        if (h === 'staging' || h.startsWith('staging.') || h.includes('staging-')) return true;
+        return false;
+    }
+
     function showUiPreview() {
         isDemo = true;
         document.body.classList.add('demo-mode');
@@ -3453,7 +3465,8 @@
         updateRouteBar();
         updateDeckClock();
         setInterval(updateDeckClock, 1000);
-        if (new URLSearchParams(location.search).get('preview') === '1') {
+        const wantPreview = new URLSearchParams(location.search).get('preview') === '1';
+        if (wantPreview && isUiPreviewHostAllowed()) {
             showUiPreview();
             return;
         }

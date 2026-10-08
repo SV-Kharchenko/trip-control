@@ -30,11 +30,14 @@ export default async function handler(req, res) {
         }
         const { data: profile } = await supabase
             .from('profiles')
-            .select('is_approved')
+            .select('is_approved, organizations(status)')
             .eq('id', user.id)
             .single();
         if (!profile || !profile.is_approved) {
             return res.status(403).json({ error: 'Акаунт очікує підтвердження адміністратора.' });
+        }
+        if (profile.organizations && profile.organizations.status === 'blocked') {
+            return res.status(403).json({ code: 'ORG_BLOCKED', error: 'Доступ компанії заблоковано адміністратором.' });
         }
 
         const body = req.body || {};

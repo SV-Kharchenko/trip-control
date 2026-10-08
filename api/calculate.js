@@ -53,11 +53,11 @@ export default async function handler(req, res) {
             });
         }
 
-        // --- Демо-режим: акаунт без схвалення (is_approved = false) теж може рахувати, але з лімітом на добу ---
+        // --- Демо-режим: ліміт лише з профілю в БД (is_approved). Клієнтський isDemo / ?preview ігнорується. ---
         const isDemo = !profile.is_approved;
         let demoInfo = null;
         if (isDemo) {
-            // Лічильник атомарний на рівні бази: паралельними запитами ліміт не обійти
+            // Лічильник атомарний на рівні бази (RPC bump_calc_usage); паралельними запитами ліміт не обійти
             const { data: allowed, error: bumpError } = await supabase.rpc('bump_calc_usage', {
                 p_org: profile.org_id,
                 p_limit: DEMO_DAILY_LIMIT
