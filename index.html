@@ -54,14 +54,16 @@
             background-repeat: no-repeat;
         }
         [data-theme="light"] body {
+            background-color: #eef2f7;
             background-image:
-                linear-gradient(165deg, rgba(248,250,252,0.82), rgba(241,245,249,0.78) 50%, rgba(248,250,252,0.88)),
+                linear-gradient(165deg, rgba(248,250,252,0.94), rgba(241,245,249,0.92) 48%, rgba(248,250,252,0.96)),
                 url('assets/bg-network.jpg');
             background-size: auto, cover;
             background-position: center, center;
             background-attachment: fixed, fixed;
+            background-blend-mode: normal, luminosity;
         }
-        h1, h2, .brand-title, .donut-total { font-family: var(--font-display); }
+        h1, h2, .brand-title { font-family: var(--font-display); }
         .container { max-width: 1520px; margin: 0 auto; display: none; }
         .container.tc-enter { animation: tcFadeIn 0.5s ease both; }
         @keyframes tcFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -82,7 +84,7 @@
             margin-bottom: 10px;
             box-shadow: 0 10px 28px rgba(0,0,0,0.22);
             overflow: hidden;
-            min-height: 58px;
+            min-height: 68px;
         }
         .tc-topbar::before {
             content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
@@ -96,7 +98,7 @@
         .tc-meta {
             display: flex; align-items: center; min-width: 0; width: 100%;
             justify-self: start; position: relative; z-index: 1; grid-column: 1;
-            overflow: hidden; padding-right: 200px; /* місце під абсолютний логотип */
+            overflow: hidden; padding-right: 300px; /* місце під абсолютний логотип */
         }
         /* Одна смуга: ДП зліва + курси + конвертер */
         .tc-rates-strip {
@@ -132,20 +134,24 @@
             display: flex; align-items: center; justify-content: center; gap: 8px;
             position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
             z-index: 3; text-align: center; pointer-events: none;
-            padding: 4px 12px; border-radius: 10px;
-            background: linear-gradient(180deg, color-mix(in srgb, var(--card-bg) 96%, #1e2430), var(--card-bg));
-            box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-color) 70%, transparent);
-            max-width: min(360px, 40vw);
+            padding: 0; border-radius: 10px;
+            background: transparent; box-shadow: none;
+            max-width: min(420px, 48vw);
         }
         .tc-brand .tc-demo-badge, .tc-brand .brand-title { pointer-events: auto; }
         .tc-brand-mark {
-            width: auto; height: 40px; border-radius: 8px; flex-shrink: 0;
-            border: 1px solid rgba(184,151,90,0.45);
+            width: auto; height: 52px; border-radius: 10px; flex-shrink: 0;
+            border: 1px solid rgba(184,151,90,0.5);
             overflow: hidden; background: #000b1e;
-            box-shadow: 0 0 14px rgba(184,151,90,0.22);
+            box-shadow: 0 4px 18px rgba(0,0,0,0.35), 0 0 0 1px rgba(184,151,90,0.15);
         }
         .tc-brand-mark img {
-            display: block; height: 40px; width: auto; max-width: 168px; object-fit: cover; object-position: left center;
+            display: block; height: 52px; width: auto; max-width: 280px;
+            object-fit: contain; object-position: center;
+        }
+        [data-theme="light"] .tc-brand-mark {
+            border-color: rgba(2,132,199,0.35);
+            box-shadow: 0 4px 16px rgba(15,23,42,0.12), 0 0 0 1px rgba(2,132,199,0.12);
         }
         .brand-title { display: none; }
         .brand-sub { display: none; }
@@ -159,7 +165,7 @@
         .tc-actions {
             display: flex; align-items: center; gap: 6px; justify-self: end; width: 100%;
             position: relative; z-index: 1; grid-column: 2; justify-content: flex-end;
-            padding-left: 220px;
+            padding-left: 300px;
         }
         .tc-icon-btn {
             width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border-color);
@@ -301,15 +307,22 @@
             min-height: 72px; padding: 12px; margin: 0;
         }
         .tc-maps-box, .tc-route-tools .poi-box {
-            background: rgba(245, 158, 11, 0.06);
+            background: var(--card-bg);
             border: 1px solid var(--border-color);
-            border-radius: 10px; padding: 10px 12px; margin: 0;
+            border-radius: 14px; padding: 12px 12px 12px 14px; margin: 0;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04);
+            backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass);
+            position: relative;
         }
         .tc-maps-box {
-            border-style: dashed; border-color: rgba(245,158,11,0.35);
-            background: rgba(245, 158, 11, 0.08);
             overflow: visible; /* підказки Places не обрізати */
-            position: relative; z-index: 20;
+            z-index: 20;
+        }
+        .tc-maps-box::before,
+        .tc-route-tools .poi-box::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+            background: linear-gradient(180deg, var(--amber), color-mix(in srgb, var(--steel) 70%, transparent));
+            opacity: 0.85; border-radius: 14px 0 0 14px;
         }
         /* Places dropdown: батьки не кліпають; blur на card теж кліпає overflow у WebKit/Chromium */
         .tc-deck,
@@ -431,10 +444,12 @@
             display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
         }
         .tc-costs-visual .cost-scale-total {
-            font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--text-main);
+            font-family: var(--font-ui); font-weight: 700; font-size: 0.95rem; color: var(--text-main);
+            letter-spacing: 0;
         }
         .tc-costs-visual .cost-scale-label {
-            font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+            font-family: var(--font-ui); font-size: 0.65rem; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.06em;
         }
         .tc-costs-visual .cost-scale-bar {
             display: flex; width: 100%; height: 18px; border-radius: 9px; overflow: hidden;
@@ -442,10 +457,10 @@
         }
         .tc-costs-visual .cost-scale-seg { height: 100%; min-width: 0; transition: width 0.35s ease; }
         .tc-costs-visual .donut-legend {
-            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; width: 100%;
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; width: 100%;
         }
-        @media (min-width: 700px) {
-            .tc-costs-visual .donut-legend { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        @media (min-width: 900px) {
+            .tc-costs-visual .donut-legend { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
         .tc-costs-visual .tc-costs-table-wrap {
             margin-top: 14px; padding-top: 12px;
@@ -695,9 +710,10 @@
         }
         [data-theme="light"] #cabinet-screen {
             background:
-                linear-gradient(160deg, rgba(248,250,252,0.88), rgba(241,245,249,0.82)),
+                linear-gradient(160deg, rgba(248,250,252,0.95), rgba(241,245,249,0.93)),
                 url('assets/bg-network.jpg') center / cover no-repeat,
-                #f8fafc;
+                #eef2f7;
+            background-blend-mode: normal, luminosity;
         }
         #cabinet-screen .cab-wrap {
             position: relative; max-width: 1040px; margin: 0 auto;
@@ -720,13 +736,17 @@
             grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 8px;
         }
         #cabinet-screen .cab-brand-mark {
-            width: auto; height: 52px; border-radius: 10px; overflow: hidden;
-            border: 1px solid rgba(184,151,90,0.45); background: #000b1e;
-            box-shadow: 0 0 16px rgba(184,151,90,0.25);
+            width: auto; height: 64px; border-radius: 12px; overflow: hidden;
+            border: 1px solid rgba(184,151,90,0.5); background: #000b1e;
+            box-shadow: 0 0 18px rgba(184,151,90,0.28);
         }
         #cabinet-screen .cab-brand-mark img {
-            display: block; height: 52px; width: auto; max-width: 220px;
-            object-fit: cover; object-position: left center;
+            display: block; height: 64px; width: auto; max-width: 300px;
+            object-fit: contain; object-position: center;
+        }
+        [data-theme="light"] #cabinet-screen .cab-brand-mark {
+            border-color: rgba(2,132,199,0.35);
+            box-shadow: 0 4px 16px rgba(15,23,42,0.1);
         }
         #cabinet-screen .cab-brand h2 { display: none; }
         #cabinet-screen .cab-brand .cab-sub {
@@ -831,8 +851,9 @@
         }
         [data-theme="light"] #admin-screen {
             background:
-                linear-gradient(160deg, rgba(248,250,252,0.88), rgba(241,245,249,0.82)),
+                linear-gradient(160deg, rgba(248,250,252,0.95), rgba(241,245,249,0.93)),
                 url('assets/bg-network.jpg') center / cover no-repeat;
+            background-blend-mode: normal, luminosity;
         }
         #admin-screen .adm-wrap {
             max-width: 960px; margin: 0 auto;
@@ -1002,12 +1023,20 @@
         }
         .donut-center .donut-total { font-size: 0.88rem; font-weight: 800; color: var(--text-main); line-height: 1.2; }
         .donut-center .donut-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; font-family: var(--font-ui); }
-        .donut-legend { display: flex; flex-direction: column; gap: 7px; font-size: 0.76rem; }
-        .donut-legend-row { display: grid; grid-template-columns: 8px 1fr auto auto; gap: 8px; align-items: center; }
-        .donut-legend-row .dot { width: 8px; height: 8px; border-radius: 2px; }
-        .donut-legend-row .name { color: var(--text-muted); }
-        .donut-legend-row .pct { color: var(--steel); font-weight: 700; min-width: 40px; text-align: right; }
-        .donut-legend-row .sum { color: var(--text-main); font-weight: 600; min-width: 84px; text-align: right; }
+        .donut-legend { display: flex; flex-direction: column; gap: 7px; font-size: 0.76rem; font-family: var(--font-ui); }
+        .donut-legend-row {
+            display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 8px 8px; align-items: start;
+            min-width: 0;
+        }
+        .donut-legend-row .dot { width: 8px; height: 8px; border-radius: 2px; margin-top: 5px; flex-shrink: 0; }
+        .donut-legend-row .meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .donut-legend-row .name { color: var(--text-muted); font-family: var(--font-ui); line-height: 1.25; word-break: break-word; }
+        .donut-legend-row .nums {
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+            font-family: var(--font-ui);
+        }
+        .donut-legend-row .pct { color: var(--steel); font-weight: 700; font-family: var(--font-ui); }
+        .donut-legend-row .sum { color: var(--text-main); font-weight: 600; font-family: var(--font-ui); }
 
         table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.82rem; }
         th, td { padding: 7px 8px; text-align: left; border-bottom: 1px solid var(--border-color); }
@@ -1040,13 +1069,13 @@
         }
         .auth-card::before { display: none; }
         .auth-compass {
-            width: auto; height: 56px; margin: 0 auto 14px; border-radius: 10px;
-            border: 1px solid rgba(184,151,90,0.45); background: #000b1e; overflow: hidden;
-            box-shadow: 0 0 18px rgba(184,151,90,0.3);
+            width: auto; height: 72px; margin: 0 auto 16px; border-radius: 12px;
+            border: 1px solid rgba(184,151,90,0.5); background: #000b1e; overflow: hidden;
+            box-shadow: 0 0 22px rgba(184,151,90,0.35);
         }
         .auth-compass img {
-            display: block; height: 56px; width: auto; max-width: 260px;
-            object-fit: cover; object-position: left center;
+            display: block; height: 72px; width: auto; max-width: 340px;
+            object-fit: contain; object-position: center;
         }
         .auth-compass svg { display: none; }
         .auth-card h2 { display: none; }
@@ -3122,10 +3151,10 @@
             const pct = (item.val / total * 100).toFixed(1);
             return '<div class="donut-legend-row">' +
                 '<span class="dot" style="background:' + item.color + '"></span>' +
+                '<div class="meta">' +
                 '<span class="name">' + item.name + '</span>' +
-                '<span class="pct">' + pct + '%</span>' +
-                '<span class="sum">' + formatMoney(item.val) + '</span>' +
-                '</div>';
+                '<div class="nums"><span class="pct">' + pct + '%</span><span class="sum">' + formatMoney(item.val) + '</span></div>' +
+                '</div></div>';
         }).join('');
     }
 
