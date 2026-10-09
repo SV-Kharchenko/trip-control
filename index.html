@@ -131,30 +131,49 @@
         .tc-rates-item a { color: inherit; text-decoration: none; font-weight: 700; }
         .tc-rates-item a:hover { color: var(--steel); }
         .tc-brand {
-            display: flex; align-items: center; justify-content: center; gap: 8px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
             position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
             z-index: 3; text-align: center; pointer-events: none;
             padding: 0; border-radius: 10px;
             background: transparent; box-shadow: none;
-            max-width: min(420px, 48vw);
+            max-width: min(480px, 56vw);
         }
-        .tc-brand .tc-demo-badge, .tc-brand .brand-title { pointer-events: auto; }
-        .tc-brand-mark {
-            display: flex; align-items: center; justify-content: center;
-            width: auto; height: 46px; flex-shrink: 0;
+        .tc-brand .tc-demo-badge, .tc-brand .tc-lockup { pointer-events: auto; }
+        /* Horizontal brand lockup: compass + CSS wordmark */
+        .tc-lockup {
+            display: inline-flex; align-items: center; gap: 0.55em;
             margin: 0; padding: 0; border: none; border-radius: 0;
-            background: none; box-shadow: none; overflow: visible;
+            background: none; box-shadow: none; line-height: 1;
+            max-width: 100%; min-width: 0;
         }
-        .tc-brand-mark img {
-            display: block; height: 46px; width: auto; max-width: 240px;
+        .tc-lockup__compass {
+            display: block; height: 42px; width: auto; flex-shrink: 0;
             margin: 0; padding: 0; border: none; border-radius: 0;
             background: transparent; box-shadow: none;
             object-fit: contain; object-position: center;
         }
-        [data-theme="light"] .tc-brand-mark,
-        [data-theme="light"] .tc-brand-mark img {
-            border: none; background: none; box-shadow: none;
+        .tc-lockup__wordmark {
+            font-family: var(--font-display);
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-main);
+            white-space: nowrap;
+            font-size: 1.12rem;
+            line-height: 1;
         }
+        .tc-lockup--header .tc-lockup__compass { height: 42px; }
+        .tc-lockup--header .tc-lockup__wordmark { font-size: 1.12rem; }
+        .tc-lockup--auth {
+            display: flex; justify-content: center; width: 100%;
+            margin: 0 auto 14px; gap: 12px;
+        }
+        .tc-lockup--auth .tc-lockup__compass { height: 68px; }
+        .tc-lockup--auth .tc-lockup__wordmark { font-size: 1.55rem; }
+        .tc-lockup--cab .tc-lockup__compass { height: 52px; }
+        .tc-lockup--cab .tc-lockup__wordmark { font-size: 1.28rem; }
+        .tc-lockup--crm .tc-lockup__compass { height: 36px; }
+        .tc-lockup--crm .tc-lockup__wordmark { font-size: 0.95rem; }
         .brand-title { display: none; }
         .brand-sub { display: none; }
         .tc-pill {
@@ -737,22 +756,6 @@
         #cabinet-screen .cab-brand {
             grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 8px;
         }
-        #cabinet-screen .cab-brand-mark {
-            display: flex; align-items: center; justify-content: center;
-            width: auto; height: 64px; margin: 0; padding: 0;
-            border: none; border-radius: 0; background: none; box-shadow: none; overflow: visible;
-        }
-        #cabinet-screen .cab-brand-mark img {
-            display: block; height: 64px; width: auto; max-width: 300px;
-            margin: 0; padding: 0; border: none; border-radius: 0;
-            background: transparent; box-shadow: none;
-            object-fit: contain; object-position: center;
-        }
-        [data-theme="light"] #cabinet-screen .cab-brand-mark,
-        [data-theme="light"] #cabinet-screen .cab-brand-mark img {
-            border: none; background: none; box-shadow: none;
-        }
-        #cabinet-screen .cab-brand h2 { display: none; }
         #cabinet-screen .cab-brand .cab-sub {
             font-size: 0.68rem; letter-spacing: 0.08em; text-transform: none; color: var(--text-muted);
         }
@@ -1072,17 +1075,6 @@
             overflow: visible;
         }
         .auth-card::before { display: none; }
-        .auth-compass {
-            display: flex; align-items: center; justify-content: center;
-            width: auto; height: 96px; margin: 0 auto 16px; padding: 0;
-            border: none; border-radius: 0; background: none; box-shadow: none; overflow: visible;
-        }
-        .auth-compass img {
-            display: block; height: 96px; width: auto; max-width: 380px; margin: 0 auto;
-            padding: 0; border: none; border-radius: 0; background: transparent; box-shadow: none;
-            object-fit: contain; object-position: center;
-        }
-        .auth-compass svg { display: none; }
         .auth-card h2 { display: none; }
         .auth-tagline { font-size: 0.84rem; color: #c9d4de; margin-bottom: 8px; line-height: 1.4; }
         .auth-tagline-sub { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 16px; }
@@ -1186,8 +1178,9 @@
 <!-- Екран авторизації -->
 <div id="auth-screen">
     <div class="auth-card">
-        <div class="auth-compass" aria-hidden="true">
-            <img src="assets/logo-trip-control.png" alt="TRIP-CONTROL">
+        <div class="tc-lockup tc-lockup--auth" aria-label="TRIP-CONTROL">
+            <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
+            <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
         </div>
         <h2>TRIP-CONTROL</h2>
         <p class="auth-tagline">Координуй маршрут. Керуй результатом.</p>
@@ -1251,8 +1244,9 @@
                 </div>
             </div>
             <div class="tc-brand">
-                <div class="tc-brand-mark" aria-hidden="true">
-                    <img src="assets/logo-trip-control.png" alt="TRIP-CONTROL">
+                <div class="tc-lockup tc-lockup--header" aria-label="TRIP-CONTROL">
+                    <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
+                    <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
                 </div>
                 <h1 class="brand-title">TRIP-CONTROL</h1>
                 <span class="tc-demo-badge">DEMO</span>
@@ -1767,10 +1761,10 @@
     <div class="cab-wrap">
         <div class="cab-head">
             <div class="cab-brand">
-                <div class="cab-brand-mark" aria-hidden="true">
-                    <img src="assets/logo-trip-control.png" alt="TRIP-CONTROL">
+                <div class="tc-lockup tc-lockup--cab" aria-label="TRIP-CONTROL">
+                    <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
+                    <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
                 </div>
-                <h2>TRIP-CONTROL</h2>
                 <div class="cab-sub">Особистий кабінет</div>
             </div>
             <button type="button" class="cab-close" title="Закрити" onclick="closeCabinet()" aria-label="Закрити">✕</button>
@@ -1788,8 +1782,11 @@
 <div id="admin-screen">
     <div class="adm-wrap">
         <div class="adm-head">
-            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-                <img src="assets/logo-trip-control.png" alt="TRIP-CONTROL" style="height:40px;width:auto;max-width:180px;border:none;border-radius:0;background:transparent;box-shadow:none;object-fit:contain;object-position:center;">
+            <div style="display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap;">
+                <div class="tc-lockup tc-lockup--crm" aria-label="TRIP-CONTROL">
+                    <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
+                    <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
+                </div>
                 <h2 style="margin:0;">Адмін · клієнтська база</h2>
             </div>
             <button type="button" class="cab-close" onclick="closeAdminCrm()" aria-label="Закрити">✕</button>
