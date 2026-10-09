@@ -3522,7 +3522,30 @@
         if (row) row.remove();
     }
 
+    // PlaceAutocompleteElement може тримати текст у віджеті, а hidden — порожній, якщо
+    // користувач не обрав підказку / input-mirror ще не прив’язався. Перед Directions — sync.
+    function syncPlaceHidden(wrapId, hiddenId) {
+        const wrap = document.getElementById(wrapId);
+        const hidden = document.getElementById(hiddenId);
+        if (!wrap || !hidden) return;
+        const el = wrap.querySelector('gmp-place-autocomplete') || wrap.firstElementChild;
+        if (!el) return;
+        const typed = (typeof el.value === 'string' && el.value.trim()) ||
+            (el.inputElement && el.inputElement.value && String(el.inputElement.value).trim()) ||
+            (el.shadowRoot && el.shadowRoot.querySelector('input') && el.shadowRoot.querySelector('input').value.trim()) ||
+            '';
+        if (typed) hidden.value = typed;
+    }
+
     function calculateGoogleRoute() {
+        ['osm-base', 'osm-from', 'osm-to'].forEach(function (id) {
+            syncPlaceHidden(id + '-wrap', id);
+        });
+        document.querySelectorAll('#waypoints-list .waypoint-input').forEach(function (input) {
+            const id = input.id;
+            if (id) syncPlaceHidden(id + '-wrap', id);
+        });
+
         const baseQuery = document.getElementById('osm-base').value.trim();
         const fromQuery = document.getElementById('osm-from').value.trim();
         const toQuery = document.getElementById('osm-to').value.trim();
@@ -3531,6 +3554,16 @@
         if (!fromQuery || !toQuery) {
             statusEl.innerText = '⚠️ Введіть хоча б пункти А та В';
             statusEl.style.color = 'var(--warning)';
+            return;
+        }
+        if (!window.google || !google.maps || !directionsService || !directionsRenderer) {
+            statusEl.innerText = '❌ Google Maps ще не готовий. Оновіть сторінку або перевірте API-ключ.';
+            statusEl.style.color = 'var(--danger)';
+            return;
+        }
+        if (document.querySelector('#map .gm-err-container')) {
+            statusEl.innerText = '❌ Google Maps не завантажився (ключ/домен/білінг). Directions недоступний.';
+            statusEl.style.color = 'var(--danger)';
             return;
         }
         statusEl.innerText = '🔍 Побудова маршруту через Google Maps...';
@@ -3557,15 +3590,41 @@
             provideAlternatives: waypoints.length === 0
         };
 
-        directionsService.route(request, function(response, status) {
-            if (status === 'OK') {
-                lastDirectionsResponse = response;
-                applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
-            } else {
-                statusEl.innerText = '❌ Google Maps: ' + status;
-                statusEl.style.color = 'var(--danger)';
-            }
-        });
+        // Якщо Maps у поломці (ключ/referrer), DirectionsService.route може ніколи не викликати callback —
+        // без таймауту статус зависає на «Побудова маршруту...».
+        let settled = false;
+        const routeTimer = setTimeout(function () {
+            if (settled) return;
+            settled = true;
+            statusEl.innerText = '❌ Google Maps не відповів (Directions). Перевірте API-ключ, Directions API та HTTP-referrer.';
+            statusEl.style.color = 'var(--danger)';
+        }, 20000);
+
+        try {
+            directionsService.route(request, function(response, status) {
+                if (settled) return;
+                settled = true;
+                clearTimeout(routeTimer);
+                try {
+                    if (status === 'OK') {
+                        lastDirectionsResponse = response;
+                        applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
+                    } else {
+                        statusEl.innerText = '❌ Google Maps: ' + status;
+                        statusEl.style.color = 'var(--danger)';
+                    }
+                } catch (err) {
+                    statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
+                    statusEl.style.color = 'var(--danger)';
+                    console.error('applyMainRoute failed', err);
+                }
+            });
+        } catch (err) {
+            settled = true;
+            clearTimeout(routeTimer);
+            statusEl.innerText = '❌ Google Maps: ' + (err && err.message ? err.message : err);
+            statusEl.style.color = 'var(--danger)';
+        }
     }
 
     function routeTotals(route) {
@@ -3607,35 +3666,39 @@
     }
 
     function applyMainRoute(response, routeIndex, baseQuery, fromQuery, toQuery, statusEl) {
-        const idx = Math.max(0, Math.min(routeIndex || 0, (response.routes || []).length - 1));
+        const routes = (response && response.routes) || [];
+        if (!routes.length) throw new Error('порожня відповідь Directions');
+        const idx = Math.max(0, Math.min(routeIndex || 0, routes.length - 1));
+        if (!directionsRenderer) throw new Error('DirectionsRenderer не ініціалізовано');
         try {
-            if (directionsRenderer && directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
+            if (directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
         } catch (e) {}
         directionsRenderer.setDirections(response);
         try {
-            if (directionsRenderer && directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
+            if (directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
         } catch (e) {}
-        const route = response.routes[idx];
+        const route = routes[idx];
         lastRoutePath = route.overview_path;
         clearPOIMarkers();
         renderRouteAlternatives(response, idx);
 
-                let podachaKm = 0;
-                let mainKm = 0;
+        let podachaKm = 0;
+        let mainKm = 0;
+        const legs = route.legs || [];
 
-                if (baseQuery && route.legs.length >= 2) {
-                    podachaKm = Math.round(route.legs[0].distance.value / 1000);
-                    mainKm = Math.round(route.legs.reduce((acc, leg, idx2) => idx2 > 0 ? acc + leg.distance.value : acc, 0) / 1000);
-                } else {
-                    mainKm = Math.round(route.legs.reduce((acc, leg) => acc + leg.distance.value, 0) / 1000);
-                }
+        if (baseQuery && legs.length >= 2) {
+            podachaKm = Math.round(((legs[0].distance && legs[0].distance.value) || 0) / 1000);
+            mainKm = Math.round(legs.reduce((acc, leg, idx2) => idx2 > 0 ? acc + ((leg.distance && leg.distance.value) || 0) : acc, 0) / 1000);
+        } else {
+            mainKm = Math.round(legs.reduce((acc, leg) => acc + ((leg.distance && leg.distance.value) || 0), 0) / 1000);
+        }
 
-                document.getElementById('route-name').value = `${fromQuery} — ${toQuery}`;
-                document.getElementById('podacha-dist').value = podachaKm;
-                document.getElementById('dist').value = mainKm;
+        document.getElementById('route-name').value = `${fromQuery} — ${toQuery}`;
+        document.getElementById('podacha-dist').value = podachaKm;
+        document.getElementById('dist').value = mainKm;
 
-        const altNote = (response.routes && response.routes.length > 1)
-            ? ' · варіант ' + (idx + 1) + '/' + response.routes.length
+        const altNote = routes.length > 1
+            ? ' · варіант ' + (idx + 1) + '/' + routes.length
             : '';
         statusEl.innerText = baseQuery
             ? `✅ Маршрут Google: Подача ${podachaKm} км | Рейс ${mainKm} км` + altNote
