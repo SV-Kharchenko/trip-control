@@ -148,32 +148,33 @@
         }
         .tc-lockup__compass {
             display: block; height: 42px; width: auto; flex-shrink: 0;
-            margin: 0; padding: 0; border: none; border-radius: 0;
+            margin: 0; padding: 0; border: none; border-radius: 50%;
             background: transparent; box-shadow: none;
             object-fit: contain; object-position: center;
         }
         .tc-lockup__wordmark {
-            font-family: var(--font-display);
-            font-weight: 800;
-            letter-spacing: 0.1em;
+            font-family: var(--font-ui);
+            font-weight: 700;
+            letter-spacing: 0.02em;
             text-transform: uppercase;
             color: var(--text-main);
             white-space: nowrap;
-            font-size: 1.12rem;
+            font-size: 1.05rem;
             line-height: 1;
+            font-stretch: normal;
         }
-        .tc-lockup--header .tc-lockup__compass { height: 42px; }
-        .tc-lockup--header .tc-lockup__wordmark { font-size: 1.12rem; }
+        .tc-lockup--header .tc-lockup__compass { height: 40px; }
+        .tc-lockup--header .tc-lockup__wordmark { font-size: 1.05rem; }
         .tc-lockup--auth {
             display: flex; justify-content: center; width: 100%;
-            margin: 0 auto 14px; gap: 12px;
+            margin: 0 auto 14px; gap: 10px;
         }
-        .tc-lockup--auth .tc-lockup__compass { height: 68px; }
-        .tc-lockup--auth .tc-lockup__wordmark { font-size: 1.55rem; }
-        .tc-lockup--cab .tc-lockup__compass { height: 52px; }
-        .tc-lockup--cab .tc-lockup__wordmark { font-size: 1.28rem; }
-        .tc-lockup--crm .tc-lockup__compass { height: 36px; }
-        .tc-lockup--crm .tc-lockup__wordmark { font-size: 0.95rem; }
+        .tc-lockup--auth .tc-lockup__compass { height: 56px; }
+        .tc-lockup--auth .tc-lockup__wordmark { font-size: 1.35rem; font-weight: 700; }
+        .tc-lockup--cab .tc-lockup__compass { height: 44px; }
+        .tc-lockup--cab .tc-lockup__wordmark { font-size: 1.15rem; }
+        .tc-lockup--crm .tc-lockup__compass { height: 32px; }
+        .tc-lockup--crm .tc-lockup__wordmark { font-size: 0.9rem; }
         .brand-title { display: none; }
         .brand-sub { display: none; }
         .tc-pill {
