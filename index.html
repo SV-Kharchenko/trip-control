@@ -140,16 +140,20 @@
         }
         .tc-brand .tc-demo-badge, .tc-brand .brand-title { pointer-events: auto; }
         .tc-brand-mark {
-            width: auto; height: 48px; border-radius: 0; flex-shrink: 0;
-            border: none; overflow: visible; background: transparent;
-            box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+            display: flex; align-items: center; justify-content: center;
+            width: auto; height: 46px; flex-shrink: 0;
+            margin: 0; padding: 0; border: none; border-radius: 0;
+            background: none; box-shadow: none; overflow: visible;
         }
         .tc-brand-mark img {
-            display: block; height: 48px; width: auto; max-width: 260px;
+            display: block; height: 46px; width: auto; max-width: 240px;
+            margin: 0; padding: 0; border: none; border-radius: 0;
+            background: transparent; box-shadow: none;
             object-fit: contain; object-position: center;
         }
-        [data-theme="light"] .tc-brand-mark {
-            box-shadow: 0 4px 16px rgba(15,23,42,0.18);
+        [data-theme="light"] .tc-brand-mark,
+        [data-theme="light"] .tc-brand-mark img {
+            border: none; background: none; box-shadow: none;
         }
         .brand-title { display: none; }
         .brand-sub { display: none; }
@@ -734,16 +738,19 @@
             grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 8px;
         }
         #cabinet-screen .cab-brand-mark {
-            width: auto; height: 64px; border-radius: 0; overflow: visible;
-            border: none; background: transparent;
-            box-shadow: 0 0 18px rgba(184,151,90,0.28);
+            display: flex; align-items: center; justify-content: center;
+            width: auto; height: 64px; margin: 0; padding: 0;
+            border: none; border-radius: 0; background: none; box-shadow: none; overflow: visible;
         }
         #cabinet-screen .cab-brand-mark img {
             display: block; height: 64px; width: auto; max-width: 300px;
+            margin: 0; padding: 0; border: none; border-radius: 0;
+            background: transparent; box-shadow: none;
             object-fit: contain; object-position: center;
         }
-        [data-theme="light"] #cabinet-screen .cab-brand-mark {
-            box-shadow: 0 4px 16px rgba(15,23,42,0.14);
+        [data-theme="light"] #cabinet-screen .cab-brand-mark,
+        [data-theme="light"] #cabinet-screen .cab-brand-mark img {
+            border: none; background: none; box-shadow: none;
         }
         #cabinet-screen .cab-brand h2 { display: none; }
         #cabinet-screen .cab-brand .cab-sub {
@@ -1066,12 +1073,13 @@
         }
         .auth-card::before { display: none; }
         .auth-compass {
-            width: auto; height: 96px; margin: 0 auto 16px; border-radius: 0;
-            border: none; background: transparent; overflow: visible;
-            box-shadow: 0 0 22px rgba(184,151,90,0.35);
+            display: flex; align-items: center; justify-content: center;
+            width: auto; height: 96px; margin: 0 auto 16px; padding: 0;
+            border: none; border-radius: 0; background: none; box-shadow: none; overflow: visible;
         }
         .auth-compass img {
             display: block; height: 96px; width: auto; max-width: 380px; margin: 0 auto;
+            padding: 0; border: none; border-radius: 0; background: transparent; box-shadow: none;
             object-fit: contain; object-position: center;
         }
         .auth-compass svg { display: none; }
@@ -1781,7 +1789,7 @@
     <div class="adm-wrap">
         <div class="adm-head">
             <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-                <img src="assets/logo-trip-control.png" alt="TRIP-CONTROL" style="height:40px;width:auto;max-width:180px;border-radius:0;border:none;background:transparent;object-fit:contain;object-position:center;box-shadow:0 2px 10px rgba(0,0,0,0.25);">
+                <img src="assets/logo-trip-control.png" alt="TRIP-CONTROL" style="height:40px;width:auto;max-width:180px;border:none;border-radius:0;background:transparent;box-shadow:none;object-fit:contain;object-position:center;">
                 <h2 style="margin:0;">Адмін · клієнтська база</h2>
             </div>
             <button type="button" class="cab-close" onclick="closeAdminCrm()" aria-label="Закрити">✕</button>
