@@ -3421,14 +3421,18 @@
         });
 
         directionsService = new google.maps.DirectionsService();
+        // suppressAlternatives: UI кнопок #map-route-alts керує вибором через setRouteIndex —
+        // інакше Google малює всі альти одразу і setRouteIndex до setDirections ламає рендер.
         directionsRenderer = new google.maps.DirectionsRenderer({
             polylineOptions: { strokeColor: '#7dd3fc', strokeWeight: 5, strokeOpacity: 0.95 },
-            suppressMarkers: false
+            suppressMarkers: false,
+            suppressAlternatives: true
         });
         directionsRenderer.setMap(map);
         directionsRendererBackhaul = new google.maps.DirectionsRenderer({
             polylineOptions: { strokeColor: '#f59e0b', strokeWeight: 4, strokeOpacity: 0.9 },
-            suppressMarkers: false
+            suppressMarkers: false,
+            suppressAlternatives: true
         });
         directionsRendererBackhaul.setMap(map);
         const hud = document.getElementById('map-hud-label');
@@ -3579,49 +3583,96 @@
             if (v) waypoints.push({ location: v, stopover: true });
         });
 
-        const request = {
-            origin: originPoint,
-            destination: toQuery,
-            waypoints: waypoints,
-            travelMode: google.maps.TravelMode.DRIVING,
-            provideAlternatives: waypoints.length === 0
-        };
+        // Регресія 7b5a9d0: provideAlternatives:true на типовому A→B (waypoints.length===0)
+        // ламало Directions — callback часто не приходить (симптом → feab858 hang timeout).
+        // ENABLE_ROUTE_ALTERNATIVES=false: primary = шлях ДО alternatives (без provideAlternatives).
+        // UI #map-route-alts лишається; коли увімкнемо — alts-first лише без waypoints, з retry без альтів.
+        const ENABLE_ROUTE_ALTERNATIVES = false;
 
-        // Якщо Maps у поломці (ключ/referrer), DirectionsService.route може ніколи не викликати callback —
-        // без таймауту статус зависає на «Побудова маршруту...».
+        function buildRequest(wantAlts) {
+            const req = {
+                origin: originPoint,
+                destination: toQuery,
+                travelMode: google.maps.TravelMode.DRIVING
+            };
+            if (waypoints.length) req.waypoints = waypoints;
+            if (wantAlts && waypoints.length === 0) req.provideAlternatives = true;
+            return req;
+        }
+
+        const canTryAlts = ENABLE_ROUTE_ALTERNATIVES && waypoints.length === 0;
         let settled = false;
-        const routeTimer = setTimeout(function () {
+        let activeGen = 0;
+        let routeTimer = null;
+
+        function failFinal(msg) {
             if (settled) return;
             settled = true;
-            statusEl.innerText = '❌ Google Maps не відповів (Directions). Перевірте API-ключ, Directions API та HTTP-referrer.';
+            if (routeTimer) clearTimeout(routeTimer);
+            const altsBox = document.getElementById('map-route-alts');
+            if (altsBox) { altsBox.classList.remove('visible'); altsBox.innerHTML = ''; }
+            statusEl.innerText = msg;
             statusEl.style.color = 'var(--danger)';
-        }, 20000);
+        }
 
-        try {
-            directionsService.route(request, function(response, status) {
-                if (settled) return;
+        function onRouteResult(gen, response, status, usedAlts) {
+            if (settled || gen !== activeGen) return;
+            if (status === 'OK') {
                 settled = true;
-                clearTimeout(routeTimer);
+                if (routeTimer) clearTimeout(routeTimer);
                 try {
-                    if (status === 'OK') {
-                        lastDirectionsResponse = response;
-                        applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
-                    } else {
-                        statusEl.innerText = '❌ Google Maps: ' + status;
-                        statusEl.style.color = 'var(--danger)';
-                    }
+                    lastDirectionsResponse = response;
+                    applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
                 } catch (err) {
                     statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
                     statusEl.style.color = 'var(--danger)';
                     console.error('applyMainRoute failed', err);
                 }
-            });
-        } catch (err) {
-            settled = true;
-            clearTimeout(routeTimer);
-            statusEl.innerText = '❌ Google Maps: ' + (err && err.message ? err.message : err);
-            statusEl.style.color = 'var(--danger)';
+                return;
+            }
+            // Alts-first failed → один retry без provideAlternatives
+            if (usedAlts) {
+                statusEl.innerText = '🔍 Повтор без альтернатив (' + status + ')...';
+                statusEl.style.color = 'var(--text-muted)';
+                runAttempt(false);
+                return;
+            }
+            failFinal('❌ Google Maps: ' + status);
         }
+
+        function runAttempt(wantAlts) {
+            if (settled) return;
+            const usedAlts = !!wantAlts;
+            const gen = ++activeGen;
+            const timeoutMs = usedAlts ? 12000 : 20000;
+            if (routeTimer) clearTimeout(routeTimer);
+            routeTimer = setTimeout(function () {
+                if (settled || gen !== activeGen) return;
+                if (usedAlts) {
+                    statusEl.innerText = '🔍 Альтернативи не відповіли — будуємо основний маршрут...';
+                    statusEl.style.color = 'var(--text-muted)';
+                    runAttempt(false);
+                    return;
+                }
+                failFinal('❌ Google Maps не відповів (Directions). Перевірте API-ключ, Directions API та HTTP-referrer.');
+            }, timeoutMs);
+
+            try {
+                directionsService.route(buildRequest(wantAlts), function (response, status) {
+                    onRouteResult(gen, response, status, usedAlts);
+                });
+            } catch (err) {
+                if (gen !== activeGen || settled) return;
+                if (usedAlts) {
+                    runAttempt(false);
+                    return;
+                }
+                failFinal('❌ Google Maps: ' + (err && err.message ? err.message : err));
+            }
+        }
+
+        // Primary без альтів (відновлення). Якщо ENABLE_ROUTE_ALTERNATIVES — alts-first + retry.
+        runAttempt(canTryAlts);
     }
 
     function routeTotals(route) {
@@ -3663,46 +3714,62 @@
     }
 
     function applyMainRoute(response, routeIndex, baseQuery, fromQuery, toQuery, statusEl) {
-        const routes = (response && response.routes) || [];
-        if (!routes.length) throw new Error('порожня відповідь Directions');
-        const idx = Math.max(0, Math.min(routeIndex || 0, routes.length - 1));
-        if (!directionsRenderer) throw new Error('DirectionsRenderer не ініціалізовано');
         try {
-            if (directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
-        } catch (e) {}
-        directionsRenderer.setDirections(response);
-        try {
-            if (directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
-        } catch (e) {}
-        const route = routes[idx];
-        lastRoutePath = route.overview_path;
-        clearPOIMarkers();
-        renderRouteAlternatives(response, idx);
+            const routes = (response && response.routes) || [];
+            if (!routes.length) throw new Error('порожня відповідь Directions');
+            const idx = Math.max(0, Math.min(Number(routeIndex) || 0, routes.length - 1));
+            if (!directionsRenderer) throw new Error('DirectionsRenderer не ініціалізовано');
 
-        let podachaKm = 0;
-        let mainKm = 0;
-        const legs = route.legs || [];
+            // Спочатку setDirections, потім setRouteIndex — навпаки ламає рендер при alternatives.
+            directionsRenderer.setDirections(response);
+            try {
+                if (typeof directionsRenderer.setRouteIndex === 'function') {
+                    directionsRenderer.setRouteIndex(idx);
+                }
+            } catch (e) { console.warn('setRouteIndex', e); }
 
-        if (baseQuery && legs.length >= 2) {
-            podachaKm = Math.round(((legs[0].distance && legs[0].distance.value) || 0) / 1000);
-            mainKm = Math.round(legs.reduce((acc, leg, idx2) => idx2 > 0 ? acc + ((leg.distance && leg.distance.value) || 0) : acc, 0) / 1000);
-        } else {
-            mainKm = Math.round(legs.reduce((acc, leg) => acc + ((leg.distance && leg.distance.value) || 0), 0) / 1000);
+            const route = routes[idx];
+            if (!route) throw new Error('маршрут #' + idx + ' відсутній');
+            lastRoutePath = route.overview_path || null;
+            clearPOIMarkers();
+            try { renderRouteAlternatives(response, idx); } catch (e) { console.warn('renderRouteAlternatives', e); }
+
+            let podachaKm = 0;
+            let mainKm = 0;
+            const legs = route.legs || [];
+
+            if (baseQuery && legs.length >= 2) {
+                podachaKm = Math.round(((legs[0].distance && legs[0].distance.value) || 0) / 1000);
+                mainKm = Math.round(legs.reduce((acc, leg, idx2) => idx2 > 0 ? acc + ((leg.distance && leg.distance.value) || 0) : acc, 0) / 1000);
+            } else {
+                mainKm = Math.round(legs.reduce((acc, leg) => acc + ((leg.distance && leg.distance.value) || 0), 0) / 1000);
+            }
+
+            const nameEl = document.getElementById('route-name');
+            const podEl = document.getElementById('podacha-dist');
+            const distEl = document.getElementById('dist');
+            if (nameEl) nameEl.value = fromQuery + ' — ' + toQuery;
+            if (podEl) podEl.value = podachaKm;
+            if (distEl) distEl.value = mainKm;
+
+            const altNote = routes.length > 1
+                ? ' · варіант ' + (idx + 1) + '/' + routes.length
+                : '';
+            if (statusEl) {
+                statusEl.innerText = baseQuery
+                    ? '✅ Маршрут Google: Подача ' + podachaKm + ' км | Рейс ' + mainKm + ' км' + altNote
+                    : '✅ Маршрут Google: Рейс ' + mainKm + ' км' + altNote;
+                statusEl.style.color = 'var(--success)';
+            }
+
+            calculate();
+        } catch (err) {
+            if (statusEl) {
+                statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
+                statusEl.style.color = 'var(--danger)';
+            }
+            console.error('applyMainRoute failed', err);
         }
-
-        document.getElementById('route-name').value = `${fromQuery} — ${toQuery}`;
-        document.getElementById('podacha-dist').value = podachaKm;
-        document.getElementById('dist').value = mainKm;
-
-        const altNote = routes.length > 1
-            ? ' · варіант ' + (idx + 1) + '/' + routes.length
-            : '';
-        statusEl.innerText = baseQuery
-            ? `✅ Маршрут Google: Подача ${podachaKm} км | Рейс ${mainKm} км` + altNote
-            : `✅ Маршрут Google: Рейс ${mainKm} км` + altNote;
-        statusEl.style.color = 'var(--success)';
-
-        calculate();
     }
 
     function calculateBackhaulRoute() {
