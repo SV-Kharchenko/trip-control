@@ -3583,11 +3583,10 @@
             if (v) waypoints.push({ location: v, stopover: true });
         });
 
-        // Регресія 7b5a9d0: provideAlternatives:true на типовому A→B (waypoints.length===0)
-        // ламало Directions — callback часто не приходить (симптом → feab858 hang timeout).
-        // ENABLE_ROUTE_ALTERNATIVES=false: primary = шлях ДО alternatives (без provideAlternatives).
-        // UI #map-route-alts лишається; коли увімкнемо — alts-first лише без waypoints, з retry без альтів.
-        const ENABLE_ROUTE_ALTERNATIVES = false;
+        // Alts лише на чистому A→B: немає проміжних і немає подачі (baseQuery додає stopover).
+        // Регресія 7b5a9d0: provideAlternatives інколи зависає → alts-first з timeout,
+        // потім один retry БЕЗ provideAlternatives (шлях e8ee193), щоб UI не зависав.
+        const ENABLE_ROUTE_ALTERNATIVES = true;
 
         function buildRequest(wantAlts) {
             const req = {
@@ -3644,7 +3643,8 @@
             if (settled) return;
             const usedAlts = !!wantAlts;
             const gen = ++activeGen;
-            const timeoutMs = usedAlts ? 12000 : 20000;
+            // Перша спроба (alts або single): ~18s; retry без alts коротший.
+            const timeoutMs = usedAlts ? 18000 : (canTryAlts ? 12000 : 20000);
             if (routeTimer) clearTimeout(routeTimer);
             routeTimer = setTimeout(function () {
                 if (settled || gen !== activeGen) return;
@@ -3671,7 +3671,7 @@
             }
         }
 
-        // Primary без альтів (відновлення). Якщо ENABLE_ROUTE_ALTERNATIVES — alts-first + retry.
+        // Без waypoints/подачі: alts-first + retry. Інакше одразу single-route (e8ee193).
         runAttempt(canTryAlts);
     }
 
