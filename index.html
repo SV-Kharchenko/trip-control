@@ -790,6 +790,66 @@
             margin-top: 14px; padding: 0 18px; text-align: center;
             font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.03em;
         }
+        #admin-crm-btn { display: none; }
+        body.is-admin #admin-crm-btn { display: inline-flex; }
+        #admin-screen {
+            display: none; position: fixed; inset: 0; z-index: 12000;
+            background: rgba(6,10,16,0.72); backdrop-filter: blur(10px);
+            overflow: auto; padding: 24px 12px 48px;
+        }
+        #admin-screen .adm-wrap {
+            max-width: 960px; margin: 0 auto; background: var(--card-bg);
+            border: 1px solid var(--border-color); border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+        }
+        #admin-screen .adm-head {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border-color);
+        }
+        #admin-screen .adm-head h2 {
+            margin: 0; font-family: var(--font-display); font-size: 1.15rem;
+        }
+        #admin-screen .adm-body { padding: 14px 18px 20px; }
+        #admin-screen .adm-tabs { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        #admin-screen .adm-tab {
+            border: 1px solid var(--border-color); background: transparent;
+            color: var(--text-muted); border-radius: 8px; padding: 6px 12px;
+            cursor: pointer; font-size: 0.8rem;
+        }
+        #admin-screen .adm-tab.active { color: var(--text-main); border-color: var(--success); background: rgba(52,211,153,0.08); }
+        #admin-screen .adm-panel { display: none; }
+        #admin-screen .adm-panel.active { display: block; }
+        #admin-screen .adm-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+        #admin-screen .adm-table th, #admin-screen .adm-table td {
+            text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+        #admin-screen .adm-table th { color: var(--text-muted); font-weight: 600; }
+        #admin-screen .adm-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        #admin-screen .adm-actions button {
+            font-size: 0.72rem; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+            border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);
+        }
+        #admin-screen .adm-actions button.ok { border-color: var(--success); color: var(--success); }
+        #admin-screen .adm-actions button.bad { border-color: var(--danger); color: var(--danger); }
+        #admin-screen .adm-msg { font-size: 0.8rem; margin: 8px 0; color: var(--warning); min-height: 1.2em; }
+        #admin-screen .adm-badge {
+            display: inline-block; font-size: 0.68rem; padding: 2px 6px; border-radius: 999px;
+            border: 1px solid var(--border-color); color: var(--text-muted);
+        }
+        #admin-screen .adm-badge.on { color: var(--success); border-color: var(--success); }
+        #admin-screen .adm-badge.off { color: var(--warning); border-color: var(--warning); }
+        #admin-screen .adm-badge.blocked { color: var(--danger); border-color: var(--danger); }
+        .auth-legal {
+            margin: 12px 0 0; font-size: 0.72rem; color: var(--text-muted); line-height: 1.45;
+            text-align: left; display: none;
+        }
+        #signup-extra[style*="block"] .auth-legal,
+        #signup-extra .auth-legal.show { display: block; }
+        .auth-legal a { color: var(--accent); }
+        .auth-legal label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+        .auth-legal input { margin-top: 2px; }
+        .tc-footer a { color: var(--text-muted); text-decoration: underline; }
         #cab-message { font-size: 0.85rem; margin: 8px 18px 0; min-height: 1.2em; }
         @media (max-width: 800px) {
             #cabinet-screen .cab-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1079,6 +1139,12 @@
                         <option value="готівка">Готівка</option>
                     </select>
                 </div>
+                <div class="auth-legal" id="auth-legal-box">
+                    <label>
+                        <input type="checkbox" id="auth-consent">
+                        <span>Погоджуюсь з <a href="/legal/offer.html" target="_blank" rel="noopener">офертою</a> та <a href="/legal/privacy.html" target="_blank" rel="noopener">політикою конфіденційності</a> (обробка ЄДРПОУ, телефону тощо).</span>
+                    </label>
+                </div>
             </div>
             <button id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;" onclick="handleAuth('login')">🧭 Увійти</button>
             <button id="auth-signup-btn" class="btn" style="width: 100%;" onclick="handleAuth('signup')">Зареєструватися</button>
@@ -1086,7 +1152,7 @@
 
         <div id="auth-message" style="font-size: 0.9rem; margin-top: 15px; color: var(--warning); line-height: 1.4;"></div>
         <button id="logout-btn" class="btn btn-danger" style="display:none; width: 100%; margin-top: 15px;" onclick="handleLogout()">Вийти з акаунта</button>
-        <div class="tc-footer">Безпечний доступ до системи керування рейсами</div>
+        <div class="tc-footer">Безпечний доступ · <a href="/legal/offer.html" target="_blank" rel="noopener">Оферта</a> · <a href="/legal/privacy.html" target="_blank" rel="noopener">Конфіденційність</a></div>
     </div>
 </div>
 
@@ -1125,6 +1191,7 @@
             <div class="tc-actions">
                 <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Night</span></button>
                 <button class="tc-action-btn" type="button" title="Особистий кабінет" onclick="openCabinet()">📂 <span class="tc-action-label">Кабінет</span></button>
+                <button class="tc-action-btn" type="button" id="admin-crm-btn" title="Адмін CRM" onclick="openAdminCrm()">🛡 <span class="tc-action-label">CRM</span></button>
                 <button class="tc-action-btn danger" type="button" title="Вийти" onclick="handleLogout()">⎋ <span class="tc-action-label">Вийти</span></button>
             </div>
         </div>
@@ -1654,6 +1721,29 @@
     </div>
 </div>
 
+<div id="admin-screen">
+    <div class="adm-wrap">
+        <div class="adm-head">
+            <h2>Адмін · клієнтська база</h2>
+            <button type="button" class="cab-close" onclick="closeAdminCrm()" aria-label="Закрити">✕</button>
+        </div>
+        <div class="adm-body">
+            <div class="adm-tabs">
+                <button type="button" class="adm-tab active" data-adm="clients" onclick="switchAdminTab('clients')">Клієнти</button>
+                <button type="button" class="adm-tab" data-adm="audit" onclick="switchAdminTab('audit')">Аудит</button>
+                <button type="button" class="adm-tab" onclick="loadAdminCrm()">↻ Оновити</button>
+            </div>
+            <div class="adm-msg" id="adm-msg"></div>
+            <div class="adm-panel active" id="adm-panel-clients">
+                <div id="adm-clients-box">Завантаження…</div>
+            </div>
+            <div class="adm-panel" id="adm-panel-audit">
+                <div id="adm-audit-box">Завантаження…</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     // Ініціалізація Supabase на клієнті
     const SUPABASE_URL = 'https://qkfqjorzsxcajcneohoy.supabase.co';
@@ -1825,6 +1915,7 @@
             isDemo = !profile.is_approved;
             isAdmin = profile.role === 'admin';
             document.body.classList.toggle('demo-mode', isDemo);
+            document.body.classList.toggle('is-admin', isAdmin);
 
             authScreen.style.display = 'none';
             mainApp.style.display = 'block'; mainApp.classList.add('tc-enter');
@@ -1985,6 +2076,8 @@
             if (box.style.display !== 'block') {
                 // Перший клік: показуємо поля компанії
                 box.style.display = 'block';
+                const legal = document.getElementById('auth-legal-box');
+                if (legal) legal.classList.add('show');
                 document.getElementById('auth-signup-btn').innerText = 'Створити акаунт';
                 authMsg.innerText = 'Вкажіть компанію та оподаткування. Після реєстрації відкриється демо з готовим шаблоном розрахунку.';
                 return;
@@ -1992,6 +2085,11 @@
             const company = document.getElementById('auth-company').value.trim();
             const taxMode = document.getElementById('auth-tax').value;
             if (!company) { authMsg.innerText = 'Введіть назву компанії або ФОП.'; return; }
+            const consent = document.getElementById('auth-consent');
+            if (!consent || !consent.checked) {
+                authMsg.innerText = 'Потрібна згода з офертою та політикою конфіденційності.';
+                return;
+            }
             const { data, error } = await supabaseClient.auth.signUp({
                 email, password,
                 options: { data: { company_name: company, tax_mode: taxMode } }
@@ -2505,6 +2603,144 @@
     function closeCabinet() {
         document.getElementById('cabinet-screen').style.display = 'none';
         document.body.style.overflow = '';
+    }
+
+    function switchAdminTab(name) {
+        document.querySelectorAll('#admin-screen .adm-tab[data-adm]').forEach(t => {
+            t.classList.toggle('active', t.getAttribute('data-adm') === name);
+        });
+        document.getElementById('adm-panel-clients').classList.toggle('active', name === 'clients');
+        document.getElementById('adm-panel-audit').classList.toggle('active', name === 'audit');
+    }
+
+    async function adminApi(method, body) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('Немає сесії');
+        const opts = {
+            method,
+            headers: {
+                Authorization: 'Bearer ' + session.access_token,
+                'Content-Type': 'application/json'
+            }
+        };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetch('/api/admin', opts);
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || ('HTTP ' + res.status));
+        return json;
+    }
+
+    function escAdm(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    async function openAdminCrm() {
+        if (!isAdmin) return;
+        document.getElementById('admin-screen').style.display = 'block';
+        document.body.style.overflow = 'hidden';
+        await loadAdminCrm();
+    }
+
+    function closeAdminCrm() {
+        document.getElementById('admin-screen').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    async function loadAdminCrm() {
+        const msg = document.getElementById('adm-msg');
+        const box = document.getElementById('adm-clients-box');
+        const auditBox = document.getElementById('adm-audit-box');
+        msg.textContent = '';
+        box.textContent = 'Завантаження…';
+        try {
+            const data = await adminApi('GET');
+            const clients = data.clients || [];
+            if (!clients.length) {
+                box.innerHTML = '<p style="color:var(--text-muted)">Поки немає організацій.</p>';
+            } else {
+                let html = '<table class="adm-table"><thead><tr>' +
+                    '<th>Компанія</th><th>Контакти</th><th>Користувачі</th><th>Дії</th></tr></thead><tbody>';
+                clients.forEach(c => {
+                    const p = c.profile || {};
+                    const st = c.status === 'blocked'
+                        ? '<span class="adm-badge blocked">blocked</span>'
+                        : '<span class="adm-badge on">active</span>';
+                    const contacts = [
+                        p.edrpou ? 'ЄДРПОУ: ' + escAdm(p.edrpou) : '',
+                        p.phone ? 'тел: ' + escAdm(p.phone) : '',
+                        p.city ? escAdm(p.city) : '',
+                        p.country ? escAdm(p.country) : ''
+                    ].filter(Boolean).join('<br>') || '—';
+                    const users = (c.users || []).map(u => {
+                        const badge = u.is_approved
+                            ? '<span class="adm-badge on">approved</span>'
+                            : '<span class="adm-badge off">demo</span>';
+                        const role = u.role === 'admin' ? ' · admin' : '';
+                        return '<div>' + escAdm(u.email || u.id) + ' ' + badge + role + '</div>';
+                    }).join('') || '—';
+                    const userBtns = (c.users || []).map(u => {
+                        if (u.role === 'admin') return '';
+                        return u.is_approved
+                            ? '<button type="button" class="bad" onclick="adminSetApproved(\'' + u.id + '\', false)">Зняти доступ</button>'
+                            : '<button type="button" class="ok" onclick="adminSetApproved(\'' + u.id + '\', true)">Схвалити</button>';
+                    }).join('');
+                    const orgBtn = c.status === 'blocked'
+                        ? '<button type="button" class="ok" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'active\')">Розблокувати</button>'
+                        : '<button type="button" class="bad" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'blocked\')">Блок org</button>';
+                    html += '<tr><td><b>' + escAdm(c.name || '—') + '</b><br>' + st +
+                        (c.tax ? '<br><span class="adm-badge">' + escAdm(c.tax) + '</span>' : '') +
+                        '</td><td>' + contacts + '</td><td>' + users + '</td><td><div class="adm-actions">' +
+                        userBtns + orgBtn + '</div></td></tr>';
+                });
+                html += '</tbody></table>';
+                box.innerHTML = html;
+            }
+            const audit = data.audit || [];
+            if (!audit.length) {
+                auditBox.innerHTML = '<p style="color:var(--text-muted)">Поки немає записів.</p>';
+            } else {
+                let ah = '<table class="adm-table"><thead><tr><th>Час</th><th>Дія</th><th>Entity</th><th>Org</th></tr></thead><tbody>';
+                audit.forEach(a => {
+                    ah += '<tr><td>' + escAdm(a.at) + '</td><td>' + escAdm(a.action) +
+                        '</td><td>' + escAdm(a.entity) + (a.entity_id ? ' · ' + escAdm(String(a.entity_id).slice(0, 8)) : '') +
+                        '</td><td>' + escAdm(a.org_id ? String(a.org_id).slice(0, 8) : '—') + '</td></tr>';
+                });
+                ah += '</tbody></table>';
+                auditBox.innerHTML = ah;
+            }
+        } catch (e) {
+            msg.textContent = e.message || String(e);
+            box.textContent = 'Помилка завантаження.';
+            auditBox.textContent = '';
+        }
+    }
+
+    async function adminSetApproved(userId, approved) {
+        const msg = document.getElementById('adm-msg');
+        try {
+            await adminApi('POST', { action: 'set_approved', user_id: userId, approved: !!approved });
+            msg.textContent = approved ? 'Користувача схвалено.' : 'Доступ знято (демо).';
+            msg.style.color = 'var(--success)';
+            await loadAdminCrm();
+        } catch (e) {
+            msg.textContent = e.message || String(e);
+            msg.style.color = 'var(--danger)';
+        }
+    }
+
+    async function adminSetOrgStatus(orgId, status) {
+        const msg = document.getElementById('adm-msg');
+        try {
+            await adminApi('POST', { action: 'set_org_status', org_id: orgId, status: status });
+            msg.textContent = status === 'blocked' ? 'Організацію заблоковано.' : 'Організацію розблоковано.';
+            msg.style.color = 'var(--success)';
+            await loadAdminCrm();
+        } catch (e) {
+            msg.textContent = e.message || String(e);
+            msg.style.color = 'var(--danger)';
+        }
     }
 
     async function saveCabinet() {
