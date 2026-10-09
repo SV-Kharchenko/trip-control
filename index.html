@@ -978,32 +978,39 @@
         .tc-route-tools .poi-box #poi-results { max-height: 140px; overflow-y: auto; }
         .poi-box #poi-results:empty::before { content: "Результати пошуку з'являться тут"; color: var(--text-muted); font-size: 0.75rem; }
 
-        /* Auth — без v3-login.jpg (там був макет форми → подвійний UI) */
+        /* Auth: карта з v3-login.jpg розмита+затемнена (форма з фото не читається), зверху одна жива картка */
         #auth-screen {
             display: flex; position: fixed; inset: 0; z-index: 9999; justify-content: center; align-items: center; padding: 20px;
             overflow: hidden;
-            background:
-                radial-gradient(ellipse 90% 60% at 50% -5%, rgba(45,138,138,0.22), transparent 55%),
-                radial-gradient(ellipse 50% 40% at 90% 85%, rgba(184,151,90,0.1), transparent 50%),
-                radial-gradient(ellipse 40% 35% at 10% 70%, rgba(56,189,248,0.06), transparent 45%),
-                linear-gradient(165deg, #0b111b 0%, #0a1618 42%, #071018 100%);
+            background: #050a0f;
+        }
+        #auth-screen .auth-bg-photo {
+            position: absolute; inset: -20px; z-index: 0; pointer-events: none;
+            background: url('assets/v3-login.jpg') center 30% / cover no-repeat;
+            filter: brightness(0.72) saturate(1.1) contrast(1.05);
+            /* ховаємо центр фото (там запечена форма) — карта лишається по краях */
+            -webkit-mask-image:
+                radial-gradient(ellipse 52% 68% at 50% 46%, transparent 0%, transparent 58%, #000 82%),
+                linear-gradient(180deg, transparent 0%, #000 8%, #000 86%, transparent 100%);
+            mask-image:
+                radial-gradient(ellipse 52% 68% at 50% 46%, transparent 0%, transparent 58%, #000 82%),
+                linear-gradient(180deg, transparent 0%, #000 8%, #000 86%, transparent 100%);
+            -webkit-mask-composite: source-in;
+            mask-composite: intersect;
         }
         #auth-screen::before {
             content: '';
-            position: absolute; inset: 0; pointer-events: none; opacity: 0.35;
-            background-image:
-                radial-gradient(rgba(125,211,252,0.11) 1px, transparent 1px),
-                radial-gradient(rgba(184,151,90,0.08) 1px, transparent 1px);
-            background-size: 28px 28px, 72px 72px;
-            background-position: 0 0, 14px 14px;
-            mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, #000 20%, transparent 75%);
-            -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 45%, #000 20%, transparent 75%);
+            position: absolute; inset: 0; z-index: 0; pointer-events: none;
+            background:
+                radial-gradient(ellipse 58% 70% at 50% 46%, rgba(8,14,20,0.95) 0%, rgba(8,14,20,0.65) 50%, transparent 78%),
+                linear-gradient(180deg, rgba(5,10,15,0.65), transparent 18%, transparent 82%, rgba(5,10,15,0.92));
         }
+        #auth-screen .auth-bg-map { display: none; }
         #auth-screen .auth-bg-compass {
-            position: absolute; left: 50%; top: 42%;
-            width: min(92vw, 720px); height: min(92vw, 720px);
+            position: absolute; left: 50%; top: 40%;
+            width: min(88vw, 640px); height: min(88vw, 640px);
             transform: translate(-50%, -50%);
-            pointer-events: none; opacity: 0.14; z-index: 0;
+            pointer-events: none; opacity: 0.18; z-index: 0;
             color: #b8975a;
         }
         #auth-screen .auth-bg-compass svg { width: 100%; height: 100%; display: block; }
@@ -1126,8 +1133,9 @@
 </head>
 <body data-theme="night">
 
-<!-- Екран авторизації — V3 (фон CSS + великий компас, без фото-макета форми) -->
+<!-- Екран авторизації — карта з фото (blur), компас, одна жива форма -->
 <div id="auth-screen">
+    <div class="auth-bg-photo" aria-hidden="true"></div>
     <div class="auth-bg-compass" aria-hidden="true">
         <svg viewBox="0 0 200 200" fill="none">
             <circle cx="100" cy="100" r="92" stroke="currentColor" stroke-width="1.2" opacity="0.85"/>
