@@ -46,21 +46,20 @@
         body {
             background: var(--bg-color); color: var(--text-main); padding: 14px 18px 36px; min-height: 100vh;
             background-image:
-                radial-gradient(ellipse 55% 42% at 8% -5%, rgba(245,158,11,0.14), transparent 55%),
-                radial-gradient(ellipse 48% 38% at 96% 0%, rgba(125,211,252,0.1), transparent 50%),
-                radial-gradient(ellipse 40% 30% at 50% 100%, rgba(52,211,153,0.04), transparent 55%),
-                linear-gradient(rgba(42,49,64,0.35) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(42,49,64,0.35) 1px, transparent 1px);
-            background-size: auto, auto, auto, 48px 48px, 48px 48px;
-            background-attachment: fixed;
+                linear-gradient(165deg, rgba(5,10,15,0.72), rgba(5,12,18,0.55) 45%, rgba(5,10,15,0.78)),
+                url('assets/bg-network.jpg');
+            background-size: auto, cover;
+            background-position: center, center;
+            background-attachment: fixed, fixed;
+            background-repeat: no-repeat;
         }
         [data-theme="light"] body {
             background-image:
-                radial-gradient(ellipse 55% 42% at 8% -5%, rgba(194,65,12,0.08), transparent 55%),
-                radial-gradient(ellipse 48% 38% at 96% 0%, rgba(3,105,161,0.07), transparent 50%),
-                linear-gradient(rgba(213,218,227,0.55) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(213,218,227,0.55) 1px, transparent 1px);
-            background-size: auto, auto, 48px 48px, 48px 48px;
+                linear-gradient(165deg, rgba(248,250,252,0.82), rgba(241,245,249,0.78) 50%, rgba(248,250,252,0.88)),
+                url('assets/bg-network.jpg');
+            background-size: auto, cover;
+            background-position: center, center;
+            background-attachment: fixed, fixed;
         }
         h1, h2, .brand-title, .donut-total { font-family: var(--font-display); }
         .container { max-width: 1520px; margin: 0 auto; display: none; }
@@ -140,21 +139,15 @@
         }
         .tc-brand .tc-demo-badge, .tc-brand .brand-title { pointer-events: auto; }
         .tc-brand-mark {
-            width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
-            background: radial-gradient(circle at 40% 35%, #1a3a3a, #0a1618 70%);
-            border: 2px solid #b8975a;
-            display: grid; place-items: center; color: #d4b06a;
-            box-shadow: 0 0 18px rgba(184,151,90,0.28);
+            width: auto; height: 40px; border-radius: 8px; flex-shrink: 0;
+            border: 1px solid rgba(184,151,90,0.45);
+            overflow: hidden; background: #000b1e;
+            box-shadow: 0 0 14px rgba(184,151,90,0.22);
         }
-        .tc-brand-mark svg { width: 26px; height: 26px; }
-        [data-theme="light"] .tc-brand-mark {
-            background: radial-gradient(circle at 40% 35%, #d8ecec, #eef2f7 70%);
-            box-shadow: 0 0 12px rgba(184,151,90,0.22);
+        .tc-brand-mark img {
+            display: block; height: 40px; width: auto; max-width: 168px; object-fit: cover; object-position: left center;
         }
-        .brand-title {
-            font-size: 1.28rem; font-weight: 800; letter-spacing: 0.08em; margin: 0;
-            color: var(--text-main); line-height: 1; white-space: nowrap;
-        }
+        .brand-title { display: none; }
         .brand-sub { display: none; }
         .tc-pill {
             display: inline-flex; align-items: center; gap: 6px;
@@ -431,25 +424,50 @@
         .tc-route-tools #poi-results { max-height: 140px; overflow-y: auto; font-size: 0.75rem; }
         .tc-costs-visual { margin-bottom: 12px; }
         .tc-costs-visual .card, .tc-deck .card { margin-bottom: 0; }
-        .tc-costs-visual .donut-svg-box { width: 130px; height: 130px; margin: 0; }
         .tc-costs-visual .tc-costs-body {
-            grid-template-columns: 130px minmax(0, 1fr);
-            justify-items: stretch; text-align: left; align-items: center;
+            display: flex; flex-direction: column; gap: 12px; width: 100%;
         }
-        .tc-costs-visual .donut-legend { width: 100%; margin-top: 0; }
+        .tc-costs-visual .cost-scale-head {
+            display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+        }
+        .tc-costs-visual .cost-scale-total {
+            font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--text-main);
+        }
+        .tc-costs-visual .cost-scale-label {
+            font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .tc-costs-visual .cost-scale-bar {
+            display: flex; width: 100%; height: 18px; border-radius: 9px; overflow: hidden;
+            background: color-mix(in srgb, var(--border-color) 55%, transparent);
+        }
+        .tc-costs-visual .cost-scale-seg { height: 100%; min-width: 0; transition: width 0.35s ease; }
+        .tc-costs-visual .donut-legend {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; width: 100%;
+        }
+        @media (min-width: 700px) {
+            .tc-costs-visual .donut-legend { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
         .tc-costs-visual .tc-costs-table-wrap {
             margin-top: 14px; padding-top: 12px;
             border-top: 1px solid var(--border-color);
             width: 100%; overflow-x: auto;
         }
         .tc-costs-visual .tc-costs-table-wrap table { width: 100%; font-size: 0.78rem; }
-        @media (min-width: 1025px) {
-            .tc-costs-visual .tc-costs-body {
-                grid-template-columns: 150px minmax(0, 1fr);
-                gap: 16px 24px;
-            }
-            .tc-costs-visual .donut-svg-box { width: 150px; height: 150px; }
+        .tc-map-alts {
+            position: absolute; left: 10px; top: 10px; z-index: 5; width: min(220px, 42%);
+            display: none; flex-direction: column; gap: 6px; max-height: calc(100% - 20px); overflow: auto;
         }
+        .tc-map-alts.visible { display: flex; }
+        .tc-map-alt {
+            text-align: left; cursor: pointer; border-radius: 10px; padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+            color: var(--text-main); backdrop-filter: blur(8px); font-size: 0.72rem;
+        }
+        .tc-map-alt:hover { border-color: var(--steel); }
+        .tc-map-alt.active { border-color: var(--success); box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 40%, transparent); }
+        .tc-map-alt b { display: block; font-size: 0.78rem; margin-bottom: 2px; }
+        .tc-map-alt span { color: var(--text-muted); }
         .tc-lower {
             display: block; margin-bottom: 12px;
         }
@@ -671,16 +689,24 @@
             display: none; position: fixed; inset: 0; z-index: 3000; overflow-y: auto;
             padding: 28px 16px 48px; backdrop-filter: blur(8px);
             background:
-                linear-gradient(160deg, rgba(5,10,15,0.88), rgba(5,12,18,0.82)),
-                url('assets/v3-login.jpg') center / cover no-repeat,
+                linear-gradient(160deg, rgba(5,10,15,0.78), rgba(5,12,18,0.7)),
+                url('assets/bg-network.jpg') center / cover no-repeat,
                 #050a0f;
+        }
+        [data-theme="light"] #cabinet-screen {
+            background:
+                linear-gradient(160deg, rgba(248,250,252,0.88), rgba(241,245,249,0.82)),
+                url('assets/bg-network.jpg') center / cover no-repeat,
+                #f8fafc;
         }
         #cabinet-screen .cab-wrap {
             position: relative; max-width: 1040px; margin: 0 auto;
-            background: rgba(8,14,20,0.88);
-            border: 1px solid rgba(184,151,90,0.4); border-radius: 18px; padding: 0 0 18px;
-            box-shadow: 0 28px 70px rgba(0,0,0,0.55), 0 0 40px rgba(18,122,88,0.1);
+            background: color-mix(in srgb, var(--card-bg) 92%, transparent);
+            border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--border-color));
+            border-radius: 18px; padding: 0 0 18px;
+            box-shadow: 0 28px 70px rgba(0,0,0,0.35);
             overflow: hidden; backdrop-filter: blur(12px);
+            color: var(--text-main);
         }
         #cabinet-screen .cab-wrap::before {
             content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
@@ -694,16 +720,15 @@
             grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 8px;
         }
         #cabinet-screen .cab-brand-mark {
-            width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
-            color: #d4b06a; border: 2px solid #b8975a;
-            background: radial-gradient(circle at 40% 35%, #1a3a3a, #0a1618 70%);
-            box-shadow: 0 0 20px rgba(184,151,90,0.28);
+            width: auto; height: 52px; border-radius: 10px; overflow: hidden;
+            border: 1px solid rgba(184,151,90,0.45); background: #000b1e;
+            box-shadow: 0 0 16px rgba(184,151,90,0.25);
         }
-        #cabinet-screen .cab-brand-mark svg { width: 28px; height: 28px; }
-        #cabinet-screen .cab-brand h2 {
-            margin: 0; font-size: 1.05rem; letter-spacing: 0.12em; text-transform: uppercase;
-            font-family: var(--font-display); color: var(--text-main); font-weight: 800;
+        #cabinet-screen .cab-brand-mark img {
+            display: block; height: 52px; width: auto; max-width: 220px;
+            object-fit: cover; object-position: left center;
         }
+        #cabinet-screen .cab-brand h2 { display: none; }
         #cabinet-screen .cab-brand .cab-sub {
             font-size: 0.68rem; letter-spacing: 0.08em; text-transform: none; color: var(--text-muted);
         }
@@ -735,13 +760,17 @@
             border: 1px solid color-mix(in srgb, var(--steel) 22%, var(--border-color));
         }
         #cabinet-screen .cab-tab.active {
-            color: #9af0c8; border-color: #1aa56e;
-            background: color-mix(in srgb, #127a58 16%, var(--input-bg));
-            box-shadow: 0 0 0 1px rgba(26,165,110,0.28), 0 8px 18px rgba(18,122,88,0.16);
+            color: var(--success); border-color: var(--success);
+            background: color-mix(in srgb, var(--success) 14%, var(--input-bg));
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 30%, transparent);
         }
         #cabinet-screen .cab-tab.active .cab-tab-ico {
-            background: color-mix(in srgb, #1aa56e 22%, transparent);
-            border-color: color-mix(in srgb, #1aa56e 45%, transparent); color: #9af0c8;
+            background: color-mix(in srgb, var(--success) 18%, transparent);
+            border-color: color-mix(in srgb, var(--success) 40%, transparent); color: var(--success);
+        }
+        [data-theme="light"] #cabinet-screen .cab-tab.active {
+            color: #047857; border-color: #059669;
+            background: color-mix(in srgb, #059669 10%, var(--input-bg));
         }
         #cabinet-screen .cab-panel { display: none; padding: 14px 18px 0; }
         #cabinet-screen .cab-panel.active { display: block; }
@@ -794,13 +823,23 @@
         body.is-admin #admin-crm-btn { display: inline-flex; }
         #admin-screen {
             display: none; position: fixed; inset: 0; z-index: 12000;
-            background: rgba(6,10,16,0.72); backdrop-filter: blur(10px);
+            background:
+                linear-gradient(160deg, rgba(5,10,15,0.78), rgba(5,12,18,0.7)),
+                url('assets/bg-network.jpg') center / cover no-repeat;
+            backdrop-filter: blur(6px);
             overflow: auto; padding: 24px 12px 48px;
         }
+        [data-theme="light"] #admin-screen {
+            background:
+                linear-gradient(160deg, rgba(248,250,252,0.88), rgba(241,245,249,0.82)),
+                url('assets/bg-network.jpg') center / cover no-repeat;
+        }
         #admin-screen .adm-wrap {
-            max-width: 960px; margin: 0 auto; background: var(--card-bg);
+            max-width: 960px; margin: 0 auto;
+            background: color-mix(in srgb, var(--card-bg) 92%, transparent);
             border: 1px solid var(--border-color); border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            color: var(--text-main);
         }
         #admin-screen .adm-head {
             display: flex; align-items: center; justify-content: space-between;
@@ -978,62 +1017,39 @@
         .tc-route-tools .poi-box #poi-results { max-height: 140px; overflow-y: auto; }
         .poi-box #poi-results:empty::before { content: "Результати пошуку з'являться тут"; color: var(--text-muted); font-size: 0.75rem; }
 
-        /* Auth: карта з v3-login.jpg розмита+затемнена (форма з фото не читається), зверху одна жива картка */
+        /* Auth — новий bg-network + лого */
         #auth-screen {
             display: flex; position: fixed; inset: 0; z-index: 9999; justify-content: center; align-items: center; padding: 20px;
             overflow: hidden;
-            background: #050a0f;
-        }
-        #auth-screen .auth-bg-photo {
-            position: absolute; inset: -20px; z-index: 0; pointer-events: none;
-            background: url('assets/v3-login.jpg') center 30% / cover no-repeat;
-            filter: brightness(0.72) saturate(1.1) contrast(1.05);
-            /* ховаємо центр фото (там запечена форма) — карта лишається по краях */
-            -webkit-mask-image:
-                radial-gradient(ellipse 52% 68% at 50% 46%, transparent 0%, transparent 58%, #000 82%),
-                linear-gradient(180deg, transparent 0%, #000 8%, #000 86%, transparent 100%);
-            mask-image:
-                radial-gradient(ellipse 52% 68% at 50% 46%, transparent 0%, transparent 58%, #000 82%),
-                linear-gradient(180deg, transparent 0%, #000 8%, #000 86%, transparent 100%);
-            -webkit-mask-composite: source-in;
-            mask-composite: intersect;
-        }
-        #auth-screen::before {
-            content: '';
-            position: absolute; inset: 0; z-index: 0; pointer-events: none;
             background:
-                radial-gradient(ellipse 58% 70% at 50% 46%, rgba(8,14,20,0.95) 0%, rgba(8,14,20,0.65) 50%, transparent 78%),
-                linear-gradient(180deg, rgba(5,10,15,0.65), transparent 18%, transparent 82%, rgba(5,10,15,0.92));
+                linear-gradient(165deg, rgba(5,10,15,0.55), rgba(5,12,18,0.4) 45%, rgba(5,10,15,0.7)),
+                url('assets/bg-network.jpg') center / cover no-repeat,
+                #050a0f;
         }
-        #auth-screen .auth-bg-map { display: none; }
-        #auth-screen .auth-bg-compass {
-            position: absolute; left: 50%; top: 40%;
-            width: min(88vw, 640px); height: min(88vw, 640px);
-            transform: translate(-50%, -50%);
-            pointer-events: none; opacity: 0.18; z-index: 0;
-            color: #b8975a;
-        }
-        #auth-screen .auth-bg-compass svg { width: 100%; height: 100%; display: block; }
+        #auth-screen .auth-bg-photo,
+        #auth-screen .auth-bg-map,
+        #auth-screen .auth-bg-compass { display: none !important; }
+        #auth-screen::before { display: none; }
         .auth-card {
             position: relative; z-index: 1;
             background: rgba(8,14,20,0.88); border: 1px solid rgba(184,151,90,0.45);
-            padding: 36px 28px 22px; border-radius: 18px; width: 100%; max-width: 400px; text-align: center;
+            padding: 28px 28px 22px; border-radius: 18px; width: 100%; max-width: 400px; text-align: center;
             box-shadow: 0 28px 70px rgba(0,0,0,0.55), 0 0 40px rgba(18,122,88,0.12);
             backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
             overflow: visible;
         }
         .auth-card::before { display: none; }
         .auth-compass {
-            width: 72px; height: 72px; margin: -58px auto 12px; border-radius: 50%;
-            background:
-                radial-gradient(circle at 40% 35%, #1a3a3a, #0a1618 70%),
-                linear-gradient(145deg, #1a1f29, #0a0c10);
-            border: 2px solid #b8975a;
-            display: grid; place-items: center; color: #d4b06a;
-            box-shadow: 0 0 0 4px rgba(8,14,20,0.9), 0 0 28px rgba(184,151,90,0.35);
+            width: auto; height: 56px; margin: 0 auto 14px; border-radius: 10px;
+            border: 1px solid rgba(184,151,90,0.45); background: #000b1e; overflow: hidden;
+            box-shadow: 0 0 18px rgba(184,151,90,0.3);
         }
-        .auth-compass svg { width: 34px; height: 34px; }
-        .auth-card h2 { margin: 0 0 6px; font-size: 1.45rem; font-weight: 800; letter-spacing: 0.1em; color: var(--text-main); font-family: var(--font-display); }
+        .auth-compass img {
+            display: block; height: 56px; width: auto; max-width: 260px;
+            object-fit: cover; object-position: left center;
+        }
+        .auth-compass svg { display: none; }
+        .auth-card h2 { display: none; }
         .auth-tagline { font-size: 0.84rem; color: #c9d4de; margin-bottom: 8px; line-height: 1.4; }
         .auth-tagline-sub { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 16px; }
         .auth-divider {
@@ -1133,28 +1149,11 @@
 </head>
 <body data-theme="night">
 
-<!-- Екран авторизації — карта з фото (blur), компас, одна жива форма -->
+<!-- Екран авторизації -->
 <div id="auth-screen">
-    <div class="auth-bg-photo" aria-hidden="true"></div>
-    <div class="auth-bg-compass" aria-hidden="true">
-        <svg viewBox="0 0 200 200" fill="none">
-            <circle cx="100" cy="100" r="92" stroke="currentColor" stroke-width="1.2" opacity="0.85"/>
-            <circle cx="100" cy="100" r="78" stroke="currentColor" stroke-width="0.8" opacity="0.45"/>
-            <circle cx="100" cy="100" r="58" stroke="#2d8a8a" stroke-width="1" opacity="0.7"/>
-            <circle cx="100" cy="100" r="36" stroke="currentColor" stroke-width="0.7" opacity="0.4"/>
-            <path d="M100 18l14 52L166 100l-52 14L100 182l-14-52L34 100l52-14L100 18z" fill="currentColor" opacity="0.55"/>
-            <path d="M100 40v20M100 140v20M40 100h20M140 100h20" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-            <circle cx="100" cy="100" r="6" fill="#0a1618" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
-    </div>
     <div class="auth-card">
         <div class="auth-compass" aria-hidden="true">
-            <svg viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="18" stroke="#b8975a" stroke-width="1.6"/>
-                <circle cx="24" cy="24" r="12" stroke="rgba(45,138,138,0.7)" stroke-width="1"/>
-                <path d="M24 8l4.2 12.5L40 24l-11.8 3.5L24 40l-4.2-12.5L8 24l11.8-3.5L24 8z" fill="#d4b06a"/>
-                <circle cx="24" cy="24" r="2.4" fill="#0a1618" stroke="#b8975a" stroke-width="1"/>
-            </svg>
+            <img src="assets/logo-trip-control.jpg" alt="TRIP-CONTROL">
         </div>
         <h2>TRIP-CONTROL</h2>
         <p class="auth-tagline">Координуй маршрут. Керуй результатом.</p>
@@ -1219,12 +1218,7 @@
             </div>
             <div class="tc-brand">
                 <div class="tc-brand-mark" aria-hidden="true">
-                    <svg viewBox="0 0 48 48" fill="none">
-                        <circle cx="24" cy="24" r="18" stroke="#b8975a" stroke-width="1.6"/>
-                        <circle cx="24" cy="24" r="12" stroke="rgba(45,138,138,0.7)" stroke-width="1"/>
-                        <path d="M24 8l4.2 12.5L40 24l-11.8 3.5L24 40l-4.2-12.5L8 24l11.8-3.5L24 8z" fill="#d4b06a"/>
-                        <circle cx="24" cy="24" r="2.4" fill="#0a1618" stroke="#b8975a" stroke-width="1"/>
-                    </svg>
+                    <img src="assets/logo-trip-control.jpg" alt="TRIP-CONTROL">
                 </div>
                 <h1 class="brand-title">TRIP-CONTROL</h1>
                 <span class="tc-demo-badge">DEMO</span>
@@ -1305,6 +1299,7 @@
                     <small>У демо вводьте відстань вручну в параметрах рейсу</small>
                 </div>
                 <div id="map" class="full-only"></div>
+                <div class="tc-map-alts full-only" id="map-route-alts" aria-label="Альтернативні маршрути"></div>
                 <div class="tc-map-overlay">
                     <div class="tc-map-hud">
                         <div class="tc-map-badge"><span class="dot"></span><span id="map-hud-label">Route · UA</span></div>
@@ -1602,14 +1597,13 @@
                 <div class="card">
                     <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
                     <div class="tc-costs-body" id="bar-chart">
-                        <div class="donut-svg-box">
-                            <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true"></svg>
-                            <div class="donut-center">
-                                <div class="donut-total" id="donut-total">—</div>
-                                <div class="donut-label">витрати</div>
-                            </div>
+                        <div class="cost-scale-head">
+                            <div class="cost-scale-label">витрати</div>
+                            <div class="cost-scale-total" id="donut-total">—</div>
                         </div>
+                        <div class="cost-scale-bar" id="cost-scale-bar" aria-hidden="true"></div>
                         <div class="donut-legend" id="chart-legend"></div>
+                        <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true" style="display:none"></svg>
                     </div>
                     <div class="tc-costs-table-wrap">
                         <table>
@@ -1740,12 +1734,7 @@
         <div class="cab-head">
             <div class="cab-brand">
                 <div class="cab-brand-mark" aria-hidden="true">
-                    <svg viewBox="0 0 48 48" fill="none">
-                        <circle cx="24" cy="24" r="18" stroke="#b8975a" stroke-width="1.6"/>
-                        <circle cx="24" cy="24" r="12" stroke="rgba(45,138,138,0.7)" stroke-width="1"/>
-                        <path d="M24 8l4.2 12.5L40 24l-11.8 3.5L24 40l-4.2-12.5L8 24l11.8-3.5L24 8z" fill="#d4b06a"/>
-                        <circle cx="24" cy="24" r="2.4" fill="#0a1618" stroke="#b8975a" stroke-width="1"/>
-                    </svg>
+                    <img src="assets/logo-trip-control.jpg" alt="TRIP-CONTROL">
                 </div>
                 <h2>TRIP-CONTROL</h2>
                 <div class="cab-sub">Особистий кабінет</div>
@@ -1765,7 +1754,10 @@
 <div id="admin-screen">
     <div class="adm-wrap">
         <div class="adm-head">
-            <h2>Адмін · клієнтська база</h2>
+            <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                <img src="assets/logo-trip-control.jpg" alt="" style="height:36px;width:auto;max-width:160px;border-radius:8px;border:1px solid rgba(184,151,90,0.4);background:#000b1e;object-fit:cover;object-position:left center;">
+                <h2 style="margin:0;">Адмін · клієнтська база</h2>
+            </div>
             <button type="button" class="cab-close" onclick="closeAdminCrm()" aria-label="Закрити">✕</button>
         </div>
         <div class="adm-body">
@@ -1808,6 +1800,7 @@
     let waypointCounter = 0;
     let poiMarkers = [];
     let lastRoutePath = null;
+    let lastDirectionsResponse = null;
     let lastCalcData = {};
     let nbuRates = { USD: 41.5, EUR: 45.2, PLN: 10.5 };
     const KPI_HIST_MAX = 12;
@@ -3104,30 +3097,25 @@
             { name: 'Супутні', val: extras, color: '#fbbf24' }
         ].filter(function (x) { return x.val > 0; });
 
-        const svg = document.getElementById('donut-svg');
+        const bar = document.getElementById('cost-scale-bar');
         const legend = document.getElementById('chart-legend');
         const totalEl = document.getElementById('donut-total');
         const total = items.reduce(function (s, x) { return s + x.val; }, 0);
 
-        if (!svg || !legend || !totalEl) return;
+        if (!legend || !totalEl) return;
         if (total === 0 || isNaN(total)) {
-            svg.innerHTML = '<circle cx="21" cy="21" r="15.5" fill="none" stroke="rgba(148,163,184,0.25)" stroke-width="5"/>';
+            if (bar) bar.innerHTML = '';
             totalEl.innerText = '—';
             legend.innerHTML = '<div style="color:var(--text-muted);font-size:0.78rem;">Немає даних для діаграми</div>';
             return;
         }
 
-        const r = 15.5;
-        const c = 2 * Math.PI * r;
-        let offset = 0;
-        svg.innerHTML = '<circle cx="21" cy="21" r="' + r + '" fill="none" stroke="rgba(148,163,184,0.12)" stroke-width="5"/>' +
-            items.map(function (item) {
-                const len = (item.val / total) * c;
-                const dash = len + ' ' + (c - len);
-                const html = '<circle cx="21" cy="21" r="' + r + '" fill="none" stroke="' + item.color + '" stroke-width="5" stroke-dasharray="' + dash + '" stroke-dashoffset="' + (-offset) + '" stroke-linecap="butt"/>';
-                offset += len;
-                return html;
+        if (bar) {
+            bar.innerHTML = items.map(function (item) {
+                const pct = (item.val / total * 100);
+                return '<div class="cost-scale-seg" title="' + item.name + ': ' + pct.toFixed(1) + '%" style="width:' + pct + '%;background:' + item.color + '"></div>';
             }).join('');
+        }
 
         totalEl.innerText = formatMoney(total);
         legend.innerHTML = items.map(function (item) {
@@ -3536,22 +3524,79 @@
             origin: originPoint,
             destination: toQuery,
             waypoints: waypoints,
-            travelMode: google.maps.TravelMode.DRIVING
+            travelMode: google.maps.TravelMode.DRIVING,
+            provideAlternatives: waypoints.length === 0
         };
 
         directionsService.route(request, function(response, status) {
             if (status === 'OK') {
-                directionsRenderer.setDirections(response);
-                const route = response.routes[0];
-                lastRoutePath = route.overview_path;
-                clearPOIMarkers();
+                lastDirectionsResponse = response;
+                applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
+            } else {
+                statusEl.innerText = '❌ Google Maps: ' + status;
+                statusEl.style.color = 'var(--danger)';
+            }
+        });
+    }
+
+    function routeTotals(route) {
+        let meters = 0, seconds = 0;
+        (route.legs || []).forEach(function (leg) {
+            if (leg.distance) meters += leg.distance.value;
+            if (leg.duration) seconds += leg.duration.value;
+        });
+        return { km: Math.round(meters / 1000), min: Math.round(seconds / 60) };
+    }
+
+    function renderRouteAlternatives(response, selectedIdx) {
+        const box = document.getElementById('map-route-alts');
+        if (!box) return;
+        const routes = (response && response.routes) || [];
+        if (routes.length < 2) {
+            box.classList.remove('visible');
+            box.innerHTML = '';
+            return;
+        }
+        box.classList.add('visible');
+        box.innerHTML = routes.map(function (r, i) {
+            const t = routeTotals(r);
+            const active = i === selectedIdx ? ' active' : '';
+            const label = (r.summary && String(r.summary).trim()) ? r.summary : ('Варіант ' + (i + 1));
+            return '<button type="button" class="tc-map-alt' + active + '" onclick="selectRouteAlternative(' + i + ')">' +
+                '<b>' + escHtml(label) + '</b>' +
+                '<span>' + t.km + ' км · ~' + t.min + ' хв</span></button>';
+        }).join('');
+    }
+
+    function selectRouteAlternative(idx) {
+        if (!lastDirectionsResponse) return;
+        const fromQuery = document.getElementById('osm-from').value.trim();
+        const toQuery = document.getElementById('osm-to').value.trim();
+        const baseQuery = document.getElementById('osm-base').value.trim();
+        const statusEl = document.getElementById('osm-status');
+        applyMainRoute(lastDirectionsResponse, idx, baseQuery, fromQuery, toQuery, statusEl);
+    }
+
+    function applyMainRoute(response, routeIndex, baseQuery, fromQuery, toQuery, statusEl) {
+        const idx = Math.max(0, Math.min(routeIndex || 0, (response.routes || []).length - 1));
+        try {
+            if (directionsRenderer && directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
+        } catch (e) {}
+        directionsRenderer.setDirections(response);
+        try {
+            if (directionsRenderer && directionsRenderer.setRouteIndex) directionsRenderer.setRouteIndex(idx);
+        } catch (e) {}
+        const route = response.routes[idx];
+        lastRoutePath = route.overview_path;
+        clearPOIMarkers();
+        renderRouteAlternatives(response, idx);
 
                 let podachaKm = 0;
                 let mainKm = 0;
 
                 if (baseQuery && route.legs.length >= 2) {
                     podachaKm = Math.round(route.legs[0].distance.value / 1000);
-                    mainKm = Math.round(route.legs.reduce((acc, leg, idx) => idx > 0 ? acc + leg.distance.value : acc, 0) / 1000);
+                    mainKm = Math.round(route.legs.reduce((acc, leg, idx2) => idx2 > 0 ? acc + leg.distance.value : acc, 0) / 1000);
                 } else {
                     mainKm = Math.round(route.legs.reduce((acc, leg) => acc + leg.distance.value, 0) / 1000);
                 }
@@ -3560,17 +3605,15 @@
                 document.getElementById('podacha-dist').value = podachaKm;
                 document.getElementById('dist').value = mainKm;
 
-                statusEl.innerText = baseQuery
-                    ? `✅ Маршрут Google: Подача ${podachaKm} км | Рейс ${mainKm} км`
-                    : `✅ Маршрут Google: Рейс ${mainKm} км`;
-                statusEl.style.color = 'var(--success)';
+        const altNote = (response.routes && response.routes.length > 1)
+            ? ' · варіант ' + (idx + 1) + '/' + response.routes.length
+            : '';
+        statusEl.innerText = baseQuery
+            ? `✅ Маршрут Google: Подача ${podachaKm} км | Рейс ${mainKm} км` + altNote
+            : `✅ Маршрут Google: Рейс ${mainKm} км` + altNote;
+        statusEl.style.color = 'var(--success)';
 
-                calculate();
-            } else {
-                statusEl.innerText = '❌ Не вдалося побудувати маршрут: ' + status;
-                statusEl.style.color = 'var(--danger)';
-            }
-        });
+        calculate();
     }
 
     function calculateBackhaulRoute() {
