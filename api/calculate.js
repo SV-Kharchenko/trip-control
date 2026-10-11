@@ -209,7 +209,7 @@ export default async function handler(req, res) {
 
         // --- КРУГОРЕЙС: B→C (порожнім) → C→D (вантаженим) → D→A (порожнім) ---
         // Довантажуємо стільки порожніх зворотних ходок, скільки реально дозволяє заявлений
-        // обсяг зворотнього вантажу (не більше) і скільки їх фізично є (не більше numReturnLegs).
+        // обсяг зворотного вантажу (не більше) і скільки їх фізично є (не більше numReturnLegs).
         const isRoundTrip = body.isRoundTrip === true;
         const rtTransferDist = isRoundTrip ? (parseFloat(body.rtTransferDist) || 0) : 0;
         const rtBackhaulDist = isRoundTrip ? (parseFloat(body.rtBackhaulDist) || 0) : 0;
@@ -359,7 +359,7 @@ export default async function handler(req, res) {
 
         const detailedRows = [
             { name: '⛽ Пальне (ДП завантажений + пустий + подача' + (refFuelCost > 0 ? ' + реф' : '') + ')', val: Math.round(fuelTotal) },
-            { name: useAdblue ? '💧 Рідина AdBlue' : '💧 Рідина AdBlue (Вимкнено)', val: Math.round(adblueTotal) },
+            { name: useAdblue ? '💧 Рідина AdBlue' : '💧 Рідина AdBlue (вимкнено)', val: Math.round(adblueTotal) },
             { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові', val: Math.round(driverTotal) },
             { name: '🔧 ТО, Шини та Ремонти' + (tankWashTotal > 0 ? ' + промивка цистерни' : ''), val: Math.round(maintenanceTotal) },
             ...(useExtras ? [{ name: '🌍 Супутні витрати (дороги, кордон, брокер, страховка, паром)', val: Math.round(extrasTotal) }] : []),
@@ -369,12 +369,12 @@ export default async function handler(req, res) {
         ];
 
         let tripVolumeText = returnMode === 'разовий'
-            ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} тн (${carsCount} авто по ${normWeight} тн)`
-            : `Об'єм вивозу: ${tripsCount} ходок (${actualVolume} тн)`;
+            ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} т (${carsCount} авто по ${normWeight} т)`
+            : `Об'єм вивозу: ${tripsCount} ходок (${actualVolume} т)`;
 
         if (isRoundTrip) {
             tripVolumeText += rtLegsUsed > 0
-                ? ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок довантажено (${rtVolumeTotal.toFixed(1)} тн)`
+                ? ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок довантажено (${rtVolumeTotal.toFixed(1)} т)`
                 : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
         }
 
