@@ -1659,15 +1659,117 @@
         body.layout-studio[data-theme="paper"] #studio-left .tc-map-frame {
             background: #F4EEE1;
             border-color: #E9E0CD;
-            height: 210px;
-            min-height: 180px;
-            max-height: 230px;
+            height: 220px;
+            min-height: 200px;
+            max-height: none;
             max-width: none;
             width: 100%;
         }
+        body.layout-studio[data-theme="paper"] .tc-work > .card {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+        }
+        body.layout-studio[data-theme="paper"] .tc-work > .card > h2 { display: none; }
+        body.layout-studio[data-theme="paper"] .paper-sec {
+            background: #FFFDF8;
+            border: 1px solid #E9E0CD;
+            border-radius: 16px;
+            padding: 14px 16px 16px;
+            margin-top: 12px;
+        }
+        body.layout-studio[data-theme="paper"] .paper-sec h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 12px;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        body.layout-studio[data-theme="paper"] .paper-sec h3 i {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #0D3337;
+            color: #FFFDF8;
+            display: grid;
+            place-items: center;
+            font-style: normal;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        body.layout-studio[data-theme="paper"] .paper-route-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
+            gap: 12px;
+            align-items: stretch;
+        }
+        body.layout-studio[data-theme="paper"] .paper-route-map {
+            min-height: 200px;
+        }
+        body.layout-studio[data-theme="paper"] .paper-route-map .tc-map-frame {
+            height: 100%;
+            min-height: 220px;
+        }
+        body.layout-studio[data-theme="paper"] .paper-cargo-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px 12px;
+        }
+        body.layout-studio[data-theme="paper"] .paper-cargo-grid .form-row,
+        body.layout-studio[data-theme="paper"] .paper-route-fields .form-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-areas: "label label" "input unit";
+            gap: 4px 8px;
+            margin-bottom: 0;
+        }
+        body.layout-studio[data-theme="paper"] .paper-cargo-grid .form-row > label,
+        body.layout-studio[data-theme="paper"] .paper-route-fields .form-row > label { grid-area: label; }
+        body.layout-studio[data-theme="paper"] .paper-cargo-grid .form-row > input,
+        body.layout-studio[data-theme="paper"] .paper-cargo-grid .form-row > select,
+        body.layout-studio[data-theme="paper"] .paper-route-fields .form-row > input,
+        body.layout-studio[data-theme="paper"] .paper-route-fields .form-row > select { grid-area: input; width: 100%; }
+        body.layout-studio[data-theme="paper"] .paper-cargo-grid .form-row > .unit,
+        body.layout-studio[data-theme="paper"] .paper-route-fields .form-row > .unit { grid-area: unit; align-self: center; }
+        body.layout-studio[data-theme="paper"] details.tc-more {
+            background: #FFFDF8;
+            border: 1px solid #E9E0CD;
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin-top: 12px;
+        }
+        body.layout-studio[data-theme="paper"] details.tc-more summary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        body.layout-studio[data-theme="paper"] details.tc-more summary::before {
+            content: '3';
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #0D3337;
+            color: #FFFDF8;
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        body.layout-studio[data-theme="paper"] .tc-route-bar { display: none; }
         body.layout-studio[data-theme="paper"] #studio-right {
-            position: static;
-            top: auto;
+            position: sticky;
+            top: 74px;
+        }
+        @media (max-width: 900px) {
+            body.layout-studio[data-theme="paper"] .paper-route-grid,
+            body.layout-studio[data-theme="paper"] .paper-cargo-grid { grid-template-columns: 1fr; }
+            body.layout-studio[data-theme="paper"] #studio-right { position: static; }
+        }
+        body.layout-studio[data-theme="paper"] #studio-right {
+            position: sticky;
+            top: 74px;
             align-self: start;
             max-height: none;
             height: auto;
@@ -3831,7 +3933,83 @@
         el.dataset.studioTaken = '1';
         return el;
     }
+    function undressPaperSections() {
+        const route = document.getElementById('paper-route');
+        const cargo = document.getElementById('paper-cargo');
+        const card = document.querySelector('.tc-work > .card');
+        if (!card || (!route && !cargo)) return;
+        const left = document.getElementById('studio-left');
+        const park = function (el) {
+            if (!el) return;
+            if (left) left.appendChild(el);
+            else card.appendChild(el);
+        };
+        if (route) {
+            park(route.querySelector('.tc-map-frame'));
+            const alts = document.getElementById('map-route-alts');
+            if (alts && route.contains(alts)) park(alts);
+        }
+        const more = card.querySelector('details.tc-more');
+        const putBack = function (node) {
+            if (!node) return;
+            if (more) card.insertBefore(node, more);
+            else card.appendChild(node);
+        };
+        [route, cargo].forEach(function (sec) {
+            if (!sec) return;
+            const host = sec.querySelector('.paper-route-fields, .paper-cargo-grid');
+            if (host) Array.from(host.children).forEach(putBack);
+            sec.remove();
+        });
+    }
+
+    function dressPaperSections() {
+        if (document.getElementById('paper-route')) return;
+        const card = document.querySelector('.tc-work > .card');
+        if (!card) return;
+        const rowOf = function (id) {
+            const el = document.getElementById(id);
+            return el ? el.closest('.form-row') : null;
+        };
+        const route = document.createElement('section');
+        route.id = 'paper-route';
+        route.className = 'paper-sec';
+        route.innerHTML = '<h3><i>1</i> Маршрут</h3><div class="paper-route-grid"><div class="paper-route-fields"></div><div class="paper-route-map"></div></div>';
+        const cargo = document.createElement('section');
+        cargo.id = 'paper-cargo';
+        cargo.className = 'paper-sec';
+        cargo.innerHTML = '<h3><i>2</i> Вантаж</h3><div class="paper-cargo-grid"></div>';
+        const fields = route.querySelector('.paper-route-fields');
+        const mapHost = route.querySelector('.paper-route-map');
+        const cargoHost = cargo.querySelector('.paper-cargo-grid');
+        const take = function (node, host) { if (node) host.appendChild(node); };
+        take(rowOf('route-name'), fields);
+        take(document.getElementById('route-fields-slot'), fields);
+        take(document.getElementById('podacha-info'), fields);
+        take(rowOf('podacha-dist'), fields);
+        take(rowOf('dist'), fields);
+        take(document.getElementById('trip-volume-info'), cargoHost);
+        ['volume', 'norm-weight', 'cars-count', 'days-per-trip', 'contract-currency'].forEach(function (id) {
+            take(rowOf(id), cargoHost);
+        });
+        take(document.getElementById('contract-fx-note'), cargoHost);
+        take(rowOf('rate'), cargoHost);
+        const more = card.querySelector('details.tc-more');
+        if (more) {
+            card.insertBefore(cargo, more);
+            card.insertBefore(route, cargo);
+        } else {
+            card.appendChild(route);
+            card.appendChild(cargo);
+        }
+        const map = document.querySelector('.tc-map-frame');
+        if (map) mapHost.appendChild(map);
+        const alts = document.getElementById('map-route-alts');
+        if (alts) mapHost.appendChild(alts);
+    }
+
     function restoreStudioDom() {
+        undressPaperSections();
         const sum = document.getElementById('studio-sum');
         if (sum) sum.remove();
         for (let i = studioMarks.length - 1; i >= 0; i--) {
@@ -3876,6 +4054,10 @@
         if (theme !== 'paper' && nodes.alts) right.appendChild(studioTake(nodes.alts));
         if (nodes.route) right.appendChild(studioTake(nodes.route));
         if (nodes.costs) right.appendChild(studioTake(nodes.costs));
+        if (theme === 'paper') {
+            dressPaperSections();
+            left.appendChild(studioTake(saved));
+        }
         if (theme === 'control') {
             const actions = document.querySelector('.actions-bar');
             if (nodes.poi) right.appendChild(studioTake(nodes.poi));
@@ -5986,6 +6168,13 @@
         updateRouteBar();
         if (document.body.classList.contains('layout-studio')) {
             syncStudioSums({ grossIncome: 184250, detailedRows: [{ val: 155310 }] });
+        }
+        const themeQ = new URLSearchParams(location.search).get('theme');
+        if (themeQ) {
+            applyTheme(themeQ);
+            if (document.body.classList.contains('layout-studio')) {
+                syncStudioSums({ grossIncome: 184250, detailedRows: [{ val: 155310 }] });
+            }
         }
     }
 
