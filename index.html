@@ -1360,7 +1360,10 @@
             padding: 0 22px 32px;
             column-gap: 18px;
             row-gap: 16px;
+            animation: none;
         }
+        body.layout-studio .tc-result-dock .tc-kpi .kpi-chip { display: none !important; }
+        body.layout-studio .tc-result-dock #kpi-breakeven-chip { display: block !important; }
         body.layout-studio #sticky-top {
             position: static;
             margin: 0 -22px 0;
@@ -1379,6 +1382,7 @@
         }
         body.layout-studio .tc-topbar::before,
         body.layout-studio .tc-topbar::after { display: none; }
+        body.layout-studio #theme-label { display: inline; }
         body.layout-studio .tc-studio-nav {
             display: flex;
             gap: 4px;
@@ -1527,9 +1531,11 @@
             border-color: #E9E0CD;
             grid-column: 1;
             grid-row: 2;
-            height: 198px;
-            min-height: 180px;
-            max-height: 198px;
+            height: 180px;
+            min-height: 160px;
+            max-height: 180px;
+            max-width: 360px;
+            justify-self: end;
         }
         body.layout-studio[data-theme="paper"] .tc-work { grid-column: 1; grid-row: 3; }
         body.layout-studio[data-theme="paper"] .tc-route-bar { grid-column: 1; grid-row: 4; }
@@ -1621,7 +1627,7 @@
         @media (max-width: 900px) {
             body.layout-studio #main-app {
                 grid-template-columns: 1fr !important;
-                padding: 0 14px 168px;
+                padding: 0 14px 280px;
             }
             body.layout-studio #sticky-top { margin: 0 -14px 0; }
             body.layout-studio .tc-work,
@@ -1660,8 +1666,11 @@
             }
             body.layout-studio[data-studio-view="overview"] .tc-result-dock { display: none !important; }
             body.layout-studio .tc-profit-value { font-size: 38px; }
-            body.layout-studio .tc-result-dock .kpi-chip { display: none; }
-            body.layout-studio .tc-result-dock #kpi-breakeven-chip { display: block; }
+            body.layout-studio .tc-result-dock .tc-kpi { display: none !important; }
+            body.layout-studio .tc-result-dock {
+                width: auto;
+                max-height: none;
+            }
             body.layout-studio .form-row input,
             body.layout-studio .form-row select,
             body.layout-studio .tc-action-btn,
