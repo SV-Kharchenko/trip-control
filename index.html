@@ -3,10 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="TRIP-CONTROL — калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧭%3C/text%3E%3C/svg%3E">
     <title>TRIP-CONTROL, розрахунок прибутковості автомобільних перевезень</title>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+    <meta name="description" content="TRIP-CONTROL — калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
+    <link rel="canonical" href="https://trip-control.com/">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="uk_UA">
+    <meta property="og:site_name" content="TRIP-CONTROL">
+    <meta property="og:title" content="TRIP-CONTROL — розрахунок прибутковості автоперевезень">
+    <meta property="og:description" content="Калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
+    <meta property="og:url" content="https://trip-control.com/">
+    <meta property="og:image" content="https://trip-control.com/assets/logo-compass-512.png">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="TRIP-CONTROL — розрахунок прибутковості автоперевезень">
+    <meta name="twitter:description" content="Калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
+    <meta name="twitter:image" content="https://trip-control.com/assets/logo-compass-512.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous">
 <style>
         :root, [data-theme="night"] {
             --bg-color: #0b111b; --card-bg: rgba(16,22,34,0.82); --border-color: rgba(125,211,252,0.18);
@@ -43,6 +59,13 @@
             --kpi-glow: rgba(2,132,199,0.2);
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-ui); }
+        [hidden] { display: none !important; }
+        .visually-hidden {
+            position: absolute !important; width: 1px !important; height: 1px !important;
+            padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important; clip-path: inset(50%) !important;
+            white-space: nowrap !important; border: 0 !important;
+        }
         body {
             background: var(--bg-color); color: var(--text-main); padding: 14px 18px 36px; min-height: 100vh;
             background-image:
@@ -140,6 +163,7 @@
         }
         .tc-brand .tc-demo-badge, .tc-brand .tc-lockup { pointer-events: auto; }
         /* Horizontal brand lockup: compass + CSS wordmark */
+        .tc-lockup picture { display: contents; }
         .tc-lockup {
             display: inline-flex; align-items: center; gap: 0.55em;
             margin: 0; padding: 0; border: none; border-radius: 0;
@@ -263,6 +287,7 @@
         }
         .kpi-spark { position: absolute; left: 0; right: 0; bottom: 0; height: 38%; opacity: 0.95; pointer-events: none; z-index: 0; filter: drop-shadow(0 0 6px var(--kpi-glow)); }
         .kpi-spark svg { width: 100%; height: 100%; display: block; }
+        .kpi-spark.is-empty { filter: none; opacity: 0.9; color: var(--text-muted); }
         .kpi-title, .kpi-value, .kpi-sub { position: relative; z-index: 1; }
         .kpi-title { font-size: 0.55rem; color: var(--text-muted); margin: 0; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; font-family: var(--font-ui); }
         .kpi-value {
@@ -683,6 +708,10 @@
         }
         select { text-align: left; }
         input:focus, select:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(125,211,252,0.12); }
+        input[type="checkbox"], input[type="radio"] {
+            width: 16px; height: 16px; min-width: 16px; max-width: 16px; flex: 0 0 16px;
+            padding: 0; margin: 0; accent-color: #1aa56e; border-radius: 3px; text-align: left;
+        }
         .unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
         gmp-place-autocomplete {
             width: 100%;
@@ -915,8 +944,9 @@
         #signup-extra[style*="block"] .auth-legal,
         #signup-extra .auth-legal.show { display: block; }
         .auth-legal a { color: var(--accent); }
-        .auth-legal label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
-        .auth-legal input { margin-top: 2px; }
+        .auth-legal label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; text-align: left; }
+        .auth-legal label span { flex: 1; min-width: 0; }
+        .auth-legal input[type="checkbox"] { margin-top: 2px; }
         .tc-footer a { color: var(--text-muted); text-decoration: underline; }
         #cab-message { font-size: 0.85rem; margin: 8px 18px 0; min-height: 1.2em; }
         @media (max-width: 800px) {
@@ -1093,6 +1123,14 @@
             margin: -6px 0 14px; text-decoration: none;
         }
         .auth-forgot:hover { color: #3db3b3; text-decoration: underline; }
+        button.auth-forgot {
+            background: none; border: none; padding: 0; cursor: pointer; width: 100%;
+            font: inherit; font-size: 0.75rem;
+        }
+        #auth-screen input, #auth-screen select { text-align: left; }
+        #auth-form, #auth-recovery-form { margin: 0; }
+        #auth-recovery-form .form-row { margin-bottom: 10px; }
+        #auth-back-btn { margin-top: 0; }
         #auth-login-btn { border-radius: 12px; min-height: 46px; letter-spacing: 0.04em; }
         #auth-signup-btn {
             background: rgba(8,14,20,0.7) !important; color: var(--text-main) !important;
@@ -1277,39 +1315,43 @@
             .tc-result-dock { grid-column: 1; grid-row: auto; position: static; }
         }
     </style>
-    <!-- Supabase. Google Maps вантажиться динамічно (loadGoogleMaps) і ТІЛЬКИ для повного доступу —
-         демо-акаунти не створюють платних запитів до Google. -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
 </head>
 <body data-theme="night">
 
 <!-- Екран авторизації -->
 <div id="auth-screen">
     <div class="auth-card">
-        <div class="tc-lockup tc-lockup--auth" aria-label="TRIP-CONTROL">
-            <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
-            <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
+        <div class="tc-lockup tc-lockup--auth">
+            <picture>
+                <source srcset="assets/logo-compass-112.webp" type="image/webp">
+                <img class="tc-lockup__compass" src="assets/logo-compass-112.png" alt="" width="112" height="112">
+            </picture>
+            <h1 class="tc-lockup__wordmark">TRIP-CONTROL</h1>
         </div>
-        <h2>TRIP-CONTROL</h2>
         <p class="auth-tagline">Координуй маршрут. Керуй результатом.</p>
         <p class="auth-tagline-sub">Після реєстрації — демо: <b>5 розрахунків на добу</b>.</p>
         <div class="auth-divider"></div>
 
-        <div id="auth-form-box">
+        <form id="auth-form" data-mode="login" novalidate onsubmit="return onAuthSubmit(event)">
             <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
-                <input type="email" id="auth-email" placeholder="Користувач або email" autocomplete="email" style="text-align: left;">
+                <label class="visually-hidden" for="auth-email">Email</label>
+                <input type="email" id="auth-email" name="email" placeholder="Email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required>
             </div>
-            <div class="form-row two-cols" style="margin-bottom: 8px; grid-template-columns: 1fr;">
-                <input type="password" id="auth-password" placeholder="Пароль (мін. 8, літера + цифра)" autocomplete="current-password" minlength="8" style="text-align: left;">
+            <div class="form-row two-cols" id="auth-password-row" style="margin-bottom: 8px; grid-template-columns: 1fr;">
+                <label class="visually-hidden" for="auth-password">Пароль</label>
+                <input type="password" id="auth-password" name="password" placeholder="Пароль (мін. 8, літера + цифра)" autocomplete="current-password" required>
             </div>
-            <a class="auth-forgot" href="#" onclick="return false;">Забули пароль?</a>
+            <button type="button" class="auth-forgot" id="auth-forgot-btn" onclick="enterResetMode()">Забули пароль?</button>
             <div id="signup-extra">
                 <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
-                    <input type="text" id="auth-company" placeholder="Назва компанії або ФОП" maxlength="100" style="text-align: left;">
+                    <label class="visually-hidden" for="auth-company">Назва компанії або ФОП</label>
+                    <input type="text" id="auth-company" name="organization" placeholder="Назва компанії або ФОП" maxlength="100" autocomplete="organization">
                 </div>
                 <div class="form-row two-cols" style="margin-bottom: 16px; grid-template-columns: 1fr;">
-                    <select id="auth-tax" style="text-align: left;">
+                    <label class="visually-hidden" for="auth-tax">Система оподаткування</label>
+                    <select id="auth-tax" name="tax" autocomplete="off">
                         <option value="безготівковий">Безготівковий (з ПДВ)</option>
                         <option value="фоп" selected>ФОП (3 група: 5% + ВЗ 1%)</option>
                         <option value="готівка">Готівка</option>
@@ -1317,14 +1359,28 @@
                 </div>
                 <div class="auth-legal" id="auth-legal-box">
                     <label>
-                        <input type="checkbox" id="auth-consent">
+                        <input type="checkbox" id="auth-consent" name="consent">
                         <span>Погоджуюсь з <a href="/legal/offer.html" target="_blank" rel="noopener">офертою</a> та <a href="/legal/privacy.html" target="_blank" rel="noopener">політикою конфіденційності</a> (обробка ЄДРПОУ, телефону тощо).</span>
                     </label>
                 </div>
             </div>
-            <button id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;" onclick="handleAuth('login')">🧭 Увійти</button>
-            <button id="auth-signup-btn" class="btn" style="width: 100%;" onclick="handleAuth('signup')">Зареєструватися</button>
-        </div>
+            <button type="submit" id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;">🧭 Увійти</button>
+            <button type="button" id="auth-signup-btn" class="btn" style="width: 100%;" onclick="handleAuth('signup')">Зареєструватися</button>
+            <button type="button" id="auth-back-btn" class="btn" style="width: 100%;" hidden onclick="exitResetMode()">Назад до входу</button>
+        </form>
+
+        <form id="auth-recovery-form" hidden novalidate onsubmit="return submitNewPassword(event)">
+            <p class="auth-tagline" style="margin-bottom: 12px;">Задайте новий пароль для цього акаунта.</p>
+            <div class="form-row two-cols" style="margin-bottom: 10px; grid-template-columns: 1fr;">
+                <label class="visually-hidden" for="auth-new-password">Новий пароль</label>
+                <input type="password" id="auth-new-password" name="new-password" placeholder="Новий пароль (мін. 8, літера + цифра)" autocomplete="new-password" required>
+            </div>
+            <div class="form-row two-cols" style="margin-bottom: 14px; grid-template-columns: 1fr;">
+                <label class="visually-hidden" for="auth-new-password-2">Повторіть новий пароль</label>
+                <input type="password" id="auth-new-password-2" name="new-password-confirm" placeholder="Повторіть новий пароль" autocomplete="new-password" required>
+            </div>
+            <button type="submit" class="btn btn-success" style="width: 100%;">Зберегти пароль</button>
+        </form>
 
         <div id="auth-message" style="font-size: 0.9rem; margin-top: 15px; color: var(--warning); line-height: 1.4;"></div>
         <button id="logout-btn" class="btn btn-danger" style="display:none; width: 100%; margin-top: 15px;" onclick="handleLogout()">Вийти з акаунта</button>
@@ -1352,16 +1408,19 @@
             </div>
             <div class="tc-brand">
                 <div class="tc-lockup tc-lockup--header" aria-label="TRIP-CONTROL">
-                    <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
+                    <picture>
+                    <source srcset="assets/logo-compass-112.webp" type="image/webp">
+                    <img class="tc-lockup__compass" src="assets/logo-compass-112.png" alt="" width="112" height="112">
+                </picture>
                     <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
                 </div>
                 <h1 class="brand-title">TRIP-CONTROL</h1>
-                <span class="tc-demo-badge">DEMO</span>
+                <span class="tc-demo-badge">ДЕМО</span>
             </div>
             <div class="tc-actions">
-                <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Night</span></button>
+                <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Ніч</span></button>
                 <button class="tc-action-btn" type="button" title="Особистий кабінет" onclick="openCabinet()">📂 <span class="tc-action-label">Кабінет</span></button>
-                <button class="tc-action-btn" type="button" id="admin-crm-btn" title="Адмін CRM" onclick="openAdminCrm()">🛡 <span class="tc-action-label">CRM</span></button>
+                <button class="tc-action-btn" type="button" id="admin-crm-btn" title="Клієнтська база" onclick="openAdminCrm()">🛡 <span class="tc-action-label">Клієнти</span></button>
                 <button class="tc-action-btn danger" type="button" title="Вийти" onclick="handleLogout()">⎋ <span class="tc-action-label">Вийти</span></button>
             </div>
         </div>
@@ -1454,7 +1513,7 @@
                 <div class="tc-map-alts full-only" id="map-route-alts" aria-label="Альтернативні маршрути"></div>
                 <div class="tc-map-overlay">
                     <div class="tc-map-hud">
-                        <div class="tc-map-badge"><span class="dot"></span><span id="map-hud-label">Route · UA</span></div>
+                        <div class="tc-map-badge"><span class="dot"></span><span id="map-hud-label">Маршрут · UA</span></div>
                         <div class="tc-map-controls">
                             <button type="button" class="tc-map-btn" title="Збільшити" onclick="mapZoom(1)">+</button>
                             <button type="button" class="tc-map-btn" title="Зменшити" onclick="mapZoom(-1)">−</button>
@@ -1482,9 +1541,9 @@
             <div class="tc-route-progress" aria-hidden="true">
                 <span class="rp-node">A</span>
                 <span class="rp-line"></span>
-                <span class="rp-node fuel">FUEL</span>
+                <span class="rp-node fuel">ПАЛЬНЕ</span>
                 <span class="rp-line"></span>
-                <span class="rp-node fuel">STOP</span>
+                <span class="rp-node fuel">СТОП</span>
                 <span class="rp-line"></span>
                 <span class="rp-node b">B</span>
                 <span class="rp-meta is-wait" id="route-progress-meta">Маршрут ще не побудовано</span>
@@ -1544,7 +1603,7 @@
                 </div>
 
                 <div class="form-row two-cols tc-keep-hidden">
-                    <label>Тип причепу:</label>
+                    <label>Тип причепа:</label>
                     <select id="trailer-type" onchange="onTrailerChange()">
                         <option value="зерновоз" selected>Зерновоз</option>
                         <option value="рефрижератор">Рефрижератор</option>
@@ -1579,12 +1638,12 @@
                 <div class="form-row">
                     <label>Загальний об'єм контракту:</label>
                     <input type="number" id="volume" tabindex="5" oninput="calculate()">
-                    <span class="unit">тн</span>
+                    <span class="unit">т</span>
                 </div>
                 <div class="form-row">
                     <label>Нормативна вага на авто:</label>
                     <input type="number" id="norm-weight" tabindex="6" step="0.5" oninput="calculate()">
-                    <span class="unit">тн/маш</span>
+                    <span class="unit">т/авто</span>
                 </div>
                 <div class="form-row">
                     <label>Кількість залучених авто:</label>
@@ -1623,22 +1682,22 @@
                 <div class="form-row">
                     <label>Розцінка (з ПДВ / ФОП):</label>
                     <input type="number" id="rate" tabindex="9" step="0.01" oninput="calculate()">
-                    <span class="unit" id="rate-unit">грн/тн</span>
+                    <span class="unit" id="rate-unit">грн/т</span>
                 </div>
 
                     <div class="form-row two-cols" style="margin-bottom: 6px; margin-top: 10px;">
-                        <label style="color: var(--success); font-weight: 600;">🔄 Режим Кругорейсу (Зворотний вантаж):</label>
+                        <label style="color: var(--success); font-weight: 600;">🔄 Режим кругорейсу (зворотний вантаж):</label>
                         <select id="round-trip-enable" onchange="toggleRoundTrip()">
                             <option value="off" selected>Вимкнено (без зворотного вантажу)</option>
-                            <option value="on">Увімкнено (Вантаж назад)</option>
+                            <option value="on">Увімкнено (вантаж назад)</option>
                         </select>
                     </div>
                     <div id="round-trip-box" style="display: none;">
                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4;">
                             Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C,
-                            звідти <b>вантаженим</b> зворотнім вантажем до точки D, і <b>порожнім</b> повертається у пункт A під нове завантаження.
+                            звідти <b>вантаженим</b> зворотним вантажем до точки D, і <b>порожнім</b> повертається у пункт A під нове завантаження.
                         </div>
-                        <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🔁 Розрахунок зворотнього маршруту B→C→D→A за картами Google</small></div>
+                        <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🔁 Розрахунок зворотного маршруту B→C→D→A за картами Google</small></div>
                         <div class="form-row two-cols full-only" style="margin-bottom: 6px;">
                             <label>Точка C (довантаження, порожнім з B):</label>
                             <div id="rt-point-c-wrap"></div>
@@ -1649,7 +1708,7 @@
                             <div id="rt-point-d-wrap"></div>
                             <input type="hidden" id="rt-point-d">
                         </div>
-                        <button type="button" class="btn full-only" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотній маршрут (Google)</button>
+                        <button type="button" class="btn full-only" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотний маршрут (Google)</button>
                         <div id="rt-status" class="full-only" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
 
                         <div class="form-row">
@@ -1668,14 +1727,14 @@
                             <span class="unit">км</span>
                         </div>
                         <div class="form-row">
-                            <label>Загальний обсяг зворотнього вантажу:</label>
+                            <label>Загальний обсяг зворотного вантажу:</label>
                             <input type="number" id="rt-total-volume" value="0" oninput="calculate()">
-                            <span class="unit">тн</span>
+                            <span class="unit">т</span>
                         </div>
                         <div class="form-row">
-                            <label>Розцінка зворотнього вантажу:</label>
+                            <label>Розцінка зворотного вантажу:</label>
                             <input type="number" id="rt-rate" step="0.01" oninput="calculate()">
-                            <span class="unit" id="rt-rate-unit">грн/тн</span>
+                            <span class="unit" id="rt-rate-unit">грн/т</span>
                         </div>
                         <div id="rt-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: 4px;"></div>
                     </div>
@@ -1778,7 +1837,7 @@
                                 <tr>
                                     <th>Стаття витрат</th>
                                     <th>Сума (грн)</th>
-                                    <th>На 1 тн</th>
+                                    <th>На 1 т</th>
                                     <th>Частка</th>
                                 </tr>
                             </thead>
@@ -1829,8 +1888,8 @@
             <input type="number" id="adblue-price" step="0.5" oninput="calculate()">
         </div>
         <select id="driver-pay-mode" onchange="onDriverPayModeChange()">
-            <option value="km" selected>km</option>
-            <option value="pct">pct</option>
+            <option value="km" selected>за км</option>
+            <option value="pct">відсоток</option>
         </select>
         <div id="driver-km-box">
             <input type="number" id="driver-rate-load" step="0.01" oninput="calculate()">
@@ -1901,7 +1960,10 @@
         <div class="cab-head">
             <div class="cab-brand">
                 <div class="tc-lockup tc-lockup--cab" aria-label="TRIP-CONTROL">
-                    <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
+                    <picture>
+                    <source srcset="assets/logo-compass-112.webp" type="image/webp">
+                    <img class="tc-lockup__compass" src="assets/logo-compass-112.png" alt="" width="112" height="112">
+                </picture>
                     <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
                 </div>
                 <div class="cab-sub">Особистий кабінет</div>
@@ -1923,7 +1985,10 @@
         <div class="adm-head">
             <div style="display:flex;align-items:center;gap:12px;min-width:0;flex-wrap:wrap;">
                 <div class="tc-lockup tc-lockup--crm" aria-label="TRIP-CONTROL">
-                    <img class="tc-lockup__compass" src="assets/logo-compass-only.png" alt="">
+                    <picture>
+                    <source srcset="assets/logo-compass-112.webp" type="image/webp">
+                    <img class="tc-lockup__compass" src="assets/logo-compass-112.png" alt="" width="112" height="112">
+                </picture>
                     <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
                 </div>
                 <h2 style="margin:0;">Адмін · клієнтська база</h2>
@@ -1952,6 +2017,12 @@
     const SUPABASE_URL = 'https://qkfqjorzsxcajcneohoy.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_-W_XaLQFhKyDvQY_-5xHBw_tK25Pjw9';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let recoveryMode = false;
+    supabaseClient.auth.onAuthStateChange(function (event) {
+        if (event !== 'PASSWORD_RECOVERY') return;
+        recoveryMode = true;
+        if (typeof showRecoveryForm === 'function') showRecoveryForm();
+    });
 
     let currentSessionToken = null;
     let currentUserId = null;
@@ -2006,17 +2077,28 @@
         return { line: line, area: area };
     }
 
-    function renderKpiSparklines() {
+    function renderKpiSparklines(opts) {
+        const allowSample = !!(opts && opts.sample);
         Object.keys(kpiHistory).forEach(function (key) {
             const el = document.getElementById('spark-' + key);
             if (!el) return;
-            // Після 1–2 розрахунків лінія майже невидима — тримаємо seed, доки не накопичиться історія
-            const series = kpiHistory[key].length >= 3 ? kpiHistory[key] : KPI_SPARK_SEED[key];
+            const real = kpiHistory[key];
+            const useSample = allowSample && real.length < 3;
+            const series = real.length >= 3 ? real : (useSample ? KPI_SPARK_SEED[key] : null);
+            if (!series) {
+                el.classList.add('is-empty');
+                el.classList.remove('spark-sample');
+                el.innerHTML = '<svg viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true"><line x1="6" y1="30" x2="114" y2="30" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 4" opacity="0.55"/></svg>';
+                el.setAttribute('role', 'img');
+                el.setAttribute('aria-label', 'Немає історії розрахунків');
+                return;
+            }
+            el.classList.remove('is-empty');
             const paths = sparkPath(series);
             const color = KPI_SPARK_COLORS[key];
             const gid = 'sparkfill-' + key;
             el.innerHTML = paths.line
-                ? '<svg viewBox="0 0 120 40" preserveAspectRatio="none">' +
+                ? '<svg viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">' +
                     '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
                     '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.35"/>' +
                     '<stop offset="100%" stop-color="' + color + '" stop-opacity="0"/>' +
@@ -2025,6 +2107,15 @@
                     '<path d="' + paths.line + '" fill="none" stroke="' + color + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>' +
                   '</svg>'
                 : '';
+            if (useSample) {
+                el.classList.add('spark-sample');
+                el.setAttribute('role', 'img');
+                el.setAttribute('aria-label', 'Приклад графіка, не ваші розрахунки');
+            } else {
+                el.classList.remove('spark-sample');
+                el.removeAttribute('role');
+                el.removeAttribute('aria-label');
+            }
         });
     }
 
@@ -2299,20 +2390,28 @@
     // ==========================================
     // ЛОГІКА АВТОРИЗАЦІЇ
     // ==========================================
-    async function checkUserAccess() {
+    async function checkUserAccess(opts) {
+        if (recoveryMode || urlLooksLikeRecovery()) {
+            showRecoveryForm();
+            return;
+        }
         const { data: { session } } = await supabaseClient.auth.getSession();
+        if (recoveryMode || urlLooksLikeRecovery()) {
+            showRecoveryForm();
+            return;
+        }
         const authScreen = document.getElementById('auth-screen');
         const mainApp = document.getElementById('main-app');
         const authMsg = document.getElementById('auth-message');
-        const authFormBox = document.getElementById('auth-form-box');
+        const authForm = document.getElementById('auth-form');
         const logoutBtn = document.getElementById('logout-btn');
 
         if (!session) {
             authScreen.style.display = 'flex';
             mainApp.style.display = 'none';
-            authFormBox.style.display = 'block';
+            showAuthForm();
             logoutBtn.style.display = 'none';
-            authMsg.innerText = '';
+            if (!(opts && opts.preserveMessage)) authMsg.innerText = '';
             return;
         }
 
@@ -2329,7 +2428,8 @@
         const showBlockingMessage = (html) => {
             authScreen.style.display = 'flex';
             mainApp.style.display = 'none';
-            authFormBox.style.display = 'none';
+            authForm.hidden = true;
+            document.getElementById('auth-recovery-form').hidden = true;
             logoutBtn.style.display = 'block';
             authMsg.innerHTML = html;
         };
@@ -2475,15 +2575,166 @@
         return null;
     }
 
+    function isValidEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+    }
+
+    function translateAuthError(error) {
+        const raw = String((error && (error.message || error.msg || error.error_description)) || '');
+        const code = String((error && (error.code || error.error_code || error.error)) || '');
+        const msg = (raw + ' ' + code).toLowerCase();
+        const rules = [
+            [/invalid login credentials|invalid_credentials/, 'Невірна електронна пошта або пароль.'],
+            [/email not confirmed|email_not_confirmed/, 'Підтвердіть email за посиланням у листі, потім увійдіть.'],
+            [/user already registered|already been registered|user_already_exists/, 'Цей email уже зареєстровано. Увійдіть або скиньте пароль.'],
+            [/unable to validate email|invalid email|invalid format|email_address_invalid/, 'Вкажіть коректну електронну пошту.'],
+            [/password should be at least|weak password|weak_password/, 'Пароль занадто слабкий. Потрібні щонайменше 8 символів, літера та цифра.'],
+            [/signups not allowed|signup_disabled/, 'Реєстрацію зараз вимкнено.'],
+            [/rate limit|too many requests|over_request_rate_limit|only request this|for security purposes/, 'Забагато запитів. Зачекайте трохи і спробуйте знову.'],
+            [/different from the old|same_password/, 'Новий пароль має відрізнятися від попереднього.'],
+            [/expired|otp_expired|invalid.*token|flow_state_expired/, 'Посилання недійсне або застаріло. Надішліть лист для скидання ще раз.'],
+            [/network|failed to fetch|load failed/, 'Немає з’єднання з сервером. Перевірте інтернет і спробуйте знову.'],
+            [/user banned|user_banned/, 'Цей акаунт заблоковано.']
+        ];
+        for (let i = 0; i < rules.length; i++) {
+            if (rules[i][0].test(msg)) return rules[i][1];
+        }
+        return 'Не вдалося виконати дію. Спробуйте ще раз або зверніться до підтримки.';
+    }
+
+    function hashParams() {
+        return new URLSearchParams((location.hash || '').replace(/^#/, ''));
+    }
+    function urlLooksLikeRecovery() {
+        if (hashParams().get('type') === 'recovery') return true;
+        return new URLSearchParams(location.search).get('type') === 'recovery';
+    }
+    function authErrorFromUrl() {
+        const h = hashParams();
+        const q = new URLSearchParams(location.search);
+        const desc = h.get('error_description') || q.get('error_description') || '';
+        const code = h.get('error_code') || q.get('error_code') || h.get('error') || q.get('error') || '';
+        if (!desc && !code) return null;
+        return { message: decodeURIComponent(String(desc).replace(/\+/g, ' ')), code: code };
+    }
+    function passwordResetRedirect() {
+        return location.origin + location.pathname;
+    }
+    function showAuthForm() {
+        const form = document.getElementById('auth-form');
+        const recovery = document.getElementById('auth-recovery-form');
+        if (form) form.hidden = false;
+        if (recovery) recovery.hidden = true;
+    }
+    function showRecoveryForm() {
+        recoveryMode = true;
+        const authScreen = document.getElementById('auth-screen');
+        const mainApp = document.getElementById('main-app');
+        if (authScreen) authScreen.style.display = 'flex';
+        if (mainApp) mainApp.style.display = 'none';
+        const form = document.getElementById('auth-form');
+        const recovery = document.getElementById('auth-recovery-form');
+        if (form) form.hidden = true;
+        if (recovery) recovery.hidden = false;
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        const msg = document.getElementById('auth-message');
+        if (msg && !msg.innerText) msg.innerText = 'Посилання дійсне. Задайте новий пароль.';
+    }
+    function enterResetMode() {
+        const form = document.getElementById('auth-form');
+        form.dataset.mode = 'reset';
+        document.getElementById('signup-extra').style.display = 'none';
+        document.getElementById('auth-legal-box').classList.remove('show');
+        document.getElementById('auth-password-row').hidden = true;
+        document.getElementById('auth-forgot-btn').hidden = true;
+        document.getElementById('auth-signup-btn').hidden = true;
+        document.getElementById('auth-back-btn').hidden = false;
+        document.getElementById('auth-login-btn').textContent = 'Надіслати лист';
+        document.getElementById('auth-message').innerText = 'Вкажіть email — надішлемо посилання для нового пароля.';
+        document.getElementById('auth-email').focus();
+    }
+    function exitResetMode() {
+        const form = document.getElementById('auth-form');
+        form.dataset.mode = 'login';
+        document.getElementById('auth-password-row').hidden = false;
+        document.getElementById('auth-forgot-btn').hidden = false;
+        document.getElementById('auth-signup-btn').hidden = false;
+        document.getElementById('auth-back-btn').hidden = true;
+        document.getElementById('signup-extra').style.display = 'none';
+        document.getElementById('auth-legal-box').classList.remove('show');
+        document.getElementById('auth-signup-btn').textContent = 'Зареєструватися';
+        document.getElementById('auth-login-btn').innerHTML = '🧭 Увійти';
+        document.getElementById('auth-password').setAttribute('autocomplete', 'current-password');
+        document.getElementById('auth-message').innerText = '';
+    }
+    function onAuthSubmit(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        const mode = document.getElementById('auth-form').dataset.mode || 'login';
+        if (mode === 'reset') sendPasswordReset();
+        else if (document.getElementById('signup-extra').style.display === 'block') handleAuth('signup');
+        else handleAuth('login');
+        return false;
+    }
+    async function sendPasswordReset() {
+        const authMsg = document.getElementById('auth-message');
+        const email = document.getElementById('auth-email').value.trim();
+        if (!isValidEmail(email)) {
+            authMsg.innerText = 'Вкажіть коректну електронну пошту — на неї надішлемо посилання.';
+            return;
+        }
+        const locked = authRateLocked();
+        if (locked) { authMsg.innerText = locked; return; }
+        authMsg.innerText = 'Надсилаємо лист…';
+        try {
+            const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+                redirectTo: passwordResetRedirect()
+            });
+            if (error) {
+                authMsg.innerText = translateAuthError(error);
+                return;
+            }
+            authMsg.innerText = 'Якщо цей email зареєстровано, ми надіслали лист із посиланням для нового пароля. Перевірте пошту, зокрема папку «Спам».';
+        } catch (e) {
+            authMsg.innerText = translateAuthError(e);
+        }
+    }
+    async function submitNewPassword(e) {
+        if (e && e.preventDefault) e.preventDefault();
+        const authMsg = document.getElementById('auth-message');
+        const a = document.getElementById('auth-new-password').value;
+        const b = document.getElementById('auth-new-password-2').value;
+        const weak = passwordStrongEnough(a);
+        if (weak) { authMsg.innerText = weak; return false; }
+        if (a !== b) { authMsg.innerText = 'Паролі не збігаються.'; return false; }
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+            authMsg.innerText = 'Сесія відновлення не знайдена або посилання застаріло. Надішліть лист ще раз.';
+            return false;
+        }
+        const { error } = await supabaseClient.auth.updateUser({ password: a });
+        if (error) { authMsg.innerText = translateAuthError(error); return false; }
+        recoveryMode = false;
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (err) {}
+        authMsg.innerText = 'Пароль оновлено. Відкриваємо кабінет…';
+        document.getElementById('auth-recovery-form').hidden = true;
+        checkUserAccess();
+        return false;
+    }
+
     async function handleAuth(type) {
         const email = document.getElementById('auth-email').value.trim();
-        const password = document.getElementById('auth-password').value.trim();
+        const password = document.getElementById('auth-password').value;
         const authMsg = document.getElementById('auth-message');
 
         if (!email || !password) {
             authMsg.innerText = type === 'signup'
                 ? 'Спочатку введіть email і пароль, потім натисніть «Зареєструватися» ще раз.'
                 : 'Введіть email та пароль.';
+            return;
+        }
+        if (!isValidEmail(email)) {
+            authMsg.innerText = 'Вкажіть коректну електронну пошту. Вхід за іменем користувача не підтримується.';
             return;
         }
 
@@ -2493,7 +2744,7 @@
             const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
             if (error) {
                 authRateFail();
-                authMsg.innerText = 'Помилка входу: ' + error.message;
+                authMsg.innerText = translateAuthError(error);
             } else {
                 authRateOk();
                 checkUserAccess();
@@ -2502,8 +2753,8 @@
             const weak = passwordStrongEnough(password);
             if (weak) { authMsg.innerText = weak; return; }
             const box = document.getElementById('signup-extra');
+            document.getElementById('auth-password').setAttribute('autocomplete', 'new-password');
             if (box.style.display !== 'block') {
-                // Перший клік: показуємо поля компанії
                 box.style.display = 'block';
                 const legal = document.getElementById('auth-legal-box');
                 if (legal) legal.classList.add('show');
@@ -2523,11 +2774,11 @@
                 email, password,
                 options: { data: { company_name: company, tax_mode: taxMode } }
             });
-            if (error) authMsg.innerText = 'Помилка реєстрації: ' + error.message;
+            if (error) authMsg.innerText = translateAuthError(error);
             else if (data && data.user && !data.session) {
                 authMsg.innerText = '✅ Акаунт створено. Підтвердіть email за посиланням у листі, потім увійдіть.';
             } else {
-                authMsg.innerText = '✅ Акаунт створено. Відкриваємо демо з стартовим шаблоном…';
+                authMsg.innerText = '✅ Акаунт створено. Відкриваємо демо зі стартовим шаблоном…';
                 setTimeout(() => checkUserAccess(), 1500);
             }
         }
@@ -2543,7 +2794,7 @@
     // ЛОГІКА КАЛЬКУЛЯТОРА
     // ==========================================
     const THEME_ORDER = ['night', 'amber', 'ocean', 'light'];
-    const THEME_LABELS = { night: 'Night', amber: 'Amber', ocean: 'Ocean', light: 'Light' };
+    const THEME_LABELS = { night: 'Ніч', amber: 'Бурштин', ocean: 'Океан', light: 'Світла' };
     function cycleTheme() {
         const body = document.body;
         const cur = body.getAttribute('data-theme') || 'night';
@@ -2604,8 +2855,8 @@
         const rateUnit = document.getElementById('rate-unit');
         const rtUnit = document.getElementById('rt-rate-unit');
         const idleUnit = document.getElementById('idle-rate-unit');
-        if (rateUnit) rateUnit.textContent = unit + '/тн';
-        if (rtUnit) rtUnit.textContent = unit + '/тн';
+        if (rateUnit) rateUnit.textContent = unit + '/т';
+        if (rtUnit) rtUnit.textContent = unit + '/т';
         if (idleUnit) idleUnit.textContent = unit + '/доба';
         const note = document.getElementById('contract-fx-note');
         if (!note) return;
@@ -2810,11 +3061,11 @@
         { key: 'coAddress', col: 'address', label: 'Адреса', text: true, max: 160 },
         { key: 'coZip', col: 'zip', label: 'Поштовий індекс', text: true, max: 16 },
         { key: 'coTimezone', col: 'timezone', label: 'Часовий пояс', select: [
-            ['', '—'], ['Europe/Kyiv', 'Europe/Kyiv'], ['Europe/Warsaw', 'Europe/Warsaw'], ['UTC', 'UTC']
+            ['', '—'], ['Europe/Kyiv', 'Київ'], ['Europe/Warsaw', 'Варшава'], ['UTC', 'UTC']
         ] },
         { key: 'coPhone', col: 'phone', label: 'Телефон', text: true, max: 40 },
         { key: 'coWebsite', col: 'website', label: 'Веб-сайт', text: true, max: 120 },
-        { key: 'coReportEmail', col: 'report_email', label: 'Email для звітів', text: true, max: 120 },
+        { key: 'coReportEmail', col: 'report_email', label: 'Пошта для звітів', text: true, max: 120 },
         { key: 'coLang', col: 'lang', label: 'Мова інтерфейсу', select: [
             ['uk', 'Українська'], ['en', 'English'], ['pl', 'Polski']
         ] }
@@ -3293,10 +3544,30 @@
 
     let lastExport = null;
 
+    const EXCELJS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    const EXCELJS_SRI = 'sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz';
+    let excelJsPromise = null;
+    function loadExcelJS() {
+        if (window.ExcelJS) return Promise.resolve();
+        if (excelJsPromise) return excelJsPromise;
+        excelJsPromise = new Promise(function (resolve, reject) {
+            const s = document.createElement('script');
+            s.src = EXCELJS_SRC;
+            s.integrity = EXCELJS_SRI;
+            s.crossOrigin = 'anonymous';
+            s.async = true;
+            s.onload = function () { resolve(); };
+            s.onerror = function () { excelJsPromise = null; reject(new Error('exceljs')); };
+            document.head.appendChild(s);
+        });
+        return excelJsPromise;
+    }
+
     async function exportExcel() {
         if (isDemo) return;
         if (!lastExport) { alert('Спочатку дочекайтесь розрахунку.'); return; }
-        if (typeof ExcelJS === 'undefined') { alert('Не вдалося завантажити модуль Excel. Оновіть сторінку.'); return; }
+        try { await loadExcelJS(); } catch (e) { alert('Не вдалося завантажити модуль Excel. Спробуйте ще раз.'); return; }
+        if (typeof ExcelJS === 'undefined') { alert('Не вдалося завантажити модуль Excel. Спробуйте ще раз.'); return; }
         const { payload: p, result: r, routeName } = lastExport;
         const lbl = id => { const el = document.getElementById(id); return el && el.options ? el.options[el.selectedIndex].text : (el ? el.value : ''); };
         const num = v => { const n = parseFloat(v); return isNaN(n) ? (v ?? '') : n; };
@@ -3324,7 +3595,7 @@
         line('Ціна палива', num(p.fuelPrice), 'грн/л');
         line('Витрата палива (вантажем)', num(p.fuelLoad), 'л/100км'); line('Витрата палива (порожнім)', num(p.fuelEmpty), 'л/100км');
         line('Днів на рейс', num(p.daysPerTrip), 'дн');
-        if (p.isRoundTrip) { line('Зворотній рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотній рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотній рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотній обсяг', num(p.rtTotalVolume), 'т'); line('Зворотня ставка', num(p.rtRate), rateUnit); }
+        if (p.isRoundTrip) { line('Зворотний рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотний рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотний рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотний обсяг', num(p.rtTotalVolume), 'т'); line('Зворотна ставка', num(p.rtRate), rateUnit); }
         ws.addRow([]);
         head('Результати');
         line('Валовий дохід', Math.round(r.grossIncome), 'грн');
@@ -3787,7 +4058,7 @@
             <tr>
                 <td><b>${escHtml(c.routeName)}</b></td>
                 <td>${escHtml(c.trailerType)}</td>
-                <td>${escHtml(c.volume)} тн</td>
+                <td>${escHtml(c.volume)} т</td>
                 <td>${escHtml(c.rate)} ${escHtml(c.contractCurrency && c.contractCurrency !== 'UAH' ? c.contractCurrency : 'грн')}</td>
                 <td>${formatMoney(c.grossIncome)}</td>
                 <td>${formatMoney(c.marginalIncome)}</td>
@@ -3802,12 +4073,12 @@
     function shareOffer() {
         const d = lastCalcData;
         if (!d || !d.routeName) return;
-        const rateUnit = d.contractCurrency && d.contractCurrency !== 'UAH' ? d.contractCurrency + '/тн' : 'грн/тн';
+        const rateUnit = d.contractCurrency && d.contractCurrency !== 'UAH' ? d.contractCurrency + '/т' : 'грн/т';
         const text = `🚛 *КОМЕРЦІЙНА ПРОПОЗИЦІЯ / РОЗРАХУНОК РЕЙСУ*
 
 📍 Маршрут: ${d.routeName}
 🚛 Причіп: ${d.trailerType}
-📦 Об'єм: ${d.volume} тн
+📦 Об'єм: ${d.volume} т
 💰 Розцінка: ${d.rate} ${rateUnit}
 💵 Дохід: ${formatMoney(d.grossIncome)}${fxSuffix(d.grossIncome)}
 📈 Чистий прибуток: ${formatMoney(d.netProfit)}${fxSuffix(d.netProfit)}
@@ -3932,7 +4203,7 @@
         });
         directionsRendererBackhaul.setMap(map);
         const hud = document.getElementById('map-hud-label');
-        if (hud) hud.textContent = 'Tracking · UA';
+        if (hud) hud.textContent = 'Маршрут · UA';
         setTimeout(function () {
             if (map && google.maps.event) google.maps.event.trigger(map, 'resize');
         }, 200);
@@ -4284,11 +4555,11 @@
         const statusEl = document.getElementById('rt-status');
 
         if (!b || !a || !c || !d) {
-            statusEl.innerText = '⚠️ Заповніть пункти A, B (основний маршрут) та C, D (зворотній)';
+            statusEl.innerText = '⚠️ Заповніть пункти A, B (основний маршрут) та C, D (зворотний)';
             statusEl.style.color = 'var(--warning)';
             return;
         }
-        statusEl.innerText = '🔍 Побудова зворотнього маршруту...';
+        statusEl.innerText = '🔍 Побудова зворотного маршруту...';
         statusEl.style.color = 'var(--text-muted)';
 
         const request = {
@@ -4314,7 +4585,7 @@
                 statusEl.style.color = 'var(--success)';
                 calculate();
             } else {
-                statusEl.innerText = '❌ Не вдалося побудувати зворотній маршрут: ' + status;
+                statusEl.innerText = '❌ Не вдалося побудувати зворотний маршрут: ' + status;
                 statusEl.style.color = 'var(--danger)';
             }
         });
@@ -4507,7 +4778,7 @@
         document.getElementById('res-badge').textContent = '15.7%';
         document.getElementById('res-breakeven-full').textContent = '1 820 грн/т';
         document.getElementById('res-breakeven-op').textContent = 'маржа 1 650 · EBITDA 1 480';
-        renderKpiSparklines();
+        renderKpiSparklines({ sample: true });
         if (typeof renderChart === 'function') renderChart(42000, 28000, 6500, 12000, 8500, 3200);
         updateRouteBar();
     }
@@ -4531,7 +4802,15 @@
             showUiPreview();
             return;
         }
-        // Відразу перевіряємо авторизацію, і ТІЛЬКИ ПІСЛЯ НЕЇ викликаємо калькулятор
+        const urlErr = authErrorFromUrl();
+        if (urlErr && !urlLooksLikeRecovery()) {
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+            checkUserAccess({ preserveMessage: true }).then(function () {
+                const el = document.getElementById('auth-message');
+                if (el) el.innerText = translateAuthError(urlErr);
+            });
+            return;
+        }
         checkUserAccess();
     };
 </script>
