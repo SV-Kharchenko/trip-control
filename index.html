@@ -2088,9 +2088,44 @@
             margin-top: 0 !important;
             margin-bottom: 0 !important;
         }
-        body.layout-studio .tc-costs-visual .tc-costs-table-wrap { overflow-x: auto; max-width: 100%; }
+        body.layout-studio .tc-costs-visual .tc-costs-table-wrap {
+            overflow: visible;
+            max-width: 100%;
+            min-width: 0;
+        }
+        body.layout-studio .tc-costs-visual .tc-costs-table-wrap table {
+            width: 100%;
+            table-layout: fixed;
+            font-size: 12px;
+        }
         body.layout-studio .tc-costs-visual th,
-        body.layout-studio .tc-costs-visual td { white-space: nowrap; }
+        body.layout-studio .tc-costs-visual td {
+            white-space: normal;
+            vertical-align: top;
+            padding: 6px 4px;
+            line-height: 1.3;
+        }
+        body.layout-studio .tc-costs-visual th:nth-child(1),
+        body.layout-studio .tc-costs-visual td:nth-child(1) { width: 42%; text-align: left; }
+        body.layout-studio .tc-costs-visual th:nth-child(2),
+        body.layout-studio .tc-costs-visual td:nth-child(2) { width: 26%; }
+        body.layout-studio .tc-costs-visual th:nth-child(3),
+        body.layout-studio .tc-costs-visual td:nth-child(3) { width: 18%; }
+        body.layout-studio .tc-costs-visual th:nth-child(4),
+        body.layout-studio .tc-costs-visual td:nth-child(4) { width: 14%; }
+        @media (max-width: 900px) {
+            body.layout-studio .tc-costs-visual .tc-costs-table-wrap table { font-size: 11px; }
+            body.layout-studio .tc-costs-visual th,
+            body.layout-studio .tc-costs-visual td { padding: 5px 2px; }
+            body.layout-studio .tc-costs-visual th:nth-child(1),
+            body.layout-studio .tc-costs-visual td:nth-child(1) { width: 36%; }
+            body.layout-studio .tc-costs-visual th:nth-child(2),
+            body.layout-studio .tc-costs-visual td:nth-child(2) { width: 28%; }
+            body.layout-studio .tc-costs-visual th:nth-child(3),
+            body.layout-studio .tc-costs-visual td:nth-child(3) { width: 20%; }
+            body.layout-studio .tc-costs-visual th:nth-child(4),
+            body.layout-studio .tc-costs-visual td:nth-child(4) { width: 16%; }
+        }
         body.layout-studio .tc-month-track i.is-neg { background: var(--danger); }
         body.layout-studio[data-studio-view="overview"] #missing-hint,
         body.layout-studio[data-studio-view="overview"] #onboard-banner,
