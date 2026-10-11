@@ -2072,11 +2072,21 @@
         body.layout-studio[data-theme="control"] #studio-right > #map-route-alts { grid-column: 1 / -1; grid-row: 2; }
         body.layout-studio[data-theme="control"] #studio-right > .tc-route-bar { grid-row: 3; }
         body.layout-studio[data-theme="control"] #studio-right > .tc-costs-visual { grid-row: 4; }
+        body.layout-studio[data-theme="control"] #studio-right > .poi-box { grid-row: 5; }
+        body.layout-studio[data-theme="control"] #studio-right > #saved-section { grid-row: 6; }
+        body.layout-studio[data-theme="control"] #studio-right > .actions-bar { grid-row: 7; }
+        body.layout-studio[data-theme="control"] #studio-right:not(:has(> #map-route-alts.visible)) > .tc-route-bar { grid-row: 2; }
+        body.layout-studio[data-theme="control"] #studio-right:not(:has(> #map-route-alts.visible)) > .tc-costs-visual { grid-row: 3; }
+        body.layout-studio[data-theme="control"] #studio-right:not(:has(> #map-route-alts.visible)) > .poi-box { grid-row: 4; }
+        body.layout-studio[data-theme="control"] #studio-right:not(:has(> #map-route-alts.visible)) > #saved-section { grid-row: 5; }
+        body.layout-studio[data-theme="control"] #studio-right:not(:has(> #map-route-alts.visible)) > .actions-bar { grid-row: 6; }
+        body.layout-studio[data-theme="control"] #studio-right > .poi-box,
         body.layout-studio[data-theme="control"] #studio-right > #saved-section,
         body.layout-studio[data-theme="control"] #studio-right > .actions-bar {
             grid-column: 1 / -1;
             width: 100%;
-            margin-top: 0;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
         }
         body.layout-studio .tc-costs-visual .tc-costs-table-wrap { overflow-x: auto; max-width: 100%; }
         body.layout-studio .tc-costs-visual th,
@@ -3825,7 +3835,7 @@
         if (theme === 'paper' && nodes.alts) left.appendChild(studioTake(nodes.alts));
         if (nodes.work) left.appendChild(studioTake(nodes.work));
         if (nodes.lower) left.appendChild(studioTake(nodes.lower));
-        if (nodes.poi) left.appendChild(studioTake(nodes.poi));
+        if (nodes.poi && theme !== 'control') left.appendChild(studioTake(nodes.poi));
         if (nodes.dock) right.appendChild(studioTake(nodes.dock));
         if (theme !== 'paper' && nodes.map) right.appendChild(studioTake(nodes.map));
         if (theme !== 'paper' && nodes.alts) right.appendChild(studioTake(nodes.alts));
@@ -3833,6 +3843,7 @@
         if (nodes.costs) right.appendChild(studioTake(nodes.costs));
         if (theme === 'control') {
             const actions = document.querySelector('.actions-bar');
+            if (nodes.poi) right.appendChild(studioTake(nodes.poi));
             right.appendChild(studioTake(saved));
             if (actions) right.appendChild(studioTake(actions));
         }
