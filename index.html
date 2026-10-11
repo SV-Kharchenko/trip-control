@@ -1168,6 +1168,114 @@
             .tc-action-btn .tc-action-label { display: none; }
             .kpi-value { transform: scaleX(1.03); font-size: 0.95rem; }
         }
+
+        /* Екран логіста: результат закріплений праворуч, карта без карток зверху */
+        #main-app {
+            display: none;
+            grid-template-columns: minmax(0, 1fr) 340px;
+            column-gap: 14px;
+            align-items: start;
+        }
+        #sticky-top { grid-column: 1 / -1; }
+        #missing-hint, #onboard-banner, #cab-warning { grid-column: 1; }
+        .tc-hero, .tc-deck, .tc-lower, .actions-bar { grid-column: 1; }
+        .tc-deck { grid-template-columns: minmax(0, 1fr); }
+        .tc-result-dock {
+            grid-column: 2;
+            grid-row: 2 / span 12;
+            position: sticky;
+            top: var(--tc-dock-top, 12px);
+            align-self: start;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 4;
+        }
+        .tc-profit-hero {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 14px 14px 12px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+        }
+        .tc-profit-kicker {
+            font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase;
+            color: var(--text-muted); font-weight: 700; margin-bottom: 4px;
+        }
+        .tc-profit-value {
+            font-family: var(--font-ui);
+            font-size: 36px; font-weight: 700; line-height: 1.05;
+            font-variant-numeric: tabular-nums; color: var(--text-main);
+        }
+        .tc-profit-value.is-up { color: var(--success); }
+        .tc-profit-value.is-down { color: var(--danger); }
+        .tc-unit-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 12px;
+        }
+        .tc-unit-row b {
+            display: block; font-size: 1.15rem; font-weight: 700; line-height: 1.15;
+            font-variant-numeric: tabular-nums; color: var(--text-main);
+        }
+        .tc-unit-row span {
+            display: block; font-size: 0.68rem; color: var(--text-muted); margin-top: 2px;
+        }
+        .tc-result-dock .tc-kpi {
+            position: static; max-height: none; left: auto; right: auto; top: auto;
+            grid-template-columns: 1fr 1fr; pointer-events: auto;
+        }
+        .tc-result-dock .tc-kpi .kpi-chip:nth-child(n+4) { display: block; }
+        .tc-result-dock .kpi-spark { display: none; }
+        .tc-result-dock .kpi-chip { padding: 8px 10px; }
+        .tc-result-dock .kpi-value { font-size: 0.92rem; transform: none; }
+        #res-breakeven-gap.tc-gap-pill {
+            display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px;
+            font-size: 0.68rem; font-weight: 700;
+        }
+        #res-breakeven-gap.tc-gap-pill.is-up { background: rgba(52,211,153,0.16); color: var(--success); }
+        #res-breakeven-gap.tc-gap-pill.is-down { background: rgba(248,113,113,0.16); color: var(--danger); }
+        .tc-keep-hidden { display: none !important; }
+        .form-row.tc-invalid input, .form-row.tc-invalid select {
+            outline: 2px solid var(--danger); outline-offset: 1px;
+        }
+        details.tc-more {
+            margin-top: 8px; border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px;
+            background: color-mix(in srgb, var(--input-bg) 55%, transparent);
+        }
+        details.tc-more summary {
+            cursor: pointer; font-weight: 700; font-size: 0.82rem; color: var(--text-main);
+        }
+        details.tc-more[open] summary { margin-bottom: 8px; }
+        .tc-recent { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+        .tc-recent button {
+            border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);
+            border-radius: 999px; padding: 4px 8px; font-size: 0.68rem; cursor: pointer; font-family: var(--font-ui);
+        }
+        #route-calc-btn:disabled { opacity: 0.65; cursor: progress; }
+        .setup-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .setup-item {
+            border: 1px solid var(--border-color); border-radius: 999px; padding: 3px 8px;
+            font-size: 0.72rem; color: var(--text-muted);
+        }
+        .setup-item.ok { color: var(--success); border-color: color-mix(in srgb, var(--success) 45%, var(--border-color)); }
+        .tc-costs-table-wrap td:nth-child(n+2),
+        .tc-costs-table-wrap th:nth-child(n+2) {
+            text-align: right; font-variant-numeric: tabular-nums;
+        }
+        #tc-toast {
+            position: fixed; bottom: 18px; left: 50%; z-index: 90;
+            transform: translateX(-50%) translateY(8px);
+            background: var(--card-bg); color: var(--text-main);
+            border: 1px solid var(--success); border-radius: 10px;
+            padding: 10px 14px; font-size: 0.84rem; font-weight: 600;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
+        }
+        #tc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .rp-meta.is-ready { color: var(--success); }
+        .rp-meta.is-wait { color: var(--text-muted); font-weight: 600; }
+        @media (max-width: 1100px) {
+            #main-app { grid-template-columns: 1fr; }
+            .tc-result-dock { grid-column: 1; grid-row: auto; position: static; }
+        }
     </style>
     <!-- Supabase. Google Maps вантажиться динамічно (loadGoogleMaps) і ТІЛЬКИ для повного доступу —
          демо-акаунти не створюють платних запитів до Google. -->
@@ -1267,54 +1375,71 @@
             <div id="demo-hint" style="width: 100%; font-size: 0.75rem; color: var(--text-muted);">Перевірте параметри заявки і натисніть «Розрахувати». Результат не оновлюється наживо.</div>
             <button type="button" class="hint-close" onclick="dismissHint('demo-banner')" aria-label="Закрити" title="Закрити">×</button>
         </div>
+    </div>
 
         <div id="missing-hint"></div>
         <div id="onboard-banner">
-            <div class="hint-text">👋 Підставлено <b>стартовий шаблон</b> (зерновоз, типовий парк). Перевірте відстань і ставку, натисніть «Розрахувати». Для точнішого прибутку заповніть накладні в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.</div>
+            <div class="hint-text">
+                <b>Налаштування перед першим рейсом.</b>
+                <div class="setup-list" id="setup-checks"></div>
+                <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button type="button" class="btn" style="padding: 6px 12px;" onclick="fillDemoTrip()">Підставити демо-рейс</button>
+                    <button type="button" class="link-btn" onclick="openCabinet()">Відкрити кабінет</button>
+                </div>
+            </div>
             <button type="button" class="hint-close" onclick="dismissHint('onboard-banner')" aria-label="Закрити" title="Закрити">×</button>
         </div>
-        <div id="cab-warning">
-            <div class="hint-text">⚠️ Накладні витрати не заповнені — EBITDA і чистий прибуток рахуються <b>без них</b> (маржа може збігатися з EBITDA). <button class="link-btn" onclick="openCabinet()">Відкрити особистий кабінет</button>.</div>
-            <button type="button" class="hint-close" onclick="dismissHint('cab-warning')" aria-label="Закрити" title="Закрити">×</button>
+        <div id="cab-warning" style="display:none"></div>
+
+    <aside class="tc-result-dock" id="dispatcher-result">
+        <div class="tc-profit-hero">
+            <div class="tc-profit-kicker">Чистий прибуток</div>
+            <div class="tc-profit-value" id="res-profit-hero">—</div>
+            <div class="tc-unit-row">
+                <div><b id="res-per-km">—</b><span>грн/км</span></div>
+                <div><b id="res-per-day">—</b><span>грн/добу</span></div>
+                <div><b id="res-per-ton">—</b><span>грн/т</span></div>
+                <div><b id="res-margin-pct">—</b><span>маржа</span></div>
+            </div>
         </div>
-    </div>
+        <div class="tc-kpi kpi-strip">
+            <div class="kpi-chip">
+                <div class="kpi-spark" id="spark-income"></div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">₴</span><div class="kpi-title">Дохід</div></div>
+                <div class="kpi-value" id="res-income">—</div>
+                <div class="kpi-sub" id="res-income-net">Чистий: —</div>
+            </div>
+            <div class="kpi-chip">
+                <div class="kpi-spark" id="spark-margin"></div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">%</span><div class="kpi-title">Маржа</div></div>
+                <div class="kpi-value" id="res-margin">—</div>
+                <div class="kpi-sub" id="res-margin-ton">на 1 т: —</div>
+            </div>
+            <div class="kpi-chip">
+                <div class="kpi-spark" id="spark-ebitda"></div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◆</span><div class="kpi-title">EBITDA</div></div>
+                <div class="kpi-value" id="res-ebitda">—</div>
+                <div class="kpi-sub" id="res-ebitda-ton">на 1 т: —</div>
+            </div>
+            <div class="kpi-chip">
+                <div class="kpi-spark" id="spark-profit"></div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">↑</span><div class="kpi-title">Прибуток</div></div>
+                <div class="kpi-value" id="res-profit">—</div>
+                <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">—</span><span id="res-profit-fx"></span></div>
+            </div>
+            <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
+                <div class="kpi-spark" id="spark-breakeven"></div>
+                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◎</span><div class="kpi-title">Беззбитковість</div></div>
+                <div class="kpi-value" id="res-breakeven-full">—</div>
+                <div class="kpi-sub" id="res-breakeven-op">маржа — · EBITDA —</div>
+                <div class="kpi-sub tc-gap-pill" id="res-breakeven-gap"></div>
+            </div>
+        </div>
+    </aside>
 
     <div class="tc-hero">
         <div class="card">
             <div class="tc-map-frame" id="tc-map-frame">
-                <div class="tc-kpi kpi-strip">
-                    <div class="kpi-chip">
-                        <div class="kpi-spark" id="spark-income"></div>
-                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">₴</span><div class="kpi-title">Дохід</div></div>
-                        <div class="kpi-value" id="res-income">0 грн</div>
-                        <div class="kpi-sub" id="res-income-net">Чистий: 0 грн</div>
-                    </div>
-                    <div class="kpi-chip">
-                        <div class="kpi-spark" id="spark-margin"></div>
-                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">%</span><div class="kpi-title">Маржа</div></div>
-                        <div class="kpi-value" id="res-margin">0 грн</div>
-                        <div class="kpi-sub" id="res-margin-ton">на 1 т: 0 грн</div>
-                    </div>
-                    <div class="kpi-chip">
-                        <div class="kpi-spark" id="spark-ebitda"></div>
-                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◆</span><div class="kpi-title">EBITDA</div></div>
-                        <div class="kpi-value" id="res-ebitda">0 грн</div>
-                        <div class="kpi-sub" id="res-ebitda-ton">на 1 т: 0 грн</div>
-                    </div>
-                    <div class="kpi-chip">
-                        <div class="kpi-spark" id="spark-profit"></div>
-                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">↑</span><div class="kpi-title">Прибуток</div></div>
-                        <div class="kpi-value" id="res-profit">0 грн</div>
-                        <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span><span id="res-profit-fx"></span></div>
-                    </div>
-                    <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
-                        <div class="kpi-spark" id="spark-breakeven"></div>
-                        <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◎</span><div class="kpi-title">Беззбитковість</div></div>
-                        <div class="kpi-value" id="res-breakeven-full">0 грн/т</div>
-                        <div class="kpi-sub" id="res-breakeven-op">маржа 0 · EBITDA 0</div>
-                        <div class="kpi-sub" id="res-breakeven-gap" style="font-weight: 600;"></div>
-                    </div>
-                </div>
                 <div class="lock-ph demo-only">
                     <svg class="map-art" viewBox="0 0 220 110" aria-hidden="true">
                         <path d="M18 78 C48 78, 52 28, 88 28 S128 88, 160 62 198 30, 206 30" stroke="rgba(125,211,252,0.25)" stroke-width="8" fill="none" stroke-linecap="round"/>
@@ -1362,7 +1487,7 @@
                 <span class="rp-node fuel">STOP</span>
                 <span class="rp-line"></span>
                 <span class="rp-node b">B</span>
-                <span class="rp-meta" id="route-progress-meta">Маршрут готовий до розрахунку</span>
+                <span class="rp-meta is-wait" id="route-progress-meta">Маршрут ще не побудовано</span>
             </div>
         </div>
     </div><!-- /tc-hero -->
@@ -1383,6 +1508,7 @@
                     <label>Назва / Маршрут заявки:</label>
                     <input type="text" id="route-name" value="Маршрут 1" style="text-align: left;" oninput="onRouteNameInput()">
                 </div>
+                <div id="route-fields-slot"></div>
 
                 <div class="demo-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245,158,11,0.35); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; line-height: 1.5;">
                     <div style="font-weight: 600; color: var(--steel); margin-bottom: 4px;">🧪 Що доступно в демо</div>
@@ -1417,7 +1543,7 @@
                     </select>
                 </div>
 
-                <div class="form-row two-cols">
+                <div class="form-row two-cols tc-keep-hidden">
                     <label>Тип причепу:</label>
                     <select id="trailer-type" onchange="onTrailerChange()">
                         <option value="зерновоз" selected>Зерновоз</option>
@@ -1440,36 +1566,36 @@
 
                 <div class="form-row">
                     <label>Подача авто (км):</label>
-                    <input type="number" id="podacha-dist" oninput="calculate()">
+                    <input type="number" id="podacha-dist" tabindex="3" oninput="calculate()">
                     <span class="unit">км</span>
                 </div>
                 <div id="podacha-info" style="font-size: 0.8rem; color: var(--accent); font-weight: 500; text-align: right; margin-top: -8px; margin-bottom: 8px;"></div>
 
                 <div class="form-row">
                     <label>Відстань перевезення (км):</label>
-                    <input type="number" id="dist" oninput="calculate()">
+                    <input type="number" id="dist" tabindex="4" oninput="calculate()">
                     <span class="unit">км</span>
                 </div>
                 <div class="form-row">
                     <label>Загальний об'єм контракту:</label>
-                    <input type="number" id="volume" oninput="calculate()">
+                    <input type="number" id="volume" tabindex="5" oninput="calculate()">
                     <span class="unit">тн</span>
                 </div>
                 <div class="form-row">
                     <label>Нормативна вага на авто:</label>
-                    <input type="number" id="norm-weight" step="0.5" oninput="calculate()">
+                    <input type="number" id="norm-weight" tabindex="6" step="0.5" oninput="calculate()">
                     <span class="unit">тн/маш</span>
                 </div>
                 <div class="form-row">
                     <label>Кількість залучених авто:</label>
-                    <input type="number" id="cars-count" oninput="calculate()">
+                    <input type="number" id="cars-count" tabindex="7" oninput="calculate()">
                     <span class="unit">шт</span>
                 </div>
                 <div id="trip-volume-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: -6px; margin-bottom: 8px;"></div>
 
                 <div class="form-row">
                     <label>Кількість діб на ходку:</label>
-                    <input type="number" id="days-per-trip" step="0.01" oninput="calculate()">
+                    <input type="number" id="days-per-trip" tabindex="8" step="0.01" oninput="calculate()">
                     <span class="unit">діб</span>
                 </div>
 
@@ -1496,7 +1622,7 @@
 
                 <div class="form-row">
                     <label>Розцінка (з ПДВ / ФОП):</label>
-                    <input type="number" id="rate" step="0.01" oninput="calculate()">
+                    <input type="number" id="rate" tabindex="9" step="0.01" oninput="calculate()">
                     <span class="unit" id="rate-unit">грн/тн</span>
                 </div>
 
@@ -1596,9 +1722,10 @@
       <div class="tc-route-tools">
             <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
             <div class="tc-maps-box full-only">
-                <div class="tc-tools-title">🗺️ Розрахунок відстані Google Maps</div>
+                <div class="tc-tools-title">Маршрут</div>
+                <div id="recent-routes" class="tc-recent"></div>
                 <div class="form-row two-cols">
-                    <label>Пункт 0 (Стоянка авто - опц.):</label>
+                    <label>Подача (стоянка, за бажанням):</label>
                     <div id="osm-base-wrap"></div>
                     <input type="hidden" id="osm-base">
                 </div>
@@ -1613,8 +1740,11 @@
                     <input type="hidden" id="osm-to">
                 </div>
                 <div id="waypoints-list"></div>
-                <button type="button" class="preset-btn" style="margin-bottom: 6px;" onclick="addWaypointRow()">➕ Додати проміжну зупинку</button>
-                <button type="button" class="btn" style="width: 100%;" onclick="calculateGoogleRoute()">Розрахувати відстань</button>
+                <div style="display:flex; gap:6px; margin-bottom:6px;">
+                    <button type="button" class="preset-btn" style="flex:1;" onclick="addWaypointRow()">Проміжна зупинка</button>
+                    <button type="button" class="preset-btn" id="swap-ab-btn" style="flex:0 0 auto;" onclick="swapRouteEnds()">A ↔ B</button>
+                </div>
+                <button type="button" class="btn" id="route-calc-btn" style="width: 100%;" onclick="calculateGoogleRoute()">Розрахувати відстань</button>
                 <div id="osm-status" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
             </div>
             <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>📍 Пошук АЗС, стоянок TIR, кафе і СТО вздовж маршруту</small></div>
@@ -1841,6 +1971,7 @@
     let poiMarkers = [];
     let lastRoutePath = null;
     let lastDirectionsResponse = null;
+    let routeBuilt = false;
     let lastCalcData = {};
     let nbuRates = { USD: 41.5, EUR: 45.2 };
     let contractCurrency = 'UAH';
@@ -1922,7 +2053,7 @@
         nameEl.textContent = name;
         distEl.textContent = dist > 0 ? ('відстань ' + dist + ' км' + (podacha > 0 ? ' · подача ' + podacha + ' км' : '')) : 'відстань —';
         const profit = (document.getElementById('res-profit') || {}).innerText || '';
-        if (profit && profit !== '0 грн') {
+        if (profit.indexOf('грн') !== -1 && profit !== '0 грн' && profit !== '—') {
             extraEl.textContent = 'Прибуток: ' + profit;
             extraEl.className = 'route-ok';
         } else {
@@ -1931,10 +2062,232 @@
         }
         const meta = document.getElementById('route-progress-meta');
         if (meta) {
-            meta.textContent = dist > 0
-                ? ('A→B · ' + dist + ' км' + (podacha > 0 ? ' · подача ' + podacha + ' км' : ''))
-                : 'Маршрут готовий до розрахунку';
+            if (routeBuilt && dist > 0) {
+                meta.textContent = 'Маршрут готовий · ' + dist + ' км' + (podacha > 0 ? ' · подача ' + podacha + ' км' : '');
+                meta.className = 'rp-meta is-ready';
+            } else if (dist > 0) {
+                meta.textContent = 'Відстань вручну · ' + dist + ' км';
+                meta.className = 'rp-meta is-wait';
+            } else {
+                meta.textContent = 'Маршрут ще не побудовано';
+                meta.className = 'rp-meta is-wait';
+            }
         }
+    }
+
+    function numPlain(n) {
+        return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n));
+    }
+
+    function paintProfitHero(result) {
+        const hero = document.getElementById('res-profit-hero');
+        const perKm = document.getElementById('res-per-km');
+        const perDay = document.getElementById('res-per-day');
+        const perTon = document.getElementById('res-per-ton');
+        const margin = document.getElementById('res-margin-pct');
+        if (!hero) return;
+        if (!result) {
+            hero.textContent = '—';
+            hero.className = 'tc-profit-value';
+            if (perKm) perKm.textContent = '—';
+            if (perDay) perDay.textContent = '—';
+            if (perTon) perTon.textContent = '—';
+            if (margin) margin.textContent = '—';
+            ['res-income','res-margin','res-ebitda','res-profit','res-breakeven-full'].forEach(function (id) {
+                const el = document.getElementById(id);
+                if (el) el.textContent = '—';
+            });
+            const net = document.getElementById('res-income-net');
+            if (net) net.textContent = 'Чистий: —';
+            const mt = document.getElementById('res-margin-ton');
+            if (mt) mt.textContent = 'на 1 т: —';
+            const et = document.getElementById('res-ebitda-ton');
+            if (et) et.textContent = 'на 1 т: —';
+            const badge = document.getElementById('res-badge');
+            if (badge) badge.textContent = '—';
+            const gap = document.getElementById('res-breakeven-gap');
+            if (gap) { gap.textContent = ''; gap.className = 'kpi-sub tc-gap-pill'; }
+            return;
+        }
+        const profit = Number(result.netProfit) || 0;
+        hero.textContent = formatMoney(profit);
+        hero.className = 'tc-profit-value ' + (profit > 0 ? 'is-up' : profit < 0 ? 'is-down' : '');
+        const dist = parseFloat(document.getElementById('dist').value) || 0;
+        const podacha = parseFloat(document.getElementById('podacha-dist').value) || 0;
+        const km = dist + podacha;
+        const days = parseFloat(document.getElementById('days-per-trip').value) || 0;
+        const tons = parseFloat(document.getElementById('volume').value) || 0;
+        if (perKm) perKm.textContent = km > 0 ? numPlain(profit / km) : '—';
+        if (perDay) perDay.textContent = days > 0 ? numPlain(profit / days) : '—';
+        if (perTon) perTon.textContent = tons > 0 ? numPlain(profit / tons) : '—';
+        if (margin) margin.textContent = (Number(result.profitabilityPct) || 0).toFixed(1) + '%';
+    }
+
+    function markInvalidFields(missing) {
+        document.querySelectorAll('.form-row.tc-invalid').forEach(function (row) { row.classList.remove('tc-invalid'); });
+        document.querySelectorAll('[aria-invalid="true"]').forEach(function (el) { el.removeAttribute('aria-invalid'); });
+        let openMore = false;
+        missing.forEach(function (pair) {
+            const input = document.getElementById(pair[0]);
+            if (!input) return;
+            input.setAttribute('aria-invalid', 'true');
+            const row = input.closest('.form-row');
+            if (row) row.classList.add('tc-invalid');
+            if (input.closest('details.tc-more')) openMore = true;
+        });
+        if (openMore) {
+            const more = document.querySelector('details.tc-more');
+            if (more) more.open = true;
+        }
+    }
+
+    function showToast(text) {
+        let toast = document.getElementById('tc-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'tc-toast';
+            document.body.appendChild(toast);
+        }
+        toast.textContent = text;
+        toast.classList.add('show');
+        clearTimeout(toast._hide);
+        toast._hide = setTimeout(function () { toast.classList.remove('show'); }, 2200);
+    }
+
+    function refreshSetupChecklist() {
+        const box = document.getElementById('setup-checks');
+        const banner = document.getElementById('onboard-banner');
+        if (!box || !banner) return;
+        const filled = function (id) { const el = document.getElementById(id); return !!(el && parseFloat(el.value) > 0); };
+        const items = [
+            ['Компанія', !!(companyName && String(companyName).trim())],
+            ['Парк', filled('total-fleet')],
+            ['Пальне', filled('fuel-load') && filled('fuel-price')],
+            ['Водій', filled('driver-rate-load') || filled('driver-pct-val') || filled('per-diem')],
+            ['ТО', filled('to-period') && filled('to-cost')]
+        ];
+        box.innerHTML = items.map(function (item) {
+            return '<span class="setup-item' + (item[1] ? ' ok' : '') + '">' + (item[1] ? '✓ ' : '○ ') + item[0] + '</span>';
+        }).join('');
+        if (items.every(function (item) { return item[1]; }) || banner.dataset.dismissed === '1') {
+            banner.style.display = 'none';
+        } else {
+            showHintBanner(banner);
+        }
+    }
+
+    function fillDemoTrip() {
+        Object.keys(STARTER_TRIP).forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.value = STARTER_TRIP[id];
+        });
+        const presetBtn = document.querySelector('.preset-tile[data-preset="зерновоз"]');
+        applyPreset('зерновоз', presetBtn);
+        updateRouteBar();
+        calculate();
+        showToast('Підставлено демо-рейс');
+    }
+
+    function arrangeDispatcherForm() {
+        const card = document.querySelector('.tc-work > .card');
+        const slot = document.getElementById('route-fields-slot');
+        const maps = document.querySelector('.tc-maps-box');
+        if (!card || !slot || !maps || card.dataset.arranged === '1') return;
+        slot.appendChild(maps);
+        const rowOf = function (id) {
+            const el = document.getElementById(id);
+            return el ? el.closest('.form-row') : null;
+        };
+        ['podacha-dist', 'dist', 'volume', 'norm-weight', 'cars-count', 'days-per-trip', 'contract-currency', 'rate'].forEach(function (id) {
+            const row = rowOf(id);
+            if (row) card.appendChild(row);
+        });
+        const distRow = rowOf('dist');
+        const podachaInfo = document.getElementById('podacha-info');
+        if (podachaInfo && distRow) distRow.parentNode.insertBefore(podachaInfo, distRow);
+        const daysRow = rowOf('days-per-trip');
+        const tripInfo = document.getElementById('trip-volume-info');
+        if (tripInfo && daysRow) daysRow.parentNode.insertBefore(tripInfo, daysRow);
+        const rateRow = rowOf('rate');
+        const fx = document.getElementById('contract-fx-note');
+        if (fx && rateRow) rateRow.parentNode.insertBefore(fx, rateRow);
+
+        const more = document.createElement('details');
+        more.className = 'tc-more';
+        more.innerHTML = '<summary>Ще параметри рейсу</summary>';
+        const host = document.createElement('div');
+        more.appendChild(host);
+        const take = function (node) { if (node) host.appendChild(node); };
+        ['return-mode', 'calc-type', 'road-quality', 'trailer-type', 'ref-fuel-rate', 'ref-hours', 'idle-days', 'idle-rate'].forEach(function (id) {
+            take(rowOf(id));
+        });
+        take(rowOf('round-trip-enable'));
+        take(document.getElementById('round-trip-box'));
+        take(rowOf('extras-enable'));
+        take(document.getElementById('extras-box'));
+        card.appendChild(more);
+        card.dataset.arranged = '1';
+    }
+
+    const RECENT_ROUTES_KEY = 'tc_recent_routes_v1';
+    function readRecentRoutes() {
+        try { return JSON.parse(localStorage.getItem(RECENT_ROUTES_KEY) || '[]') || []; } catch (e) { return []; }
+    }
+    function setPlaceText(wrapId, hiddenId, value) {
+        const hidden = document.getElementById(hiddenId);
+        const wrap = document.getElementById(wrapId);
+        if (hidden) hidden.value = value || '';
+        if (!wrap) return;
+        const el = wrap.querySelector('gmp-place-autocomplete') || wrap.firstElementChild;
+        if (!el) return;
+        if (el.inputElement) el.inputElement.value = value || '';
+        const inp = el.shadowRoot && el.shadowRoot.querySelector('input');
+        if (inp) inp.value = value || '';
+    }
+    function renderRecentRoutes() {
+        const box = document.getElementById('recent-routes');
+        if (!box) return;
+        const list = readRecentRoutes();
+        box.innerHTML = list.map(function (r, i) {
+            const label = String(r.from || '') + ' → ' + String(r.to || '');
+            return '<button type="button" onclick="applyRecentRoute(' + i + ')">' + label.replace(/[&<>]/g, function (ch) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch]; }) + '</button>';
+        }).join('');
+    }
+    function rememberRecentRoute() {
+        const from = (document.getElementById('osm-from') || {}).value || '';
+        const to = (document.getElementById('osm-to') || {}).value || '';
+        if (!from.trim() || !to.trim()) return;
+        const km = parseFloat((document.getElementById('dist') || {}).value) || 0;
+        let list = readRecentRoutes().filter(function (r) { return !(r.from === from && r.to === to); });
+        list.unshift({ from: from.trim(), to: to.trim(), km: km });
+        list = list.slice(0, 5);
+        try { localStorage.setItem(RECENT_ROUTES_KEY, JSON.stringify(list)); } catch (e) {}
+        renderRecentRoutes();
+    }
+    function applyRecentRoute(index) {
+        const item = readRecentRoutes()[index];
+        if (!item) return;
+        setPlaceText('osm-from-wrap', 'osm-from', item.from);
+        setPlaceText('osm-to-wrap', 'osm-to', item.to);
+        if (item.km > 0) {
+            const dist = document.getElementById('dist');
+            if (dist && !(parseFloat(dist.value) > 0)) dist.value = item.km;
+        }
+        calculateGoogleRoute();
+    }
+    function swapRouteEnds() {
+        ['osm-from', 'osm-to'].forEach(function (id) { syncPlaceHidden(id + '-wrap', id); });
+        const from = document.getElementById('osm-from').value;
+        const to = document.getElementById('osm-to').value;
+        setPlaceText('osm-from-wrap', 'osm-from', to);
+        setPlaceText('osm-to-wrap', 'osm-to', from);
+    }
+
+    function setRouteBusy(on) {
+        const btn = document.getElementById('route-calc-btn');
+        if (!btn) return;
+        btn.disabled = !!on;
+        btn.textContent = on ? 'Будуємо маршрут…' : 'Розрахувати відстань';
     }
 
     function onRouteNameInput() {
@@ -1993,7 +2346,8 @@
             document.body.classList.toggle('is-admin', isAdmin);
 
             authScreen.style.display = 'none';
-            mainApp.style.display = 'block'; mainApp.classList.add('tc-enter');
+            mainApp.style.display = 'grid'; mainApp.classList.add('tc-enter');
+            syncDockStick();
 
             loadSavedCalculations();
 
@@ -2561,11 +2915,24 @@
         return essential.every(k => !(parseFloat(settings[k]) > 0));
     }
 
+    function syncDockStick() {
+        const sticky = document.getElementById('sticky-top');
+        if (!sticky) return;
+        const h = sticky.offsetHeight;
+        if (!h) return;
+        document.documentElement.style.setProperty('--tc-dock-top', (h + 8) + 'px');
+        if (!syncDockStick.watching && window.ResizeObserver) {
+            syncDockStick.watching = true;
+            new ResizeObserver(syncDockStick).observe(sticky);
+        }
+    }
+
     function dismissHint(id) {
         const el = document.getElementById(id);
         if (!el) return;
         el.dataset.dismissed = '1';
         el.style.display = 'none';
+        syncDockStick();
     }
 
     function showHintBanner(el) {
@@ -2630,11 +2997,7 @@
 
     // М'яке попередження: усі накладні порожні → результат без накладних
     function refreshCabWarning() {
-        const el = document.getElementById('cab-warning');
-        const ids = ['overhead-amort', 'overhead-admin', 'overhead-other-op', 'overhead-other', 'overhead-repair', 'overhead-fin'];
-        const allEmpty = ids.every(id => !(parseFloat(document.getElementById(id).value) > 0));
-        if (!allEmpty) { el.style.display = 'none'; return; }
-        showHintBanner(el);
+        refreshSetupChecklist();
     }
 
     function switchCabTab(id) {
@@ -3016,10 +3379,13 @@
                 mh.dataset.dismissed = '';
                 mh.dataset.dismissKey = dismissKey;
             }
-            mh.innerHTML = '<div class="hint-text">⚠️ Щоб порахувати, заповніть: <b>' + missing.map(m => m[1]).join(', ') + '</b>. Постійні параметри компанії (парк, накладні, пальне, ТО, шини) задаються в <button class="link-btn" onclick="openCabinet()">особистому кабінеті</button>.</div><button type="button" class="hint-close" onclick="dismissHint(\'missing-hint\')" aria-label="Закрити" title="Закрити">×</button>';
+            mh.innerHTML = '<div class="hint-text">⚠️ Підсвічено поля, без яких рахувати не можна: <b>' + missing.map(m => m[1]).join(', ') + '</b>. Норми компанії — у <button class="link-btn" onclick="openCabinet()">кабінеті</button>.</div><button type="button" class="hint-close" onclick="dismissHint(\'missing-hint\')" aria-label="Закрити" title="Закрити">×</button>';
             showHintBanner(mh);
+            markInvalidFields(missing);
+            paintProfitHero(null);
             return;
         }
+        markInvalidFields([]);
         mh.style.display = 'none';
         mh.dataset.dismissed = '';
         mh.dataset.dismissKey = '';
@@ -3145,6 +3511,7 @@
             document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
             const profitFx = document.getElementById('res-profit-fx');
             if (profitFx) profitFx.textContent = fxSuffix(result.netProfit);
+            paintProfitHero(result);
             updateKpiSparklines(result);
             updateRouteBar();
             
@@ -3180,6 +3547,7 @@
                 beFullEl.innerText = 'недосяжна';
                 beOpEl.innerText = 'за цієї схеми оплати';
                 beGapEl.innerText = '';
+                beGapEl.className = 'kpi-sub tc-gap-pill';
                 beChip.title = 'Беззбитковість недосяжна: відсоток ЗП водія, ПДВ і податок разом «з\'їдають» усю розцінку. Перевірте модель оплати водія.';
             } else {
                 beFullEl.innerText = `${beShown(result.breakevenFullPerTon)} ${beUnit}`;
@@ -3188,10 +3556,10 @@
                 const gap = result.breakevenGapPerTon;
                 if (gap >= 0) {
                     beGapEl.innerText = `Запас +${beShown(gap)} ${beUnit}`;
-                    beGapEl.style.color = 'var(--success)';
+                    beGapEl.className = 'kpi-sub tc-gap-pill is-up';
                 } else {
                     beGapEl.innerText = `Дефіцит ${beShown(gap)} ${beUnit}`;
-                    beGapEl.style.color = 'var(--danger)';
+                    beGapEl.className = 'kpi-sub tc-gap-pill is-down';
                 }
                 let tip = `Розцінка (${beUnit}), при якій чистий прибуток = 0. При розцінці ${beShown(result.breakevenEbitdaPerTon)} EBITDA = 0, при ${beShown(result.breakevenMarginPerTon)} маржа = 0.`;
                 if (contractCurrency !== 'UAH') tip += ` У гривні: ${fmtBE(result.breakevenFullPerTon)} грн/т.`;
@@ -3339,6 +3707,7 @@
             if (error) throw error;
             savedCalculations.unshift(Object.assign({}, snapshot, { id: data.id }));
             renderSavedTable();
+            showToast('Розрахунок збережено');
         } catch (e) {
             if (String(e && e.message).indexOf('DEMO_SAVE_LIMIT') !== -1) {
                 alert(`Демо-режим: можна зберегти до ${DEMO_MAX_SAVED} розрахунків. Видаліть один зі збережених або отримайте повний доступ.`);
@@ -3513,6 +3882,17 @@
     }
 
     document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'Enter' || e.code === 'KeyS')) {
+            const main = document.getElementById('main-app');
+            if (!main || main.style.display === 'none') return;
+            e.preventDefault();
+            if (e.key === 'Enter') {
+                if (isDemo) runDemoCalc(); else calculate();
+            } else {
+                saveCalculation();
+            }
+            return;
+        }
         if (e.key !== 'Escape') return;
         if (mapExpanded) { toggleMapExpand(); return; }
         const cab = document.getElementById('cabinet-screen');
@@ -3683,8 +4063,9 @@
             statusEl.style.color = 'var(--danger)';
             return;
         }
-        statusEl.innerText = '🔍 Побудова маршруту через Google Maps...';
+        statusEl.innerText = 'Будуємо маршрут…';
         statusEl.style.color = 'var(--text-muted)';
+        setRouteBusy(true);
 
         let waypoints = [];
         let originPoint = fromQuery;
@@ -3711,7 +4092,7 @@
                 travelMode: google.maps.TravelMode.DRIVING
             };
             if (waypoints.length) req.waypoints = waypoints;
-            if (wantAlts && waypoints.length === 0) req.provideAlternatives = true;
+            if (wantAlts && waypoints.length === 0) req.provideRouteAlternatives = true;
             return req;
         }
 
@@ -3724,6 +4105,9 @@
             if (settled) return;
             settled = true;
             if (routeTimer) clearTimeout(routeTimer);
+            setRouteBusy(false);
+            routeBuilt = false;
+            updateRouteBar();
             const altsBox = document.getElementById('map-route-alts');
             if (altsBox) { altsBox.classList.remove('visible'); altsBox.innerHTML = ''; }
             statusEl.innerText = msg;
@@ -3738,6 +4122,10 @@
                 try {
                     lastDirectionsResponse = response;
                     applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
+                    routeBuilt = true;
+                    setRouteBusy(false);
+                    rememberRecentRoute();
+                    updateRouteBar();
                 } catch (err) {
                     statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
                     statusEl.style.color = 'var(--danger)';
@@ -4095,8 +4483,9 @@
         document.body.classList.add('demo-mode');
         document.getElementById('auth-screen').style.display = 'none';
         const mainApp = document.getElementById('main-app');
-        mainApp.style.display = 'block';
+        mainApp.style.display = 'grid';
         mainApp.classList.add('tc-enter');
+        syncDockStick();
         const demoUsed = document.getElementById('demo-used');
         const demoLimit = document.getElementById('demo-limit');
         if (demoUsed) demoUsed.textContent = '0';
@@ -4108,6 +4497,13 @@
         document.getElementById('res-ebitda').textContent = '41 120 грн';
         document.getElementById('res-ebitda-ton').textContent = 'на 1 т: 1 645 грн';
         document.getElementById('res-profit').textContent = '28 940 грн';
+        const hero = document.getElementById('res-profit-hero');
+        if (hero) { hero.textContent = '28 940 грн'; hero.className = 'tc-profit-value is-up'; }
+        const setTxt = function (id, value) { const el = document.getElementById(id); if (el) el.textContent = value; };
+        setTxt('res-per-km', '83');
+        setTxt('res-per-day', '19 293');
+        setTxt('res-per-ton', '58');
+        setTxt('res-margin-pct', '15.7%');
         document.getElementById('res-badge').textContent = '15.7%';
         document.getElementById('res-breakeven-full').textContent = '1 820 грн/т';
         document.getElementById('res-breakeven-op').textContent = 'маржа 1 650 · EBITDA 1 480';
@@ -4118,6 +4514,11 @@
 
     // ЗАПУСК ПРОГРАМИ
     window.onload = function() {
+        arrangeDispatcherForm();
+        renderRecentRoutes();
+        refreshSetupChecklist();
+        syncDockStick();
+        window.addEventListener('resize', syncDockStick);
         restoreTheme();
         // Збережені розрахунки підтягуються в checkUserAccess(), коли вже відомо, хто користувач
         fetchNBURates();
