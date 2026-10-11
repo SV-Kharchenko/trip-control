@@ -1232,13 +1232,11 @@
                     <div class="tc-rates-item tc-dp-item"><a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener">ДП →</a></div>
                     <div class="tc-rates-item">USD <b id="rate-usd">...</b><span class="rate-delta flat" id="rate-usd-delta">—</span></div>
                     <div class="tc-rates-item">EUR <b id="rate-eur">...</b><span class="rate-delta flat" id="rate-eur-delta">—</span></div>
-                    <div class="tc-rates-item">PLN <b id="rate-pln">...</b><span class="rate-delta flat" id="rate-pln-delta">—</span></div>
                     <div class="tc-rates-item">
                         <input type="number" id="conv-amount" value="100" oninput="convertCurrency()">
                         <select id="conv-curr" onchange="convertCurrency()">
                             <option value="USD">USD</option>
                             <option value="EUR">EUR</option>
-                            <option value="PLN">PLN</option>
                         </select>
                         <b id="conv-res">0 грн</b>
                     </div>
@@ -1307,7 +1305,7 @@
                         <div class="kpi-spark" id="spark-profit"></div>
                         <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">↑</span><div class="kpi-title">Прибуток</div></div>
                         <div class="kpi-value" id="res-profit">0 грн</div>
-                        <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span></div>
+                        <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">0%</span><span id="res-profit-fx"></span></div>
                     </div>
                     <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
                         <div class="kpi-spark" id="spark-breakeven"></div>
@@ -1481,15 +1479,25 @@
                     <span class="unit">діб/рейс</span>
                 </div>
                 <div class="form-row">
+                    <label>Валюта контракту:</label>
+                    <select id="contract-currency" onchange="onContractCurrencyChange()">
+                        <option value="UAH" selected>Гривня (UAH)</option>
+                        <option value="USD">Долар (USD)</option>
+                        <option value="EUR">Євро (EUR)</option>
+                    </select>
+                </div>
+                <div id="contract-fx-note" style="font-size: 0.75rem; color: var(--text-muted); text-align: right; margin: -4px 0 8px;">Розцінка, простій і зворотний вантаж. Витрати компанії лишаються в гривні.</div>
+
+                <div class="form-row">
                     <label>Компенсація за простій від замовника:</label>
-                    <input type="number" id="idle-rate" oninput="calculate()">
-                    <span class="unit">грн/доба</span>
+                    <input type="number" id="idle-rate" step="0.01" oninput="calculate()">
+                    <span class="unit" id="idle-rate-unit">грн/доба</span>
                 </div>
 
                 <div class="form-row">
                     <label>Розцінка (з ПДВ / ФОП):</label>
-                    <input type="number" id="rate" oninput="calculate()">
-                    <span class="unit">грн/тн</span>
+                    <input type="number" id="rate" step="0.01" oninput="calculate()">
+                    <span class="unit" id="rate-unit">грн/тн</span>
                 </div>
 
                     <div class="form-row two-cols" style="margin-bottom: 6px; margin-top: 10px;">
@@ -1540,8 +1548,8 @@
                         </div>
                         <div class="form-row">
                             <label>Розцінка зворотнього вантажу:</label>
-                            <input type="number" id="rt-rate" oninput="calculate()">
-                            <span class="unit">грн/тн</span>
+                            <input type="number" id="rt-rate" step="0.01" oninput="calculate()">
+                            <span class="unit" id="rt-rate-unit">грн/тн</span>
                         </div>
                         <div id="rt-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: 4px;"></div>
                     </div>
@@ -1834,7 +1842,8 @@
     let lastRoutePath = null;
     let lastDirectionsResponse = null;
     let lastCalcData = {};
-    let nbuRates = { USD: 41.5, EUR: 45.2, PLN: 10.5 };
+    let nbuRates = { USD: 41.5, EUR: 45.2 };
+    let contractCurrency = 'UAH';
     const KPI_HIST_MAX = 12;
     const kpiHistory = { income: [], margin: [], ebitda: [], profit: [], breakeven: [] };
     const KPI_SPARK_COLORS = { income: '#7dd3fc', margin: '#34d399', ebitda: '#60a5fa', profit: '#f59e0b', breakeven: '#fbbf24' };
@@ -2217,6 +2226,66 @@
         return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(amount) + ' грн';
     }
 
+    function contractFx() {
+        if (contractCurrency === 'UAH') return 1;
+        const fx = nbuRates[contractCurrency];
+        return fx > 0 ? fx : 0;
+    }
+
+    function formatContract(amountUah) {
+        const fx = contractFx();
+        if (contractCurrency === 'UAH' || !(fx > 0)) return '';
+        const v = amountUah / fx;
+        const digits = Math.abs(v) >= 100 ? 0 : 2;
+        return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: digits }).format(v) + ' ' + contractCurrency;
+    }
+
+    function fxSuffix(amountUah) {
+        const s = formatContract(amountUah);
+        return s ? ' · ' + s : '';
+    }
+
+    function updateContractCurrencyUi() {
+        const unit = contractCurrency === 'UAH' ? 'грн' : contractCurrency;
+        const rateUnit = document.getElementById('rate-unit');
+        const rtUnit = document.getElementById('rt-rate-unit');
+        const idleUnit = document.getElementById('idle-rate-unit');
+        if (rateUnit) rateUnit.textContent = unit + '/тн';
+        if (rtUnit) rtUnit.textContent = unit + '/тн';
+        if (idleUnit) idleUnit.textContent = unit + '/доба';
+        const note = document.getElementById('contract-fx-note');
+        if (!note) return;
+        if (contractCurrency === 'UAH') {
+            note.textContent = 'Розцінка, простій і зворотний вантаж. Витрати компанії лишаються в гривні.';
+        } else {
+            const fx = contractFx();
+            note.textContent = '1 ' + contractCurrency + ' = ' + (fx ? fx.toFixed(2) : '…') + ' грн за курсом НБУ. Витрати компанії лишаються в гривні.';
+        }
+    }
+
+    function onContractCurrencyChange() {
+        const sel = document.getElementById('contract-currency');
+        const next = sel ? sel.value : 'UAH';
+        const prev = contractCurrency;
+        if (next === prev) return;
+        const from = prev === 'UAH' ? 1 : (nbuRates[prev] || 0);
+        const to = next === 'UAH' ? 1 : (nbuRates[next] || 0);
+        if (!(from > 0) || !(to > 0)) {
+            if (sel) sel.value = prev;
+            return;
+        }
+        const k = from / to;
+        ['rate', 'rt-rate', 'idle-rate'].forEach(function (id) {
+            const el = document.getElementById(id);
+            const v = parseFloat(el && el.value);
+            if (v > 0) el.value = String(Math.round(v * k * 100) / 100);
+        });
+        contractCurrency = next;
+        updateContractCurrencyUi();
+        if (isDemo && demoHasResult) setDemoHint('Валюту змінено. Натисніть «Розрахувати», щоб оновити результат.');
+        calculate();
+    }
+
     const RATE_HIST_KEY = 'tc_nbu_rate_hist_v1';
     function readRateHist() {
         try { return JSON.parse(localStorage.getItem(RATE_HIST_KEY) || '{}') || {}; } catch (e) { return {}; }
@@ -2249,7 +2318,7 @@
             const data = await res.json();
             const next = {};
             data.forEach(item => {
-                if (item.cc === 'USD' || item.cc === 'EUR' || item.cc === 'PLN') next[item.cc] = item.rate;
+                if (item.cc === 'USD' || item.cc === 'EUR') next[item.cc] = item.rate;
             });
             const today = new Date().toISOString().slice(0, 10);
             const hist = readRateHist();
@@ -2273,12 +2342,12 @@
                 document.getElementById('rate-eur').innerText = next.EUR.toFixed(2);
                 setRateDelta('rate-eur-delta', anchor && anchor.EUR, next.EUR);
             }
-            if (next.PLN) {
-                nbuRates.PLN = next.PLN;
-                document.getElementById('rate-pln').innerText = next.PLN.toFixed(2);
-                setRateDelta('rate-pln-delta', anchor && anchor.PLN, next.PLN);
-            }
             convertCurrency();
+            updateContractCurrencyUi();
+            if (contractCurrency !== 'UAH') {
+                if (isDemo && demoHasResult) setDemoHint('Курс НБУ оновлено. Натисніть «Розрахувати», щоб перерахувати дохід.');
+                else calculate();
+            }
         } catch(e) { console.log('NBU rates error', e); }
     }
 
@@ -2883,20 +2952,38 @@
         line('Тип причепа', lbl('trailer-type')); line('Сезон', lbl('season-type')); line('Якість доріг', lbl('road-quality'));
         line('Відстань', num(p.dist), 'км'); line('Подача', num(p.podachaDist), 'км');
         line('Обсяг', num(p.volume), 'т'); line('Авто', num(p.carsCount), 'шт');
-        line('Ставка', num(p.rate), 'грн/т'); line('Ціна палива', num(p.fuelPrice), 'грн/л');
+        const ccy = p.contractCurrency || 'UAH';
+        const fx = ccy === 'UAH' ? 1 : (parseFloat(p.fxRate) || 0);
+        const rateUnit = ccy === 'UAH' ? 'грн/т' : ccy + '/т';
+        const inCcy = uah => (ccy === 'UAH' || !(fx > 0)) ? '' : Math.round((uah / fx) * 100) / 100;
+        line('Ставка', num(p.rate), rateUnit);
+        if (ccy !== 'UAH') line('Курс НБУ', fx, 'грн за 1 ' + ccy);
+        line('Ціна палива', num(p.fuelPrice), 'грн/л');
         line('Витрата палива (вантажем)', num(p.fuelLoad), 'л/100км'); line('Витрата палива (порожнім)', num(p.fuelEmpty), 'л/100км');
         line('Днів на рейс', num(p.daysPerTrip), 'дн');
-        if (p.isRoundTrip) { line('Зворотній рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотній рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотній рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотній обсяг', num(p.rtTotalVolume), 'т'); line('Зворотня ставка', num(p.rtRate), 'грн/т'); }
+        if (p.isRoundTrip) { line('Зворотній рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотній рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотній рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотній обсяг', num(p.rtTotalVolume), 'т'); line('Зворотня ставка', num(p.rtRate), rateUnit); }
         ws.addRow([]);
         head('Результати');
-        line('Валовий дохід', Math.round(r.grossIncome), 'грн'); line('Чистий дохід', Math.round(r.netIncome), 'грн');
+        line('Валовий дохід', Math.round(r.grossIncome), 'грн');
+        if (ccy !== 'UAH') line('Валовий дохід', inCcy(r.grossIncome), ccy);
+        line('Чистий дохід', Math.round(r.netIncome), 'грн');
+        if (ccy !== 'UAH') line('Чистий дохід', inCcy(r.netIncome), ccy);
         line('Маржинальний дохід', Math.round(r.marginalIncome), 'грн'); line('Маржа на 1 т', num(r.marginPerTon), 'грн/т');
         line('EBITDA', Math.round(r.ebitda), 'грн'); line('EBITDA на 1 т', num(r.ebitdaPerTon), 'грн/т');
-        line('Чистий прибуток', Math.round(r.netProfit), 'грн'); line('Рентабельність', Math.round(r.profitabilityPct * 10) / 10, '%');
+        line('Чистий прибуток', Math.round(r.netProfit), 'грн');
+        if (ccy !== 'UAH') line('Чистий прибуток', inCcy(r.netProfit), ccy);
+        line('Рентабельність', Math.round(r.profitabilityPct * 10) / 10, '%');
         ws.addRow([]);
-        head('Беззбитковість, грн/т');
-        line('Повна', rnd(r.breakevenFullPerTon)); line('По маржі', rnd(r.breakevenMarginPerTon)); line('По EBITDA', rnd(r.breakevenEbitdaPerTon));
-        line('Запас / дефіцит', rnd(r.breakevenGapPerTon));
+        head('Беззбитковість, ' + rateUnit);
+        const beLine = (name, uah) => {
+            if (uah === null || uah === undefined) { line(name, '—'); return; }
+            if (ccy === 'UAH') line(name, rnd(uah), 'грн/т');
+            else line(name, inCcy(uah), rateUnit);
+        };
+        beLine('Повна', r.breakevenFullPerTon);
+        beLine('По маржі', r.breakevenMarginPerTon);
+        beLine('По EBITDA', r.breakevenEbitdaPerTon);
+        beLine('Запас / дефіцит', r.breakevenGapPerTon);
         ws.eachRow(row => { const c = row.getCell(2); if (typeof c.value === 'number') { c.numFmt = '#,##0.##'; c.alignment = { horizontal: 'right' }; } });
         const buf = await wb.xlsx.writeBuffer();
         const safe = (routeName || 'Розрахунок').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 60);
@@ -2952,6 +3039,8 @@
             idleDays: document.getElementById('idle-days').value,
             idleRate: document.getElementById('idle-rate').value,
             rate: document.getElementById('rate').value,
+            contractCurrency: contractCurrency,
+            fxRate: contractFx(),
             season: document.getElementById('season-type').value,
             fuelLoad: document.getElementById('fuel-load').value,
             fuelEmpty: document.getElementById('fuel-empty').value,
@@ -3021,6 +3110,15 @@
                     setDemoHint('🚫 ' + errInfo.error, true);
                     return;
                 }
+                if (errInfo && errInfo.error && (errInfo.code === 'BAD_FX' || errInfo.code === 'BAD_CCY' || errInfo.code === 'MISSING_FIELDS')) {
+                    setDemoHint(errInfo.error, true);
+                    const mhErr = document.getElementById('missing-hint');
+                    if (mhErr && errInfo.code !== 'MISSING_FIELDS') {
+                        mhErr.innerHTML = '<div class="hint-text">⚠️ ' + errInfo.error + '</div>';
+                        showHintBanner(mhErr);
+                    }
+                    return;
+                }
                 throw new Error('Помилка сервера розрахунків');
             }
 
@@ -3039,12 +3137,14 @@
 
             ['res-income','res-margin','res-ebitda','res-profit','res-breakeven-full'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.classList.remove('tc-flash'); void el.offsetWidth; el.classList.add('tc-flash'); } });
             document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
-            document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}`;
+            document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}${fxSuffix(result.netIncome)}`;
             document.getElementById('res-margin').innerText = formatMoney(result.marginalIncome);
-            document.getElementById('res-margin-ton').innerText = `на 1 т: ${result.marginPerTon} грн`;
+            document.getElementById('res-margin-ton').innerText = `на 1 т: ${result.marginPerTon} грн${fxSuffix(result.marginPerTon)}`;
             document.getElementById('res-ebitda').innerText = formatMoney(result.ebitda);
-            document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн`;
+            document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн${fxSuffix(result.ebitdaPerTon)}`;
             document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
+            const profitFx = document.getElementById('res-profit-fx');
+            if (profitFx) profitFx.textContent = fxSuffix(result.netProfit);
             updateKpiSparklines(result);
             updateRouteBar();
             
@@ -3063,11 +3163,18 @@
             // взагалі не чіпався і назавжди лишався "0 грн/т" зі статичної розмітки.
             // --- Точка беззбитковості: 3 рівні + запас/дефіцит + підказка ---
             const fmtBE = v => Math.round(v).toLocaleString('uk-UA');
+            const beUnit = contractCurrency === 'UAH' ? 'грн/т' : contractCurrency + '/т';
+            const beShown = v => {
+                if (v === null || v === undefined) return '—';
+                if (contractCurrency === 'UAH') return fmtBE(v);
+                const fx = contractFx();
+                if (!(fx > 0)) return fmtBE(v);
+                return (Math.round((v / fx) * 100) / 100).toLocaleString('uk-UA', { maximumFractionDigits: 2 });
+            };
             const beFullEl = document.getElementById('res-breakeven-full');
             const beOpEl = document.getElementById('res-breakeven-op');
             const beGapEl = document.getElementById('res-breakeven-gap');
             const beChip = document.getElementById('kpi-breakeven-chip');
-            const rateNow = parseFloat(payload.rate) || 0;
 
             if (result.breakevenFullPerTon === null || result.breakevenFullPerTon === undefined) {
                 beFullEl.innerText = 'недосяжна';
@@ -3075,20 +3182,21 @@
                 beGapEl.innerText = '';
                 beChip.title = 'Беззбитковість недосяжна: відсоток ЗП водія, ПДВ і податок разом «з\'їдають» усю розцінку. Перевірте модель оплати водія.';
             } else {
-                beFullEl.innerText = `${fmtBE(result.breakevenFullPerTon)} грн/т`;
+                beFullEl.innerText = `${beShown(result.breakevenFullPerTon)} ${beUnit}`;
                 const m = result.breakevenMarginPerTon, e = result.breakevenEbitdaPerTon;
-                beOpEl.innerText = `маржа ${m === null ? '—' : fmtBE(m)} · EBITDA ${e === null ? '—' : fmtBE(e)}`;
+                beOpEl.innerText = `маржа ${m === null ? '—' : beShown(m)} · EBITDA ${e === null ? '—' : beShown(e)}${contractCurrency === 'UAH' ? '' : ' · ' + fmtBE(result.breakevenFullPerTon) + ' грн/т'}`;
                 const gap = result.breakevenGapPerTon;
                 if (gap >= 0) {
-                    beGapEl.innerText = `Запас +${fmtBE(gap)} грн/т`;
+                    beGapEl.innerText = `Запас +${beShown(gap)} ${beUnit}`;
                     beGapEl.style.color = 'var(--success)';
                 } else {
-                    beGapEl.innerText = `Дефіцит ${fmtBE(gap)} грн/т`;
+                    beGapEl.innerText = `Дефіцит ${beShown(gap)} ${beUnit}`;
                     beGapEl.style.color = 'var(--danger)';
                 }
-                let tip = `Розцінка (грн/т), при якій чистий прибуток = 0. При розцінці ${fmtBE(result.breakevenEbitdaPerTon)} EBITDA = 0, при ${fmtBE(result.breakevenMarginPerTon)} маржа = 0.`;
+                let tip = `Розцінка (${beUnit}), при якій чистий прибуток = 0. При розцінці ${beShown(result.breakevenEbitdaPerTon)} EBITDA = 0, при ${beShown(result.breakevenMarginPerTon)} маржа = 0.`;
+                if (contractCurrency !== 'UAH') tip += ` У гривні: ${fmtBE(result.breakevenFullPerTon)} грн/т.`;
                 if (result.breakevenExVatPerTon !== null && result.breakevenExVatPerTon !== undefined) {
-                    tip += ` Розцінка вводиться з ПДВ, тому й беззбитковість показана з ПДВ. Без ПДВ: ${fmtBE(result.breakevenExVatPerTon)} грн/т (ваша розцінка без ПДВ: ${fmtBE(result.rateExVatPerTon)} грн/т).`;
+                    tip += ` Розцінка вводиться з ПДВ, тому й беззбитковість показана з ПДВ. Без ПДВ: ${beShown(result.breakevenExVatPerTon)} ${beUnit} (ваша розцінка без ПДВ: ${beShown(result.rateExVatPerTon)} ${beUnit}).`;
                 }
                 beChip.title = tip;
             }
@@ -3099,8 +3207,8 @@
             tbody.innerHTML = (result.detailedRows || []).map(r => `
                 <tr>
                     <td>${r.name}</td>
-                    <td>${formatMoney(r.val)}</td>
-                    <td>${Math.round(r.val / safeVolume)} грн</td>
+                    <td>${formatMoney(r.val)}${fxSuffix(r.val)}</td>
+                    <td>${Math.round(r.val / safeVolume)} грн${fxSuffix(r.val / safeVolume)}</td>
                     <td>${totalCostsSum > 0 ? (r.val / totalCostsSum * 100).toFixed(1) + '%' : '0%'}</td>
                 </tr>
             `).join('');
@@ -3108,7 +3216,8 @@
             renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
 
             lastCalcData = { 
-                routeName, trailerType, volume: payload.volume, rate: payload.rate, 
+                routeName, trailerType, volume: payload.volume, rate: payload.rate,
+                contractCurrency: payload.contractCurrency, fxRate: payload.fxRate,
                 grossIncome: result.grossIncome, marginalIncome: result.marginalIncome, 
                 ebitda: result.ebitda, netProfit: result.netProfit, profitabilityPct: result.profitabilityPct 
             };
@@ -3149,14 +3258,14 @@
             }).join('');
         }
 
-        totalEl.innerText = formatMoney(total);
+        totalEl.innerText = formatMoney(total) + fxSuffix(total);
         legend.innerHTML = items.map(function (item) {
             const pct = (item.val / total * 100).toFixed(1);
             return '<div class="donut-legend-row">' +
                 '<span class="dot" style="background:' + item.color + '"></span>' +
                 '<div class="meta">' +
                 '<span class="name">' + item.name + '</span>' +
-                '<div class="nums"><span class="pct">' + pct + '%</span><span class="sum">' + formatMoney(item.val) + '</span></div>' +
+                '<div class="nums"><span class="pct">' + pct + '%</span><span class="sum">' + formatMoney(item.val) + fxSuffix(item.val) + '</span></div>' +
                 '</div></div>';
         }).join('');
     }
@@ -3310,7 +3419,7 @@
                 <td><b>${escHtml(c.routeName)}</b></td>
                 <td>${escHtml(c.trailerType)}</td>
                 <td>${escHtml(c.volume)} тн</td>
-                <td>${escHtml(c.rate)} грн</td>
+                <td>${escHtml(c.rate)} ${escHtml(c.contractCurrency && c.contractCurrency !== 'UAH' ? c.contractCurrency : 'грн')}</td>
                 <td>${formatMoney(c.grossIncome)}</td>
                 <td>${formatMoney(c.marginalIncome)}</td>
                 <td>${formatMoney(c.ebitda)}</td>
@@ -3324,14 +3433,15 @@
     function shareOffer() {
         const d = lastCalcData;
         if (!d || !d.routeName) return;
+        const rateUnit = d.contractCurrency && d.contractCurrency !== 'UAH' ? d.contractCurrency + '/тн' : 'грн/тн';
         const text = `🚛 *КОМЕРЦІЙНА ПРОПОЗИЦІЯ / РОЗРАХУНОК РЕЙСУ*
 
 📍 Маршрут: ${d.routeName}
 🚛 Причіп: ${d.trailerType}
 📦 Об'єм: ${d.volume} тн
-💰 Розцінка: ${d.rate} грн/тн
-💵 Дохід: ${formatMoney(d.grossIncome)}
-📈 Чистий прибуток: ${formatMoney(d.netProfit)}
+💰 Розцінка: ${d.rate} ${rateUnit}
+💵 Дохід: ${formatMoney(d.grossIncome)}${fxSuffix(d.grossIncome)}
+📈 Чистий прибуток: ${formatMoney(d.netProfit)}${fxSuffix(d.netProfit)}
 📊 Рентабельність: ${d.profitabilityPct.toFixed(1)}%`;
         if (navigator.share) {
             navigator.share({ title: 'Розрахунок рейсу', text: text }).catch(err => console.log('Share API error:', err));

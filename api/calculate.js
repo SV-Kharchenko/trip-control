@@ -53,6 +53,20 @@ export default async function handler(req, res) {
             });
         }
 
+        // Курс перевіряємо до ліміту демо, щоб зіпсований запит не з'їдав розрахунок.
+        const contractCurrencyEarly = String(reqBody.contractCurrency || 'UAH').toUpperCase();
+        if (contractCurrencyEarly === 'USD' || contractCurrencyEarly === 'EUR') {
+            const fxEarly = parseFloat(reqBody.fxRate);
+            if (!(fxEarly >= 10 && fxEarly <= 200)) {
+                return res.status(400).json({
+                    code: 'BAD_FX',
+                    error: 'Немає курсу НБУ для валюти контракту. Оновіть сторінку.'
+                });
+            }
+        } else if (contractCurrencyEarly !== 'UAH') {
+            return res.status(400).json({ code: 'BAD_CCY', error: 'Валюта контракту: гривня, долар або євро.' });
+        }
+
         // --- Демо-режим: ліміт лише з профілю в БД (is_approved). Клієнтський isDemo / ?preview ігнорується. ---
         const isDemo = !profile.is_approved;
         let demoInfo = null;
@@ -100,8 +114,24 @@ export default async function handler(req, res) {
         const carsCount = parseFloat(body.carsCount);
         const daysPerTrip = parseFloat(body.daysPerTrip);
         const idleDays = parseFloat(body.idleDays) || 0;
-        const idleRate = parseFloat(body.idleRate) || 0;
-        const rate = parseFloat(body.rate);
+        // Валюта контракту: розцінка, простій і зворотний вантаж приходять у ній.
+        // Витрати компанії (пальне, ТО, накладні) лишаються в гривні, тому дохід
+        // переводимо в грн за курсом, який клієнт взяв з НБУ.
+        const contractCurrency = String(body.contractCurrency || 'UAH').toUpperCase();
+        let fxRate = 1;
+        if (contractCurrency === 'USD' || contractCurrency === 'EUR') {
+            fxRate = parseFloat(body.fxRate);
+            if (!(fxRate >= 10 && fxRate <= 200)) {
+                return res.status(400).json({
+                    code: 'BAD_FX',
+                    error: 'Немає курсу НБУ для валюти контракту. Оновіть сторінку.'
+                });
+            }
+        } else if (contractCurrency !== 'UAH') {
+            return res.status(400).json({ code: 'BAD_CCY', error: 'Валюта контракту: гривня, долар або євро.' });
+        }
+        const idleRate = (parseFloat(body.idleRate) || 0) * fxRate;
+        const rate = parseFloat(body.rate) * fxRate;
 
         // ПДВ-кредит на вхідні витрати отримує лише платник ПДВ (безготівковий розрахунок).
         // ФОП і готівка платять повну ціну — тому дільник застосовуємо умовно, а не завжди.
@@ -185,7 +215,7 @@ export default async function handler(req, res) {
         const rtBackhaulDist = isRoundTrip ? (parseFloat(body.rtBackhaulDist) || 0) : 0;
         const rtReturnDist = isRoundTrip ? (parseFloat(body.rtReturnDist) || 0) : 0;
         const rtTotalVolumeAvailable = isRoundTrip ? (parseFloat(body.rtTotalVolume) || 0) : 0;
-        const rtRate = isRoundTrip ? (parseFloat(body.rtRate) || 0) : 0;
+        const rtRate = isRoundTrip ? ((parseFloat(body.rtRate) || 0) * fxRate) : 0;
 
         const numReturnLegs = (returnMode === 'разовий') ? 0 : Math.max(0, tripsCount - carsCount);
         const maxLegsByCapacity = normWeight > 0 ? Math.floor(rtTotalVolumeAvailable / normWeight) : 0;
@@ -363,6 +393,8 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
             demo: demoInfo, // null для повного доступу, {used, limit} для демо
+            contractCurrency,
+            fxRate,
             grossIncome: Math.round(grossIncome),
             netIncome: Math.round(netIncome),
             marginalIncome: Math.round(marginalIncome),
