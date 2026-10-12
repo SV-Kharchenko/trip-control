@@ -26,11 +26,14 @@ export default async function handler(req, res) {
         }
         const { data: profile } = await supabase
             .from('profiles')
-            .select('is_approved, org_id, organizations(status)')
+            .select('is_approved, org_id, member_status, organizations(status)')
             .eq('id', user.id)
             .single();
         if (!profile || !profile.org_id) {
             return res.status(403).json({ code: 'NO_PROFILE', error: 'Профіль користувача не знайдено.' });
+        }
+        if (profile.member_status === 'disabled') {
+            return res.status(403).json({ code: 'MEMBER_DISABLED', error: 'Доступ до компанії відключено.' });
         }
         if (!profile.organizations || profile.organizations.status === 'blocked') {
             return res.status(403).json({ code: 'ORG_BLOCKED', error: 'Доступ компанії заблоковано адміністратором.' });
