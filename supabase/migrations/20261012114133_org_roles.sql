@@ -148,6 +148,11 @@ REVOKE ALL ON FUNCTION public.current_org_role() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.is_org_owner() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.is_org_admin() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.org_logists_see_all() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.current_org_id() FROM anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.current_org_role() FROM anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.is_org_owner() FROM anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.is_org_admin() FROM anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.org_logists_see_all() FROM anon, authenticated, service_role;
 
 GRANT EXECUTE ON FUNCTION public.current_org_id() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.current_org_role() TO authenticated, service_role;
@@ -187,6 +192,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.protect_profile_privileges() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.protect_profile_privileges() FROM anon, authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.protect_last_active_owner()
 RETURNS trigger
@@ -237,6 +243,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.protect_last_active_owner() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.protect_last_active_owner() FROM anon, authenticated, service_role;
 
 DROP TRIGGER IF EXISTS trg_protect_profile_privileges ON public.profiles;
 CREATE TRIGGER trg_protect_profile_privileges
@@ -309,6 +316,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.protect_org_privileges() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.protect_org_privileges() FROM anon, authenticated, service_role;
 
 DROP TRIGGER IF EXISTS trg_protect_org_privileges ON public.organizations;
 CREATE TRIGGER trg_protect_org_privileges
@@ -345,6 +353,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.protect_company_settings_privileges() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.protect_company_settings_privileges() FROM anon, authenticated, service_role;
 
 DROP TRIGGER IF EXISTS trg_protect_company_settings_privileges ON public.company_settings;
 CREATE TRIGGER trg_protect_company_settings_privileges
@@ -385,6 +394,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.set_logists_visibility(uuid, boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.set_logists_visibility(uuid, boolean) FROM anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.set_logists_visibility(uuid, boolean) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.protect_calculation_ownership()
@@ -406,6 +416,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.protect_calculation_ownership() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.protect_calculation_ownership() FROM anon, authenticated, service_role;
 
 DROP TRIGGER IF EXISTS trg_protect_calculation_ownership ON public.calculations;
 CREATE TRIGGER trg_protect_calculation_ownership
@@ -572,6 +583,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.accept_org_invite(text, uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.accept_org_invite(text, uuid, text) FROM anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.accept_org_invite(text, uuid, text) TO service_role;
 
 -- ---------------------------------------------------------------------------
@@ -637,6 +649,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.handle_new_tripcontrol_user() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.handle_new_tripcontrol_user() FROM anon, authenticated, service_role;
 
 DO $$
 DECLARE
