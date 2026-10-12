@@ -708,6 +708,16 @@
             padding: 6px 8px; border-radius: 6px; font-size: 0.84rem; text-align: right; font-family: var(--font-ui);
         }
         select { text-align: left; }
+        /* Випадаючий список системи завжди світлий. Колір опції задаємо явно,
+           інакше світлий текст теми зливається з білим фоном списку. */
+        select option {
+            background-color: #ffffff;
+            color: #122033;
+        }
+        select option:checked {
+            background-color: #1b4f86;
+            color: #ffffff;
+        }
         input:focus, select:focus { outline: none; border-color: var(--steel); box-shadow: 0 0 0 3px rgba(125,211,252,0.12); }
         input[type="checkbox"], input[type="radio"] {
             width: 16px; height: 16px; min-width: 16px; max-width: 16px; flex: 0 0 16px;
@@ -2766,27 +2776,27 @@
                         <div class="form-row">
                             <label>Платні дороги (за рейс):</label>
                             <input type="number" id="toll-cost" value="0" oninput="calculate()">
-                            <span class="unit">грн</span>
+                            <span class="unit" id="toll-unit">грн</span>
                         </div>
                         <div class="form-row">
                             <label>Проходження кордону:</label>
                             <input type="number" id="border-cost" value="0" oninput="calculate()">
-                            <span class="unit">грн</span>
+                            <span class="unit" id="border-unit">грн</span>
                         </div>
                         <div class="form-row">
                             <label>Послуги брокера:</label>
                             <input type="number" id="broker-cost" value="0" oninput="calculate()">
-                            <span class="unit">грн</span>
+                            <span class="unit" id="broker-unit">грн</span>
                         </div>
                         <div class="form-row">
                             <label>Зелена карта:</label>
                             <input type="number" id="green-card-cost" value="0" oninput="calculate()">
-                            <span class="unit">грн</span>
+                            <span class="unit" id="green-card-unit">грн</span>
                         </div>
                         <div class="form-row">
                             <label>Паром:</label>
                             <input type="number" id="ferry-cost" value="0" oninput="calculate()">
-                            <span class="unit">грн</span>
+                            <span class="unit" id="ferry-unit">грн</span>
                         </div>
                         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Сума за один рейс/ходку — множиться на кількість ходок автоматично.</div>
                     </div>
@@ -4114,13 +4124,17 @@
         if (rateUnit) rateUnit.textContent = unit + '/т';
         if (rtUnit) rtUnit.textContent = unit + '/т';
         if (idleUnit) idleUnit.textContent = unit + '/доба';
+        ['toll-unit', 'border-unit', 'broker-unit', 'green-card-unit', 'ferry-unit'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = unit;
+        });
         const note = document.getElementById('contract-fx-note');
         if (!note) return;
         if (contractCurrency === 'UAH') {
-            note.textContent = 'Розцінка, простій і зворотний вантаж. Витрати компанії лишаються в гривні.';
+            note.textContent = 'Розцінка, простій, зворотний вантаж і супутні витрати. Решта витрат компанії лишається в гривні.';
         } else {
             const fx = contractFx();
-            note.textContent = '1 ' + contractCurrency + ' = ' + (fx ? fx.toFixed(2) : '…') + ' грн за курсом НБУ. Витрати компанії лишаються в гривні.';
+            note.textContent = '1 ' + contractCurrency + ' = ' + (fx ? fx.toFixed(2) : '…') + ' грн за курсом НБУ. Розцінка, простій, зворотний вантаж і супутні витрати — у цій валюті. Решта витрат компанії лишається в гривні.';
         }
     }
 
@@ -4136,7 +4150,7 @@
             return;
         }
         const k = from / to;
-        ['rate', 'rt-rate', 'idle-rate'].forEach(function (id) {
+        ['rate', 'rt-rate', 'idle-rate', 'toll-cost', 'border-cost', 'broker-cost', 'green-card-cost', 'ferry-cost'].forEach(function (id) {
             const el = document.getElementById(id);
             const v = parseFloat(el && el.value);
             if (v > 0) el.value = String(Math.round(v * k * 100) / 100);
