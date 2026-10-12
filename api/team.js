@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -6,10 +6,10 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const MAX_ACTIVE_MEMBERS = 20;
+const MAX_TEAM_SEATS = 3;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const TEAM_ROLES = new Set(['owner', 'manager', 'logist']);
-const INVITE_ROLES = new Set(['manager', 'logist']);
+const TEAM_ROLES = new Set(['owner', 'logist']);
+const INVITE_ROLES = new Set(['logist']);
 
 export class HttpError extends Error {
     constructor(status, code, message) {
@@ -23,6 +23,33 @@ export function tokenHash(token) {
     return createHash('sha256').update(String(token)).digest('hex');
 }
 
+function inviteSigningPayload(invite) {
+    return [
+        invite.id,
+        String(invite.email || '').trim().toLowerCase(),
+        invite.org_role,
+        invite.expires_at
+    ].join('|');
+}
+
+export function inviteSignature(invite, secret = process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return createHmac('sha256', String(secret || ''))
+        .update(inviteSigningPayload(invite))
+        .digest('base64url');
+}
+
+export function signedInviteToken(invite, secret) {
+    return `v2.${invite.id}.${inviteSignature(invite, secret)}`;
+}
+
+export function signedInviteTokenIsValid(token, invite, secret) {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 3 || parts[0] !== 'v2' || parts[1] !== invite.id) return false;
+    const actual = Buffer.from(parts[2]);
+    const expected = Buffer.from(inviteSignature(invite, secret));
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
 export function validEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
 }
@@ -34,6 +61,10 @@ export function siteUrl() {
     } catch {
         return 'https://trip-control.com';
     }
+}
+
+export function inviteUrl(invite) {
+    return `${siteUrl()}/?team_invite=${encodeURIComponent(signedInviteToken(invite))}`;
 }
 
 async function requireUser(req, options = {}) {
@@ -73,20 +104,12 @@ function requireOwner(actor) {
     }
 }
 
-function requireOrgAdmin(actor) {
-    if (!['owner', 'manager'].includes(actor.profile.org_role)) {
-        throw new HttpError(403, 'ORG_ADMIN_ONLY', 'Ця дія доступна власнику або менеджеру.');
-    }
-}
-
 export function canInviteRole(actorRole, invitedRole) {
-    return actorRole === 'owner'
-        ? INVITE_ROLES.has(invitedRole)
-        : actorRole === 'manager' && invitedRole === 'logist';
+    return actorRole === 'owner' && INVITE_ROLES.has(invitedRole);
 }
 
 export function canManageMember(actorRole, targetRole) {
-    return actorRole === 'owner' || (actorRole === 'manager' && targetRole === 'logist');
+    return actorRole === 'owner' && TEAM_ROLES.has(targetRole);
 }
 
 export function inviteRpcHttpError(message) {
@@ -111,7 +134,7 @@ export function inviteRpcHttpError(message) {
         );
     }
     if (text.includes('MEMBER_LIMIT')) {
-        return new HttpError(409, 'MEMBER_LIMIT', `Технічний ліміт — ${MAX_ACTIVE_MEMBERS} активних учасників.`);
+        return new HttpError(409, 'MEMBER_LIMIT', `У команді доступно лише ${MAX_TEAM_SEATS} місця, включно з активними запрошеннями.`);
     }
     return null;
 }
@@ -140,9 +163,31 @@ async function activeMemberCount(orgId, excludeUserId = null) {
     return count || 0;
 }
 
+async function pendingInviteCount(orgId, excludeInviteId = null) {
+    let query = supabase
+        .from('org_invites')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .is('accepted_at', null)
+        .is('revoked_at', null)
+        .gt('expires_at', new Date().toISOString());
+    if (excludeInviteId) query = query.neq('id', excludeInviteId);
+    const { count, error } = await query;
+    if (error) throw error;
+    return count || 0;
+}
+
+async function teamSeatUsage(orgId, excludeInviteId = null) {
+    const [active, pending] = await Promise.all([
+        activeMemberCount(orgId),
+        pendingInviteCount(orgId, excludeInviteId)
+    ]);
+    return { active, pending, used: active + pending, limit: MAX_TEAM_SEATS };
+}
+
 async function listTeam(actor) {
     const orgId = actor.profile.org_id;
-    const [{ data: members, error: membersError }, usersResult, settingsResult] = await Promise.all([
+    const [{ data: members, error: membersError }, usersResult, settingsResult, seats] = await Promise.all([
         supabase
             .from('profiles')
             .select('id, email, org_role, member_status, created_at')
@@ -153,7 +198,8 @@ async function listTeam(actor) {
             .from('company_settings')
             .select('settings')
             .eq('org_id', orgId)
-            .maybeSingle()
+            .maybeSingle(),
+        teamSeatUsage(orgId)
     ]);
     if (membersError) throw membersError;
     if (usersResult.error) throw usersResult.error;
@@ -172,7 +218,7 @@ async function listTeam(actor) {
     });
 
     let invites = [];
-    if (['owner', 'manager'].includes(actor.profile.org_role)) {
+    if (actor.profile.org_role === 'owner') {
         const { data, error } = await supabase
             .from('org_invites')
             .select('id, email, org_role, expires_at, accepted_at, revoked_at, created_at')
@@ -181,8 +227,15 @@ async function listTeam(actor) {
             .is('revoked_at', null)
             .order('created_at', { ascending: false });
         if (error) throw error;
-        invites = data || [];
+        invites = (data || []).map(invite => ({
+            ...invite,
+            invite_url: inviteUrl(invite)
+        }));
     }
+
+    const activeOwnerCount = result.filter(member =>
+        member.org_role === 'owner' && member.member_status === 'active'
+    ).length;
 
     return {
         organization: {
@@ -196,13 +249,34 @@ async function listTeam(actor) {
             member_status: actor.profile.member_status
         },
         logists_see_all: settingsResult.data?.settings?.logists_see_all === true,
+        active_owner_count: activeOwnerCount,
+        seats,
         members: result,
         invites
     };
 }
 
+async function deliverInvite(email, url) {
+    const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
+        redirectTo: url,
+        data: { trip_control_invite: true }
+    });
+    if (!error) return 'email';
+
+    const message = String(error.message || '').toLowerCase();
+    if (message.includes('already') || message.includes('registered') || message.includes('exists')) {
+        const { error: resendError } = await supabase.auth.resend({
+            type: 'signup',
+            email,
+            options: { emailRedirectTo: url }
+        });
+        return resendError ? 'existing_user_link' : 'email_resend';
+    }
+    return 'manual_link';
+}
+
 async function inviteMember(actor, body) {
-    requireOrgAdmin(actor);
+    requireOwner(actor);
     const orgId = actor.profile.org_id;
     const email = String(body.email || '').trim().toLowerCase();
     const role = String(body.org_role || 'logist');
@@ -211,15 +285,10 @@ async function inviteMember(actor, body) {
         throw new HttpError(400, 'BAD_EMAIL', 'Вкажіть коректний email.');
     }
     if (!INVITE_ROLES.has(role)) {
-        throw new HttpError(400, 'BAD_ROLE', 'Запросити можна менеджера або логіста.');
+        throw new HttpError(400, 'BAD_ROLE', 'Запросити можна лише логіста.');
     }
     if (!canInviteRole(actor.profile.org_role, role)) {
-        throw new HttpError(403, 'MANAGER_INVITES_LOGISTS', 'Менеджер може запрошувати лише логістів.');
-    }
-
-    const members = await activeMemberCount(orgId);
-    if (members >= MAX_ACTIVE_MEMBERS) {
-        throw new HttpError(409, 'MEMBER_LIMIT', `Технічний ліміт — ${MAX_ACTIVE_MEMBERS} активних учасників.`);
+        throw new HttpError(403, 'OWNER_ONLY', 'Запрошення доступні лише власнику.');
     }
 
     const { data: existingMember, error: existingMemberError } = await supabase
@@ -250,9 +319,6 @@ async function inviteMember(actor, body) {
         .is('revoked_at', null)
         .maybeSingle();
     if (pendingError) throw pendingError;
-    if (pendingInvite && !canManageMember(actor.profile.org_role, pendingInvite.org_role)) {
-        throw new HttpError(403, 'INVITE_ROLE_PROTECTED', 'Менеджер не може замінити запрошення власника.');
-    }
     if (pendingInvite) {
         const { error: revokeError } = await supabase
             .from('org_invites')
@@ -261,6 +327,11 @@ async function inviteMember(actor, body) {
             .is('accepted_at', null)
             .is('revoked_at', null);
         if (revokeError) throw revokeError;
+    }
+
+    const seats = await teamSeatUsage(orgId);
+    if (seats.used >= seats.limit) {
+        throw new HttpError(409, 'MEMBER_LIMIT', `У команді вже зайнято ${seats.used} з ${seats.limit} місць.`);
     }
 
     const rawToken = randomBytes(32).toString('base64url');
@@ -275,26 +346,16 @@ async function inviteMember(actor, body) {
             invited_by: actor.user.id,
             expires_at: expiresAt
         })
-        .select('id')
+        .select('id, email, org_role, expires_at')
         .single();
-    if (inviteError) throw inviteError;
-
-    const inviteUrl = `${siteUrl()}/?team_invite=${encodeURIComponent(rawToken)}`;
-    const { error: deliveryError } = await supabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo: inviteUrl,
-        data: { trip_control_invite: true }
-    });
-
-    let delivery = 'email';
-    if (deliveryError) {
-        const message = String(deliveryError.message || '').toLowerCase();
-        if (message.includes('already') || message.includes('registered') || message.includes('exists')) {
-            delivery = 'existing_user_link';
-        } else {
-            await supabase.from('org_invites').delete().eq('id', invite.id);
-            throw new HttpError(502, 'INVITE_DELIVERY_FAILED', 'Не вдалося надіслати запрошення.');
-        }
+    if (inviteError) {
+        const mapped = inviteRpcHttpError(inviteError.message);
+        if (mapped) throw mapped;
+        throw inviteError;
     }
+
+    const url = inviteUrl(invite);
+    const delivery = await deliverInvite(email, url);
 
     if (enablingTeam) {
         const { error: modeError } = await supabase
@@ -322,22 +383,39 @@ async function inviteMember(actor, body) {
     return {
         ok: true,
         invite_id: invite.id,
-        expires_at: expiresAt,
+        expires_at: invite.expires_at,
         delivery,
-        invite_url: inviteUrl,
+        invite_url: url,
         work_mode: actor.profile.organizations.work_mode
     };
 }
 
 async function acceptInvite(actor, body) {
-    const rawToken = String(body.token || '');
-    if (rawToken.length < 32) {
+    const token = String(body.token || '');
+    if (token.length < 32 || token.length > 512) {
         throw new HttpError(400, 'BAD_INVITE_TOKEN', 'Некоректне посилання запрошення.');
+    }
+
+    let hash;
+    if (token.startsWith('v2.')) {
+        const inviteId = token.split('.')[1] || '';
+        const { data: invite, error: inviteError } = await supabase
+            .from('org_invites')
+            .select('id, email, org_role, expires_at, token_hash')
+            .eq('id', inviteId)
+            .maybeSingle();
+        if (inviteError) throw inviteError;
+        if (!invite || !signedInviteTokenIsValid(token, invite)) {
+            throw new HttpError(400, 'BAD_INVITE_TOKEN', 'Некоректне посилання запрошення.');
+        }
+        hash = invite.token_hash;
+    } else {
+        hash = tokenHash(token);
     }
 
     const { data, error } = await supabase
         .rpc('accept_org_invite', {
-            p_token_hash: tokenHash(rawToken),
+            p_token_hash: hash,
             p_user_id: actor.user.id,
             p_email: actor.user.email || ''
         })
@@ -390,7 +468,7 @@ async function changeRole(actor, body) {
 }
 
 async function disableMember(actor, body) {
-    requireOrgAdmin(actor);
+    requireOwner(actor);
     const userId = String(body.user_id || '');
     if (!userId || userId === actor.user.id) {
         throw new HttpError(400, 'BAD_DISABLE_TARGET', 'Не можна відключити власний поточний доступ.');
@@ -405,18 +483,11 @@ async function disableMember(actor, body) {
     if (targetError || !target) {
         throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Учасника не знайдено.');
     }
-    if (!canManageMember(actor.profile.org_role, target.org_role)) {
-        throw new HttpError(403, 'MANAGER_DISABLES_LOGISTS', 'Менеджер може відключати лише логістів.');
-    }
-
-    let update = supabase
+    const update = supabase
         .from('profiles')
         .update({ member_status: 'disabled' })
         .eq('id', userId)
         .eq('org_id', actor.profile.org_id);
-    if (actor.profile.org_role === 'manager') {
-        update = update.eq('org_role', 'logist');
-    }
     const { data: disabled, error } = await update
         .select('id')
         .maybeSingle();
@@ -437,7 +508,7 @@ async function disableMember(actor, body) {
 }
 
 async function revokeInvite(actor, body) {
-    requireOrgAdmin(actor);
+    requireOwner(actor);
     const inviteId = String(body.invite_id || '');
     const { data: invite, error: inviteError } = await supabase
         .from('org_invites')
@@ -450,10 +521,6 @@ async function revokeInvite(actor, body) {
     if (inviteError || !invite) {
         throw new HttpError(404, 'INVITE_NOT_FOUND', 'Активне запрошення не знайдено.');
     }
-    if (!canManageMember(actor.profile.org_role, invite.org_role)) {
-        throw new HttpError(403, 'MANAGER_REVOKES_LOGISTS', 'Менеджер може відкликати лише запрошення логістів.');
-    }
-
     const { data: revoked, error } = await supabase
         .from('org_invites')
         .update({ revoked_at: new Date().toISOString() })
@@ -469,6 +536,64 @@ async function revokeInvite(actor, body) {
 
     await audit(actor.user.id, actor.profile.org_id, 'revoke_invite', 'org_invites', inviteId);
     return { ok: true, invite_id: inviteId };
+}
+
+async function resendInvite(actor, body) {
+    requireOwner(actor);
+    const inviteId = String(body.invite_id || '');
+    const { data: existing, error: existingError } = await supabase
+        .from('org_invites')
+        .select('id, email, org_role')
+        .eq('id', inviteId)
+        .eq('org_id', actor.profile.org_id)
+        .is('accepted_at', null)
+        .is('revoked_at', null)
+        .single();
+    if (existingError || !existing) {
+        throw new HttpError(404, 'INVITE_NOT_FOUND', 'Активне запрошення не знайдено.');
+    }
+
+    const seats = await teamSeatUsage(actor.profile.org_id, inviteId);
+    if (seats.used >= seats.limit) {
+        throw new HttpError(409, 'MEMBER_LIMIT', `У команді вже зайнято ${seats.used} з ${seats.limit} місць.`);
+    }
+
+    const now = new Date();
+    const { data: invite, error } = await supabase
+        .from('org_invites')
+        .update({
+            token_hash: tokenHash(randomBytes(32).toString('base64url')),
+            created_at: now.toISOString(),
+            expires_at: new Date(now.getTime() + INVITE_TTL_MS).toISOString()
+        })
+        .eq('id', inviteId)
+        .eq('org_id', actor.profile.org_id)
+        .is('accepted_at', null)
+        .is('revoked_at', null)
+        .select('id, email, org_role, expires_at')
+        .maybeSingle();
+    if (error) {
+        const mapped = inviteRpcHttpError(error.message);
+        if (mapped) throw mapped;
+        throw error;
+    }
+    if (!invite) {
+        throw new HttpError(409, 'INVITE_CHANGED', 'Запрошення вже прийнято або відкликано.');
+    }
+
+    const url = inviteUrl(invite);
+    const delivery = await deliverInvite(invite.email, url);
+    await audit(actor.user.id, actor.profile.org_id, 'resend_invite', 'org_invites', invite.id, {
+        delivery,
+        expires_at: invite.expires_at
+    });
+    return {
+        ok: true,
+        invite_id: invite.id,
+        expires_at: invite.expires_at,
+        delivery,
+        invite_url: url
+    };
 }
 
 async function setWorkMode(actor, body) {
@@ -533,6 +658,7 @@ export default async function handler(req, res) {
         else if (action === 'change_role') result = await changeRole(actor, body);
         else if (action === 'disable') result = await disableMember(actor, body);
         else if (action === 'revoke') result = await revokeInvite(actor, body);
+        else if (action === 'resend') result = await resendInvite(actor, body);
         else if (action === 'set_work_mode') result = await setWorkMode(actor, body);
         else if (action === 'set_logists_see_all') result = await setVisibility(actor, body);
         else throw new HttpError(400, 'UNKNOWN_ACTION', 'Невідома дія.');

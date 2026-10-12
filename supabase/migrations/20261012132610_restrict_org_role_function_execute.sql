@@ -4,13 +4,11 @@
 REVOKE ALL ON FUNCTION public.current_org_id() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.current_org_role() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.is_org_owner() FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION public.is_org_admin() FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.org_logists_see_all() FROM PUBLIC, anon, authenticated, service_role;
 
 GRANT EXECUTE ON FUNCTION public.current_org_id() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.current_org_role() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_org_owner() TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.is_org_admin() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.org_logists_see_all() TO authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.protect_profile_privileges() FROM PUBLIC, anon, authenticated, service_role;
