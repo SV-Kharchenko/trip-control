@@ -17,6 +17,10 @@ const migration = readFileSync(
     new URL('../supabase/migrations/20261012230000_weekly_reports.sql', import.meta.url),
     'utf8'
 );
+const grants = readFileSync(
+    new URL('../supabase/migrations/20261012231000_weekly_reports_grants.sql', import.meta.url),
+    'utf8'
+);
 const vercel = readFileSync(new URL('../vercel.json', import.meta.url), 'utf8');
 
 const weekTrips = [
@@ -179,6 +183,8 @@ test('the page previews and sends through the report API, not the calculator', (
     assert.match(migration, /UNIQUE \(org_id, period_start\)/);
     assert.match(migration, /FOR SELECT TO authenticated/);
     assert.equal(migration.includes('FOR INSERT'), false);
+    assert.match(grants, /REVOKE ALL ON TABLE public\.weekly_reports FROM PUBLIC, anon, authenticated/);
+    assert.match(grants, /GRANT SELECT ON TABLE public\.weekly_reports TO authenticated/);
     assert.match(vercel, /\/api\/weekly-report/);
     assert.match(vercel, /0 6 \* \* 1/);
 });
