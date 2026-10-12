@@ -1,0 +1,411 @@
+[
+  {
+    "name": "Київ — Львів",
+    "note": "Циклічний тент. 540 км — вхід сценарію (як у прев’ю історії), не вимірювання дороги.",
+    "payload": {
+      "calcType": "фоп",
+      "returnMode": "циклічний",
+      "roadQuality": 1,
+      "season": "стандарт",
+      "contractCurrency": "UAH",
+      "fxRate": 1,
+      "fuelLoad": 37,
+      "fuelEmpty": 32,
+      "fuelPrice": 57,
+      "useAdblue": true,
+      "adblueConsumption": 2.85,
+      "adbluePrice": 18,
+      "driverPayMode": "km",
+      "driverRateLoad": 4.03,
+      "driverRateEmpty": 2.3,
+      "driverPctVal": 12,
+      "perDiem": 850,
+      "toCost": 18000,
+      "toPeriod": 50000,
+      "tireCost": 16500,
+      "tireCount": 14,
+      "tireMileage": 150000,
+      "totalFleet": 5,
+      "idleDays": 0,
+      "idleRate": 0,
+      "isRoundTrip": false,
+      "useExtras": false,
+      "trailerType": "тент",
+      "dist": 540,
+      "podachaDist": 0,
+      "volume": 126,
+      "normWeight": 21,
+      "carsCount": 3,
+      "daysPerTrip": 2,
+      "rate": 760
+    },
+    "expect": {
+      "contractCurrency": "UAH",
+      "fxRate": 1,
+      "grossIncome": 95760,
+      "netIncome": 95760,
+      "marginalIncome": -44523,
+      "marginPerTon": -353,
+      "ebitda": -44523,
+      "ebitdaPerTon": -353,
+      "netProfit": -50269,
+      "profitabilityPct": -52.49444862155386,
+      "breakevenMarginPerTon": 1113,
+      "breakevenEbitdaPerTon": 1113,
+      "breakevenFullPerTon": 1184,
+      "breakevenGapPerTon": -424,
+      "breakevenExVatPerTon": null,
+      "rateExVatPerTon": 633,
+      "fuelTotal": 100374,
+      "driverTotal": 30676,
+      "toTotal": 9234,
+      "extrasTotal": 0,
+      "overheadTotal": 0,
+      "taxesTotal": 5746,
+      "detailedRows": [
+        {
+          "name": "⛽ Пальне (ДП завантажений + пустий + подача)",
+          "val": 97880
+        },
+        {
+          "name": "💧 Рідина AdBlue",
+          "val": 2493
+        },
+        {
+          "name": "👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові",
+          "val": 30676
+        },
+        {
+          "name": "🔧 ТО, Шини та Ремонти",
+          "val": 9234
+        },
+        {
+          "name": "🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)",
+          "val": 0
+        },
+        {
+          "name": "📉 Амортизація та фінансові витрати (після EBITDA)",
+          "val": 0
+        },
+        {
+          "name": "🏛️ Податки (ФОП / ПДВ)",
+          "val": 5746
+        }
+      ],
+      "tripVolumeText": "Об'єм вивозу: 6 ходок (126 т)",
+      "rtInfoText": "Доступно зворотних ходок: 3 | Використано: 0 (обмежено обсягом вантажу)",
+      "podachaText": "",
+      "fuelSummaryText": "⛽ Пальне: заг. пробіг 4860 км | Витрати: 97880 грн",
+      "adblueSummaryText": "💧 AdBlue: витрати 2493 грн"
+    }
+  },
+  {
+    "name": "Львів — Одеса",
+    "note": "Циклічний зерновоз зі стартовими нормами компанії і ненульовими накладними. 790 км — вхід сценарію.",
+    "payload": {
+      "calcType": "фоп",
+      "returnMode": "циклічний",
+      "roadQuality": 1,
+      "season": "стандарт",
+      "contractCurrency": "UAH",
+      "fxRate": 1,
+      "fuelLoad": 37,
+      "fuelEmpty": 32,
+      "fuelPrice": 57,
+      "useAdblue": true,
+      "adblueConsumption": 2.85,
+      "adbluePrice": 18,
+      "driverPayMode": "km",
+      "driverRateLoad": 4.03,
+      "driverRateEmpty": 2.3,
+      "driverPctVal": 12,
+      "perDiem": 850,
+      "toCost": 18000,
+      "toPeriod": 50000,
+      "tireCost": 16500,
+      "tireCount": 14,
+      "tireMileage": 150000,
+      "totalFleet": 5,
+      "idleDays": 0,
+      "idleRate": 0,
+      "isRoundTrip": false,
+      "useExtras": false,
+      "trailerType": "зерновоз",
+      "dist": 790,
+      "podachaDist": 40,
+      "volume": 430,
+      "normWeight": 21.5,
+      "carsCount": 2,
+      "daysPerTrip": 2,
+      "rate": 1600,
+      "amort": 120000,
+      "admin": 60000,
+      "repair": 48000,
+      "fin": 24000
+    },
+    "expect": {
+      "contractCurrency": "UAH",
+      "fxRate": 1,
+      "grossIncome": 688000,
+      "netIncome": 688000,
+      "marginalIncome": -131773,
+      "marginPerTon": -306,
+      "ebitda": -133373,
+      "ebitdaPerTon": -310,
+      "netProfit": -178493,
+      "profitabilityPct": -25.94380523255816,
+      "breakevenMarginPerTon": 1906,
+      "breakevenEbitdaPerTon": 1910,
+      "breakevenFullPerTon": 2042,
+      "breakevenGapPerTon": -442,
+      "breakevenExVatPerTon": null,
+      "rateExVatPerTon": 1333,
+      "fuelTotal": 609495,
+      "driverTotal": 151808,
+      "toTotal": 58470,
+      "extrasTotal": 0,
+      "overheadTotal": 5440,
+      "taxesTotal": 41280,
+      "detailedRows": [
+        {
+          "name": "⛽ Пальне (ДП завантажений + пустий + подача)",
+          "val": 594054
+        },
+        {
+          "name": "💧 Рідина AdBlue",
+          "val": 15441
+        },
+        {
+          "name": "👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові",
+          "val": 151808
+        },
+        {
+          "name": "🔧 ТО, Шини та Ремонти",
+          "val": 58470
+        },
+        {
+          "name": "🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)",
+          "val": 1600
+        },
+        {
+          "name": "📉 Амортизація та фінансові витрати (після EBITDA)",
+          "val": 3840
+        },
+        {
+          "name": "🏛️ Податки (ФОП / ПДВ)",
+          "val": 41280
+        }
+      ],
+      "tripVolumeText": "Об'єм вивозу: 20 ходок (430 т)",
+      "rtInfoText": "Доступно зворотних ходок: 18 | Використано: 0 (обмежено обсягом вантажу)",
+      "podachaText": "Витрати на подачу: 1459 грн (80 км)",
+      "fuelSummaryText": "⛽ Пальне: заг. пробіг 30100 км | Витрати: 594054 грн",
+      "adblueSummaryText": "💧 AdBlue: витрати 15441 грн"
+    }
+  },
+  {
+    "name": "Одеса — Київ",
+    "note": "Разовий рейс, тент, одне авто. 475 км і подача 15 км — вхід сценарію.",
+    "payload": {
+      "calcType": "фоп",
+      "returnMode": "разовий",
+      "roadQuality": 1,
+      "season": "стандарт",
+      "contractCurrency": "UAH",
+      "fxRate": 1,
+      "fuelLoad": 37,
+      "fuelEmpty": 32,
+      "fuelPrice": 57,
+      "useAdblue": true,
+      "adblueConsumption": 2.85,
+      "adbluePrice": 18,
+      "driverPayMode": "km",
+      "driverRateLoad": 4.03,
+      "driverRateEmpty": 2.3,
+      "driverPctVal": 12,
+      "perDiem": 850,
+      "toCost": 18000,
+      "toPeriod": 50000,
+      "tireCost": 16500,
+      "tireCount": 14,
+      "tireMileage": 150000,
+      "totalFleet": 5,
+      "idleDays": 0,
+      "idleRate": 0,
+      "isRoundTrip": false,
+      "useExtras": false,
+      "trailerType": "тент",
+      "dist": 475,
+      "podachaDist": 15,
+      "normWeight": 20,
+      "carsCount": 1,
+      "daysPerTrip": 1,
+      "rate": 1200
+    },
+    "expect": {
+      "contractCurrency": "UAH",
+      "fxRate": 1,
+      "grossIncome": 24000,
+      "netIncome": 24000,
+      "marginalIncome": 9299,
+      "marginPerTon": 465,
+      "ebitda": 9299,
+      "ebitdaPerTon": 465,
+      "netProfit": 7859,
+      "profitabilityPct": 32.74502083333333,
+      "breakevenMarginPerTon": 735,
+      "breakevenEbitdaPerTon": 735,
+      "breakevenFullPerTon": 782,
+      "breakevenGapPerTon": 418,
+      "breakevenExVatPerTon": null,
+      "rateExVatPerTon": 1000,
+      "fuelTotal": 10543,
+      "driverTotal": 3227,
+      "toTotal": 931,
+      "extrasTotal": 0,
+      "overheadTotal": 0,
+      "taxesTotal": 1440,
+      "detailedRows": [
+        {
+          "name": "⛽ Пальне (ДП завантажений + пустий + подача)",
+          "val": 10291
+        },
+        {
+          "name": "💧 Рідина AdBlue",
+          "val": 251
+        },
+        {
+          "name": "👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові",
+          "val": 3227
+        },
+        {
+          "name": "🔧 ТО, Шини та Ремонти",
+          "val": 931
+        },
+        {
+          "name": "🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)",
+          "val": 0
+        },
+        {
+          "name": "📉 Амортизація та фінансові витрати (після EBITDA)",
+          "val": 0
+        },
+        {
+          "name": "🏛️ Податки (ФОП / ПДВ)",
+          "val": 1440
+        }
+      ],
+      "tripVolumeText": "Об'єм разового рейсу: 20.0 т (1 авто по 20 т)",
+      "rtInfoText": "",
+      "podachaText": "Витрати на подачу: 274 грн (15 км)",
+      "fuelSummaryText": "⛽ Пальне: заг. пробіг 490 км | Витрати: 10291 грн",
+      "adblueSummaryText": "💧 AdBlue: витрати 251 грн"
+    }
+  },
+  {
+    "name": "Київ — Львів, євро",
+    "note": "Безготівковий контракт у євро, курс 45, плюс супутні витрати. Ті самі кілометри, що в першому сценарії.",
+    "payload": {
+      "calcType": "безготівковий",
+      "returnMode": "циклічний",
+      "roadQuality": 1,
+      "season": "стандарт",
+      "contractCurrency": "EUR",
+      "fxRate": 45,
+      "fuelLoad": 37,
+      "fuelEmpty": 32,
+      "fuelPrice": 57,
+      "useAdblue": true,
+      "adblueConsumption": 2.85,
+      "adbluePrice": 18,
+      "driverPayMode": "km",
+      "driverRateLoad": 4.03,
+      "driverRateEmpty": 2.3,
+      "driverPctVal": 12,
+      "perDiem": 850,
+      "toCost": 18000,
+      "toPeriod": 50000,
+      "tireCost": 16500,
+      "tireCount": 14,
+      "tireMileage": 150000,
+      "totalFleet": 5,
+      "idleDays": 0,
+      "idleRate": 0,
+      "isRoundTrip": false,
+      "useExtras": true,
+      "trailerType": "тент",
+      "dist": 540,
+      "volume": 126,
+      "normWeight": 21,
+      "carsCount": 3,
+      "daysPerTrip": 2,
+      "rate": 18,
+      "tollCost": 40,
+      "borderCost": 25,
+      "greenCardCost": 15
+    },
+    "expect": {
+      "contractCurrency": "EUR",
+      "fxRate": 45,
+      "grossIncome": 102060,
+      "netIncome": 85050,
+      "marginalIncome": -58565,
+      "marginPerTon": -465,
+      "ebitda": -58565,
+      "ebitdaPerTon": -465,
+      "netProfit": -58565,
+      "profitabilityPct": -68.8596754850088,
+      "breakevenMarginPerTon": 1368,
+      "breakevenEbitdaPerTon": 1368,
+      "breakevenFullPerTon": 1368,
+      "breakevenGapPerTon": -558,
+      "breakevenExVatPerTon": 1140,
+      "rateExVatPerTon": 675,
+      "fuelTotal": 83645,
+      "driverTotal": 30676,
+      "toTotal": 7695,
+      "extrasTotal": 21600,
+      "overheadTotal": 0,
+      "taxesTotal": 0,
+      "detailedRows": [
+        {
+          "name": "⛽ Пальне (ДП завантажений + пустий + подача)",
+          "val": 81567
+        },
+        {
+          "name": "💧 Рідина AdBlue",
+          "val": 2078
+        },
+        {
+          "name": "👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові",
+          "val": 30676
+        },
+        {
+          "name": "🔧 ТО, Шини та Ремонти",
+          "val": 7695
+        },
+        {
+          "name": "🌍 Супутні витрати (дороги, кордон, брокер, страховка, паром)",
+          "val": 21600
+        },
+        {
+          "name": "🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)",
+          "val": 0
+        },
+        {
+          "name": "📉 Амортизація та фінансові витрати (після EBITDA)",
+          "val": 0
+        },
+        {
+          "name": "🏛️ Податки (ФОП / ПДВ)",
+          "val": 0
+        }
+      ],
+      "tripVolumeText": "Об'єм вивозу: 6 ходок (126 т)",
+      "rtInfoText": "Доступно зворотних ходок: 3 | Використано: 0 (обмежено обсягом вантажу)",
+      "podachaText": "",
+      "fuelSummaryText": "⛽ Пальне: заг. пробіг 4860 км | Витрати: 81567 грн",
+      "adblueSummaryText": "💧 AdBlue: витрати 2078 грн"
+    }
+  }
+]
