@@ -5,6 +5,7 @@ process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
 const {
+    activationExceedsLogistCap,
     canInviteRole,
     canManageMember,
     inviteSignature,
@@ -15,6 +16,34 @@ const {
     tokenHash,
     validEmail
 } = await import('../api/team.js');
+
+test('reactivating a disabled logist cannot bypass the three-seat cap', () => {
+    assert.equal(activationExceedsLogistCap({
+        activeLogists: 3,
+        pendingInvites: 0,
+        wasActiveLogist: false
+    }), true);
+    assert.equal(activationExceedsLogistCap({
+        activeLogists: 2,
+        pendingInvites: 1,
+        wasActiveLogist: false
+    }), true);
+    assert.equal(activationExceedsLogistCap({
+        activeLogists: 2,
+        pendingInvites: 0,
+        wasActiveLogist: false
+    }), false);
+    assert.equal(activationExceedsLogistCap({
+        activeLogists: 3,
+        pendingInvites: 0,
+        wasActiveLogist: true
+    }), false);
+    assert.equal(activationExceedsLogistCap({
+        activeLogists: 0,
+        pendingInvites: 3,
+        wasActiveLogist: false
+    }), true);
+});
 
 test('role matrix limits invitations to allowed roles', () => {
     assert.equal(canInviteRole('owner', 'logist'), true);
