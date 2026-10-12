@@ -117,6 +117,24 @@ export function canInviteRole(actorRole, invitedRole) {
     return actorRole === 'owner' && INVITE_ROLES.has(invitedRole);
 }
 
+// True when turning someone into an active logist would pass the seat cap.
+// Already-active logists do not consume a second seat.
+export function activationExceedsLogistCap({ activeLogists, pendingInvites, wasActiveLogist }) {
+    if (wasActiveLogist) return false;
+    const active = Number(activeLogists) || 0;
+    const pending = Number(pendingInvites) || 0;
+    return active + pending >= MAX_TEAM_SEATS;
+}
+
+function profileWriteError(error, ownerMessage) {
+    const mapped = inviteRpcHttpError(error && error.message);
+    if (mapped) return mapped;
+    if (String(error && error.message || '').includes('LAST_ACTIVE_OWNER')) {
+        return new HttpError(409, 'LAST_ACTIVE_OWNER', ownerMessage);
+    }
+    return null;
+}
+
 export function canManageMember(actorRole, targetRole) {
     return actorRole === 'owner' && TEAM_ROLES.has(targetRole);
 }
@@ -458,15 +476,27 @@ async function changeRole(actor, body) {
         throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Учасника не знайдено.');
     }
 
+    const wasActiveLogist = target.org_role === 'logist' && target.member_status === 'active';
+    const becomesActiveLogist = role === 'logist' && target.member_status === 'active';
+    if (becomesActiveLogist) {
+        const seats = await teamSeatUsage(actor.profile.org_id);
+        if (activationExceedsLogistCap({
+            activeLogists: seats.logists,
+            pendingInvites: seats.pending,
+            wasActiveLogist
+        })) {
+            throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
+        }
+    }
+
     const { error } = await supabase
         .from('profiles')
         .update({ org_role: role })
         .eq('id', userId)
         .eq('org_id', actor.profile.org_id);
     if (error) {
-        if (String(error.message).includes('LAST_ACTIVE_OWNER')) {
-            throw new HttpError(409, 'LAST_ACTIVE_OWNER', 'Не можна понизити останнього активного власника.');
-        }
+        const mapped = profileWriteError(error, 'Не можна понизити останнього активного власника.');
+        if (mapped) throw mapped;
         throw error;
     }
 
@@ -502,9 +532,8 @@ async function disableMember(actor, body) {
         .select('id')
         .maybeSingle();
     if (error) {
-        if (String(error.message).includes('LAST_ACTIVE_OWNER')) {
-            throw new HttpError(409, 'LAST_ACTIVE_OWNER', 'Не можна відключити останнього активного власника.');
-        }
+        const mapped = profileWriteError(error, 'Не можна відключити останнього активного власника.');
+        if (mapped) throw mapped;
         throw error;
     }
     if (!disabled) {
@@ -515,6 +544,60 @@ async function disableMember(actor, body) {
         org_role: target.org_role
     });
     return { ok: true, user_id: userId };
+}
+
+async function enableMember(actor, body) {
+    requireOwner(actor);
+    const userId = String(body.user_id || '');
+    if (!userId || userId === actor.user.id) {
+        throw new HttpError(400, 'BAD_ENABLE_TARGET', 'Некоректний учасник.');
+    }
+
+    const { data: target, error: targetError } = await supabase
+        .from('profiles')
+        .select('id, org_role, member_status')
+        .eq('id', userId)
+        .eq('org_id', actor.profile.org_id)
+        .single();
+    if (targetError || !target) {
+        throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Учасника не знайдено.');
+    }
+    if (target.member_status === 'active') {
+        return { ok: true, user_id: userId, member_status: 'active' };
+    }
+
+    if (target.org_role === 'logist') {
+        const seats = await teamSeatUsage(actor.profile.org_id);
+        if (activationExceedsLogistCap({
+            activeLogists: seats.logists,
+            pendingInvites: seats.pending,
+            wasActiveLogist: false
+        })) {
+            throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
+        }
+    }
+
+    const { data: enabled, error } = await supabase
+        .from('profiles')
+        .update({ member_status: 'active' })
+        .eq('id', userId)
+        .eq('org_id', actor.profile.org_id)
+        .eq('member_status', 'disabled')
+        .select('id')
+        .maybeSingle();
+    if (error) {
+        const mapped = profileWriteError(error, 'Не можна увімкнути цього учасника.');
+        if (mapped) throw mapped;
+        throw error;
+    }
+    if (!enabled) {
+        throw new HttpError(409, 'MEMBER_ROLE_CHANGED', 'Статус учасника вже змінився. Оновіть список команди.');
+    }
+
+    await audit(actor.user.id, actor.profile.org_id, 'enable_member', 'profiles', userId, {
+        org_role: target.org_role
+    });
+    return { ok: true, user_id: userId, member_status: 'active' };
 }
 
 async function revokeInvite(actor, body) {
@@ -667,6 +750,7 @@ export default async function handler(req, res) {
         else if (action === 'accept') result = await acceptInvite(actor, body);
         else if (action === 'change_role') result = await changeRole(actor, body);
         else if (action === 'disable') result = await disableMember(actor, body);
+        else if (action === 'enable') result = await enableMember(actor, body);
         else if (action === 'revoke') result = await revokeInvite(actor, body);
         else if (action === 'resend') result = await resendInvite(actor, body);
         else if (action === 'set_work_mode') result = await setWorkMode(actor, body);

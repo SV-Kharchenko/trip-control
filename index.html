@@ -1288,7 +1288,6 @@
             display: none; margin: -4px 0 12px; text-align: left;
             font-size: 0.72rem; line-height: 1.35; color: var(--text-muted);
         }
-        #auth-form[data-mode="signup"] .auth-email-hint { display: block; }
         button.auth-forgot {
             background: none; border: none; padding: 0; cursor: pointer; width: 100%;
             font: inherit; font-size: 0.75rem;
@@ -1471,6 +1470,7 @@
             background: var(--card-bg); color: var(--text-main);
             border: 1px solid var(--success); border-radius: 10px;
             padding: 10px 14px; font-size: 0.84rem; font-weight: 600;
+            max-width: min(92vw, 440px); white-space: normal; text-align: center; line-height: 1.35;
             opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
         }
         #tc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -2168,6 +2168,20 @@
             .tc-overview-head { align-items: flex-start; }
             body.layout-studio[data-studio-view="overview"] #main-app { padding-bottom: 28px; }
         }
+        @media (max-width: 400px) {
+            body.layout-studio .tc-topbar,
+            body.layout-studio .tc-meta { overflow: visible; }
+            body.layout-studio .tc-meta { padding-right: 0; }
+            body.layout-studio .tc-rates-strip {
+                display: flex;
+                flex-wrap: wrap;
+                overflow: visible;
+                width: 100%;
+                max-width: 100%;
+            }
+            body.layout-studio .tc-rates-item,
+            body.layout-studio .tc-rates-item.tc-dp-item { position: static; flex: 1 1 auto; }
+        }
         body.layout-studio .tc-work .form-row,
         body.layout-studio .tc-lower .form-row {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
@@ -2448,6 +2462,8 @@
         body.layout-studio[data-theme="paper"] .auth-tagline { color: #0B2629; }
         body.layout-studio[data-theme="control"] .auth-tagline-sub { color: #8ea7a3; }
         body.layout-studio[data-theme="paper"] .auth-tagline-sub { color: #5B6C69; }
+        body.layout-studio[data-theme="control"] #auth-form[data-mode="signup"] .auth-email-hint,
+        body.layout-studio[data-theme="paper"] #auth-form[data-mode="signup"] .auth-email-hint { display: block; }
         body.layout-studio[data-theme="control"] .auth-email-hint { color: #8ea7a3; }
         body.layout-studio[data-theme="paper"] .auth-email-hint { color: #5B6C69; }
         body.layout-studio[data-theme="control"] #auth-screen input,
@@ -2531,7 +2547,7 @@
             <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
                 <label class="visually-hidden" for="auth-email">Email</label>
                 <input type="email" id="auth-email" name="email" placeholder="Email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required>
-                <p class="auth-email-hint" id="auth-email-hint">Якщо заповните, сюди приходитиме тижневий звіт.</p>
+                <p class="auth-email-hint" id="auth-email-hint">Сюди надсилатимемо службові листи.</p>
             </div>
             <div class="form-row two-cols" id="auth-password-row" style="margin-bottom: 8px; grid-template-columns: 1fr;">
                 <label class="visually-hidden" for="auth-password">Пароль</label>
@@ -2786,6 +2802,10 @@
                 <div class="form-row two-cols">
                     <label>Назва / Маршрут заявки:</label>
                     <input type="text" id="route-name" value="Маршрут 1" style="text-align: left;" oninput="onRouteNameInput()">
+                </div>
+                <div class="form-row two-cols">
+                    <label for="client-name">Клієнт:</label>
+                    <input type="text" id="client-name" maxlength="120" autocomplete="organization" style="text-align: left;" placeholder="Назва компанії">
                 </div>
                 <div id="saved-recent" class="tc-recent" aria-label="Останні маршрути"></div>
                 <div id="route-fields-slot"></div>
@@ -3145,7 +3165,7 @@
         <h2><span class="tc-sec-ico" aria-hidden="true">◫</span>Історія рейсів</h2>
         <div id="migrate-box" style="display:none; background: rgba(59,130,246,0.10); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.8rem;"></div>
         <div class="tc-history-tools">
-            <input type="search" id="history-search" class="tc-history-search" placeholder="Пошук: маршрут, місто" oninput="historyPage=0;renderSavedTable()">
+            <input type="search" id="history-search" class="tc-history-search" placeholder="Пошук: маршрут, клієнт, місто" oninput="historyPage=0;renderSavedTable()">
             <input type="date" id="history-from" aria-label="Дата від" onchange="historyPage=0;renderSavedTable()">
             <input type="date" id="history-to" aria-label="Дата до" onchange="historyPage=0;renderSavedTable()">
             <select id="history-status" aria-label="Статус" onchange="historyPage=0;renderSavedTable()">
@@ -3339,6 +3359,7 @@
     let routeTemplates = [];
     let historyPage = 0;
     let historyDeleteId = null;
+    let templateDeleteId = null;
     const HISTORY_PAGE_SIZE = 50;
     let calcRequestId = 0; // захист від застарілих відповідей при швидкому вводі
     let map, directionsService, directionsRenderer, directionsRendererBackhaul;
@@ -3563,7 +3584,7 @@
         }
     }
 
-    function showToast(text) {
+    function showToast(text, ms) {
         let toast = document.getElementById('tc-toast');
         if (!toast) {
             toast = document.createElement('div');
@@ -3573,7 +3594,10 @@
         toast.textContent = text;
         toast.classList.add('show');
         clearTimeout(toast._hide);
-        toast._hide = setTimeout(function () { toast.classList.remove('show'); }, 2200);
+        toast._hide = setTimeout(function () { toast.classList.remove('show'); }, typeof ms === 'number' ? ms : 2200);
+    }
+    function dbErrorText(e) {
+        return [e && e.message, e && e.details].filter(Boolean).join(' ') || String(e || '');
     }
 
     function refreshSetupChecklist() {
@@ -3670,7 +3694,8 @@
         const box = document.getElementById('recent-routes');
         if (!box) return;
         const list = readRecentRoutes();
-        box.innerHTML = list.map(function (r, i) {
+        if (!list.length) { box.innerHTML = ''; return; }
+        box.innerHTML = '<div class="preset-bar-label">Останні маршрути</div>' + list.map(function (r, i) {
             const label = String(r.from || '') + ' → ' + String(r.to || '');
             return '<button type="button" onclick="applyRecentRoute(' + i + ')">' + label.replace(/[&<>]/g, function (ch) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch]; }) + '</button>';
         }).join('');
@@ -5130,6 +5155,8 @@
         const canManage = currentOrgRole === 'owner';
         const canChangeRoles = currentOrgRole === 'owner';
         const ownerCount = Number(teamState.active_owner_count || 0);
+        const seatsNow = teamState.seats || { used: 0, limit: 3 };
+        const seatFull = seatsNow.used >= seatsNow.limit;
         const rows = (teamState.members || []).map(member => {
             const disabled = member.member_status === 'disabled';
             const isSelf = member.id === currentUserId;
@@ -5152,6 +5179,12 @@
                     : '<button type="button" disabled title="' +
                         teamEsc(isSelf ? 'Не можна відключити власний поточний доступ' : 'Потрібен ще один активний власник') +
                         '">Відключити</button>';
+            const enableBlocked = member.org_role === 'logist' && seatFull;
+            const enableControl = canManage && disabled && !isSelf
+                ? (enableBlocked
+                    ? '<button type="button" disabled title="Усі 3 місця логістів уже зайняті">Увімкнути</button>'
+                    : '<button type="button" onclick="enableTeamMember(\'' + teamEsc(member.id) + '\', this)">Увімкнути</button>')
+                : '';
             return '<div class="tc-member-row' + (disabled ? ' is-disabled' : '') + '">' +
                 '<div><b>' + teamEsc(member.email || member.id) + '</b><br><small>Останній вхід: ' +
                 teamEsc(member.last_sign_in_at ? new Date(member.last_sign_in_at).toLocaleString('uk-UA') : 'ще не входив') +
@@ -5159,7 +5192,7 @@
                 '<div>' + roleControl + '</div>' +
                 '<div><span class="badge ' + (disabled ? 'badge-danger' : 'badge-success') + '">' +
                 (disabled ? 'відключений' : 'активний') + '</span></div>' +
-                '<div class="tc-member-actions">' + disableControl + '</div></div>';
+                '<div class="tc-member-actions">' + (disabled ? enableControl : disableControl) + '</div></div>';
         });
         const inviteRows = (teamState.invites || []).map(invite => {
             const expired = new Date(invite.expires_at).getTime() <= Date.now();
@@ -5304,6 +5337,24 @@
     function teamActionStatus(message) {
         const status = document.getElementById('team-status');
         if (status) status.textContent = message;
+    }
+
+    async function enableTeamMember(userId, button) {
+        if (button && button.dataset.confirm !== '1') {
+            button.dataset.confirm = '1';
+            button.textContent = 'Підтвердити';
+            teamActionStatus('Натисніть ще раз, щоб увімкнути доступ.');
+            return;
+        }
+        try {
+            await teamApi('POST', { action: 'enable', user_id: userId });
+            await loadTeamState({ silent: true });
+            renderTeamPanel();
+            showToast('Доступ увімкнено');
+        } catch (error) {
+            teamActionStatus(error.message || 'Не вдалося увімкнути учасника.');
+            if (button) button.dataset.confirm = '';
+        }
     }
 
     async function disableTeamMember(userId, button) {
@@ -5630,9 +5681,9 @@
 
     async function exportExcel() {
         if (isDemo) return;
-        if (!lastExport) { alert('Спочатку дочекайтесь розрахунку.'); return; }
-        try { await loadExcelJS(); } catch (e) { alert('Не вдалося завантажити модуль Excel. Спробуйте ще раз.'); return; }
-        if (typeof ExcelJS === 'undefined') { alert('Не вдалося завантажити модуль Excel. Спробуйте ще раз.'); return; }
+        if (!lastExport) { showToast('Спочатку дочекайтесь розрахунку.'); return; }
+        try { await loadExcelJS(); } catch (e) { showToast('Не вдалося завантажити модуль Excel. Спробуйте ще раз.', 3600); return; }
+        if (typeof ExcelJS === 'undefined') { showToast('Не вдалося завантажити модуль Excel. Спробуйте ще раз.', 3600); return; }
         const { payload: p, result: r, routeName } = lastExport;
         const lbl = id => { const el = document.getElementById(id); return el && el.options ? el.options[el.selectedIndex].text : (el ? el.value : ''); };
         const num = v => { const n = parseFloat(v); return isNaN(n) ? (v ?? '') : n; };
@@ -5694,6 +5745,11 @@
         setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     }
 
+    function clientNameValue() {
+        const el = document.getElementById('client-name');
+        return el ? el.value.trim().slice(0, 120) : '';
+    }
+
     function readTripPayload() {
         return {
             calcType: document.getElementById('calc-type').value,
@@ -5750,7 +5806,8 @@
             borderCost: document.getElementById('border-cost').value,
             brokerCost: document.getElementById('broker-cost').value,
             greenCardCost: document.getElementById('green-card-cost').value,
-            ferryCost: document.getElementById('ferry-cost').value
+            ferryCost: document.getElementById('ferry-cost').value,
+            clientName: clientNameValue()
         };
     }
 
@@ -6021,7 +6078,7 @@
             let error = null;
             const full = await supabaseClient
                 .from('calculations')
-                .select('id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, trailer_type, vehicles_count, tonnage, trip_days')
+                .select('id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days')
                 .order('created_at', { ascending: false });
             data = full.data;
             error = full.error;
@@ -6048,6 +6105,7 @@
                 revenue: r.revenue,
                 profit: r.profit,
                 rateValue: r.rate,
+                clientName: r.client_name || (r.inputs && r.inputs.clientName) || '',
                 trailerType: (r.results && r.results.trailerType) || r.trailer_type,
                 vehiclesCount: r.vehicles_count,
                 tonnage: r.tonnage,
@@ -6064,15 +6122,19 @@
         refreshMigrateBox();
     }
 
+    function demoSaveLimitText() {
+        return 'Демо-режим: можна зберегти до ' + DEMO_MAX_SAVED + ' розрахунків. Видаліть один зі збережених або отримайте повний доступ.';
+    }
+
     async function saveCalculation() {
         if (!lastCalcData || !lastCalcData.routeName) return;
         if (isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
-            alert(`Демо-режим: можна зберегти до ${DEMO_MAX_SAVED} розрахунків. Видаліть один зі збережених або отримайте повний доступ.`);
+            showToast(demoSaveLimitText(), 4200);
             return;
         }
-        if (!currentOrgId) { alert('Не вдалося визначити компанію. Оновіть сторінку.'); return; }
+        if (!currentOrgId) { showToast('Не вдалося визначити компанію. Оновіть сторінку.', 3600); return; }
         const snapshot = Object.assign({}, lastCalcData);
-        const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces());
+        const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces(), { clientName: clientNameValue() });
         try {
             const { data, error } = await supabaseClient
                 .from('calculations')
@@ -6095,11 +6157,9 @@
             renderSavedTable();
             showToast('Розрахунок збережено');
         } catch (e) {
-            if (String(e && e.message).indexOf('DEMO_SAVE_LIMIT') !== -1) {
-                alert(`Демо-режим: можна зберегти до ${DEMO_MAX_SAVED} розрахунків. Видаліть один зі збережених або отримайте повний доступ.`);
-            } else {
-                alert('Не вдалося зберегти розрахунок: ' + ((e && e.message) || e));
-            }
+            const message = dbErrorText(e);
+            if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) showToast(demoSaveLimitText(), 4200);
+            else showToast('Не вдалося зберегти розрахунок: ' + message, 4200);
             return;
         }
 
@@ -6158,7 +6218,8 @@
                 savedCalculations.push(Object.assign({}, item, { id: data.id, userId: currentUserId }));
                 moved++;
             } catch (e) {
-                stopped = String(e && e.message).indexOf('DEMO_SAVE_LIMIT') !== -1 ? 'Досягнуто ліміт демо-режиму.' : ('Помилка: ' + ((e && e.message) || e));
+                const message = dbErrorText(e);
+                stopped = message.indexOf('DEMO_SAVE_LIMIT') !== -1 ? 'Досягнуто ліміт демо-режиму.' : ('Помилка: ' + message);
                 break;
             }
         }
@@ -6167,7 +6228,7 @@
         }
         renderSavedTable();
         refreshMigrateBox();
-        alert(`Перенесено в хмару: ${moved} з ${legacy.length}.` + (stopped ? ' ' + stopped + ' Решта лишилась у браузері.' : ''));
+        showToast('Перенесено в хмару: ' + moved + ' з ' + legacy.length + '.' + (stopped ? ' ' + stopped + ' Решта лишилась у браузері.' : ''), 4800);
     }
 
     function savedTripKm(c) {
@@ -6322,7 +6383,8 @@
         ['totalFleet', 'total-fleet'], ['rtTransferDist', 'rt-transfer-dist'], ['rtBackhaulDist', 'rt-backhaul-dist'],
         ['rtReturnDist', 'rt-return-dist'], ['rtTotalVolume', 'rt-total-volume'], ['rtRate', 'rt-rate'],
         ['tollCost', 'toll-cost'], ['borderCost', 'border-cost'], ['brokerCost', 'broker-cost'],
-        ['greenCardCost', 'green-card-cost'], ['ferryCost', 'ferry-cost']
+        ['greenCardCost', 'green-card-cost'], ['ferryCost', 'ferry-cost'],
+        ['clientName', 'client-name']
     ];
 
     function historyColumnCount() {
@@ -6373,8 +6435,24 @@
             revenue: revenue,
             profit: profit,
             perKm: km > 0 && profit !== null ? profit / km : null,
-            trailer: row.trailerType || inputs.trailerType || ''
+            trailer: row.trailerType || inputs.trailerType || '',
+            client: String(row.clientName || inputs.clientName || '').trim()
         };
+    }
+    function ukDaysLabel(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n) || !Number.isInteger(n)) return 'діб';
+        const abs = Math.abs(n);
+        const mod100 = abs % 100;
+        const mod10 = abs % 10;
+        if (mod100 >= 11 && mod100 <= 14) return 'діб';
+        if (mod10 === 1) return 'доба';
+        if (mod10 >= 2 && mod10 <= 4) return 'доби';
+        return 'діб';
+    }
+    function formatHistoryDays(value) {
+        if (value === null || value === undefined || value === '') return '—';
+        return formatHistoryNum(value, 2) + ' ' + ukDaysLabel(value);
     }
     function formatHistoryNum(value, digits) {
         if (value === null || value === undefined || value === '') return '—';
@@ -6422,7 +6500,7 @@
             if (from && day && day < from) return false;
             if (to && day && day > to) return false;
             if (!needle) return true;
-            const hay = [fields.name, fields.from, fields.to, fields.trailer, savedAuthorLabel(row.userId)].join(' ').toLowerCase();
+            const hay = [fields.name, fields.client, fields.from, fields.to, fields.trailer, savedAuthorLabel(row.userId)].join(' ').toLowerCase();
             return hay.indexOf(needle) !== -1;
         });
         rows.sort(function (a, b) {
@@ -6455,7 +6533,7 @@
         if (!box) return;
         const rows = savedCalculations.slice(0, 5);
         if (!rows.length) { box.innerHTML = ''; return; }
-        box.innerHTML = rows.map(function (row) {
+        box.innerHTML = '<div class="preset-bar-label">Останні маршрути</div>' + rows.map(function (row) {
             const fields = historyFields(row);
             return '<button type="button" onclick="openSaved(\'' + escHtml(row.id) + '\')">' + escHtml(historyRouteLabel(fields)) + '</button>';
         }).join('');
@@ -6472,9 +6550,10 @@
         box.innerHTML = routeTemplates.map(function (item) {
             const scope = item.scope === 'company' ? 'компанія' : 'мій';
             const canDelete = item.scope === 'company' ? currentOrgRole === 'owner' : item.owner_user_id === currentUserId;
+            const removeLabel = templateDeleteId === item.id ? 'Підтвердити' : '✕';
             return '<span class="tc-recent"><button type="button" onclick="openTemplate(\'' + escHtml(item.id) + '\')">' +
                 escHtml(item.name) + ' · ' + scope + '</button>' +
-                (canDelete ? '<button type="button" onclick="removeTemplate(\'' + escHtml(item.id) + '\')">✕</button>' : '') +
+                (canDelete ? '<button type="button" onclick="removeTemplate(\'' + escHtml(item.id) + '\')">' + removeLabel + '</button>' : '') +
                 '</span>';
         }).join('');
     }
@@ -6514,11 +6593,13 @@
             return '<tr>' +
                 '<td>' + escHtml(formatHistoryDate(fields.date)) + '</td>' +
                 '<td class="team-feature">' + escHtml(savedAuthorLabel(row.userId)) + '</td>' +
-                '<td class="tc-history-route"><b>' + escHtml(historyRouteLabel(fields)) + '</b><br><small>' + escHtml(fields.trailer || '') + '</small></td>' +
+                '<td class="tc-history-route"><b>' + escHtml(historyRouteLabel(fields)) + '</b>' +
+                (fields.client ? '<br><small>' + escHtml(fields.client) + '</small>' : '') +
+                '<br><small>' + escHtml(fields.trailer || '') + '</small></td>' +
                 '<td>' + formatHistoryNum(fields.km, 0) + '</td>' +
                 '<td>' + formatHistoryNum(fields.cars, 0) + '</td>' +
                 '<td>' + formatHistoryNum(fields.tons, 1) + '</td>' +
-                '<td>' + (fields.days === null ? '—' : formatHistoryNum(fields.days, 2) + ' діб') + '</td>' +
+                '<td>' + formatHistoryDays(fields.days) + '</td>' +
                 '<td>' + escHtml(fields.rate == null || fields.rate === '' ? '—' : fields.rate) + ' ' + escHtml(unit) + '</td>' +
                 moneyCell(fields.revenue) +
                 moneyCell(fields.profit) +
@@ -6537,7 +6618,8 @@
                 ' · <span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span></div>' +
                 '<div class="tc-history-meta">' + formatHistoryNum(fields.km, 0) + ' км · ' +
                 formatHistoryNum(fields.cars, 0) + ' авто · ' + formatHistoryNum(fields.tons, 1) + ' т · ' +
-                (fields.days === null ? '—' : formatHistoryNum(fields.days, 2) + ' діб') + '</div>' +
+                formatHistoryDays(fields.days) +
+                (fields.client ? ' · ' + escHtml(fields.client) : '') + '</div>' +
                 '<div class="tc-history-meta">Ставка ' + escHtml(fields.rate == null || fields.rate === '' ? '—' : fields.rate) + ' ' + escHtml(unit) +
                 ' · дохід ' + (fields.revenue == null ? '—' : formatMoney(fields.revenue)) +
                 ' · прибуток ' + (fields.profit == null ? '—' : formatMoney(fields.profit)) +
@@ -6632,6 +6714,7 @@
         if (!inputs.contractCurrency && row.contractCurrency) inputs.contractCurrency = row.contractCurrency;
         if (!inputs.origin && row.routeFrom) inputs.origin = row.routeFrom;
         if (!inputs.destination && row.routeTo) inputs.destination = row.routeTo;
+        if (!inputs.clientName && row.clientName) inputs.clientName = row.clientName;
         applyTripInputs(inputs, row.routeName || row.name);
     }
     async function duplicateSaved(id) {
@@ -6668,7 +6751,12 @@
             renderSavedTable();
             showToast('Копію збережено як чернетку');
         } catch (e) {
-            showToast('Не вдалося дублювати: ' + ((e && e.message) || e));
+            const message = dbErrorText(e);
+            if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) {
+                showToast('Демо: вже збережено ' + DEMO_MAX_SAVED + ' розрахунки. Видаліть один або отримайте повний доступ.', 4200);
+            } else {
+                showToast('Не вдалося дублювати: ' + message, 4200);
+            }
         }
     }
     async function setTripStatus(id, status) {
@@ -6737,24 +6825,30 @@
             else showToast('Не вдалося зберегти шаблон.');
         }
     }
-    function openTemplate(id) {
+    async function openTemplate(id) {
         const item = routeTemplates.find(function (row) { return row.id === id; });
         if (!item) return;
         applyTripInputs(item.params || {}, item.name);
-        if (item.scope === 'personal' || currentOrgRole === 'owner') {
-            const next = (item.use_count || 0) + 1;
-            item.use_count = next;
-            supabaseClient.from('route_templates').update({ use_count: next, last_used_at: new Date().toISOString() }).eq('id', id);
-        }
+        try {
+            const { data, error } = await supabaseClient.rpc('touch_route_template', { p_id: id });
+            if (!error && data != null) item.use_count = data;
+        } catch (e) {}
     }
     async function removeTemplate(id) {
         const item = routeTemplates.find(function (row) { return row.id === id; });
         if (!item) return;
+        if (templateDeleteId !== id) {
+            templateDeleteId = id;
+            renderTemplateList();
+            return;
+        }
+        templateDeleteId = null;
         try {
             const { error } = await supabaseClient.from('route_templates').delete().eq('id', id);
             if (error) throw error;
             routeTemplates = routeTemplates.filter(function (row) { return row.id !== id; });
             renderTemplateList();
+            showToast('Шаблон видалено');
         } catch (e) {
             showToast('Не вдалося видалити шаблон.');
         }
@@ -6776,7 +6870,15 @@
         if (navigator.share) {
             navigator.share({ title: 'Розрахунок рейсу', text: text }).catch(err => console.log('Share API error:', err));
         } else {
-            navigator.clipboard.writeText(text).then(() => { alert('Текст скопійовано! Вставте його у Viber або Telegram.'); });
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function () {
+                    showToast('Текст скопійовано. Вставте його у Viber або Telegram.', 3200);
+                }).catch(function () {
+                    showToast('Не вдалося скопіювати текст.', 3200);
+                });
+            } else {
+                showToast('Не вдалося скопіювати текст.', 3200);
+            }
         }
     }
 
@@ -7514,13 +7616,13 @@
             {
                 id: 'preview-1', userId: 'preview-owner', routeName: 'Умань — Ізмаїл',
                 createdAt: '2026-10-02T08:00:00.000Z', status: 'accepted',
-                inputs: { origin: 'Умань', destination: 'Ізмаїл', returnMode: 'разовий', dist: '640', podachaDist: '20', carsCount: '2', normWeight: '22', volume: '44', daysPerTrip: '1.5', rate: '890', contractCurrency: 'UAH', trailerType: 'зерновоз' },
+                inputs: { origin: 'Умань', destination: 'Ізмаїл', clientName: 'Агросвіт', returnMode: 'разовий', dist: '640', podachaDist: '20', carsCount: '2', normWeight: '22', volume: '44', daysPerTrip: '1.5', rate: '890', contractCurrency: 'UAH', trailerType: 'зерновоз' },
                 grossIncome: 39160, netProfit: 8420, trailerType: 'зерновоз'
             },
             {
                 id: 'preview-2', userId: 'preview-logist', routeName: 'Київ — Львів',
                 createdAt: '2026-09-18T08:00:00.000Z', status: 'draft',
-                inputs: { origin: 'Київ', destination: 'Львів', returnMode: 'циклічний', dist: '540', carsCount: '3', normWeight: '21', volume: '126', daysPerTrip: '2', rate: '760', contractCurrency: 'UAH', trailerType: 'тент' },
+                inputs: { origin: 'Київ', destination: 'Львів', clientName: 'Захід Транс', returnMode: 'циклічний', dist: '540', carsCount: '3', normWeight: '21', volume: '126', daysPerTrip: '2', rate: '760', contractCurrency: 'UAH', trailerType: 'тент' },
                 grossIncome: 95760, netProfit: -3200, trailerType: 'тент'
             }
         ];
