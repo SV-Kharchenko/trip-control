@@ -186,6 +186,8 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.protect_profile_privileges() FROM PUBLIC;
+
 CREATE OR REPLACE FUNCTION public.protect_last_active_owner()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -233,6 +235,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.protect_last_active_owner() FROM PUBLIC;
 
 DROP TRIGGER IF EXISTS trg_protect_profile_privileges ON public.profiles;
 CREATE TRIGGER trg_protect_profile_privileges
@@ -304,6 +308,8 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.protect_org_privileges() FROM PUBLIC;
+
 DROP TRIGGER IF EXISTS trg_protect_org_privileges ON public.organizations;
 CREATE TRIGGER trg_protect_org_privileges
   BEFORE UPDATE ON public.organizations
@@ -337,6 +343,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.protect_company_settings_privileges() FROM PUBLIC;
 
 DROP TRIGGER IF EXISTS trg_protect_company_settings_privileges ON public.company_settings;
 CREATE TRIGGER trg_protect_company_settings_privileges
@@ -396,6 +404,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.protect_calculation_ownership() FROM PUBLIC;
 
 DROP TRIGGER IF EXISTS trg_protect_calculation_ownership ON public.calculations;
 CREATE TRIGGER trg_protect_calculation_ownership
@@ -625,6 +635,8 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+REVOKE ALL ON FUNCTION public.handle_new_tripcontrol_user() FROM PUBLIC;
 
 DO $$
 DECLARE
