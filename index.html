@@ -948,6 +948,17 @@
         #admin-screen .adm-badge.on { color: var(--success); border-color: var(--success); }
         #admin-screen .adm-badge.off { color: var(--warning); border-color: var(--warning); }
         #admin-screen .adm-badge.blocked { color: var(--danger); border-color: var(--danger); }
+        .auth-tabs {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 14px;
+        }
+        .auth-tabs button {
+            border: 1px solid var(--border-color); background: transparent; color: var(--text-muted);
+            border-radius: 8px; padding: 8px 10px; cursor: pointer; font-weight: 700; font-size: 0.82rem;
+        }
+        .auth-tabs button.on {
+            color: var(--text-main); border-color: var(--success);
+            background: color-mix(in srgb, var(--success) 12%, transparent);
+        }
         .auth-mode-title {
             margin: 2px 0 8px; color: var(--text-muted); font-size: 0.74rem; text-align: left; font-weight: 700;
         }
@@ -992,6 +1003,23 @@
             display: flex; align-items: end; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
         }
         #cabinet-screen .tc-team-toolbar .cab-field { flex: 1 1 180px; }
+        #cabinet-screen .tc-team-summary {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+            margin: 0 0 12px; color: var(--text-muted); font-size: 0.75rem;
+        }
+        #cabinet-screen .tc-seat-count,
+        .tc-overview-seats {
+            display: inline-flex; align-items: center; border: 1px solid var(--border-color);
+            border-radius: 999px; padding: 4px 9px; background: var(--input-bg);
+            color: var(--text-main); font-size: 0.72rem; font-weight: 700;
+        }
+        #cabinet-screen .tc-solo-invite {
+            margin-top: 12px; padding: 12px; border: 1px solid var(--border-color);
+            border-radius: 10px; background: var(--input-bg);
+        }
+        #cabinet-screen .tc-solo-invite p {
+            margin: 0 0 10px; color: var(--text-muted); font-size: 0.72rem; line-height: 1.4;
+        }
         #cabinet-screen .tc-team-list { display: grid; gap: 8px; }
         #cabinet-screen .tc-member-row {
             display: grid; grid-template-columns: minmax(0, 1.5fr) 120px 110px auto;
@@ -1004,9 +1032,18 @@
             padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 7px;
             background: transparent; color: var(--text-main); cursor: pointer; font-size: 0.7rem;
         }
+        #cabinet-screen .tc-member-actions button:disabled {
+            opacity: 0.5; cursor: not-allowed; color: var(--text-muted); border-color: var(--border-color);
+        }
         #cabinet-screen .tc-member-actions button.bad { color: var(--danger); border-color: var(--danger); }
         #cabinet-screen .tc-member-row.is-disabled { opacity: 0.62; }
         #cabinet-screen .tc-invite-row { border-style: dashed; }
+        #cabinet-screen .tc-invite-link {
+            display: flex; gap: 6px; align-items: center; margin-top: 7px;
+        }
+        #cabinet-screen .tc-invite-link input {
+            min-width: 0; width: 100%; font-size: 0.68rem; padding: 6px 8px;
+        }
         #cabinet-screen input:disabled,
         #cabinet-screen select:disabled { opacity: 0.65; cursor: not-allowed; }
         .auth-legal {
@@ -1034,6 +1071,7 @@
             #cabinet-screen .tc-mode-box { grid-template-columns: 1fr; }
             #cabinet-screen .tc-member-row { grid-template-columns: 1fr; }
             #cabinet-screen .tc-member-actions { justify-content: flex-start; }
+            #cabinet-screen .tc-team-summary { align-items: flex-start; }
         }
         #missing-hint, #cab-warning, #onboard-banner {
             display: none; align-items: flex-start; gap: 10px;
@@ -1927,6 +1965,15 @@
         body.layout-studio .tc-overview-kpi.main .v { font-size: 40px; color: #8FE0B5; }
         .tc-overview-grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px; }
         .tc-overview-grid .card { padding: 16px 18px; }
+        .tc-overview-head {
+            display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+        }
+        .tc-author-card { margin-top: 14px; padding: 16px 18px; }
+        .tc-author-table-wrap { overflow-x: auto; }
+        .tc-author-table { min-width: 520px; }
+        .tc-author-table td:first-child { max-width: 320px; overflow-wrap: anywhere; }
+        .tc-author-table td:not(:first-child),
+        .tc-author-table th:not(:first-child) { text-align: right; }
         .tc-month-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
         .tc-month-row span { width: 72px; color: var(--text-muted); font-size: 12px; }
         .tc-month-track { flex: 1; height: 10px; background: var(--input-bg); border-radius: 6px; overflow: hidden; }
@@ -2066,6 +2113,7 @@
             body.layout-studio #tc-toast { bottom: 150px; }
             body.layout-studio .tc-overview-kpis,
             body.layout-studio .tc-overview-grid { grid-template-columns: 1fr; }
+            .tc-overview-head { align-items: flex-start; }
             body.layout-studio[data-studio-view="overview"] #main-app { padding-bottom: 28px; }
         }
         body.layout-studio .tc-work .form-row,
@@ -2420,6 +2468,10 @@
         <p class="auth-tagline">Координуй маршрут. Керуй результатом.</p>
         <p class="auth-tagline-sub">Після реєстрації — демо: <b>5 розрахунків на добу</b>.</p>
         <div class="auth-divider"></div>
+        <div class="auth-tabs" role="tablist" aria-label="Вхід або реєстрація">
+            <button type="button" id="auth-tab-login" class="on" role="tab" aria-selected="true" onclick="setAuthTab('login')">Увійти</button>
+            <button type="button" id="auth-tab-signup" role="tab" aria-selected="false" onclick="setAuthTab('signup')">Створити акаунт</button>
+        </div>
 
         <form id="auth-form" data-mode="login" novalidate onsubmit="return onAuthSubmit(event)">
             <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
@@ -2445,13 +2497,13 @@
                     </label>
                     <label class="auth-mode-card">
                         <input type="radio" name="work-mode" value="team">
-                        <strong>👥 Є логісти</strong>
+                        <strong>👥 Є логісти / диспетчери</strong>
                         <small>Окремі входи, ролі, автори розрахунків і контроль доступу.</small>
                     </label>
                 </div>
                 <div class="form-row two-cols" style="margin-bottom: 10px; grid-template-columns: 1fr;">
                     <label class="visually-hidden" for="auth-ownership">Форма власності</label>
-                    <select id="auth-ownership" name="ownership" autocomplete="organization">
+                    <select id="auth-ownership" name="ownership" autocomplete="organization" onchange="syncSignupTaxOptions()">
                         <option value="fop" selected>Форма власності: ФОП</option>
                         <option value="tov">Форма власності: ТОВ</option>
                         <option value="other">Форма власності: інше</option>
@@ -2473,7 +2525,7 @@
                 </div>
             </div>
             <button type="submit" id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;">🧭 Увійти</button>
-            <button type="button" id="auth-signup-btn" class="btn" style="width: 100%;" onclick="handleAuth('signup')">Зареєструватися</button>
+            <button type="button" id="auth-signup-btn" class="btn" style="width: 100%;" hidden onclick="setAuthTab('signup')">Створити акаунт</button>
             <button type="button" id="auth-back-btn" class="btn" style="width: 100%;" hidden onclick="exitResetMode()">Назад до входу</button>
         </form>
 
@@ -2529,7 +2581,7 @@
             <div class="tc-actions">
                 <nav class="tc-studio-nav" aria-label="Розділи">
                     <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
-                    <button type="button" id="studio-nav-overview" class="team-feature" onclick="setStudioView('overview')">Огляд</button>
+                    <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
                 </nav>
                 <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Океан</span></button>
                 <button class="tc-action-btn" type="button" title="Особистий кабінет" onclick="openCabinet()">📂 <span class="tc-action-label">Кабінет</span></button>
@@ -3076,7 +3128,10 @@
 
     <section id="studio-overview" aria-label="Огляд">
         <h2>Огляд</h2>
-        <p class="tc-overview-lead">Зведення по збережених розрахунках компанії: кількість, середня маржа, грн/км і збиткові рейси. Окремої статистики по логістах немає — для неї потрібні облікові записи кількох користувачів.</p>
+        <div class="tc-overview-head">
+            <p class="tc-overview-lead" id="overview-lead">Зведення по збережених розрахунках компанії: кількість, середня маржа, грн/км і збиткові рейси.</p>
+            <span class="tc-overview-seats" id="overview-team-seats" hidden></span>
+        </div>
         <div class="tc-overview-kpis" id="overview-kpis"></div>
         <div class="tc-overview-grid">
             <div class="card">
@@ -3087,6 +3142,10 @@
                 <h3>Збиткові рейси</h3>
                 <div id="overview-losses"></div>
             </div>
+        </div>
+        <div class="card tc-author-card" id="overview-authors-card">
+            <h3>Результати за авторами</h3>
+            <div class="tc-author-table-wrap" id="overview-authors"></div>
         </div>
     </section>
 </div>
@@ -3168,7 +3227,7 @@
     let currentOrgId = null;
     let currentOrgRole = 'owner';
     let currentWorkMode = 'solo';
-    let teamState = { members: [], invites: [], logists_see_all: false };
+    let teamState = { members: [], invites: [], logists_see_all: false, active_owner_count: 1, seats: { logists: 0, pending: 0, used: 0, limit: 3 } };
     let companyName = '';
     let companyTax = 'фоп';
     let companySettings = {}; // company_settings.settings (операційні норми, без PII)
@@ -3578,26 +3637,25 @@
     }
 
     function roleLabel(role) {
-        return role === 'owner' ? 'Власник' : role === 'manager' ? 'Менеджер' : 'Логіст';
+        return role === 'owner' ? 'Власник' : 'Логіст';
     }
 
     function applyTeamModeUi() {
         const isTeam = currentWorkMode === 'team';
         document.body.classList.toggle('team-mode', isTeam);
         document.body.classList.toggle('org-owner', currentOrgRole === 'owner');
-        document.body.classList.toggle('org-manager', currentOrgRole === 'manager');
         document.body.classList.toggle('org-logist', currentOrgRole === 'logist');
         const badge = document.getElementById('tc-role-badge');
         if (badge) badge.textContent = roleLabel(currentOrgRole);
-        if (!isTeam && document.body.getAttribute('data-studio-view') === 'overview') {
-            setStudioView('calc');
+        if (document.body.classList.contains('layout-studio') && document.body.getAttribute('data-studio-view') === 'overview') {
+            renderStudioOverview();
         }
         populateAuthorFilter();
     }
 
     async function loadTeamState(opts) {
         if (currentWorkMode !== 'team') {
-            teamState = { members: [], invites: [], logists_see_all: false };
+            teamState = { members: [], invites: [], logists_see_all: false, active_owner_count: 1, seats: { logists: 0, pending: 0, used: 0, limit: 3 } };
             populateAuthorFilter();
             return teamState;
         }
@@ -3890,9 +3948,46 @@
         const msg = document.getElementById('auth-message');
         if (msg && !msg.innerText) msg.innerText = 'Посилання дійсне. Задайте новий пароль.';
     }
+    function setAuthTabsVisible(visible) {
+        const tabs = document.querySelector('.auth-tabs');
+        if (tabs) tabs.hidden = !visible;
+    }
+    function syncSignupTaxOptions() {
+        const ownership = document.getElementById('auth-ownership');
+        const tax = document.getElementById('auth-tax');
+        if (!ownership || !tax) return;
+        const hideFop = ownership.value === 'tov';
+        Array.from(tax.options).forEach(option => {
+            const isFopGroup = option.value === 'фоп' || /фоп/i.test(option.textContent || '');
+            option.hidden = hideFop && isFopGroup;
+            option.disabled = hideFop && isFopGroup;
+        });
+        const selected = tax.options[tax.selectedIndex];
+        if (hideFop && selected && (selected.disabled || selected.value === 'фоп')) {
+            const fallback = Array.from(tax.options).find(option => !option.disabled);
+            if (fallback) tax.value = fallback.value;
+        }
+    }
+    function setAuthTab(tab) {
+        const signup = tab === 'signup';
+        const loginTab = document.getElementById('auth-tab-login');
+        const signupTab = document.getElementById('auth-tab-signup');
+        if (loginTab) {
+            loginTab.classList.toggle('on', !signup);
+            loginTab.setAttribute('aria-selected', String(!signup));
+        }
+        if (signupTab) {
+            signupTab.classList.toggle('on', signup);
+            signupTab.setAttribute('aria-selected', String(signup));
+        }
+        setAuthTabsVisible(true);
+        if (signup) showSignupMode();
+        else exitSignupMode();
+    }
     function enterResetMode() {
         const form = document.getElementById('auth-form');
         form.dataset.mode = 'reset';
+        setAuthTabsVisible(false);
         document.getElementById('signup-extra').style.display = 'none';
         document.getElementById('auth-legal-box').classList.remove('show');
         document.getElementById('auth-password-row').hidden = true;
@@ -3904,24 +3999,51 @@
         document.getElementById('auth-email').focus();
     }
     function exitResetMode() {
-        const form = document.getElementById('auth-form');
-        form.dataset.mode = 'login';
         document.getElementById('auth-password-row').hidden = false;
-        document.getElementById('auth-forgot-btn').hidden = false;
-        document.getElementById('auth-signup-btn').hidden = false;
         document.getElementById('auth-back-btn').hidden = true;
+        setAuthTab('login');
+    }
+    function showSignupMode() {
+        const form = document.getElementById('auth-form');
+        const box = document.getElementById('signup-extra');
+        const loginBtn = document.getElementById('auth-login-btn');
+        form.dataset.mode = 'signup';
+        box.style.display = 'block';
+        document.getElementById('auth-password-row').hidden = false;
+        document.getElementById('auth-password').setAttribute('autocomplete', 'new-password');
+        document.getElementById('auth-forgot-btn').hidden = true;
+        document.getElementById('auth-legal-box').classList.add('show');
+        document.getElementById('auth-signup-btn').hidden = true;
+        document.getElementById('auth-back-btn').hidden = true;
+        loginBtn.hidden = false;
+        loginBtn.type = 'submit';
+        loginBtn.onclick = null;
+        loginBtn.textContent = 'Створити акаунт';
+        syncSignupTaxOptions();
+        document.getElementById('auth-message').innerText = '';
+    }
+    function exitSignupMode() {
+        const form = document.getElementById('auth-form');
+        const loginBtn = document.getElementById('auth-login-btn');
+        form.dataset.mode = 'login';
         document.getElementById('signup-extra').style.display = 'none';
         document.getElementById('auth-legal-box').classList.remove('show');
-        document.getElementById('auth-signup-btn').textContent = 'Зареєструватися';
-        document.getElementById('auth-login-btn').innerHTML = '🧭 Увійти';
+        document.getElementById('auth-password-row').hidden = false;
+        document.getElementById('auth-forgot-btn').hidden = false;
+        document.getElementById('auth-signup-btn').hidden = true;
+        document.getElementById('auth-back-btn').hidden = true;
         document.getElementById('auth-password').setAttribute('autocomplete', 'current-password');
+        loginBtn.hidden = false;
+        loginBtn.type = 'submit';
+        loginBtn.onclick = null;
+        loginBtn.innerHTML = '🧭 Увійти';
         document.getElementById('auth-message').innerText = '';
     }
     function onAuthSubmit(e) {
         if (e && e.preventDefault) e.preventDefault();
         const mode = document.getElementById('auth-form').dataset.mode || 'login';
         if (mode === 'reset') sendPasswordReset();
-        else if (document.getElementById('signup-extra').style.display === 'block') handleAuth('signup');
+        else if (mode === 'signup') handleAuth('signup');
         else handleAuth('login');
         return false;
     }
@@ -3972,14 +4094,12 @@
     }
 
     async function handleAuth(type) {
+        const authMsg = document.getElementById('auth-message');
         const email = document.getElementById('auth-email').value.trim();
         const password = document.getElementById('auth-password').value;
-        const authMsg = document.getElementById('auth-message');
 
         if (!email || !password) {
-            authMsg.innerText = type === 'signup'
-                ? 'Спочатку введіть email і пароль, потім натисніть «Зареєструватися» ще раз.'
-                : 'Введіть email та пароль.';
+            authMsg.innerText = 'Введіть email та пароль.';
             return;
         }
         if (!isValidEmail(email)) {
@@ -4001,16 +4121,6 @@
         } else {
             const weak = passwordStrongEnough(password);
             if (weak) { authMsg.innerText = weak; return; }
-            const box = document.getElementById('signup-extra');
-            document.getElementById('auth-password').setAttribute('autocomplete', 'new-password');
-            if (box.style.display !== 'block') {
-                box.style.display = 'block';
-                const legal = document.getElementById('auth-legal-box');
-                if (legal) legal.classList.add('show');
-                document.getElementById('auth-signup-btn').innerText = 'Створити акаунт';
-                authMsg.innerText = 'Вкажіть компанію та оподаткування. Після реєстрації відкриється демо з готовим шаблоном розрахунку.';
-                return;
-            }
             const company = document.getElementById('auth-company').value.trim();
             const taxMode = document.getElementById('auth-tax').value;
             const ownership = document.getElementById('auth-ownership').value;
@@ -4097,7 +4207,7 @@
     }
     function setStudioView(view) {
         if (!document.body.classList.contains('layout-studio')) return;
-        const overview = view === 'overview' && currentWorkMode === 'team';
+        const overview = view === 'overview';
         document.body.setAttribute('data-studio-view', overview ? 'overview' : 'calc');
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
@@ -4780,12 +4890,16 @@
             '</div>' +
             '<div class="tc-mode-box">' +
             '<div><label for="cab-work-mode">Режим роботи</label>' +
-            '<select id="cab-work-mode"><option value="solo">Сам</option><option value="team">Є логісти / диспетчери</option></select>' +
+            '<select id="cab-work-mode" onchange="resetWorkModeConfirmation()"><option value="solo">Сам</option><option value="team">Є логісти / диспетчери</option></select>' +
             '<p>Режим керує командними розділами. Дані при перемиканні не видаляються.</p></div>' +
             '<button type="button" class="btn" id="cab-mode-btn" onclick="saveWorkMode()" style="min-width:150px;">Змінити режим</button>' +
             '</div>' +
             (currentWorkMode === 'solo' && currentOrgRole === 'owner'
-                ? '<button type="button" class="link-btn" style="margin-top:12px;" onclick="enableTeamAndInvite()">＋ Запросити логіста</button>'
+                ? '<div class="tc-solo-invite"><p>Можна одразу ввімкнути командний режим і запросити логіста. Кабінет залишиться відкритим на вкладці «Команда».</p>' +
+                    '<div class="tc-team-toolbar"><div class="cab-field"><label for="solo-team-email">Email логіста</label>' +
+                    '<input type="email" id="solo-team-email" placeholder="logist@example.com"></div>' +
+                    '<button type="button" class="btn" id="solo-team-invite-btn" onclick="enableTeamAndInvite()">Увімкнути й запросити</button></div>' +
+                    '<small id="solo-team-status" style="color:var(--text-muted);"></small></div>'
                 : '') +
             '</div></div>';
 
@@ -4797,15 +4911,13 @@
         if (currentWorkMode === 'team') {
             html += '<div class="cab-panel" data-panel="team"><div class="cab-card">' +
                 '<div class="cab-card-head"><h3>Команда</h3><span class="cab-autosave" id="team-status">Окремі логіни без спільного пароля</span></div>' +
-                (currentOrgRole === 'owner' || currentOrgRole === 'manager'
+                '<div class="tc-team-summary"><span>Активні логісти й чинні запрошення займають місця. Власник — окремо.</span><span class="tc-seat-count" id="team-seat-count">0 з 3 логістів</span></div>' +
+                (currentOrgRole === 'owner'
                     ? '<div class="tc-team-toolbar">' +
                         '<div class="cab-field"><label for="team-invite-email">Email</label><input type="email" id="team-invite-email" placeholder="logist@example.com"></div>' +
-                        '<div class="cab-field"><label for="team-invite-role">Роль</label><select id="team-invite-role"><option value="logist">Логіст</option>' +
-                        (currentOrgRole === 'owner' ? '<option value="manager">Менеджер</option>' : '') +
-                        '</select></div>' +
-                        '<button type="button" class="btn" onclick="inviteTeamMember()" style="flex:0 0 auto;min-width:150px;">Запросити</button>' +
+                        '<button type="button" class="btn" id="team-invite-btn" onclick="inviteTeamMember()" style="flex:0 0 auto;min-width:150px;">Запросити логіста</button>' +
                         '</div>'
-                    : '<p style="color:var(--text-muted);margin:0 0 12px;">Керування складом команди доступне власнику або менеджеру.</p>') +
+                    : '<p style="color:var(--text-muted);margin:0 0 12px;">Керування складом команди доступне власнику.</p>') +
                 (currentOrgRole === 'owner'
                     ? '<label style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;"><input type="checkbox" id="team-see-all" onchange="saveTeamVisibility()"> Логісти бачать розрахунки колег</label>'
                     : '') +
@@ -4853,7 +4965,7 @@
         const saveBtn = document.getElementById('cab-save-btn');
         if (saveBtn) {
             saveBtn.hidden = currentOrgRole === 'logist';
-            saveBtn.textContent = currentOrgRole === 'manager' ? '💾 Зберегти норми компанії' : '💾 Зберегти зміни';
+            saveBtn.textContent = '💾 Зберегти зміни';
         }
         if (currentWorkMode === 'team') {
             loadTeamState({ silent: true }).then(renderTeamPanel).catch(error => {
@@ -4908,20 +5020,31 @@
     function renderTeamPanel() {
         const list = document.getElementById('team-members-list');
         if (!list) return;
-        const canManage = currentOrgRole === 'owner' || currentOrgRole === 'manager';
+        const canManage = currentOrgRole === 'owner';
         const canChangeRoles = currentOrgRole === 'owner';
+        const ownerCount = Number(teamState.active_owner_count || 0);
         const rows = (teamState.members || []).map(member => {
             const disabled = member.member_status === 'disabled';
+            const isSelf = member.id === currentUserId;
+            const isLastActiveOwner = member.org_role === 'owner' && !disabled && ownerCount <= 1;
             const roleControl = canChangeRoles
                 ? '<select aria-label="Роль ' + teamEsc(member.email) + '" onchange="changeTeamRole(\'' + teamEsc(member.id) + '\', this.value)">' +
-                    ['owner', 'manager', 'logist'].map(role =>
-                        '<option value="' + role + '"' + (member.org_role === role ? ' selected' : '') + '>' + roleLabel(role) + '</option>'
+                    ['owner', 'logist'].map(role =>
+                        '<option value="' + role + '"' + (member.org_role === role ? ' selected' : '') +
+                        (role === 'logist' && isLastActiveOwner ? ' disabled' : '') + '>' + roleLabel(role) + '</option>'
                     ).join('') + '</select>'
                 : '<span>' + teamEsc(roleLabel(member.org_role)) + '</span>';
             const canDisable = canManage
-                && member.id !== currentUserId
+                && !isSelf
                 && !disabled
-                && (currentOrgRole === 'owner' || member.org_role === 'logist');
+                && !isLastActiveOwner;
+            const disableControl = !canManage || disabled
+                ? ''
+                : canDisable
+                    ? '<button type="button" class="bad" onclick="disableTeamMember(\'' + teamEsc(member.id) + '\', this)">Відключити</button>'
+                    : '<button type="button" disabled title="' +
+                        teamEsc(isSelf ? 'Не можна відключити власний поточний доступ' : 'Потрібен ще один активний власник') +
+                        '">Відключити</button>';
             return '<div class="tc-member-row' + (disabled ? ' is-disabled' : '') + '">' +
                 '<div><b>' + teamEsc(member.email || member.id) + '</b><br><small>Останній вхід: ' +
                 teamEsc(member.last_sign_in_at ? new Date(member.last_sign_in_at).toLocaleString('uk-UA') : 'ще не входив') +
@@ -4929,23 +5052,71 @@
                 '<div>' + roleControl + '</div>' +
                 '<div><span class="badge ' + (disabled ? 'badge-danger' : 'badge-success') + '">' +
                 (disabled ? 'відключений' : 'активний') + '</span></div>' +
-                '<div class="tc-member-actions">' +
-                (canDisable ? '<button type="button" class="bad" onclick="disableTeamMember(\'' + teamEsc(member.id) + '\')">Відключити</button>' : '') +
-                '</div></div>';
+                '<div class="tc-member-actions">' + disableControl + '</div></div>';
         });
-        const inviteRows = (teamState.invites || []).map(invite =>
-            '<div class="tc-member-row tc-invite-row"><div><b>' + teamEsc(invite.email) +
-            '</b><br><small>Запрошення до ' + teamEsc(new Date(invite.expires_at).toLocaleDateString('uk-UA')) +
-            '</small></div><div>' + teamEsc(roleLabel(invite.org_role)) +
-            '</div><div><span class="badge badge-warning">очікує</span></div>' +
-            '<div class="tc-member-actions"><button type="button" class="bad" onclick="revokeTeamInvite(\'' +
-            teamEsc(invite.id) + '\')">Відкликати</button></div></div>'
-        );
+        const inviteRows = (teamState.invites || []).map(invite => {
+            const expired = new Date(invite.expires_at).getTime() <= Date.now();
+            return '<div class="tc-member-row tc-invite-row"><div><b>' + teamEsc(invite.email) +
+                '</b><br><small>' + teamEsc(inviteTimeLeft(invite.expires_at)) + '</small>' +
+                '<div class="tc-invite-link"><input readonly aria-label="Посилання запрошення для ' +
+                teamEsc(invite.email) + '" id="team-invite-link-' + teamEsc(invite.id) + '" value="' +
+                teamEsc(invite.invite_url || '') + '"><button type="button" onclick="copyTeamInvite(\'' +
+                teamEsc(invite.id) + '\')">Копіювати</button></div></div><div>' +
+                teamEsc(roleLabel(invite.org_role)) + '</div><div><span class="badge ' +
+                (expired ? 'badge-danger' : 'badge-warning') + '">' + (expired ? 'прострочено' : 'очікує') +
+                '</span></div><div class="tc-member-actions"><button type="button" onclick="resendTeamInvite(\'' +
+                teamEsc(invite.id) + '\')">Надіслати ще раз</button><button type="button" class="bad" onclick="revokeTeamInvite(\'' +
+                teamEsc(invite.id) + '\', this)">Скасувати</button></div></div>';
+        });
         list.innerHTML = rows.concat(inviteRows).join('') || '<div style="color:var(--text-muted);">У команді поки нікого немає.</div>';
         const visibility = document.getElementById('team-see-all');
         if (visibility) visibility.checked = teamState.logists_see_all === true;
+        const seats = teamState.seats || { used: 0, limit: 3 };
+        const seatCount = document.getElementById('team-seat-count');
+        if (seatCount) seatCount.textContent = seats.used + ' з ' + seats.limit + ' логістів';
+        const inviteButton = document.getElementById('team-invite-btn');
+        if (inviteButton) {
+            inviteButton.disabled = seats.used >= seats.limit;
+            inviteButton.title = inviteButton.disabled ? 'Усі 3 місця логістів уже зайняті' : '';
+        }
         populateAuthorFilter();
         renderSavedTable();
+    }
+
+    function inviteTimeLeft(expiresAt) {
+        const remaining = new Date(expiresAt).getTime() - Date.now();
+        if (!(remaining > 0)) return 'Термін дії минув';
+        const hours = Math.ceil(remaining / (60 * 60 * 1000));
+        if (hours < 24) return 'Залишилось: ' + hours + ' год';
+        return 'Залишилось: ' + Math.ceil(hours / 24) + ' дн';
+    }
+
+    async function copyTextSafely(text, input) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+            if (!input) return false;
+            input.focus();
+            input.select();
+            return document.execCommand('copy') === true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function copyTeamInvite(inviteId) {
+        const invite = (teamState.invites || []).find(item => item.id === inviteId);
+        const input = document.getElementById('team-invite-link-' + inviteId);
+        const copied = invite && await copyTextSafely(invite.invite_url || '', input);
+        if (copied) {
+            showToast('Посилання скопійовано');
+        } else {
+            if (input) { input.focus(); input.select(); }
+            const status = document.getElementById('team-status');
+            if (status) status.textContent = 'Автокопіювання недоступне — посилання виділено.';
+        }
     }
 
     async function inviteWithValues(email, role, enableTeam) {
@@ -4960,41 +5131,50 @@
             applyTeamModeUi();
             resetCabinet();
         }
-        if (result.delivery === 'existing_user_link' && result.invite_url) {
-            try { await navigator.clipboard.writeText(result.invite_url); } catch (e) {}
-            alert('Користувач уже зареєстрований. Посилання запрошення скопійовано — надішліть його вручну.');
-        } else {
+        if (result.delivery === 'email' || result.delivery === 'email_resend') {
             showToast('Запрошення надіслано на ' + email);
+        } else {
+            showToast('Запрошення створено — скопіюйте посилання у списку');
         }
         await loadTeamState({ silent: true });
         if (document.getElementById('cabinet-screen').style.display === 'block') {
             resetCabinet();
             openCabinet();
             switchCabTab('team');
+            const status = document.getElementById('team-status');
+            if (status && result.delivery !== 'email' && result.delivery !== 'email_resend') {
+                status.textContent = 'Пошта не підтвердила доставку — посилання доступне нижче.';
+            }
         }
     }
 
     async function enableTeamAndInvite() {
-        const email = prompt('Email логіста:');
-        if (!email) return;
-        if (!confirm('Увімкнути командний режим і надіслати запрошення?')) return;
+        const emailEl = document.getElementById('solo-team-email');
+        const status = document.getElementById('solo-team-status');
+        const button = document.getElementById('solo-team-invite-btn');
+        const email = (emailEl && emailEl.value || '').trim();
+        if (!email) {
+            if (status) status.textContent = 'Вкажіть email логіста.';
+            return;
+        }
         try {
-            await inviteWithValues(email.trim(), 'logist', true);
+            if (button) button.disabled = true;
+            if (status) status.textContent = 'Вмикаємо команду й створюємо запрошення…';
+            await inviteWithValues(email, 'logist', true);
         } catch (error) {
-            alert(error.message || 'Не вдалося надіслати запрошення.');
+            if (status) status.textContent = error.message || 'Не вдалося надіслати запрошення.';
+            if (button) button.disabled = false;
         }
     }
 
     async function inviteTeamMember() {
         const emailEl = document.getElementById('team-invite-email');
-        const roleEl = document.getElementById('team-invite-role');
         const status = document.getElementById('team-status');
         const email = (emailEl && emailEl.value || '').trim();
-        const role = roleEl ? roleEl.value : 'logist';
         if (!email) { if (status) status.textContent = 'Вкажіть email.'; return; }
         try {
             if (status) status.textContent = 'Надсилаємо…';
-            await inviteWithValues(email, role, false);
+            await inviteWithValues(email, 'logist', false);
         } catch (error) {
             if (status) status.textContent = error.message || 'Помилка запрошення.';
         }
@@ -5007,32 +5187,65 @@
             renderTeamPanel();
             showToast('Роль оновлено');
         } catch (error) {
-            alert(error.message || 'Не вдалося змінити роль.');
             await loadTeamState({ silent: true }).catch(() => {});
             renderTeamPanel();
+            const status = document.getElementById('team-status');
+            if (status) status.textContent = error.message || 'Не вдалося змінити роль.';
         }
     }
 
-    async function disableTeamMember(userId) {
-        if (!confirm('Відключити доступ цього учасника? Його розрахунки залишаться в компанії.')) return;
+    function teamActionStatus(message) {
+        const status = document.getElementById('team-status');
+        if (status) status.textContent = message;
+    }
+
+    async function disableTeamMember(userId, button) {
+        if (button && button.dataset.confirm !== '1') {
+            button.dataset.confirm = '1';
+            button.textContent = 'Підтвердити відключення';
+            teamActionStatus('Розрахунки учасника залишаться в компанії. Натисніть ще раз, щоб відключити.');
+            return;
+        }
         try {
             await teamApi('POST', { action: 'disable', user_id: userId });
             await loadTeamState({ silent: true });
             renderTeamPanel();
             showToast('Доступ відключено');
         } catch (error) {
-            alert(error.message || 'Не вдалося відключити учасника.');
+            teamActionStatus(error.message || 'Не вдалося відключити учасника.');
+            if (button) button.dataset.confirm = '';
         }
     }
 
-    async function revokeTeamInvite(inviteId) {
-        if (!confirm('Відкликати це запрошення?')) return;
+    async function revokeTeamInvite(inviteId, button) {
+        if (button && button.dataset.confirm !== '1') {
+            button.dataset.confirm = '1';
+            button.textContent = 'Підтвердити скасування';
+            teamActionStatus('Натисніть ще раз, щоб скасувати запрошення.');
+            return;
+        }
         try {
             await teamApi('POST', { action: 'revoke', invite_id: inviteId });
             await loadTeamState({ silent: true });
             renderTeamPanel();
         } catch (error) {
-            alert(error.message || 'Не вдалося відкликати запрошення.');
+            teamActionStatus(error.message || 'Не вдалося відкликати запрошення.');
+            if (button) button.dataset.confirm = '';
+        }
+    }
+
+    async function resendTeamInvite(inviteId) {
+        const status = document.getElementById('team-status');
+        try {
+            if (status) status.textContent = 'Оновлюємо посилання й надсилаємо…';
+            const result = await teamApi('POST', { action: 'resend', invite_id: inviteId });
+            await loadTeamState({ silent: true });
+            renderTeamPanel();
+            showToast(result.delivery === 'email' || result.delivery === 'email_resend'
+                ? 'Нове запрошення надіслано'
+                : 'Нове посилання створено — скопіюйте його');
+        } catch (error) {
+            if (status) status.textContent = error.message || 'Не вдалося оновити запрошення.';
         }
     }
 
@@ -5047,27 +5260,44 @@
             showToast('Видимість розрахунків оновлено');
         } catch (error) {
             if (checkbox) checkbox.checked = teamState.logists_see_all === true;
-            alert(error.message || 'Не вдалося змінити налаштування.');
+            teamActionStatus(error.message || 'Не вдалося змінити налаштування.');
         }
+    }
+
+    function resetWorkModeConfirmation() {
+        const button = document.getElementById('cab-mode-btn');
+        if (!button) return;
+        delete button.dataset.confirmSolo;
+        button.textContent = 'Змінити режим';
+        const message = document.getElementById('cab-message');
+        if (message) message.textContent = '';
     }
 
     async function saveWorkMode() {
         const select = document.getElementById('cab-work-mode');
+        const button = document.getElementById('cab-mode-btn');
         if (!select || select.value === currentWorkMode) return;
-        if (select.value === 'solo' && !confirm('Повернути режим «Сам»? Це можливо лише без інших активних учасників. Дані не видаляються.')) {
-            select.value = currentWorkMode;
+        if (select.value === 'solo' && button && button.dataset.confirmSolo !== '1') {
+            button.dataset.confirmSolo = '1';
+            button.textContent = 'Підтвердити режим «Сам»';
+            document.getElementById('cab-message').textContent =
+                'Повторно натисніть кнопку. Інших активних учасників бути не повинно; дані не видаляються.';
             return;
         }
         try {
+            if (button) button.disabled = true;
             const result = await teamApi('POST', { action: 'set_work_mode', work_mode: select.value });
             currentWorkMode = result.work_mode;
             applyTeamModeUi();
+            if (currentWorkMode === 'team') await loadTeamState({ silent: true });
             resetCabinet();
-            closeCabinet();
+            openCabinet();
+            switchCabTab(currentWorkMode === 'team' ? 'team' : 'company');
             showToast(currentWorkMode === 'team' ? 'Командний режим увімкнено' : 'Режим «Сам» увімкнено');
         } catch (error) {
             select.value = currentWorkMode;
-            alert(error.message || 'Не вдалося змінити режим.');
+            if (button) button.disabled = false;
+            document.getElementById('cab-message').textContent = error.message || 'Не вдалося змінити режим.';
         }
     }
 
@@ -5213,7 +5443,7 @@
         const msg = document.getElementById('cab-message');
         const setMsg = (t, bad) => { msg.innerText = t; msg.style.color = bad ? 'var(--danger)' : 'var(--success)'; };
         if (currentOrgRole === 'logist') {
-            setMsg('Логіст може переглядати норми, але змінює їх власник або менеджер.', true);
+            setMsg('Логіст може переглядати норми, але змінює їх власник.', true);
             return;
         }
         const name = document.getElementById('cab-name').value.trim();
@@ -5262,9 +5492,7 @@
             companySettings = next;
             applySettingsToForm();
             calculate();
-            setMsg(currentOrgRole === 'manager'
-                ? '✅ Норми компанії збережено.'
-                : '✅ Збережено. Значення підставлено в калькулятор.');
+            setMsg('✅ Збережено. Значення підставлено в калькулятор.');
         } catch (e) {
             setMsg('Не вдалося зберегти: ' + (e.message || e), true);
         } finally {
@@ -5804,12 +6032,68 @@
         return km > 0 ? km : 0;
     }
 
+    function renderOverviewAuthors(rows) {
+        const lead = document.getElementById('overview-lead');
+        const seatsEl = document.getElementById('overview-team-seats');
+        const card = document.getElementById('overview-authors-card');
+        const target = document.getElementById('overview-authors');
+        if (!lead || !seatsEl || !card || !target) return;
+
+        const isTeam = currentWorkMode === 'team';
+        card.hidden = !isTeam;
+        seatsEl.hidden = !isTeam;
+        if (!isTeam) {
+            lead.textContent = 'Особиста статистика збережених розрахунків: кількість, середня маржа, грн/км і збиткові рейси.';
+            return;
+        }
+
+        const seats = teamState.seats || { used: 0, limit: 3 };
+        seatsEl.textContent = seats.used + ' з ' + seats.limit + ' логістів';
+        lead.textContent = currentOrgRole === 'owner'
+            ? 'Зведення по компанії та результати кожного автора збережених розрахунків.'
+            : 'Ваші результати у команді: кількість рейсів, середня маржа та збиткові рейси.';
+
+        const members = currentOrgRole === 'owner'
+            ? (teamState.members || []).slice()
+            : (teamState.members || []).filter(member => member.id === currentUserId);
+        const knownIds = new Set(members.map(member => member.id));
+        if (currentOrgRole === 'owner') {
+            rows.forEach(row => {
+                if (row.userId && !knownIds.has(row.userId)) {
+                    members.push({ id: row.userId, email: savedAuthorLabel(row.userId), member_status: 'active' });
+                    knownIds.add(row.userId);
+                }
+            });
+        }
+        if (!members.length && currentUserId) {
+            members.push({ id: currentUserId, email: 'Ви', member_status: 'active' });
+        }
+
+        const authorRows = members.map(member => {
+            const memberRows = rows.filter(row => row.userId === member.id);
+            const margins = memberRows.map(row => Number(row.profitabilityPct)).filter(Number.isFinite);
+            const average = margins.length
+                ? margins.reduce((sum, value) => sum + value, 0) / margins.length
+                : null;
+            const losses = memberRows.filter(row => Number(row.netProfit) < 0).length;
+            const state = member.member_status === 'disabled' ? ' · відключений' : '';
+            return '<tr><td><b>' + teamEsc(member.email || member.id) + '</b><small>' +
+                teamEsc(state) + '</small></td><td>' + memberRows.length + '</td><td>' +
+                (average === null ? '—' : average.toFixed(1) + '%') + '</td><td>' + losses + '</td></tr>';
+        }).join('');
+
+        target.innerHTML = '<table class="tc-author-table"><thead><tr><th>Автор</th><th>Рейси</th>' +
+            '<th>Середня маржа</th><th>Збиткові</th></tr></thead><tbody>' +
+            authorRows + '</tbody></table>';
+    }
+
     function renderStudioOverview() {
         const kpis = document.getElementById('overview-kpis');
         const months = document.getElementById('overview-months');
         const losses = document.getElementById('overview-losses');
         if (!kpis || !months || !losses) return;
         const rows = savedCalculations || [];
+        renderOverviewAuthors(rows);
         if (!rows.length) {
             kpis.innerHTML = '<div class="tc-overview-kpi main"><div class="l">Збережені розрахунки</div><div class="v">0</div><div class="s">Ще немає збережених рейсів</div></div>';
             months.innerHTML = '<p class="tc-overview-lead">Після збереження розрахунків тут з’явиться середня маржа по місяцях.</p>';
@@ -5895,7 +6179,7 @@
                 <td>${formatMoney(c.ebitda)}</td>
                 <td>${formatMoney(c.netProfit)}</td>
                 <td><span class="badge ${c.profitabilityPct >= 15 ? 'badge-success' : c.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger'}">${Number(c.profitabilityPct).toFixed(1)}%</span></td>
-                <td>${currentOrgRole === 'owner' || currentOrgRole === 'manager' || c.userId === currentUserId
+                <td>${currentOrgRole === 'owner' || c.userId === currentUserId
                     ? `<button onclick="removeSaved('${escHtml(c.id)}')" style="background:none; border:none; color:var(--danger); cursor:pointer; font-weight:bold;" aria-label="Видалити розрахунок">✕</button>`
                     : '—'}</td>
             </tr>
