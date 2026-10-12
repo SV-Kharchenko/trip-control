@@ -1056,6 +1056,23 @@
             background: color-mix(in srgb, var(--input-bg) 88%, transparent);
         }
         #cabinet-screen .tc-mode-box p { margin: 4px 0 0; color: var(--text-muted); font-size: 0.7rem; line-height: 1.4; }
+        #cabinet-screen .tc-report-box {
+            display: grid; gap: 8px; margin-top: 14px; padding: 12px;
+            border: 1px solid var(--border-color); border-radius: 10px;
+            background: color-mix(in srgb, var(--input-bg) 88%, transparent);
+        }
+        #cabinet-screen .tc-report-box[hidden] { display: none; }
+        #cabinet-screen .tc-report-box p,
+        #cabinet-screen .tc-report-box pre {
+            margin: 0; color: var(--text-muted); font-size: 0.72rem; line-height: 1.45;
+            white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-ui);
+        }
+        #cabinet-screen .tc-report-box pre {
+            max-height: 240px; overflow: auto; padding: 8px;
+            border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg);
+        }
+        #cabinet-screen .tc-report-box pre[hidden] { display: none; }
+        #cabinet-screen .tc-report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         #cabinet-screen .tc-team-toolbar {
             display: flex; align-items: end; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
         }
@@ -1126,6 +1143,8 @@
             #cabinet-screen .cab-brand { grid-column: 1; align-items: flex-start; text-align: left; }
             .auth-mode-grid { grid-template-columns: 1fr; }
             #cabinet-screen .tc-mode-box { grid-template-columns: 1fr; }
+            #cabinet-screen .tc-report-actions { display: grid; }
+            #cabinet-screen .tc-report-actions .btn { width: 100%; }
             #cabinet-screen .tc-member-row { grid-template-columns: 1fr; }
             #cabinet-screen .tc-member-actions { justify-content: flex-start; }
             #cabinet-screen .tc-team-summary { align-items: flex-start; }
@@ -3374,6 +3393,7 @@
     let currentSessionToken = null;
     let currentUserId = null;
     let isDemo = false;   // true = акаунт без схвалення: обмежений демо-режим
+    let uiPreview = false; // true лише для ?preview=1 на localhost, не для демо-акаунта
     let isAdmin = false;
     let demoForce = false; // true лише на час одного виклику calculate() з кнопки «Розрахувати»
     let currentOrgId = null;
@@ -5052,6 +5072,15 @@
             profileFieldHtml(byKey.coReportEmail) +
             profileFieldHtml(byKey.coLang) +
             '</div>' +
+            '<div id="weekly-report-box" class="tc-report-box">' +
+            '<div><b>Тижневий звіт</b>' +
+            '<p>За попередній тиждень (понеділок–неділя, Київ). Якщо «Пошта для звітів» заповнена — лист іде туди, інакше на пошту реєстрації. Цифри зі збереженої історії, калькулятор рейси не перераховує.</p></div>' +
+            '<div class="tc-report-actions">' +
+            '<button type="button" class="btn" id="weekly-report-preview-btn" onclick="previewWeeklyReport()">Переглянути</button>' +
+            '<button type="button" class="btn btn-success" id="weekly-report-send-btn" onclick="sendWeeklyReport()">Надіслати зараз</button>' +
+            '</div>' +
+            '<pre id="weekly-report-preview" hidden></pre>' +
+            '</div>' +
             '<div class="tc-mode-box">' +
             '<div><label for="cab-work-mode">Режим роботи</label>' +
             '<select id="cab-work-mode" onchange="resetWorkModeConfirmation()"><option value="solo">Сам</option><option value="team">Є логісти / диспетчери</option></select>' +
@@ -5093,6 +5122,98 @@
         ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
     }
 
+    function showWeeklyReportText(text) {
+        const pre = document.getElementById('weekly-report-preview');
+        if (!pre) return;
+        pre.hidden = false;
+        pre.textContent = text || '';
+    }
+    async function weeklyReportRequest(action) {
+        const sessionRes = await supabaseClient.auth.getSession();
+        const session = sessionRes && sessionRes.data ? sessionRes.data.session : null;
+        if (!session) throw new Error('Немає активної сесії.');
+        const response = await fetch('/api/weekly-report', {
+            method: action === 'preview' ? 'GET' : 'POST',
+            headers: {
+                Authorization: 'Bearer ' + session.access_token,
+                'Content-Type': 'application/json'
+            },
+            body: action === 'preview' ? undefined : JSON.stringify({ action: 'send' })
+        });
+        const json = await response.json().catch(function () { return {}; });
+        if (!response.ok) {
+            const error = new Error(json.error || 'Не вдалося зібрати звіт.');
+            error.code = json.code || '';
+            throw error;
+        }
+        return json;
+    }
+    async function previewWeeklyReport() {
+        if (currentOrgRole !== 'owner') return;
+        if (uiPreview) {
+            try {
+                const mod = await import('/lib/weekly-report.js');
+                const period = mod.previousWeekRange(new Date('2026-10-12T09:00:00+03:00'));
+                const trips = savedCalculations.map(function (row) {
+                    const fields = historyFields(row);
+                    const actual = tripActuals[row.id];
+                    const day = fields.date ? String(fields.date).slice(0, 10) : '';
+                    if (!day || day < period.start || day > period.end) return null;
+                    return {
+                        tripDate: day,
+                        routeFrom: fields.from,
+                        routeTo: fields.to,
+                        name: fields.name,
+                        clientName: fields.client,
+                        status: fields.status,
+                        revenue: fields.revenue,
+                        profit: fields.profit,
+                        actualProfit: actual && Number.isFinite(actual.profit) ? actual.profit : null
+                    };
+                }).filter(Boolean);
+                const report = mod.buildWeeklyReport({
+                    orgName: companyName || 'Компанія',
+                    periodStart: period.start,
+                    periodEnd: period.end,
+                    trips: trips,
+                    alertPct: factAlertPct()
+                });
+                showWeeklyReportText(report.text);
+            } catch (e) {
+                showToast('Не вдалося зібрати звіт.');
+            }
+            return;
+        }
+        try {
+            const json = await weeklyReportRequest('preview');
+            showWeeklyReportText(json.text || '');
+            if (json.mailConfigured === false) {
+                showToast('Перегляд готовий. Надіслати ще не вийде: немає RESEND_API_KEY і REPORT_FROM_EMAIL.', 4600);
+            }
+        } catch (e) {
+            showToast(e.message || 'Не вдалося зібрати звіт.');
+        }
+    }
+    async function sendWeeklyReport() {
+        if (currentOrgRole !== 'owner') return;
+        if (uiPreview) {
+            showToast('Це прев’ю. Лист не відправляється.');
+            return;
+        }
+        const button = document.getElementById('weekly-report-send-btn');
+        if (button) button.disabled = true;
+        try {
+            const json = await weeklyReportRequest('send');
+            if (json.text) showWeeklyReportText(json.text);
+            if (json.alreadySent) showToast('Звіт за цей тиждень уже надіслано' + (json.recipient ? ' на ' + json.recipient : '') + '.');
+            else if (json.sent) showToast('Звіт надіслано' + (json.recipient ? ' на ' + json.recipient : '') + '.');
+            else showToast(json.error || 'Лист не надіслано.', 4600);
+        } catch (e) {
+            showToast(e.message || 'Лист не надіслано.', 4600);
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
     function openCabinet() {
         buildCabinet();
         document.getElementById('cab-name').value = companyName || '';
@@ -5126,6 +5247,8 @@
         });
         const modeBtn = document.getElementById('cab-mode-btn');
         if (modeBtn) modeBtn.hidden = currentOrgRole !== 'owner';
+        const reportBox = document.getElementById('weekly-report-box');
+        if (reportBox) reportBox.hidden = currentOrgRole !== 'owner';
         const saveBtn = document.getElementById('cab-save-btn');
         if (saveBtn) {
             saveBtn.hidden = currentOrgRole === 'logist';
@@ -7821,6 +7944,7 @@
     }
 
     function showUiPreview() {
+        uiPreview = true;
         isDemo = true;
         document.body.classList.add('demo-mode');
         document.getElementById('auth-screen').style.display = 'none';
@@ -7856,13 +7980,13 @@
         savedCalculations = [
             {
                 id: 'preview-1', userId: 'preview-owner', routeName: 'Умань — Ізмаїл',
-                createdAt: '2026-10-02T08:00:00.000Z', status: 'accepted', overheadTotal: 4100,
+                createdAt: '2026-10-02T08:00:00.000Z', tripDate: '2026-10-06', status: 'accepted', overheadTotal: 4100,
                 inputs: { origin: 'Умань', destination: 'Ізмаїл', clientName: 'Агросвіт', returnMode: 'разовий', dist: '640', podachaDist: '20', carsCount: '2', normWeight: '22', volume: '44', daysPerTrip: '1.5', rate: '890', contractCurrency: 'UAH', trailerType: 'зерновоз' },
                 grossIncome: 39160, netProfit: 8420, trailerType: 'зерновоз'
             },
             {
                 id: 'preview-2', userId: 'preview-logist', routeName: 'Київ — Львів',
-                createdAt: '2026-09-18T08:00:00.000Z', status: 'draft',
+                createdAt: '2026-09-18T08:00:00.000Z', tripDate: '2026-10-08', status: 'draft',
                 inputs: { origin: 'Київ', destination: 'Львів', clientName: 'Захід Транс', returnMode: 'циклічний', dist: '540', carsCount: '3', normWeight: '21', volume: '126', daysPerTrip: '2', rate: '760', contractCurrency: 'UAH', trailerType: 'тент' },
                 grossIncome: 95760, netProfit: -3200, trailerType: 'тент'
             }
