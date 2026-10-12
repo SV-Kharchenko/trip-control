@@ -1,6 +1,10 @@
 {
   "name": "tripcontrol",
   "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.42.0"
   }
