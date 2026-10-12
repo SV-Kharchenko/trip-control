@@ -7,6 +7,9 @@
 | `INVITE_SIGNING_SECRET` | Vercel env, лише підпис посилань `/api/team` | **Ні** |
 | Google Maps browser key | `index.html` + referrer/API restrictions | Так (обмежений) |
 | `BILLING_WEBHOOK_SECRET` | Vercel env + header webhook | **Ні** |
+| `RESEND_API_KEY` | Vercel env, лише `/api/weekly-report` | **Ні** |
+| `REPORT_FROM_EMAIL` | Vercel env, відправник листів звіту (`Name <mail@domain>`) | **Ні** |
+| `CRON_SECRET` | Vercel env. Cron надсилає його як `Authorization: Bearer`. Без нього розсилка не стартує | **Ні** |
 
 ## Правила
 
