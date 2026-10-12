@@ -1019,6 +1019,16 @@
         .tc-status.is-accepted, .tc-status.is-done { color: var(--success); border-color: var(--success); }
         .tc-status.is-rejected { color: var(--danger); border-color: var(--danger); }
         .tc-history-num.is-neg { color: var(--danger); font-weight: 700; }
+        .tc-fact-alert, .tc-fact-alert small { color: var(--warning); font-weight: 700; }
+        #fact-editor {
+            display: grid; gap: 8px; margin: 0 0 12px; padding: 10px;
+            border: 1px solid var(--border-color); border-radius: 10px;
+            background: color-mix(in srgb, var(--input-bg) 88%, transparent);
+        }
+        #fact-editor[hidden] { display: none; }
+        #fact-editor label { display: grid; gap: 4px; font-size: 0.75rem; }
+        #fact-editor input { width: 100%; max-width: 280px; text-align: left; }
+        #fact-editor .tc-history-actions { margin-top: 2px; }
         .tc-history-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
         .tc-history-actions button {
             background: none; border: 1px solid var(--border-color); color: var(--text-main);
@@ -3189,6 +3199,9 @@
                 <option value="profit">За прибутком</option>
                 <option value="km">За кілометражем</option>
             </select>
+            <label id="fact-alert-label" for="fact-alert-pct">Поріг, %
+                <input type="number" id="fact-alert-pct" min="0" max="100" step="1" value="10" onchange="saveFactAlertPct()">
+            </label>
             <label class="team-feature" for="saved-author-filter">Автор
                 <select id="saved-author-filter" onchange="historyPage=0;renderSavedTable()">
                     <option value="">Усі учасники</option>
@@ -3208,6 +3221,22 @@
             </div>
             <div id="template-list" class="tc-template-list"></div>
         </div>
+        <div id="fact-editor" hidden>
+            <b id="fact-editor-title">Факт рейсу</b>
+            <p class="tc-history-meta" id="fact-editor-plan"></p>
+            <label>Фактичний дохід, грн
+                <input type="number" id="fact-revenue" min="0" step="1" inputmode="decimal" oninput="refreshFactMath()">
+            </label>
+            <label>Фактичні витрати, грн
+                <input type="number" id="fact-costs" min="0" step="1" inputmode="decimal" oninput="refreshFactMath()">
+            </label>
+            <p class="tc-history-meta" id="fact-editor-math"></p>
+            <p class="tc-history-meta" id="fact-editor-error"></p>
+            <div class="tc-history-actions">
+                <button type="button" class="btn btn-success" onclick="saveTripActual()">Зберегти факт</button>
+                <button type="button" class="btn" onclick="closeFactEditor()">Закрити</button>
+            </div>
+        </div>
         <div class="comparison-table">
             <table id="saved-table">
                 <thead>
@@ -3222,13 +3251,14 @@
                         <th>Ставка</th>
                         <th>Дохід</th>
                         <th>Прибуток</th>
+                        <th>Факт</th>
                         <th>грн/км</th>
                         <th>Статус</th>
                         <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="saved-tbody">
-                    <tr><td colspan="12" style="text-align: center; color: var(--text-muted);">Немає збережених розрахунків.</td></tr>
+                    <tr><td colspan="13" style="text-align: center; color: var(--text-muted);">Немає збережених розрахунків.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -3360,6 +3390,8 @@
     let historyPage = 0;
     let historyDeleteId = null;
     let templateDeleteId = null;
+    let tripActuals = {};
+    let factEditorId = null;
     const HISTORY_PAGE_SIZE = 50;
     let calcRequestId = 0; // захист від застарілих відповідей при швидкому вводі
     let map, directionsService, directionsRenderer, directionsRendererBackhaul;
@@ -6118,8 +6150,27 @@
             document.getElementById('saved-tbody').innerHTML = '<tr><td colspan="' + columns + '" style="text-align: center; color: var(--danger);">Не вдалося завантажити збережені розрахунки. Оновіть сторінку.</td></tr>';
             return;
         }
+        await loadTripActuals();
         renderSavedTable();
         refreshMigrateBox();
+    }
+
+    async function loadTripActuals() {
+        tripActuals = {};
+        try {
+            const { data, error } = await supabaseClient
+                .from('trip_actuals')
+                .select('calculation_id, revenue, costs, planned_overhead, profit');
+            if (error) return;
+            (data || []).forEach(function (row) {
+                tripActuals[row.calculation_id] = {
+                    revenue: Number(row.revenue),
+                    costs: Number(row.costs),
+                    plannedOverhead: Number(row.planned_overhead),
+                    profit: Number(row.profit)
+                };
+            });
+        } catch (e) {}
     }
 
     function demoSaveLimitText() {
@@ -6388,7 +6439,42 @@
     ];
 
     function historyColumnCount() {
-        return currentWorkMode === 'team' ? 13 : 12;
+        return currentWorkMode === 'team' ? 14 : 13;
+    }
+    function actualTripProfit(revenue, costs, plannedOverhead) {
+        const income = Number(revenue);
+        const spent = Number(costs);
+        const overhead = Number(plannedOverhead);
+        if (!Number.isFinite(income) || !Number.isFinite(spent) || !Number.isFinite(overhead)) return null;
+        if (income < 0 || spent < 0) return null;
+        return income - spent - overhead;
+    }
+    function factDeltaPct(actual, planned) {
+        if (!Number.isFinite(actual) || !Number.isFinite(planned) || planned === 0) return null;
+        return (actual - planned) / Math.abs(planned) * 100;
+    }
+    function factIsAlert(actual, planned, threshold) {
+        if (!Number.isFinite(actual) || !Number.isFinite(planned)) return false;
+        const limit = Number.isFinite(Number(threshold)) ? Number(threshold) : 10;
+        if (planned === 0) return actual !== 0;
+        return Math.abs((actual - planned) / Math.abs(planned) * 100) > limit;
+    }
+    function factWindowOpen(dateValue, nowMs, isOwner) {
+        if (isOwner) return true;
+        const start = new Date(dateValue);
+        if (isNaN(start.getTime())) return false;
+        const now = Number.isFinite(nowMs) ? nowMs : Date.now();
+        return now - start.getTime() <= 30 * 24 * 60 * 60 * 1000;
+    }
+    function factAlertPct() {
+        const n = Number(companySettings && companySettings.fact_alert_pct);
+        return Number.isFinite(n) && n >= 0 && n <= 100 ? n : 10;
+    }
+    function plannedOverheadOf(row) {
+        const saved = tripActuals[row.id];
+        if (saved && Number.isFinite(saved.plannedOverhead)) return saved.plannedOverhead;
+        const fromResult = historyNum(row.overheadTotal);
+        return fromResult === null ? 0 : fromResult;
     }
     function tripPlaces() {
         ['osm-base', 'osm-from', 'osm-to'].forEach(function (id) {
@@ -6524,9 +6610,161 @@
         return '<div class="tc-history-actions">' +
             '<button type="button" onclick="openSaved(\'' + id + '\')">Відкрити</button>' +
             '<button type="button" onclick="duplicateSaved(\'' + id + '\')">Дублювати</button>' +
+            factButton(row) +
             '<select aria-label="Статус рейсу" onchange="setTripStatus(\'' + id + '\', this.value)">' + options + '</select>' +
             '<button type="button" class="is-danger" onclick="removeSaved(\'' + id + '\')">' + removeLabel + '</button>' +
             '</div>';
+    }
+    function factButton(row) {
+        const fields = historyFields(row);
+        if (fields.status !== 'accepted' && fields.status !== 'done') return '';
+        if (!canEditSaved(row)) return '';
+        if (currentOrgRole !== 'owner' && !factWindowOpen(fields.date || row.createdAt, Date.now(), false)) return '';
+        const label = tripActuals[row.id] ? 'Змінити факт' : 'Факт';
+        return '<button type="button" onclick="openFactEditor(\'' + escHtml(row.id) + '\')">' + label + '</button>';
+    }
+    function factCell(row, fields) {
+        const actual = tripActuals[row.id];
+        if (!actual || !Number.isFinite(actual.profit)) return '<td>—</td>';
+        const alert = factIsAlert(actual.profit, fields.profit, factAlertPct());
+        const pct = factDeltaPct(actual.profit, fields.profit);
+        const delta = fields.profit === null ? null : actual.profit - fields.profit;
+        const cls = alert ? ' class="tc-fact-alert"' : (actual.profit < 0 ? ' class="tc-history-num is-neg"' : '');
+        const deltaText = delta === null ? '' : (delta > 0 ? '+' : '') + formatMoney(delta);
+        const pctText = pct === null ? '' : ' · ' + (pct > 0 ? '+' : '') + formatHistoryNum(pct, 0) + '%';
+        return '<td' + cls + '>' + formatMoney(actual.profit) + '<br><small>' + deltaText + pctText + '</small></td>';
+    }
+    function syncFactAlertControl() {
+        const input = document.getElementById('fact-alert-pct');
+        const label = document.getElementById('fact-alert-label');
+        if (!input || !label) return;
+        if (document.activeElement !== input) input.value = String(factAlertPct());
+        label.hidden = currentOrgRole !== 'owner';
+    }
+    function openFactEditor(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return;
+        const fields = historyFields(row);
+        if (fields.status !== 'accepted' && fields.status !== 'done') {
+            showToast('Факт можна внести лише для прийнятого або виконаного рейсу.');
+            return;
+        }
+        if (!canEditSaved(row)) return;
+        if (currentOrgRole !== 'owner' && !factWindowOpen(fields.date || row.createdAt, Date.now(), false)) {
+            showToast('Минуло 30 діб. Факт змінює власник.', 3600);
+            return;
+        }
+        factEditorId = id;
+        const actual = tripActuals[id];
+        const overhead = plannedOverheadOf(row);
+        const title = document.getElementById('fact-editor-title');
+        const plan = document.getElementById('fact-editor-plan');
+        const revenue = document.getElementById('fact-revenue');
+        const costs = document.getElementById('fact-costs');
+        const error = document.getElementById('fact-editor-error');
+        if (title) title.textContent = 'Факт: ' + historyRouteLabel(fields);
+        if (plan) {
+            plan.textContent = 'План: ' + (fields.profit === null ? '—' : formatMoney(fields.profit)) +
+                '. Планові амортизація й накладні: ' + formatMoney(overhead) +
+                '. Калькулятор цей рейс не перераховує.';
+        }
+        if (revenue) revenue.value = actual ? actual.revenue : '';
+        if (costs) costs.value = actual ? actual.costs : '';
+        if (error) error.textContent = '';
+        const box = document.getElementById('fact-editor');
+        if (box) {
+            box.hidden = false;
+            if (box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        refreshFactMath();
+    }
+    function closeFactEditor() {
+        factEditorId = null;
+        const box = document.getElementById('fact-editor');
+        if (box) box.hidden = true;
+    }
+    function refreshFactMath() {
+        const math = document.getElementById('fact-editor-math');
+        if (!math) return;
+        const row = savedCalculations.find(function (item) { return item.id === factEditorId; });
+        if (!row) { math.textContent = ''; return; }
+        const revenue = document.getElementById('fact-revenue');
+        const costs = document.getElementById('fact-costs');
+        const overhead = plannedOverheadOf(row);
+        const profit = actualTripProfit(revenue ? revenue.value : '', costs ? costs.value : '', overhead);
+        math.textContent = profit === null
+            ? 'Факт = дохід − витрати − планові амортизація й накладні.'
+            : 'Факт: ' + formatMoney(profit) + ' = дохід − витрати − ' + formatMoney(overhead) + '.';
+    }
+    async function saveTripActual() {
+        const row = savedCalculations.find(function (item) { return item.id === factEditorId; });
+        const error = document.getElementById('fact-editor-error');
+        if (!row) return;
+        const revenue = Number(document.getElementById('fact-revenue').value);
+        const costs = Number(document.getElementById('fact-costs').value);
+        const overhead = plannedOverheadOf(row);
+        const profit = actualTripProfit(revenue, costs, overhead);
+        if (profit === null) {
+            if (error) error.textContent = 'Вкажіть дохід і витрати числом від нуля.';
+            return;
+        }
+        if (String(row.id).indexOf('preview-') === 0) {
+            tripActuals[row.id] = { revenue: revenue, costs: costs, plannedOverhead: overhead, profit: profit };
+            renderSavedTable();
+            showToast('Факт збережено');
+            return;
+        }
+        try {
+            const { data, error: writeError } = await supabaseClient.from('trip_actuals').upsert({
+                calculation_id: row.id,
+                org_id: currentOrgId,
+                revenue: revenue,
+                costs: costs,
+                planned_overhead: overhead,
+                profit: profit,
+                entered_by: currentUserId
+            }, { onConflict: 'calculation_id' }).select('calculation_id, revenue, costs, planned_overhead, profit').single();
+            if (writeError) throw writeError;
+            tripActuals[row.id] = {
+                revenue: Number(data.revenue),
+                costs: Number(data.costs),
+                plannedOverhead: Number(data.planned_overhead),
+                profit: Number(data.profit)
+            };
+            renderSavedTable();
+            refreshFactMath();
+            showToast('Факт збережено');
+        } catch (e) {
+            const message = dbErrorText(e);
+            if (error) error.textContent = '';
+            if (message.indexOf('FACT_LOCKED') !== -1) showToast('Минуло 30 діб. Факт змінює власник.', 4200);
+            else if (message.indexOf('FACT_STATUS') !== -1) showToast('Факт можна внести лише для прийнятого або виконаного рейсу.');
+            else if (message.indexOf('FACT_FORBIDDEN') !== -1) showToast('Цей факт може змінити автор або власник.');
+            else showToast('Не вдалося зберегти факт.', 3600);
+        }
+    }
+    async function saveFactAlertPct() {
+        const input = document.getElementById('fact-alert-pct');
+        const n = input ? Number(input.value) : NaN;
+        if (!Number.isFinite(n) || n < 0 || n > 100) {
+            showToast('Поріг відхилення: число від 0 до 100.');
+            if (input) input.value = String(factAlertPct());
+            return;
+        }
+        companySettings = Object.assign({}, companySettings, { fact_alert_pct: n });
+        renderSavedTable();
+        if (!currentOrgId || currentOrgRole !== 'owner') return;
+        try {
+            const { error } = await supabaseClient.from('company_settings').upsert({
+                org_id: currentOrgId,
+                settings: companySettings,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'org_id' });
+            if (error) throw error;
+            showToast('Поріг відхилення збережено');
+        } catch (e) {
+            showToast('Поріг не збережено.', 3600);
+        }
     }
     function renderSavedRecent() {
         const box = document.getElementById('saved-recent');
@@ -6561,6 +6799,7 @@
         renderStudioOverview();
         renderSavedRecent();
         renderTemplateList();
+        syncFactAlertControl();
         const tbody = document.getElementById('saved-tbody');
         const cards = document.getElementById('history-cards');
         const pager = document.getElementById('history-pager');
@@ -6603,6 +6842,7 @@
                 '<td>' + escHtml(fields.rate == null || fields.rate === '' ? '—' : fields.rate) + ' ' + escHtml(unit) + '</td>' +
                 moneyCell(fields.revenue) +
                 moneyCell(fields.profit) +
+                factCell(row, fields) +
                 '<td' + perKmClass + '>' + (fields.perKm === null ? '—' : formatHistoryNum(fields.perKm, 0)) + '</td>' +
                 '<td><span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span></td>' +
                 '<td>' + historyActions(row) + '</td>' +
@@ -6623,6 +6863,7 @@
                 '<div class="tc-history-meta">Ставка ' + escHtml(fields.rate == null || fields.rate === '' ? '—' : fields.rate) + ' ' + escHtml(unit) +
                 ' · дохід ' + (fields.revenue == null ? '—' : formatMoney(fields.revenue)) +
                 ' · прибуток ' + (fields.profit == null ? '—' : formatMoney(fields.profit)) +
+                ' · факт ' + (tripActuals[row.id] ? formatMoney(tripActuals[row.id].profit) : '—') +
                 ' · ' + (fields.perKm === null ? '—' : formatHistoryNum(fields.perKm, 0)) + ' грн/км</div>' +
                 historyActions(row) + '</article>';
         }).join('');
@@ -7615,7 +7856,7 @@
         savedCalculations = [
             {
                 id: 'preview-1', userId: 'preview-owner', routeName: 'Умань — Ізмаїл',
-                createdAt: '2026-10-02T08:00:00.000Z', status: 'accepted',
+                createdAt: '2026-10-02T08:00:00.000Z', status: 'accepted', overheadTotal: 4100,
                 inputs: { origin: 'Умань', destination: 'Ізмаїл', clientName: 'Агросвіт', returnMode: 'разовий', dist: '640', podachaDist: '20', carsCount: '2', normWeight: '22', volume: '44', daysPerTrip: '1.5', rate: '890', contractCurrency: 'UAH', trailerType: 'зерновоз' },
                 grossIncome: 39160, netProfit: 8420, trailerType: 'зерновоз'
             },
@@ -7627,6 +7868,9 @@
             }
         ];
         routeTemplates = [{ id: 'preview-template', name: 'Умань → Ізмаїл', scope: 'personal', params: { origin: 'Умань', destination: 'Ізмаїл', dist: '640', carsCount: '2', daysPerTrip: '1.5', trailerType: 'зерновоз' }, owner_user_id: 'preview-owner', use_count: 0 }];
+        tripActuals = {
+            'preview-1': { revenue: 40000, costs: 28900, plannedOverhead: 4100, profit: 7000 }
+        };
         currentUserId = 'preview-owner';
         currentOrgRole = 'owner';
         teamState.members = [
