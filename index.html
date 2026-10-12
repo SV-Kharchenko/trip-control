@@ -1237,6 +1237,11 @@
             margin: -6px 0 14px; text-decoration: none;
         }
         .auth-forgot:hover { color: #3db3b3; text-decoration: underline; }
+        .auth-email-hint {
+            display: none; margin: -4px 0 12px; text-align: left;
+            font-size: 0.72rem; line-height: 1.35; color: var(--text-muted);
+        }
+        #auth-form[data-mode="signup"] .auth-email-hint { display: block; }
         button.auth-forgot {
             background: none; border: none; padding: 0; cursor: pointer; width: 100%;
             font: inherit; font-size: 0.75rem;
@@ -2396,6 +2401,8 @@
         body.layout-studio[data-theme="paper"] .auth-tagline { color: #0B2629; }
         body.layout-studio[data-theme="control"] .auth-tagline-sub { color: #8ea7a3; }
         body.layout-studio[data-theme="paper"] .auth-tagline-sub { color: #5B6C69; }
+        body.layout-studio[data-theme="control"] .auth-email-hint { color: #8ea7a3; }
+        body.layout-studio[data-theme="paper"] .auth-email-hint { color: #5B6C69; }
         body.layout-studio[data-theme="control"] #auth-screen input,
         body.layout-studio[data-theme="control"] #auth-screen select {
             background: #06262A;
@@ -2477,6 +2484,7 @@
             <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
                 <label class="visually-hidden" for="auth-email">Email</label>
                 <input type="email" id="auth-email" name="email" placeholder="Email" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" required>
+                <p class="auth-email-hint" id="auth-email-hint">Якщо заповните, сюди приходитиме тижневий звіт.</p>
             </div>
             <div class="form-row two-cols" id="auth-password-row" style="margin-bottom: 8px; grid-template-columns: 1fr;">
                 <label class="visually-hidden" for="auth-password">Пароль</label>
