@@ -4,6 +4,7 @@
 |--------|-----|----------------|
 | Supabase **anon** / publishable key | `index.html` | Так (з RLS) |
 | Supabase **service_role** | Vercel env `SUPABASE_SERVICE_ROLE_KEY` лише в `/api/*` | **Ні** |
+| `INVITE_SIGNING_SECRET` | Vercel env, лише підпис посилань `/api/team` | **Ні** |
 | Google Maps browser key | `index.html` + referrer/API restrictions | Так (обмежений) |
 | `BILLING_WEBHOOK_SECRET` | Vercel env + header webhook | **Ні** |
 

@@ -6,6 +6,7 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Logist seats only. The owner is a fourth person and does not consume one.
 const MAX_TEAM_SEATS = 3;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const TEAM_ROLES = new Set(['owner', 'logist']);
@@ -32,8 +33,16 @@ function inviteSigningPayload(invite) {
     ].join('|');
 }
 
-export function inviteSignature(invite, secret = process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return createHmac('sha256', String(secret || ''))
+function inviteSigningSecret(secret) {
+    const value = secret === undefined ? process.env.INVITE_SIGNING_SECRET : secret;
+    if (!value) {
+        throw new HttpError(500, 'INVITE_SECRET_MISSING', 'Не налаштовано INVITE_SIGNING_SECRET.');
+    }
+    return String(value);
+}
+
+export function inviteSignature(invite, secret) {
+    return createHmac('sha256', inviteSigningSecret(secret))
         .update(inviteSigningPayload(invite))
         .digest('base64url');
 }
@@ -134,7 +143,7 @@ export function inviteRpcHttpError(message) {
         );
     }
     if (text.includes('MEMBER_LIMIT')) {
-        return new HttpError(409, 'MEMBER_LIMIT', `У команді доступно лише ${MAX_TEAM_SEATS} місця, включно з активними запрошеннями.`);
+        return new HttpError(409, 'MEMBER_LIMIT', `Можна мати лише ${MAX_TEAM_SEATS} логістів, включно з активними запрошеннями.`);
     }
     return null;
 }
@@ -151,12 +160,13 @@ async function audit(actorId, orgId, action, entity, entityId, detail = null) {
     if (error) console.warn('team audit failed:', error.message);
 }
 
-async function activeMemberCount(orgId, excludeUserId = null) {
+async function activeLogistCount(orgId, excludeUserId = null) {
     let query = supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .eq('org_id', orgId)
-        .eq('member_status', 'active');
+        .eq('member_status', 'active')
+        .eq('org_role', 'logist');
     if (excludeUserId) query = query.neq('id', excludeUserId);
     const { count, error } = await query;
     if (error) throw error;
@@ -178,11 +188,11 @@ async function pendingInviteCount(orgId, excludeInviteId = null) {
 }
 
 async function teamSeatUsage(orgId, excludeInviteId = null) {
-    const [active, pending] = await Promise.all([
-        activeMemberCount(orgId),
+    const [logists, pending] = await Promise.all([
+        activeLogistCount(orgId),
         pendingInviteCount(orgId, excludeInviteId)
     ]);
-    return { active, pending, used: active + pending, limit: MAX_TEAM_SEATS };
+    return { logists, pending, used: logists + pending, limit: MAX_TEAM_SEATS };
 }
 
 async function listTeam(actor) {
@@ -331,7 +341,7 @@ async function inviteMember(actor, body) {
 
     const seats = await teamSeatUsage(orgId);
     if (seats.used >= seats.limit) {
-        throw new HttpError(409, 'MEMBER_LIMIT', `У команді вже зайнято ${seats.used} з ${seats.limit} місць.`);
+        throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
     }
 
     const rawToken = randomBytes(32).toString('base64url');
@@ -555,7 +565,7 @@ async function resendInvite(actor, body) {
 
     const seats = await teamSeatUsage(actor.profile.org_id, inviteId);
     if (seats.used >= seats.limit) {
-        throw new HttpError(409, 'MEMBER_LIMIT', `У команді вже зайнято ${seats.used} з ${seats.limit} місць.`);
+        throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
     }
 
     const now = new Date();

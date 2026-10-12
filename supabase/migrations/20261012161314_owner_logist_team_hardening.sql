@@ -1,5 +1,6 @@
 -- Keep the organization model deliberately small: owner + logist only.
--- Pending, non-expired invitations reserve one of the three team seats.
+-- One owner plus at most three logists. Pending, non-expired invitations
+-- reserve a logist seat. The owner is not one of those three seats.
 
 UPDATE public.profiles
 SET org_role = CASE WHEN org_role = 'owner' THEN 'owner' ELSE 'logist' END
@@ -112,7 +113,7 @@ REVOKE ALL ON FUNCTION public.protect_company_settings_privileges()
 DROP FUNCTION IF EXISTS public.is_org_admin();
 
 -- ---------------------------------------------------------------------------
--- Three seats, including live invitations
+-- Three logist seats, including live invitations. The owner is extra.
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.enforce_org_seat_limit()
@@ -138,7 +139,9 @@ BEGIN
 
   SELECT
     (SELECT count(*) FROM public.profiles AS p
-      WHERE p.org_id = NEW.org_id AND p.member_status = 'active')
+      WHERE p.org_id = NEW.org_id
+        AND p.member_status = 'active'
+        AND p.org_role = 'logist')
     +
     (SELECT count(*) FROM public.org_invites AS oi
       WHERE oi.org_id = NEW.org_id
@@ -151,7 +154,7 @@ BEGIN
   IF v_used >= 3 THEN
     RAISE EXCEPTION 'MEMBER_LIMIT'
       USING ERRCODE = 'P0001',
-            DETAIL = 'Active members and live invitations may use at most three seats';
+            DETAIL = 'One owner and at most three logists, including live invitations';
   END IF;
 
   RETURN NEW;
@@ -168,7 +171,7 @@ CREATE TRIGGER trg_enforce_org_seat_limit
   FOR EACH ROW EXECUTE FUNCTION public.enforce_org_seat_limit();
 
 -- Invitation acceptance keeps its organization lock and enforces the same
--- three-active-member ceiling transactionally.
+-- three-logist ceiling. The owner does not consume a logist seat.
 CREATE OR REPLACE FUNCTION public.accept_org_invite(
   p_token_hash text,
   p_user_id uuid,
@@ -230,6 +233,7 @@ BEGIN
   FROM public.profiles AS p
   WHERE p.org_id = v_invite.org_id
     AND p.member_status = 'active'
+    AND p.org_role = 'logist'
     AND p.id <> p_user_id;
   IF v_target_member_count >= 3 THEN
     RAISE EXCEPTION 'MEMBER_LIMIT' USING ERRCODE = 'P0001';

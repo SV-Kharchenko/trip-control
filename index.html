@@ -948,6 +948,17 @@
         #admin-screen .adm-badge.on { color: var(--success); border-color: var(--success); }
         #admin-screen .adm-badge.off { color: var(--warning); border-color: var(--warning); }
         #admin-screen .adm-badge.blocked { color: var(--danger); border-color: var(--danger); }
+        .auth-tabs {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 14px;
+        }
+        .auth-tabs button {
+            border: 1px solid var(--border-color); background: transparent; color: var(--text-muted);
+            border-radius: 8px; padding: 8px 10px; cursor: pointer; font-weight: 700; font-size: 0.82rem;
+        }
+        .auth-tabs button.on {
+            color: var(--text-main); border-color: var(--success);
+            background: color-mix(in srgb, var(--success) 12%, transparent);
+        }
         .auth-mode-title {
             margin: 2px 0 8px; color: var(--text-muted); font-size: 0.74rem; text-align: left; font-weight: 700;
         }
@@ -2457,6 +2468,10 @@
         <p class="auth-tagline">Координуй маршрут. Керуй результатом.</p>
         <p class="auth-tagline-sub">Після реєстрації — демо: <b>5 розрахунків на добу</b>.</p>
         <div class="auth-divider"></div>
+        <div class="auth-tabs" role="tablist" aria-label="Вхід або реєстрація">
+            <button type="button" id="auth-tab-login" class="on" role="tab" aria-selected="true" onclick="setAuthTab('login')">Увійти</button>
+            <button type="button" id="auth-tab-signup" role="tab" aria-selected="false" onclick="setAuthTab('signup')">Створити акаунт</button>
+        </div>
 
         <form id="auth-form" data-mode="login" novalidate onsubmit="return onAuthSubmit(event)">
             <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
@@ -2482,13 +2497,13 @@
                     </label>
                     <label class="auth-mode-card">
                         <input type="radio" name="work-mode" value="team">
-                        <strong>👥 Є логісти</strong>
+                        <strong>👥 Є логісти / диспетчери</strong>
                         <small>Окремі входи, ролі, автори розрахунків і контроль доступу.</small>
                     </label>
                 </div>
                 <div class="form-row two-cols" style="margin-bottom: 10px; grid-template-columns: 1fr;">
                     <label class="visually-hidden" for="auth-ownership">Форма власності</label>
-                    <select id="auth-ownership" name="ownership" autocomplete="organization">
+                    <select id="auth-ownership" name="ownership" autocomplete="organization" onchange="syncSignupTaxOptions()">
                         <option value="fop" selected>Форма власності: ФОП</option>
                         <option value="tov">Форма власності: ТОВ</option>
                         <option value="other">Форма власності: інше</option>
@@ -2510,7 +2525,7 @@
                 </div>
             </div>
             <button type="submit" id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;">🧭 Увійти</button>
-            <button type="button" id="auth-signup-btn" class="btn" style="width: 100%;" onclick="handleAuth('signup')">Зареєструватися</button>
+            <button type="button" id="auth-signup-btn" class="btn" style="width: 100%;" hidden onclick="setAuthTab('signup')">Створити акаунт</button>
             <button type="button" id="auth-back-btn" class="btn" style="width: 100%;" hidden onclick="exitResetMode()">Назад до входу</button>
         </form>
 
@@ -2566,7 +2581,7 @@
             <div class="tc-actions">
                 <nav class="tc-studio-nav" aria-label="Розділи">
                     <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
-                    <button type="button" id="studio-nav-overview" class="team-feature" onclick="setStudioView('overview')">Огляд</button>
+                    <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
                 </nav>
                 <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Океан</span></button>
                 <button class="tc-action-btn" type="button" title="Особистий кабінет" onclick="openCabinet()">📂 <span class="tc-action-label">Кабінет</span></button>
@@ -3212,7 +3227,7 @@
     let currentOrgId = null;
     let currentOrgRole = 'owner';
     let currentWorkMode = 'solo';
-    let teamState = { members: [], invites: [], logists_see_all: false, active_owner_count: 1, seats: { active: 1, pending: 0, used: 1, limit: 3 } };
+    let teamState = { members: [], invites: [], logists_see_all: false, active_owner_count: 1, seats: { logists: 0, pending: 0, used: 0, limit: 3 } };
     let companyName = '';
     let companyTax = 'фоп';
     let companySettings = {}; // company_settings.settings (операційні норми, без PII)
@@ -3632,15 +3647,15 @@
         document.body.classList.toggle('org-logist', currentOrgRole === 'logist');
         const badge = document.getElementById('tc-role-badge');
         if (badge) badge.textContent = roleLabel(currentOrgRole);
-        if (!isTeam && document.body.getAttribute('data-studio-view') === 'overview') {
-            setStudioView('calc');
+        if (document.body.classList.contains('layout-studio') && document.body.getAttribute('data-studio-view') === 'overview') {
+            renderStudioOverview();
         }
         populateAuthorFilter();
     }
 
     async function loadTeamState(opts) {
         if (currentWorkMode !== 'team') {
-            teamState = { members: [], invites: [], logists_see_all: false, active_owner_count: 1, seats: { active: 1, pending: 0, used: 1, limit: 3 } };
+            teamState = { members: [], invites: [], logists_see_all: false, active_owner_count: 1, seats: { logists: 0, pending: 0, used: 0, limit: 3 } };
             populateAuthorFilter();
             return teamState;
         }
@@ -3933,9 +3948,46 @@
         const msg = document.getElementById('auth-message');
         if (msg && !msg.innerText) msg.innerText = 'Посилання дійсне. Задайте новий пароль.';
     }
+    function setAuthTabsVisible(visible) {
+        const tabs = document.querySelector('.auth-tabs');
+        if (tabs) tabs.hidden = !visible;
+    }
+    function syncSignupTaxOptions() {
+        const ownership = document.getElementById('auth-ownership');
+        const tax = document.getElementById('auth-tax');
+        if (!ownership || !tax) return;
+        const hideFop = ownership.value === 'tov';
+        Array.from(tax.options).forEach(option => {
+            const isFopGroup = option.value === 'фоп' || /фоп/i.test(option.textContent || '');
+            option.hidden = hideFop && isFopGroup;
+            option.disabled = hideFop && isFopGroup;
+        });
+        const selected = tax.options[tax.selectedIndex];
+        if (hideFop && selected && (selected.disabled || selected.value === 'фоп')) {
+            const fallback = Array.from(tax.options).find(option => !option.disabled);
+            if (fallback) tax.value = fallback.value;
+        }
+    }
+    function setAuthTab(tab) {
+        const signup = tab === 'signup';
+        const loginTab = document.getElementById('auth-tab-login');
+        const signupTab = document.getElementById('auth-tab-signup');
+        if (loginTab) {
+            loginTab.classList.toggle('on', !signup);
+            loginTab.setAttribute('aria-selected', String(!signup));
+        }
+        if (signupTab) {
+            signupTab.classList.toggle('on', signup);
+            signupTab.setAttribute('aria-selected', String(signup));
+        }
+        setAuthTabsVisible(true);
+        if (signup) showSignupMode();
+        else exitSignupMode();
+    }
     function enterResetMode() {
         const form = document.getElementById('auth-form');
         form.dataset.mode = 'reset';
+        setAuthTabsVisible(false);
         document.getElementById('signup-extra').style.display = 'none';
         document.getElementById('auth-legal-box').classList.remove('show');
         document.getElementById('auth-password-row').hidden = true;
@@ -3947,18 +3999,9 @@
         document.getElementById('auth-email').focus();
     }
     function exitResetMode() {
-        const form = document.getElementById('auth-form');
-        form.dataset.mode = 'login';
         document.getElementById('auth-password-row').hidden = false;
-        document.getElementById('auth-forgot-btn').hidden = false;
-        document.getElementById('auth-signup-btn').hidden = false;
         document.getElementById('auth-back-btn').hidden = true;
-        document.getElementById('signup-extra').style.display = 'none';
-        document.getElementById('auth-legal-box').classList.remove('show');
-        document.getElementById('auth-signup-btn').textContent = 'Зареєструватися';
-        document.getElementById('auth-login-btn').innerHTML = '🧭 Увійти';
-        document.getElementById('auth-password').setAttribute('autocomplete', 'current-password');
-        document.getElementById('auth-message').innerText = '';
+        setAuthTab('login');
     }
     function showSignupMode() {
         const form = document.getElementById('auth-form');
@@ -3966,15 +4009,18 @@
         const loginBtn = document.getElementById('auth-login-btn');
         form.dataset.mode = 'signup';
         box.style.display = 'block';
+        document.getElementById('auth-password-row').hidden = false;
         document.getElementById('auth-password').setAttribute('autocomplete', 'new-password');
         document.getElementById('auth-forgot-btn').hidden = true;
         document.getElementById('auth-legal-box').classList.add('show');
-        document.getElementById('auth-signup-btn').innerText = 'Створити акаунт';
-        loginBtn.type = 'button';
-        loginBtn.innerText = '← Назад до входу';
-        loginBtn.onclick = exitSignupMode;
-        document.getElementById('auth-message').innerText =
-            'Оберіть режим роботи та заповніть дані. Ніяких квестів із прихованими полями.';
+        document.getElementById('auth-signup-btn').hidden = true;
+        document.getElementById('auth-back-btn').hidden = true;
+        loginBtn.hidden = false;
+        loginBtn.type = 'submit';
+        loginBtn.onclick = null;
+        loginBtn.textContent = 'Створити акаунт';
+        syncSignupTaxOptions();
+        document.getElementById('auth-message').innerText = '';
     }
     function exitSignupMode() {
         const form = document.getElementById('auth-form');
@@ -3982,12 +4028,15 @@
         form.dataset.mode = 'login';
         document.getElementById('signup-extra').style.display = 'none';
         document.getElementById('auth-legal-box').classList.remove('show');
+        document.getElementById('auth-password-row').hidden = false;
         document.getElementById('auth-forgot-btn').hidden = false;
-        document.getElementById('auth-signup-btn').innerText = 'Зареєструватися';
+        document.getElementById('auth-signup-btn').hidden = true;
+        document.getElementById('auth-back-btn').hidden = true;
         document.getElementById('auth-password').setAttribute('autocomplete', 'current-password');
+        loginBtn.hidden = false;
         loginBtn.type = 'submit';
-        loginBtn.innerHTML = '🧭 Увійти';
         loginBtn.onclick = null;
+        loginBtn.innerHTML = '🧭 Увійти';
         document.getElementById('auth-message').innerText = '';
     }
     function onAuthSubmit(e) {
@@ -4046,12 +4095,6 @@
 
     async function handleAuth(type) {
         const authMsg = document.getElementById('auth-message');
-        const box = document.getElementById('signup-extra');
-        if (type === 'signup' && box.style.display !== 'block') {
-            showSignupMode();
-            return;
-        }
-
         const email = document.getElementById('auth-email').value.trim();
         const password = document.getElementById('auth-password').value;
 
@@ -4164,7 +4207,7 @@
     }
     function setStudioView(view) {
         if (!document.body.classList.contains('layout-studio')) return;
-        const overview = view === 'overview' && currentWorkMode === 'team';
+        const overview = view === 'overview';
         document.body.setAttribute('data-studio-view', overview ? 'overview' : 'calc');
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
@@ -4868,7 +4911,7 @@
         if (currentWorkMode === 'team') {
             html += '<div class="cab-panel" data-panel="team"><div class="cab-card">' +
                 '<div class="cab-card-head"><h3>Команда</h3><span class="cab-autosave" id="team-status">Окремі логіни без спільного пароля</span></div>' +
-                '<div class="tc-team-summary"><span>Активні учасники й чинні запрошення займають місця.</span><span class="tc-seat-count" id="team-seat-count">… з 3</span></div>' +
+                '<div class="tc-team-summary"><span>Активні логісти й чинні запрошення займають місця. Власник — окремо.</span><span class="tc-seat-count" id="team-seat-count">0 з 3 логістів</span></div>' +
                 (currentOrgRole === 'owner'
                     ? '<div class="tc-team-toolbar">' +
                         '<div class="cab-field"><label for="team-invite-email">Email</label><input type="email" id="team-invite-email" placeholder="logist@example.com"></div>' +
@@ -4998,7 +5041,7 @@
             const disableControl = !canManage || disabled
                 ? ''
                 : canDisable
-                    ? '<button type="button" class="bad" onclick="disableTeamMember(\'' + teamEsc(member.id) + '\')">Відключити</button>'
+                    ? '<button type="button" class="bad" onclick="disableTeamMember(\'' + teamEsc(member.id) + '\', this)">Відключити</button>'
                     : '<button type="button" disabled title="' +
                         teamEsc(isSelf ? 'Не можна відключити власний поточний доступ' : 'Потрібен ще один активний власник') +
                         '">Відключити</button>';
@@ -5023,18 +5066,18 @@
                 (expired ? 'badge-danger' : 'badge-warning') + '">' + (expired ? 'прострочено' : 'очікує') +
                 '</span></div><div class="tc-member-actions"><button type="button" onclick="resendTeamInvite(\'' +
                 teamEsc(invite.id) + '\')">Надіслати ще раз</button><button type="button" class="bad" onclick="revokeTeamInvite(\'' +
-                teamEsc(invite.id) + '\')">Скасувати</button></div></div>';
+                teamEsc(invite.id) + '\', this)">Скасувати</button></div></div>';
         });
         list.innerHTML = rows.concat(inviteRows).join('') || '<div style="color:var(--text-muted);">У команді поки нікого немає.</div>';
         const visibility = document.getElementById('team-see-all');
         if (visibility) visibility.checked = teamState.logists_see_all === true;
         const seats = teamState.seats || { used: 0, limit: 3 };
         const seatCount = document.getElementById('team-seat-count');
-        if (seatCount) seatCount.textContent = seats.used + ' з ' + seats.limit;
+        if (seatCount) seatCount.textContent = seats.used + ' з ' + seats.limit + ' логістів';
         const inviteButton = document.getElementById('team-invite-btn');
         if (inviteButton) {
             inviteButton.disabled = seats.used >= seats.limit;
-            inviteButton.title = inviteButton.disabled ? 'Усі місця вже зайняті учасниками або запрошеннями' : '';
+            inviteButton.title = inviteButton.disabled ? 'Усі 3 місця логістів уже зайняті' : '';
         }
         populateAuthorFilter();
         renderSavedTable();
@@ -5144,32 +5187,50 @@
             renderTeamPanel();
             showToast('Роль оновлено');
         } catch (error) {
-            alert(error.message || 'Не вдалося змінити роль.');
             await loadTeamState({ silent: true }).catch(() => {});
             renderTeamPanel();
+            const status = document.getElementById('team-status');
+            if (status) status.textContent = error.message || 'Не вдалося змінити роль.';
         }
     }
 
-    async function disableTeamMember(userId) {
-        if (!confirm('Відключити доступ цього учасника? Його розрахунки залишаться в компанії.')) return;
+    function teamActionStatus(message) {
+        const status = document.getElementById('team-status');
+        if (status) status.textContent = message;
+    }
+
+    async function disableTeamMember(userId, button) {
+        if (button && button.dataset.confirm !== '1') {
+            button.dataset.confirm = '1';
+            button.textContent = 'Підтвердити відключення';
+            teamActionStatus('Розрахунки учасника залишаться в компанії. Натисніть ще раз, щоб відключити.');
+            return;
+        }
         try {
             await teamApi('POST', { action: 'disable', user_id: userId });
             await loadTeamState({ silent: true });
             renderTeamPanel();
             showToast('Доступ відключено');
         } catch (error) {
-            alert(error.message || 'Не вдалося відключити учасника.');
+            teamActionStatus(error.message || 'Не вдалося відключити учасника.');
+            if (button) button.dataset.confirm = '';
         }
     }
 
-    async function revokeTeamInvite(inviteId) {
-        if (!confirm('Відкликати це запрошення?')) return;
+    async function revokeTeamInvite(inviteId, button) {
+        if (button && button.dataset.confirm !== '1') {
+            button.dataset.confirm = '1';
+            button.textContent = 'Підтвердити скасування';
+            teamActionStatus('Натисніть ще раз, щоб скасувати запрошення.');
+            return;
+        }
         try {
             await teamApi('POST', { action: 'revoke', invite_id: inviteId });
             await loadTeamState({ silent: true });
             renderTeamPanel();
         } catch (error) {
-            alert(error.message || 'Не вдалося відкликати запрошення.');
+            teamActionStatus(error.message || 'Не вдалося відкликати запрошення.');
+            if (button) button.dataset.confirm = '';
         }
     }
 
@@ -5199,7 +5260,7 @@
             showToast('Видимість розрахунків оновлено');
         } catch (error) {
             if (checkbox) checkbox.checked = teamState.logists_see_all === true;
-            alert(error.message || 'Не вдалося змінити налаштування.');
+            teamActionStatus(error.message || 'Не вдалося змінити налаштування.');
         }
     }
 
@@ -5982,12 +6043,12 @@
         card.hidden = !isTeam;
         seatsEl.hidden = !isTeam;
         if (!isTeam) {
-            lead.textContent = 'Зведення по збережених розрахунках: кількість, середня маржа, грн/км і збиткові рейси.';
+            lead.textContent = 'Особиста статистика збережених розрахунків: кількість, середня маржа, грн/км і збиткові рейси.';
             return;
         }
 
         const seats = teamState.seats || { used: 0, limit: 3 };
-        seatsEl.textContent = seats.used + ' з ' + seats.limit + ' місць';
+        seatsEl.textContent = seats.used + ' з ' + seats.limit + ' логістів';
         lead.textContent = currentOrgRole === 'owner'
             ? 'Зведення по компанії та результати кожного автора збережених розрахунків.'
             : 'Ваші результати у команді: кількість рейсів, середня маржа та збиткові рейси.';

@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(29);
+SELECT plan(28);
 
 -- Fixed fixture IDs keep the assertions readable. Everything is rolled back.
 SELECT set_config(
@@ -204,22 +204,6 @@ SELECT throws_ok(
   'last active owner cannot be demoted'
 );
 
-SELECT throws_ok(
-  $$INSERT INTO public.org_invites (
-      org_id, email, org_role, token_hash, invited_by, expires_at
-    ) VALUES (
-      '10000000-0000-0000-0000-000000000001', 'full@example.com', 'logist',
-      repeat('a', 64), '00000000-0000-0000-0000-000000000001', now() + interval '7 days'
-    )$$,
-  'P0001',
-  'MEMBER_LIMIT',
-  'three active members leave no seat for a pending invitation'
-);
-
-UPDATE public.profiles
-SET member_status = 'disabled'
-WHERE id = '00000000-0000-0000-0000-000000000003';
-
 SELECT lives_ok(
   $$INSERT INTO public.org_invites (
       org_id, email, org_role, token_hash, invited_by, expires_at
@@ -227,7 +211,7 @@ SELECT lives_ok(
       '10000000-0000-0000-0000-000000000001', 'reserved@example.com', 'logist',
       repeat('b', 64), '00000000-0000-0000-0000-000000000001', now() + interval '7 days'
     )$$,
-  'a pending invitation reserves the third team seat'
+  'owner plus two active logists still leaves the third logist seat'
 );
 
 SELECT throws_ok(
@@ -239,7 +223,7 @@ SELECT throws_ok(
     )$$,
   'P0001',
   'MEMBER_LIMIT',
-  'pending invitations count toward the three-seat limit'
+  'pending invitations count toward the three-logist limit'
 );
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}', true);

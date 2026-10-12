@@ -19,7 +19,7 @@ WHERE work_mode IS NULL OR work_mode NOT IN ('solo', 'team');
 
 UPDATE public.profiles
 SET org_role = 'owner'
-WHERE org_role IS NULL OR org_role NOT IN ('owner', 'logist');
+WHERE org_role IS NULL OR org_role NOT IN ('owner', 'manager', 'logist');
 
 UPDATE public.profiles
 SET member_status = 'active'
@@ -49,7 +49,7 @@ BEGIN
   ) THEN
     ALTER TABLE public.profiles
       ADD CONSTRAINT profiles_org_role_check
-      CHECK (org_role IN ('owner', 'logist'));
+      CHECK (org_role IN ('owner', 'manager', 'logist'));
   END IF;
 
   IF NOT EXISTS (
@@ -115,6 +115,16 @@ AS $$
   SELECT coalesce(public.current_org_role() = 'owner', false);
 $$;
 
+CREATE OR REPLACE FUNCTION public.is_org_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT coalesce(public.current_org_role() IN ('owner', 'manager'), false);
+$$;
+
 CREATE OR REPLACE FUNCTION public.org_logists_see_all()
 RETURNS boolean
 LANGUAGE sql
@@ -136,15 +146,18 @@ $$;
 REVOKE ALL ON FUNCTION public.current_org_id() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.current_org_role() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.is_org_owner() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.is_org_admin() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.org_logists_see_all() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.current_org_id() FROM anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.current_org_role() FROM anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.is_org_owner() FROM anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.is_org_admin() FROM anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.org_logists_see_all() FROM anon, authenticated, service_role;
 
 GRANT EXECUTE ON FUNCTION public.current_org_id() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.current_org_role() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.is_org_owner() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.is_org_admin() TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.org_logists_see_all() TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
@@ -326,6 +339,15 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  IF public.current_org_role() = 'manager'
+     AND coalesce(NEW.settings -> 'logists_see_all', 'false'::jsonb)
+         IS DISTINCT FROM
+         coalesce(CASE WHEN TG_OP = 'UPDATE' THEN OLD.settings -> 'logists_see_all' END, 'false'::jsonb)
+  THEN
+    RAISE EXCEPTION 'LOGIST_VISIBILITY_OWNER_ONLY'
+      USING ERRCODE = '42501';
+  END IF;
+
   RETURN NEW;
 END;
 $$;
@@ -410,7 +432,7 @@ CREATE TABLE IF NOT EXISTS public.org_invites (
   org_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   email text NOT NULL,
   org_role text NOT NULL DEFAULT 'logist'
-    CHECK (org_role = 'logist'),
+    CHECK (org_role IN ('manager', 'logist')),
   token_hash text NOT NULL UNIQUE,
   invited_by uuid NOT NULL REFERENCES auth.users(id),
   expires_at timestamptz NOT NULL,
@@ -430,13 +452,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS org_invites_pending_email_uidx
 
 ALTER TABLE public.org_invites ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS org_invites_select_owner ON public.org_invites;
-CREATE POLICY org_invites_select_owner ON public.org_invites
+DROP POLICY IF EXISTS org_invites_select_admin ON public.org_invites;
+CREATE POLICY org_invites_select_admin ON public.org_invites
   FOR SELECT TO authenticated
-  USING (org_id = public.current_org_id() AND public.is_org_owner());
+  USING (org_id = public.current_org_id() AND public.is_org_admin());
 
-DROP POLICY IF EXISTS org_invites_insert_owner ON public.org_invites;
-DROP POLICY IF EXISTS org_invites_update_owner ON public.org_invites;
+DROP POLICY IF EXISTS org_invites_insert_admin ON public.org_invites;
+DROP POLICY IF EXISTS org_invites_update_admin ON public.org_invites;
 
 -- Invitation mutations are server-only: otherwise a client could mint a
 -- chosen token hash and bypass the email-delivery flow.
@@ -504,7 +526,7 @@ BEGIN
   WHERE p.org_id = v_invite.org_id
     AND p.member_status = 'active'
     AND p.id <> p_user_id;
-  IF v_target_member_count >= 3 THEN
+  IF v_target_member_count >= 20 THEN
     RAISE EXCEPTION 'MEMBER_LIMIT' USING ERRCODE = 'P0001';
   END IF;
 
@@ -698,21 +720,21 @@ DROP POLICY IF EXISTS company_settings_all ON public.company_settings;
 DROP POLICY IF EXISTS company_settings_select_own ON public.company_settings;
 DROP POLICY IF EXISTS company_settings_insert_own ON public.company_settings;
 DROP POLICY IF EXISTS company_settings_update_own ON public.company_settings;
-DROP POLICY IF EXISTS company_settings_insert_owner ON public.company_settings;
-DROP POLICY IF EXISTS company_settings_update_owner ON public.company_settings;
+DROP POLICY IF EXISTS company_settings_insert_admin ON public.company_settings;
+DROP POLICY IF EXISTS company_settings_update_admin ON public.company_settings;
 
 CREATE POLICY company_settings_select_own ON public.company_settings
   FOR SELECT TO authenticated
   USING (org_id = public.current_org_id() OR public.is_platform_admin());
 
-CREATE POLICY company_settings_insert_owner ON public.company_settings
+CREATE POLICY company_settings_insert_admin ON public.company_settings
   FOR INSERT TO authenticated
-  WITH CHECK (org_id = public.current_org_id() AND public.is_org_owner());
+  WITH CHECK (org_id = public.current_org_id() AND public.is_org_admin());
 
-CREATE POLICY company_settings_update_owner ON public.company_settings
+CREATE POLICY company_settings_update_admin ON public.company_settings
   FOR UPDATE TO authenticated
-  USING (org_id = public.current_org_id() AND public.is_org_owner())
-  WITH CHECK (org_id = public.current_org_id() AND public.is_org_owner());
+  USING (org_id = public.current_org_id() AND public.is_org_admin())
+  WITH CHECK (org_id = public.current_org_id() AND public.is_org_admin());
 
 DROP POLICY IF EXISTS ocp_select_own ON public.org_company_profiles;
 DROP POLICY IF EXISTS ocp_insert_own ON public.org_company_profiles;
@@ -751,7 +773,7 @@ CREATE POLICY calculations_select_role ON public.calculations
   USING (
     org_id = public.current_org_id()
     AND (
-      public.is_org_owner()
+      public.is_org_admin()
       OR user_id = auth.uid()
       OR public.org_logists_see_all()
     )
@@ -768,18 +790,18 @@ CREATE POLICY calculations_update_role ON public.calculations
   FOR UPDATE TO authenticated
   USING (
     org_id = public.current_org_id()
-    AND (public.is_org_owner() OR user_id = auth.uid())
+    AND (public.is_org_admin() OR user_id = auth.uid())
   )
   WITH CHECK (
     org_id = public.current_org_id()
-    AND (public.is_org_owner() OR user_id = auth.uid())
+    AND (public.is_org_admin() OR user_id = auth.uid())
   );
 
 CREATE POLICY calculations_delete_role ON public.calculations
   FOR DELETE TO authenticated
   USING (
     org_id = public.current_org_id()
-    AND (public.is_org_owner() OR user_id = auth.uid())
+    AND (public.is_org_admin() OR user_id = auth.uid())
   );
 
 -- Expose only the member directory fields needed by the UI. The invoker view

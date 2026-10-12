@@ -49,6 +49,27 @@ test('invite tokens are stored as deterministic hashes, not plaintext', () => {
     assert.notEqual(hash, tokenHash(token + 'x'));
 });
 
+test('invite links are signed with INVITE_SIGNING_SECRET, not the service role key', () => {
+    const previousInvite = process.env.INVITE_SIGNING_SECRET;
+    const previousService = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    process.env.INVITE_SIGNING_SECRET = 'invite-signing-secret';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    const invite = {
+        id: '10000000-0000-0000-0000-000000000001',
+        email: 'logist@example.com',
+        org_role: 'logist',
+        expires_at: '2026-10-19T16:00:00.000Z'
+    };
+    const token = signedInviteToken(invite);
+    assert.equal(signedInviteTokenIsValid(token, invite), true);
+    assert.equal(signedInviteTokenIsValid(token, invite, 'test-service-role-key'), false);
+    delete process.env.INVITE_SIGNING_SECRET;
+    assert.throws(() => signedInviteToken(invite), (error) => error.code === 'INVITE_SECRET_MISSING');
+    if (previousInvite === undefined) delete process.env.INVITE_SIGNING_SECRET;
+    else process.env.INVITE_SIGNING_SECRET = previousInvite;
+    process.env.SUPABASE_SERVICE_ROLE_KEY = previousService;
+});
+
 test('signed invite links cannot be forged or reused after resend', () => {
     const invite = {
         id: '10000000-0000-0000-0000-000000000001',
