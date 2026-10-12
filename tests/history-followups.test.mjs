@@ -29,7 +29,11 @@ test('trip length uses Ukrainian day plurals', () => {
     assert.equal(ukDaysLabel(11), 'діб');
     assert.equal(ukDaysLabel(14), 'діб');
     assert.equal(ukDaysLabel(25), 'діб');
-    assert.equal(ukDaysLabel(1.5), 'діб');
+    assert.equal(ukDaysLabel(1.5), 'доби');
+    assert.equal(ukDaysLabel(0.5), 'доби');
+    assert.equal(ukDaysLabel(2.5), 'доби');
+    assert.equal(ukDaysLabel(4.5), 'доби');
+    assert.equal(ukDaysLabel(11.5), 'доби');
     assert.equal(ukDaysLabel('2'), 'доби');
 });
 

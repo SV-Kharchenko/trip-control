@@ -1003,6 +1003,11 @@
         .tc-history-tools .tc-history-search { flex: 2 1 200px; }
         .tc-history-tools label.team-feature { flex: 1 1 160px; display: none !important; }
         body.team-mode .tc-history-tools label.team-feature { display: flex !important; gap: 6px; align-items: center; }
+        #fact-alert-label {
+            display: inline-flex; flex: 0 0 auto; gap: 6px; align-items: center; font-size: 0.75rem;
+        }
+        #fact-alert-label[hidden] { display: none; }
+        #fact-alert-label input { width: 4.2rem; flex: none; }
         .tc-template-box { margin: 0 0 12px; }
         .tc-template-head, .tc-template-form {
             display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;
@@ -3256,7 +3261,8 @@
                 <option value="km">За кілометражем</option>
             </select>
             <label id="fact-alert-label" for="fact-alert-pct">Поріг, %
-                <input type="number" id="fact-alert-pct" min="0" max="100" step="1" value="10" onchange="saveFactAlertPct()">
+                <input type="number" id="fact-alert-pct" min="0" max="100" step="1" value="10">
+                <span class="tc-history-actions"><button type="button" id="fact-alert-save" onclick="saveFactAlertPct()">Зберегти</button></span>
             </label>
             <label class="team-feature" for="saved-author-filter">Автор
                 <select id="saved-author-filter" onchange="historyPage=0;renderSavedTable()">
@@ -6956,7 +6962,8 @@
     }
     function ukDaysLabel(value) {
         const n = Number(value);
-        if (!Number.isFinite(n) || !Number.isInteger(n)) return 'діб';
+        if (!Number.isFinite(n)) return 'діб';
+        if (!Number.isInteger(n)) return 'доби';
         const abs = Math.abs(n);
         const mod100 = abs % 100;
         const mod10 = abs % 10;
@@ -7180,9 +7187,13 @@
             if (input) input.value = String(factAlertPct());
             return;
         }
+        if (currentOrgRole !== 'owner') return;
         companySettings = Object.assign({}, companySettings, { fact_alert_pct: n });
         renderSavedTable();
-        if (!currentOrgId || currentOrgRole !== 'owner') return;
+        if (!currentOrgId) {
+            showToast('Збережено');
+            return;
+        }
         try {
             const { error } = await supabaseClient.from('company_settings').upsert({
                 org_id: currentOrgId,
@@ -7190,7 +7201,7 @@
                 updated_at: new Date().toISOString()
             }, { onConflict: 'org_id' });
             if (error) throw error;
-            showToast('Поріг відхилення збережено');
+            showToast('Збережено');
         } catch (e) {
             showToast('Поріг не збережено.', 3600);
         }

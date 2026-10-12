@@ -58,4 +58,13 @@ test('fact is stored apart from the plan and the calculator is not called', () =
     const saveBody = html.slice(saveStart, saveEnd);
     assert.equal(saveBody.includes('calculate('), false);
     assert.equal(saveBody.includes('/api/calculate'), false);
+    const thresholdStart = html.indexOf('async function saveFactAlertPct');
+    const thresholdEnd = html.indexOf('function renderSavedRecent');
+    const thresholdBody = html.slice(thresholdStart, thresholdEnd);
+    assert.match(html, /id="fact-alert-save"/);
+    assert.match(html, /onclick="saveFactAlertPct\(\)">Зберегти</);
+    assert.equal(html.includes('fact-alert-pct" min="0" max="100" step="1" value="10" onchange'), false);
+    assert.match(thresholdBody, /showToast\('Збережено'\)/);
+    assert.equal(thresholdBody.includes('calculate('), false);
+    assert.equal(thresholdBody.includes('/api/calculate'), false);
 });
