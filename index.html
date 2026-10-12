@@ -1078,6 +1078,40 @@
         }
         #cabinet-screen .tc-report-box pre[hidden] { display: none; }
         #cabinet-screen .tc-report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        #cabinet-screen .tc-fleet-note {
+            margin: 0 0 10px; color: var(--text-muted); font-size: 0.72rem; line-height: 1.45;
+        }
+        #cabinet-screen #fleet-warn-label {
+            display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 0.75rem;
+        }
+        #cabinet-screen #fleet-warn-label[hidden] { display: none; }
+        #cabinet-screen #fleet-warn-label input { width: 72px; text-align: left; }
+        #cabinet-screen .tc-fleet-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        #cabinet-screen .tc-fleet-add[hidden] { display: none; }
+        #cabinet-screen .tc-fleet-add input { flex: 1 1 160px; width: auto; min-width: 0; text-align: left; }
+        #cabinet-screen .tc-fleet-card {
+            display: grid; gap: 8px; margin-top: 10px; padding: 12px;
+            border: 1px solid var(--border-color); border-radius: 10px;
+            background: color-mix(in srgb, var(--input-bg) 88%, transparent);
+        }
+        #cabinet-screen .tc-fleet-card.is-soon { border-color: var(--warning); }
+        #cabinet-screen .tc-fleet-card.is-overdue { border-color: var(--danger); }
+        #cabinet-screen .tc-fleet-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+        #cabinet-screen .tc-fleet-docs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        #cabinet-screen .tc-fleet-docs label { display: grid; gap: 4px; min-width: 0; font-size: 0.72rem; }
+        #cabinet-screen .tc-fleet-docs input { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; text-align: left; }
+        #cabinet-screen .tc-fleet-docs small { color: var(--text-muted); font-size: 0.68rem; }
+        #cabinet-screen .tc-doc-soon,
+        #cabinet-screen .tc-doc-soon small { color: var(--warning); font-weight: 700; }
+        #cabinet-screen .tc-doc-overdue,
+        #cabinet-screen .tc-doc-overdue small { color: var(--danger); font-weight: 700; }
+        #cabinet-screen .tc-doc-ok small { color: var(--success); }
+        #cabinet-screen .tc-fleet-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        #cabinet-screen .tc-fleet-actions button {
+            background: none; border: 1px solid var(--border-color); color: var(--text-main);
+            border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 0.75rem; font-family: var(--font-ui);
+        }
+        #cabinet-screen .tc-fleet-actions button.is-danger { color: var(--danger); border-color: var(--danger); }
         #cabinet-screen .tc-team-toolbar {
             display: flex; align-items: end; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
         }
@@ -1150,6 +1184,9 @@
             #cabinet-screen .tc-mode-box { grid-template-columns: 1fr; }
             #cabinet-screen .tc-report-actions { display: grid; }
             #cabinet-screen .tc-report-actions .btn { width: 100%; }
+            #cabinet-screen .tc-fleet-docs { grid-template-columns: 1fr; }
+            #cabinet-screen .tc-fleet-add { display: grid; }
+            #cabinet-screen .tc-fleet-add .btn { width: 100%; }
             #cabinet-screen .tc-member-row { grid-template-columns: 1fr; }
             #cabinet-screen .tc-member-actions { justify-content: flex-start; }
             #cabinet-screen .tc-team-summary { align-items: flex-start; }
@@ -3400,6 +3437,8 @@
     let currentUserId = null;
     let isDemo = false;   // true = акаунт без схвалення: обмежений демо-режим
     let uiPreview = false; // true лише для ?preview=1 на localhost, не для демо-акаунта
+    let fleetVehicles = [];
+    let fleetDeleteId = null;
     let isAdmin = false;
     let demoForce = false; // true лише на час одного виклику calculate() з кнопки «Розрахувати»
     let currentOrgId = null;
@@ -3955,6 +3994,7 @@
                     .from('company_settings').select('settings').eq('org_id', profile.org_id).maybeSingle();
                 companySettings = (cs && cs.settings) || {};
             } catch (e) { companySettings = {}; }
+            loadFleetVehicles();
             try {
                 const { data: cp } = await supabaseClient
                     .from('org_company_profiles').select('*').eq('org_id', profile.org_id).maybeSingle();
@@ -5026,6 +5066,7 @@
         const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
         const tabs = [{ id: 'company', title: 'Компанія', ico: '🏢' }]
             .concat(CAB_SECTIONS.map((sec, i) => ({ id: 's' + i, title: sec.tab || sec.title, ico: sec.ico || '◆' })));
+        tabs.push({ id: 'docs', title: 'Документи', ico: '📋' });
         if (currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда', ico: '👥' });
         let html = '<div class="cab-tabs">' + tabs.map((t, i) =>
             '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' +
@@ -5107,6 +5148,15 @@
                 '<div class="cab-card-head"><h3>' + esc(sec.title) + '</h3></div>' +
                 '<div class="cab-grid">' + sec.fields.map(fieldHtml).join('') + '</div></div></div>';
         });
+        html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
+            '<div class="cab-card-head"><h3>Документи автопарку</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
+            '<p class="tc-fleet-note">Необов’язково. Дата закінчення по кожному авто: ОСЦПВ, КАСКО, Зелена карта, техогляд, тахограф, ТО. Калькулятор ці дати не використовує.</p>' +
+            '<label id="fleet-warn-label" for="fleet-warn-days">Попереджати за, днів ' +
+            '<input type="number" id="fleet-warn-days" min="1" max="180" step="1" value="30" onchange="saveFleetWarnDays()"></label>' +
+            '<div class="tc-fleet-add" id="fleet-add">' +
+            '<input type="text" id="fleet-label" maxlength="40" placeholder="Номер, напр. AA1234BB">' +
+            '<button type="button" class="btn" onclick="addFleetVehicle()">Додати авто</button></div>' +
+            '<div id="fleet-list"></div></div></div>';
         if (currentWorkMode === 'team') {
             html += '<div class="cab-panel" data-panel="team"><div class="cab-card">' +
                 '<div class="cab-card-head"><h3>Команда</h3><span class="cab-autosave" id="team-status">Окремі логіни без спільного пароля</span></div>' +
@@ -5128,6 +5178,261 @@
         ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
     }
 
+    const FLEET_DOCS = [
+        ['oscpv_on', 'ОСЦПВ'],
+        ['kasko_on', 'КАСКО'],
+        ['green_card_on', 'Зелена карта'],
+        ['inspection_on', 'Техогляд'],
+        ['tachograph_on', 'Тахограф'],
+        ['service_on', 'ТО']
+    ];
+    const FLEET_COLUMNS = 'id, label, oscpv_on, kasko_on, green_card_on, inspection_on, tachograph_on, service_on';
+    function kyivTodayYmd(now) {
+        const date = now instanceof Date ? now : new Date(now || Date.now());
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Europe/Kyiv',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).formatToParts(date);
+        const year = parts.find(function (part) { return part.type === 'year'; }).value;
+        const month = parts.find(function (part) { return part.type === 'month'; }).value;
+        const day = parts.find(function (part) { return part.type === 'day'; }).value;
+        return year + '-' + month + '-' + day;
+    }
+    function fleetToday() {
+        return uiPreview ? '2026-10-12' : kyivTodayYmd(new Date());
+    }
+    function fleetDaysLeft(expiresOn, todayYmd) {
+        const exp = String(expiresOn || '').slice(0, 10);
+        const today = String(todayYmd || '').slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(exp) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return null;
+        const left = Date.parse(exp + 'T00:00:00Z');
+        const start = Date.parse(today + 'T00:00:00Z');
+        if (!Number.isFinite(left) || !Number.isFinite(start)) return null;
+        return Math.round((left - start) / 86400000);
+    }
+    function fleetWarnDays(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < 1 || n > 180) return 30;
+        return Math.round(n);
+    }
+    function fleetDocState(expiresOn, todayYmd, warnDays) {
+        const days = fleetDaysLeft(expiresOn, todayYmd);
+        if (days === null) return 'empty';
+        if (days < 0) return 'overdue';
+        if (days <= fleetWarnDays(warnDays)) return 'soon';
+        return 'ok';
+    }
+    function fleetDocNote(expiresOn, todayYmd, warnDays) {
+        const state = fleetDocState(expiresOn, todayYmd, warnDays);
+        if (state === 'empty') return 'немає дати';
+        const days = fleetDaysLeft(expiresOn, todayYmd);
+        if (state === 'overdue') {
+            const late = Math.abs(days);
+            return 'прострочено на ' + late + ' ' + ukDaysLabel(late);
+        }
+        if (days === 0) return 'сьогодні';
+        if (state === 'soon') return 'лишилось ' + days + ' ' + ukDaysLabel(days);
+        return 'ще ' + days + ' ' + ukDaysLabel(days);
+    }
+    function fleetWarnValue() {
+        return fleetWarnDays(companySettings && companySettings.doc_warn_days);
+    }
+    function fleetWriteError(error) {
+        const code = String((error && error.code) || '');
+        const message = dbErrorText(error);
+        if (code === '23505' || message.indexOf('fleet_vehicles_label') !== -1) return 'Таке авто вже є.';
+        if (message.indexOf('FLEET_LIMIT') !== -1) return 'У списку вже 100 авто.';
+        if (message.indexOf('FLEET_LABEL') !== -1) return 'Вкажи номер або назву авто, до 40 символів.';
+        if (message.indexOf('FLEET_FORBIDDEN') !== -1) return 'Документи змінює власник.';
+        return 'Не вдалося зберегти документи.';
+    }
+    function emptyFleetDates() {
+        const row = {};
+        FLEET_DOCS.forEach(function (doc) { row[doc[0]] = null; });
+        return row;
+    }
+    function syncFleetWarnControl() {
+        const input = document.getElementById('fleet-warn-days');
+        const label = document.getElementById('fleet-warn-label');
+        const add = document.getElementById('fleet-add');
+        if (label) label.hidden = currentOrgRole !== 'owner';
+        if (add) add.hidden = currentOrgRole !== 'owner';
+        if (input && document.activeElement !== input) input.value = String(fleetWarnValue());
+    }
+    function renderFleetDocs() {
+        syncFleetWarnControl();
+        const list = document.getElementById('fleet-list');
+        const summary = document.getElementById('fleet-summary');
+        if (!list) return;
+        const today = fleetToday();
+        const warn = fleetWarnValue();
+        const owner = currentOrgRole === 'owner';
+        let overdue = 0;
+        let soon = 0;
+        const cards = fleetVehicles.map(function (vehicle) {
+            let tone = '';
+            const fields = FLEET_DOCS.map(function (doc) {
+                const state = fleetDocState(vehicle[doc[0]], today, warn);
+                if (state === 'overdue') { overdue += 1; tone = 'overdue'; }
+                else if (state === 'soon') { soon += 1; if (tone !== 'overdue') tone = 'soon'; }
+                const value = vehicle[doc[0]] ? String(vehicle[doc[0]]).slice(0, 10) : '';
+                return '<label class="tc-doc-' + state + '">' + teamEsc(doc[1]) +
+                    '<input type="date" data-col="' + doc[0] + '" value="' + teamEsc(value) + '"' + (owner ? '' : ' disabled') + '>' +
+                    '<small>' + teamEsc(fleetDocNote(value, today, warn)) + '</small></label>';
+            }).join('');
+            const removeLabel = fleetDeleteId === vehicle.id ? 'Підтвердити' : 'Видалити';
+            const actions = owner
+                ? '<div class="tc-fleet-actions"><button type="button" onclick="saveFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">Зберегти дати</button>' +
+                    '<button type="button" class="is-danger" onclick="removeFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">' + removeLabel + '</button></div>'
+                : '';
+            return '<article class="tc-fleet-card' + (tone ? ' is-' + tone : '') + '" id="fleet-card-' + teamEsc(vehicle.id) + '">' +
+                '<div class="tc-fleet-head"><b>' + teamEsc(vehicle.label) + '</b></div>' +
+                '<div class="tc-fleet-docs">' + fields + '</div>' + actions + '</article>';
+        }).join('');
+        if (summary) summary.textContent = fleetVehicles.length ? ('Прострочено: ' + overdue + ' · скоро: ' + soon) : '';
+        list.innerHTML = cards || '<p class="tc-fleet-note">Авто ще немає. Додай номер, якщо хочеш стежити за документами.</p>';
+    }
+    async function loadFleetVehicles() {
+        if (uiPreview || !currentOrgId) return;
+        try {
+            const { data, error } = await supabaseClient
+                .from('fleet_vehicles')
+                .select(FLEET_COLUMNS)
+                .order('label');
+            if (error) throw error;
+            fleetVehicles = data || [];
+        } catch (e) {
+            fleetVehicles = [];
+        }
+        renderFleetDocs();
+    }
+    async function addFleetVehicle() {
+        if (currentOrgRole !== 'owner') return;
+        const input = document.getElementById('fleet-label');
+        const label = input ? input.value.trim() : '';
+        if (!label || label.length > 40) {
+            showToast('Вкажи номер або назву авто, до 40 символів.');
+            return;
+        }
+        if (fleetVehicles.length >= 100) {
+            showToast('У списку вже 100 авто.');
+            return;
+        }
+        if (fleetVehicles.some(function (item) { return String(item.label || '').trim().toLowerCase() === label.toLowerCase(); })) {
+            showToast('Таке авто вже є.');
+            return;
+        }
+        if (uiPreview) {
+            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label }, emptyFleetDates()));
+            fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
+            fleetDeleteId = null;
+            if (input) input.value = '';
+            renderFleetDocs();
+            showToast('Авто додано');
+            return;
+        }
+        if (!currentOrgId) return;
+        try {
+            const { data, error } = await supabaseClient.from('fleet_vehicles')
+                .insert({ org_id: currentOrgId, label: label })
+                .select(FLEET_COLUMNS)
+                .single();
+            if (error) throw error;
+            fleetVehicles.push(data);
+            fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
+            fleetDeleteId = null;
+            if (input) input.value = '';
+            renderFleetDocs();
+            showToast('Авто додано');
+        } catch (e) {
+            showToast(fleetWriteError(e));
+        }
+    }
+    function readFleetDates(id) {
+        const card = document.getElementById('fleet-card-' + id);
+        const dates = emptyFleetDates();
+        if (!card) return dates;
+        FLEET_DOCS.forEach(function (doc) {
+            const input = card.querySelector('[data-col="' + doc[0] + '"]');
+            dates[doc[0]] = input && input.value ? input.value : null;
+        });
+        return dates;
+    }
+    async function saveFleetVehicle(id) {
+        if (currentOrgRole !== 'owner') return;
+        const dates = readFleetDates(id);
+        const row = fleetVehicles.find(function (item) { return item.id === id; });
+        if (!row) return;
+        if (uiPreview || String(id).indexOf('preview-fleet-') === 0) {
+            Object.assign(row, dates);
+            renderFleetDocs();
+            showToast('Дати збережено');
+            return;
+        }
+        try {
+            const { data, error } = await supabaseClient.from('fleet_vehicles')
+                .update(dates)
+                .eq('id', id)
+                .select(FLEET_COLUMNS)
+                .single();
+            if (error) throw error;
+            const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
+            if (index >= 0) fleetVehicles[index] = data;
+            renderFleetDocs();
+            showToast('Дати збережено');
+        } catch (e) {
+            showToast(fleetWriteError(e));
+        }
+    }
+    async function removeFleetVehicle(id) {
+        if (currentOrgRole !== 'owner') return;
+        if (fleetDeleteId !== id) {
+            fleetDeleteId = id;
+            renderFleetDocs();
+            return;
+        }
+        fleetDeleteId = null;
+        if (uiPreview || String(id).indexOf('preview-fleet-') === 0) {
+            fleetVehicles = fleetVehicles.filter(function (item) { return item.id !== id; });
+            renderFleetDocs();
+            showToast('Авто прибрано');
+            return;
+        }
+        try {
+            const { error } = await supabaseClient.from('fleet_vehicles').delete().eq('id', id);
+            if (error) throw error;
+            fleetVehicles = fleetVehicles.filter(function (item) { return item.id !== id; });
+            renderFleetDocs();
+            showToast('Авто прибрано');
+        } catch (e) {
+            showToast(fleetWriteError(e));
+        }
+    }
+    async function saveFleetWarnDays() {
+        const input = document.getElementById('fleet-warn-days');
+        const n = input ? Number(input.value) : NaN;
+        if (!Number.isFinite(n) || n < 1 || n > 180) {
+            showToast('Попередження: число від 1 до 180.');
+            if (input) input.value = String(fleetWarnValue());
+            return;
+        }
+        companySettings = Object.assign({}, companySettings, { doc_warn_days: Math.round(n) });
+        renderFleetDocs();
+        if (!currentOrgId || currentOrgRole !== 'owner' || uiPreview) return;
+        try {
+            const { error } = await supabaseClient.from('company_settings').upsert({
+                org_id: currentOrgId,
+                settings: companySettings,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'org_id' });
+            if (error) throw error;
+            showToast('Поріг попередження збережено');
+        } catch (e) {
+            showToast('Поріг не збережено.');
+        }
+    }
     function showWeeklyReportText(text) {
         const pre = document.getElementById('weekly-report-preview');
         if (!pre) return;
@@ -5267,6 +5572,7 @@
             });
         }
         updateCabVisibility();
+        renderFleetDocs();
         document.getElementById('cab-message').innerText = '';
         document.getElementById('cabinet-screen').style.display = 'block';
         document.body.style.overflow = 'hidden';
@@ -8006,6 +8312,10 @@
         tripActuals = {
             'preview-1': { revenue: 40000, costs: 28900, plannedOverhead: 4100, profit: 7000 }
         };
+        fleetVehicles = [
+            { id: 'preview-fleet-1', label: 'AA0001KA', oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15' },
+            { id: 'preview-fleet-2', label: 'AA0002KA', oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null }
+        ];
         currentUserId = 'preview-owner';
         currentOrgRole = 'owner';
         teamState.members = [
