@@ -114,9 +114,9 @@ export default async function handler(req, res) {
         const carsCount = parseFloat(body.carsCount);
         const daysPerTrip = parseFloat(body.daysPerTrip);
         const idleDays = parseFloat(body.idleDays) || 0;
-        // Валюта контракту: розцінка, простій і зворотний вантаж приходять у ній.
-        // Витрати компанії (пальне, ТО, накладні) лишаються в гривні, тому дохід
-        // переводимо в грн за курсом, який клієнт взяв з НБУ.
+        // Валюта контракту: розцінка, простій, зворотний вантаж і супутні витрати
+        // приходять у ній. Пальне, ТО і накладні лишаються в гривні, тому суми
+        // контракту переводимо в грн за курсом, який клієнт взяв з НБУ.
         const contractCurrency = String(body.contractCurrency || 'UAH').toUpperCase();
         let fxRate = 1;
         if (contractCurrency === 'USD' || contractCurrency === 'EUR') {
@@ -172,11 +172,11 @@ export default async function handler(req, res) {
 
         // 4б. Супутні витрати (платні дороги, кордон, брокер, страховка, паром) — за рейс/ходку
         const useExtras = body.useExtras === true;
-        const tollCost = useExtras ? (parseFloat(body.tollCost) || 0) : 0;
-        const borderCost = useExtras ? (parseFloat(body.borderCost) || 0) : 0;
-        const brokerCost = useExtras ? (parseFloat(body.brokerCost) || 0) : 0;
-        const greenCardCost = useExtras ? (parseFloat(body.greenCardCost) || 0) : 0;
-        const ferryCost = useExtras ? (parseFloat(body.ferryCost) || 0) : 0;
+        const tollCost = useExtras ? (parseFloat(body.tollCost) || 0) * fxRate : 0;
+        const borderCost = useExtras ? (parseFloat(body.borderCost) || 0) * fxRate : 0;
+        const brokerCost = useExtras ? (parseFloat(body.brokerCost) || 0) * fxRate : 0;
+        const greenCardCost = useExtras ? (parseFloat(body.greenCardCost) || 0) * fxRate : 0;
+        const ferryCost = useExtras ? (parseFloat(body.ferryCost) || 0) * fxRate : 0;
 
         // 5. Накладні витрати (амортизація/фін. витрати — не VAT-товар, ремонт — VAT-товар)
         const amortYear = parseFloat(body.amort) || 0;
