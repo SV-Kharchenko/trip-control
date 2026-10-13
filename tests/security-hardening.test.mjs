@@ -65,11 +65,11 @@ test('a second active owner is rejected in the trigger and the team API', () => 
     assert.equal(secondActiveOwnerBlocked('2'), true);
 });
 
-test('poi rejects more than 25 points and invites share an hourly cap', () => {
-    assert.equal(POI_POINTS_LIMIT, 25);
+test('poi rejects more than 40 points and invites share an hourly cap', () => {
+    assert.equal(POI_POINTS_LIMIT, 40);
     assert.equal(poiPointsWithinLimit(1), true);
-    assert.equal(poiPointsWithinLimit(25), true);
-    assert.equal(poiPointsWithinLimit(26), false);
+    assert.equal(poiPointsWithinLimit(40), true);
+    assert.equal(poiPointsWithinLimit(41), false);
     assert.equal(poiPointsWithinLimit(0), false);
     assert.equal(poiPointsWithinLimit(1.5), false);
     assert.equal(INVITE_RATE_LIMIT, 10);

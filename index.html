@@ -3130,6 +3130,7 @@
                 <button type="button" class="btn" style="width: 100%;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти</button>
                 <div id="poi-attribution" style="font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; text-align: center;">© OpenStreetMap contributors</div>
                 <div id="poi-status" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
+                <button type="button" class="btn" id="poi-retry-failed" style="display: none; width: 100%; margin-top: 6px;" onclick="retryFailedPoiSegments()">Повторити невдалі</button>
                 <div id="poi-results" style="margin-top: 6px;"></div>
             </div>
             <div class="tc-costs-visual">
@@ -3463,6 +3464,9 @@
     let map, directionsService, directionsRenderer, directionsRendererBackhaul;
     let waypointCounter = 0;
     let poiMarkers = [];
+    let poiSeenIds = new Set();
+    let poiFailedSegments = [];
+    let poiSearchToken = 0;
     let lastRoutePath = null;
     let lastDirectionsResponse = null;
     let routeBuilt = false;
@@ -8107,7 +8111,45 @@
     function clearPOIMarkers() {
         poiMarkers.forEach(m => m.setMap(null));
         poiMarkers = [];
+        poiSeenIds = new Set();
         document.getElementById('poi-results').innerHTML = '';
+    }
+
+    function poiFailureText(code) {
+        if (code === 'OVERPASS_TIMEOUT') return 'Сервіс карт не встиг відповісти';
+        if (code === 'OVERPASS_RATE_LIMIT') return 'Сервіс карт перевантажений, спробуй за хвилину';
+        if (code === 'OVERPASS_UNAVAILABLE') return 'Сервіс карт тимчасово недоступний';
+        return 'Помилка мережі';
+    }
+
+    function poiHaversineMeters(from, to) {
+        const toRad = degrees => degrees * Math.PI / 180;
+        const dLat = toRad(to.lat - from.lat);
+        const dLon = toRad(to.lon - from.lon);
+        const lat1 = toRad(from.lat);
+        const lat2 = toRad(to.lat);
+        const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+        return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+    }
+
+    function poiCorridorChunks(points) {
+        if (!points.length) return [];
+        if (points.length === 1) return [points.slice()];
+        const chunks = [];
+        let current = [points[0]];
+        let run = 0;
+        for (let i = 1; i < points.length; i++) {
+            const step = poiHaversineMeters(points[i - 1], points[i]);
+            if (current.length > 1 && run >= 60000) {
+                chunks.push(current);
+                current = [points[i - 1]];
+                run = 0;
+            }
+            current.push(points[i]);
+            run += step;
+        }
+        chunks.push(current);
+        return chunks;
     }
 
     function sampleRoutePoints(path, everyMeters) {
@@ -8148,6 +8190,9 @@
         }
 
         clearPOIMarkers();
+        poiFailedSegments = [];
+        const retryBtn = document.getElementById('poi-retry-failed');
+        if (retryBtn) retryBtn.style.display = 'none';
         const samplePoints = corridorSample(lastRoutePath);
         const points = samplePoints.map(routePointPayload).filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lon));
         if (!points.length) {
@@ -8155,59 +8200,108 @@
             statusEl.style.color = 'var(--warning)';
             return;
         }
+        const chunks = poiCorridorChunks(points);
+        const token = ++poiSearchToken;
+        await runPoiSegments(chunks, {
+            wantGas: wantGas,
+            wantTir: wantTir,
+            wantCafe: wantCafe,
+            wantSto: wantSto
+        }, token);
+    }
 
-        statusEl.innerText = '🔍 OpenStreetMap: коридор уздовж маршруту...';
-        statusEl.style.color = 'var(--text-muted)';
+    function retryFailedPoiSegments() {
+        if (!poiFailedSegments.length) return;
+        const chunks = poiFailedSegments.slice();
+        poiFailedSegments = [];
+        const token = ++poiSearchToken;
+        const retryBtn = document.getElementById('poi-retry-failed');
+        if (retryBtn) retryBtn.style.display = 'none';
+        runPoiSegments(chunks, {
+            wantGas: document.getElementById('poi-gas').checked,
+            wantTir: document.getElementById('poi-tir').checked,
+            wantCafe: document.getElementById('poi-cafe').checked,
+            wantSto: document.getElementById('poi-sto').checked
+        }, token);
+    }
 
-        try {
-            const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
-            if (freshSession) currentSessionToken = freshSession.access_token;
-            const response = await fetch('/api/poi', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + (currentSessionToken || '')
-                },
-                body: JSON.stringify({
-                    points: points,
-                    wantGas: wantGas,
-                    wantTir: wantTir,
-                    wantCafe: wantCafe,
-                    wantSto: wantSto
-                })
-            });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                const busy = payload.code === 'OVERPASS_BUSY' || response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504;
-                statusEl.innerText = busy
-                    ? '❌ Сервіс карт перевантажений, спробуй за хвилину'
-                    : '❌ ' + (payload.error || 'Не вдалося знайти об’єкти.');
-                statusEl.style.color = 'var(--danger)';
-                return;
+    async function runPoiSegments(chunks, wants, token) {
+        const statusEl = document.getElementById('poi-status');
+        const retryBtn = document.getElementById('poi-retry-failed');
+        const failed = [];
+        let lastCode = '';
+        let networkError = false;
+        const batches = [];
+        for (let i = 0; i < chunks.length; i += 2) batches.push(chunks.slice(i, i + 2));
+        let covered = 0;
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+            if (token !== poiSearchToken) return;
+            const batch = batches[batchIndex];
+            const segmentNo = covered + 1;
+            covered += batch.length;
+            statusEl.innerText = 'Відрізок ' + segmentNo + '/' + chunks.length;
+            statusEl.style.color = 'var(--text-muted)';
+            try {
+                const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
+                if (freshSession) currentSessionToken = freshSession.access_token;
+                const response = await fetch('/api/poi', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + (currentSessionToken || '')
+                    },
+                    body: JSON.stringify({
+                        segments: batch,
+                        wantGas: wants.wantGas,
+                        wantTir: wants.wantTir,
+                        wantCafe: wants.wantCafe,
+                        wantSto: wants.wantSto
+                    })
+                });
+                const payload = await response.json().catch(() => ({}));
+                const elements = Array.isArray(payload.elements) ? payload.elements : [];
+                elements.forEach(addPoiMarker);
+                const failedIndexes = new Set();
+                (Array.isArray(payload.failed) ? payload.failed : []).forEach(item => {
+                    if (item && Number.isInteger(item.index)) failedIndexes.add(item.index);
+                    if (item && item.code) lastCode = item.code;
+                });
+                (Array.isArray(payload.pending) ? payload.pending : []).forEach(index => {
+                    if (Number.isInteger(index)) failedIndexes.add(index);
+                });
+                if (!response.ok && !failedIndexes.size && !elements.length) {
+                    batch.forEach(points => failed.push(points));
+                    lastCode = payload.code || lastCode;
+                } else {
+                    batch.forEach((points, index) => {
+                        if (failedIndexes.has(index)) failed.push(points);
+                    });
+                }
+            } catch (e) {
+                networkError = true;
+                lastCode = 'NETWORK';
+                batch.forEach(points => failed.push(points));
             }
-            const elements = Array.isArray(payload.elements) ? payload.elements : [];
-            elements.forEach(addPoiMarker);
-            const cached = payload.cached ? ' · з кешу' : '';
-            if (payload.warning) {
-                statusEl.innerText = '⚠️ ' + payload.warning + ' Знайдено ' + elements.length + '.';
-                statusEl.style.color = 'var(--warning)';
-            } else {
-                statusEl.innerText = '✅ Знайдено ' + elements.length + ' об’єктів уздовж маршруту (OpenStreetMap' + cached + ')';
-                statusEl.style.color = 'var(--success)';
+            if (batchIndex < batches.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
-        } catch (e) {
-            statusEl.innerText = '❌ Сервіс карт перевантажений, спробуй за хвилину';
+        }
+        if (token !== poiSearchToken) return;
+        poiFailedSegments = failed;
+        if (failed.length) {
+            const reason = networkError ? 'Помилка мережі. ' : (lastCode ? poiFailureText(lastCode) + '. ' : '');
+            statusEl.innerText = reason + failed.length + ' відрізків не завантажено';
             statusEl.style.color = 'var(--danger)';
+            if (retryBtn) retryBtn.style.display = 'block';
+        } else {
+            statusEl.innerText = '✅ Знайдено ' + poiSeenIds.size + ' об’єктів уздовж маршруту (OpenStreetMap)';
+            statusEl.style.color = 'var(--success)';
+            if (retryBtn) retryBtn.style.display = 'none';
         }
     }
 
     function corridorSample(path) {
-        const dense = sampleRoutePoints(path, 20000);
-        if (dense.length <= 25) return dense;
-        const last = dense.length - 1;
-        const out = [];
-        for (let i = 0; i < 25; i++) out.push(dense[Math.round(i * last / 24)]);
-        return out;
+        return sampleRoutePoints(path, 5000);
     }
 
     function routePointPayload(point) {
@@ -8225,6 +8319,8 @@
 
     function addPoiMarker(item) {
         if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) return;
+        if (item.id && poiSeenIds.has(item.id)) return;
+        if (item.id) poiSeenIds.add(item.id);
         const presentation = poiPresentation(item);
         const name = item.name || presentation.label;
         const position = { lat: item.lat, lng: item.lon };
