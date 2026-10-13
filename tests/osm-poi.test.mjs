@@ -12,10 +12,11 @@ const {
     POI_CORRIDOR_BUFFER_M,
     POI_CACHE_TTL_MS,
     OVERPASS_MIRRORS,
+    OVERPASS_PRIMARY,
     OVERPASS_USER_AGENT,
-    OVERPASS_BACKOFF_MS,
     OVERPASS_ATTEMPT_LIMIT,
-    POI_BUSY_MESSAGE,
+    OVERPASS_TIMEOUT_MS,
+    POI_ERROR_TEXT,
     geohashEncode,
     corridorSegmentKeys,
     poiCacheFresh,
@@ -25,7 +26,9 @@ const {
     poiRouteCacheKey,
     fetchOverpass,
     corridorChunks,
-    CORRIDOR_CHUNK_MAX
+    CORRIDOR_CHUNK_METERS,
+    poiCanStart,
+    collectCorridorSegments
 } = await import('../api/poi.js');
 
 function sliceBetween(source, start, end) {
@@ -40,7 +43,10 @@ test('the route search is one corridor, not a circle on every point', () => {
     const kyiv = { lat: 50.4501, lon: 30.5234 };
     const lviv = { lat: 49.8397, lon: 24.0297 };
     const query = overpassCorridorQuery([kyiv, lviv], ['gas', 'tir', 'cafe', 'sto']);
-    assert.equal(POI_CORRIDOR_BUFFER_M >= 2000 && POI_CORRIDOR_BUFFER_M <= 5000, true);
+    assert.equal(POI_CORRIDOR_BUFFER_M, 3000);
+    assert.match(query, /\[timeout:25\]/);
+    assert.match(query, /\[maxsize:67108864\]/);
+    assert.equal(OVERPASS_TIMEOUT_MS, 27000);
     assert.match(query, new RegExp('around:' + POI_CORRIDOR_BUFFER_M + ',50\\.4501,30\\.5234,49\\.8397,24\\.0297'));
     assert.equal(query.includes('around:' + POI_CORRIDOR_BUFFER_M + ',50.4501,30.5234);'), false);
     assert.match(query, /\["amenity"="fuel"\]/);
@@ -77,21 +83,22 @@ test('cache rows expire after 30 days and names stay data, not markup', () => {
     assert.equal(nearestSegmentKey(item, [{ lat: 50.45, lon: 30.52 }, { lat: 49.84, lon: 24.03 }]), geohashEncode(50.45, 30.52, 5));
 });
 
-test('a long route is several short corridors, a short one stays a single query', () => {
+test('corridors are about 60 km and a long route is not capped at six', () => {
     const short = corridorChunks([
         { lat: 50.45, lon: 30.52 },
         { lat: 50.46, lon: 30.62 }
     ]);
     assert.equal(short.length, 1);
+    assert.equal(CORRIDOR_CHUNK_METERS, 60000);
     const points = [];
-    for (let i = 0; i < 16; i++) points.push({ lat: 50.45, lon: 30.5 - i * 0.8 });
+    for (let i = 0; i < 20; i++) points.push({ lat: 46.48 + i * 0.18, lon: 30.73 - i * 0.35 });
     const chunks = corridorChunks(points);
-    assert.equal(chunks.length > 1 && chunks.length <= CORRIDOR_CHUNK_MAX, true);
-    const firstQuery = overpassCorridorQuery(chunks[0], ['gas']);
-    const last = points[points.length - 1];
-    assert.equal(firstQuery.includes(last.lon + ''), false);
+    assert.equal(chunks.length > 6, true);
+    const firstQuery = overpassCorridorQuery(chunks[0], ['gas', 'tir']);
     assert.equal(firstQuery.split('[out:json]').length - 1, 1);
+    assert.match(firstQuery, /around:3000,/);
     assert.match(poiSource, /maxDuration: 60/);
+    assert.equal(poiSource.includes('kumi.systems'), false);
 });
 
 test('a repeat route reuses one cache key from rounded coordinates and categories', () => {
@@ -106,67 +113,131 @@ test('a repeat route reuses one cache key from rounded coordinates and categorie
     assert.equal(exact.length, 12);
     assert.match(exact, /^[0-9a-f]{12}$/);
     assert.equal(poiSource.includes('відповів HTTP'), false);
-    assert.match(poiSource, /code: 'OVERPASS_BUSY'/);
+    assert.match(poiSource, /OVERPASS_TIMEOUT/);
     assert.match(poiSource, /POI_CACHE_TTL_MS/);
 });
 
-test('overpass falls through mirrors on 429 and 504, then stops at three attempts', async () => {
-    assert.deepEqual(OVERPASS_MIRRORS, [
-        'https://overpass-api.de/api/interpreter',
-        'https://overpass.kumi.systems/api/interpreter',
-        'https://overpass.private.coffee/api/interpreter'
-    ]);
-    assert.deepEqual(OVERPASS_BACKOFF_MS, [1000, 3000]);
-    assert.equal(OVERPASS_ATTEMPT_LIMIT, 3);
+test('a segment retries once after 504, skips a dead status, and stops when 30s are gone', async () => {
+    assert.deepEqual(OVERPASS_MIRRORS, [OVERPASS_PRIMARY]);
+    assert.equal(OVERPASS_PRIMARY, 'https://overpass-api.de/api/interpreter');
+    assert.equal(OVERPASS_ATTEMPT_LIMIT, 2);
     assert.equal(OVERPASS_USER_AGENT, 'trip-control.com (support@trip-control.com)');
-    assert.equal(POI_BUSY_MESSAGE, 'Сервіс карт перевантажений, спробуй за хвилину');
+    assert.equal(POI_ERROR_TEXT.OVERPASS_TIMEOUT, 'Сервіс карт не встиг відповісти');
+    assert.equal(POI_ERROR_TEXT.OVERPASS_RATE_LIMIT, 'Сервіс карт перевантажений, спробуй за хвилину');
+    assert.equal(POI_ERROR_TEXT.NETWORK, 'Помилка мережі');
 
     const calls = [];
-    const sleeps = [];
-    const result = await fetchOverpass('[out:json];out;', {
+    const recovered = await fetchOverpass('[out:json];out;', {
+        startedAt: 0,
         timeoutMs: 20,
-        sleep: ms => {
-            sleeps.push(ms);
-            return Promise.resolve();
-        },
+        now: () => 0,
         fetchImpl: async (url, init) => {
             calls.push({ url, init });
-            if (calls.length === 1) return { ok: false, status: 429, json: async () => ({}) };
-            if (calls.length === 2) return { ok: false, status: 504, json: async () => ({}) };
+            if (calls.length === 1) return { ok: false, status: 504, json: async () => ({}) };
             return { ok: true, status: 200, json: async () => ({ elements: [{ type: 'node', id: 1 }] }) };
         }
     });
-    assert.deepEqual(sleeps, [1000, 3000]);
-    assert.equal(calls.length, 3);
-    assert.deepEqual(calls.map(call => call.url), OVERPASS_MIRRORS);
-    for (const call of calls) {
-        assert.equal(call.init.headers['User-Agent'], OVERPASS_USER_AGENT);
-        assert.equal(call.init.method, 'POST');
-    }
-    assert.equal(result.elements.length, 1);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, OVERPASS_PRIMARY);
+    assert.equal(calls[1].url, OVERPASS_PRIMARY);
+    assert.equal(calls[0].init.headers['User-Agent'], OVERPASS_USER_AGENT);
+    assert.equal(recovered.elements.length, 1);
 
-    const extraCalls = [];
-    const busy = await fetchOverpass('[out:json];out;', {
+    const rejected = [];
+    const unavailable = await fetchOverpass('[out:json];out;', {
+        startedAt: 0,
         timeoutMs: 20,
-        mirrors: OVERPASS_MIRRORS.concat('https://example.test/api/interpreter'),
-        sleep: () => Promise.resolve(),
+        now: () => 0,
         fetchImpl: async () => {
-            extraCalls.push(1);
-            return { ok: false, status: 429, json: async () => ({}) };
+            rejected.push(1);
+            return { ok: false, status: 400, json: async () => ({}) };
         }
     });
-    assert.equal(extraCalls.length, 3);
-    assert.equal(busy.error, 'overpass_busy');
-    assert.equal(JSON.stringify(busy).includes('http'), false);
+    assert.equal(rejected.length, 1);
+    assert.equal(unavailable.code, 'OVERPASS_UNAVAILABLE');
+    assert.equal(unavailable.status, 502);
+    assert.equal(unavailable.detail.mirror, OVERPASS_PRIMARY);
+    assert.equal(unavailable.detail.status, 400);
+    assert.equal(typeof unavailable.detail.ms, 'number');
+    assert.equal(unavailable.error === true && String(POI_ERROR_TEXT.OVERPASS_UNAVAILABLE).includes('http'), false);
+
+    let phase = 0;
+    const lateCalls = [];
+    const timedOut = await fetchOverpass('[out:json];out;', {
+        startedAt: 0,
+        timeoutMs: 20,
+        now: () => phase,
+        fetchImpl: async () => {
+            phase = 40000;
+            lateCalls.push(1);
+            return { ok: false, status: 504, json: async () => ({}) };
+        }
+    });
+    assert.equal(lateCalls.length, 1);
+    assert.equal(timedOut.code, 'OVERPASS_TIMEOUT');
+    assert.equal(timedOut.status, 504);
+    assert.equal(timedOut.detail.status, 504);
+    assert.equal(poiCanStart(0, 31000), false);
+    assert.equal(poiCanStart(0, 30000), true);
+});
+
+test('a failed segment does not stop the route, and a tight budget leaves the rest pending', async () => {
+    const calls = [];
+    const continued = await collectCorridorSegments([[{ lat: 1, lon: 1 }], [{ lat: 2, lon: 2 }], [{ lat: 3, lon: 3 }]], {
+        startedAt: 0,
+        now: () => 0,
+        budgetMs: 60000,
+        reserveMs: 30000,
+        load: async (_chunk, index) => {
+            calls.push(index);
+            if (index === 0) {
+                return {
+                    error: true,
+                    code: 'OVERPASS_TIMEOUT',
+                    detail: { mirror: OVERPASS_PRIMARY, status: 504, ms: 6900 }
+                };
+            }
+            return { elements: [{ id: 'n/' + index, lat: 1, lon: 2, name: 'АЗС', address: '', kind: 'gas' }], cached: false };
+        }
+    });
+    assert.deepEqual(calls, [0, 1, 2]);
+    assert.equal(continued.failed.length, 1);
+    assert.equal(continued.failed[0].code, 'OVERPASS_TIMEOUT');
+    assert.equal(continued.done.length, 2);
+    assert.deepEqual(continued.pending, []);
+
+    let loads = 0;
+    const parked = await collectCorridorSegments([[{ lat: 1, lon: 1 }], [{ lat: 2, lon: 2 }]], {
+        startedAt: 0,
+        now: () => 31000,
+        budgetMs: 60000,
+        reserveMs: 30000,
+        load: async () => {
+            loads += 1;
+            return { elements: [] };
+        }
+    });
+    assert.equal(loads, 0);
+    assert.deepEqual(parked.pending, [0, 1]);
+    assert.equal(parked.failed.length, 0);
 });
 
 test('the page asks api/poi and does not send POI names through Places', () => {
     const search = sliceBetween(html, 'async function searchPOIsAlongRoute', 'function corridorSample');
     const marker = sliceBetween(html, 'function addPoiMarker', 'function isUiPreviewHostAllowed');
     assert.match(search, /fetch\('\/api\/poi'/);
-    assert.match(search, /Сервіс карт перевантажений, спробуй за хвилину/);
+    assert.match(search, /segments: batch/);
+    assert.match(search, /Відрізок /);
+    assert.match(search, /відрізків не завантажено/);
+    assert.match(search, /setTimeout\(resolve, 500\)/);
+    assert.match(html, /Повторити невдалі/);
+    assert.match(html, /Помилка мережі/);
+    assert.match(html, /Сервіс карт не встиг відповісти/);
+    assert.match(html, /sampleRoutePoints\(path, 5000\)/);
+    assert.equal(search.includes('i < 25'), false);
     assert.equal(search.includes('відповів HTTP'), false);
-    assert.equal(search.includes('overpass.kumi.systems'), false);
+    assert.equal(html.includes('overpass.kumi.systems'), false);
+    assert.match(marker, /poiSeenIds/);
     assert.equal(search.includes('searchNearby'), false);
     assert.equal(search.includes('searchByText'), false);
     assert.equal(search.includes("importLibrary('places')"), false);

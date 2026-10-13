@@ -6,27 +6,31 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Довгий рейс ріжемо на короткі коридори: один важкий запит на всю Україну Overpass відповідає 429.
-// Кожен відрізок — один union. На 429/504 пауза і наступне дзеркало, не більше трьох спроб.
-export const OVERPASS_MIRRORS = [
-    'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter',
-    'https://overpass.private.coffee/api/interpreter'
-];
+// Основне дзеркало — overpass-api.de. kumi і private.coffee на довгому таймауті мовчать.
+// Друга спроба лише після 429, 504 або обриву мережі, і лише якщо в бюджеті лишилось щонайменше 30 с.
+export const OVERPASS_PRIMARY = 'https://overpass-api.de/api/interpreter';
+export const OVERPASS_MIRRORS = [OVERPASS_PRIMARY];
 export const OVERPASS_USER_AGENT = 'trip-control.com (support@trip-control.com)';
-export const OVERPASS_BACKOFF_MS = [1000, 3000];
-export const OVERPASS_ATTEMPT_LIMIT = 3;
-export const POI_BUSY_MESSAGE = 'Сервіс карт перевантажений, спробуй за хвилину';
-export const CORRIDOR_CHUNK_METERS = 100000;
-export const CORRIDOR_CHUNK_MAX = 6;
-const OVERPASS_TIMEOUT_MS = 8000;
-const CHUNK_GAP_MS = 400;
+export const OVERPASS_ATTEMPT_LIMIT = 2;
+export const OVERPASS_TIMEOUT_MS = 27000;
+export const POI_HANDLER_BUDGET_MS = 60000;
+export const POI_ATTEMPT_RESERVE_MS = 30000;
+export const CORRIDOR_CHUNK_METERS = 60000;
+export const POI_SEGMENTS_PER_CALL = 2;
+export const POI_SAMPLE_METERS = 5000;
+export const POI_CALL_GAP_MS = 500;
 
 export const config = { maxDuration: 60 };
 
-export const POI_POINTS_LIMIT = 25;
-export const POI_CORRIDOR_BUFFER_M = 4000;
+export const POI_POINTS_LIMIT = 40;
+export const POI_CORRIDOR_BUFFER_M = 3000;
 export const POI_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const POI_ERROR_TEXT = {
+    OVERPASS_TIMEOUT: 'Сервіс карт не встиг відповісти',
+    OVERPASS_RATE_LIMIT: 'Сервіс карт перевантажений, спробуй за хвилину',
+    OVERPASS_UNAVAILABLE: 'Сервіс карт тимчасово недоступний',
+    NETWORK: 'Помилка мережі'
+};
 const GEOHASH_BASE = '0123456789bcdefghjkmnpqrstuvwxyz';
 
 export function poiPointsWithinLimit(count) {
@@ -115,28 +119,21 @@ export function haversineMeters(from, to) {
     return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-export function corridorChunks(points, maxSpanMeters = CORRIDOR_CHUNK_METERS, maxChunks = CORRIDOR_CHUNK_MAX) {
+export function corridorChunks(points, maxSpanMeters = CORRIDOR_CHUNK_METERS) {
     if (!points.length) return [];
     if (points.length === 1) return [points.slice()];
-    let total = 0;
-    const steps = [];
-    for (let i = 1; i < points.length; i++) {
-        const step = haversineMeters(points[i - 1], points[i]);
-        steps.push(step);
-        total += step;
-    }
-    const span = Math.max(maxSpanMeters, total / maxChunks);
     const chunks = [];
     let current = [points[0]];
     let run = 0;
     for (let i = 1; i < points.length; i++) {
-        if (current.length > 1 && run >= span && chunks.length < maxChunks - 1) {
+        const step = haversineMeters(points[i - 1], points[i]);
+        if (current.length > 1 && run >= maxSpanMeters) {
             chunks.push(current);
             current = [points[i - 1]];
             run = 0;
         }
         current.push(points[i]);
-        run += steps[i - 1];
+        run += step;
     }
     chunks.push(current);
     return chunks;
@@ -152,7 +149,8 @@ export function overpassCorridorQuery(points, types, bufferMeters = POI_CORRIDOR
         lines.push('nw["amenity"="parking"]["hgv"](' + around + ');');
         lines.push('nw["highway"="rest_area"](' + around + ');');
     }
-    return '[out:json][timeout:7];(' + lines.join('') + ');out center 120;';
+    // 32 МБ Overpass обриває на коридорі ~60 км («need at least 32 MB»). 64 МБ вже повертає об’єкти.
+    return '[out:json][timeout:25][maxsize:67108864];(' + lines.join('') + ');out center;';
 }
 
 export function poiKind(tags) {
@@ -209,7 +207,33 @@ export function poiRouteCacheKey(points, types) {
     return createHash('sha256').update(coords + '|' + categories).digest('hex').slice(0, 12);
 }
 
-export function isOverpassBackoffStatus(status) {
+export function poiCanStart(startedAt, nowMs, budgetMs = POI_HANDLER_BUDGET_MS, reserveMs = POI_ATTEMPT_RESERVE_MS) {
+    if (!Number.isFinite(startedAt) || !Number.isFinite(nowMs)) return false;
+    return budgetMs - (nowMs - startedAt) >= reserveMs;
+}
+
+export function classifyOverpassFailure({ status = 0, network = false, mirror = OVERPASS_PRIMARY, ms = 0 }) {
+    const timedOut = status === 504 || network === 'timeout';
+    const rateLimited = status === 429;
+    const code = timedOut ? 'OVERPASS_TIMEOUT' : (rateLimited ? 'OVERPASS_RATE_LIMIT' : 'OVERPASS_UNAVAILABLE');
+    const http = code === 'OVERPASS_TIMEOUT' ? 504 : (code === 'OVERPASS_RATE_LIMIT' ? 429 : 502);
+    return {
+        error: true,
+        code: code,
+        status: http,
+        network: network,
+        detail: {
+            mirror: mirror,
+            status: status || 0,
+            ms: ms
+        }
+    };
+}
+
+export function overpassRetryable(failure) {
+    if (!failure) return false;
+    if (failure.network) return true;
+    const status = failure.detail && failure.detail.status;
     return status === 429 || status === 504;
 }
 
@@ -226,9 +250,63 @@ export function nearestSegmentKey(item, points) {
     return geohashEncode(best.lat, best.lon, 5);
 }
 
+export async function collectCorridorSegments(chunks, options) {
+    const startedAt = options.startedAt;
+    const now = options.now || Date.now;
+    const load = options.load;
+    const done = [];
+    const failed = [];
+    const pending = [];
+    for (let index = 0; index < chunks.length; index++) {
+        if (!poiCanStart(startedAt, now(), options.budgetMs, options.reserveMs)) {
+            for (let rest = index; rest < chunks.length; rest++) pending.push(rest);
+            break;
+        }
+        const result = await load(chunks[index], index);
+        if (result && result.skipped) {
+            for (let rest = index; rest < chunks.length; rest++) pending.push(rest);
+            break;
+        }
+        if (result && result.error) {
+            failed.push({
+                index: index,
+                code: result.code,
+                detail: result.detail
+            });
+            continue;
+        }
+        done.push({
+            index: index,
+            elements: result && Array.isArray(result.elements) ? result.elements : [],
+            cached: Boolean(result && result.cached)
+        });
+    }
+    return { done: done, failed: failed, pending: pending };
+}
+
+export function poiResultPayload(collected) {
+    const elements = [];
+    const seen = new Set();
+    for (const part of collected.done) {
+        for (const item of part.elements) {
+            if (!item || seen.has(item.id)) continue;
+            seen.add(item.id);
+            elements.push(item);
+        }
+    }
+    const cached = collected.done.length > 0 && collected.done.every(part => part.cached) && collected.failed.length === 0 && collected.pending.length === 0;
+    return {
+        elements: elements,
+        cached: cached,
+        failed: collected.failed,
+        pending: collected.pending
+    };
+}
+
 function cleanPoints(rawPoints) {
     const points = [];
-    for (const point of rawPoints) {
+    const list = Array.isArray(rawPoints) ? rawPoints : [];
+    for (const point of list) {
         const lat = parseFloat(point && point.lat);
         const lon = parseFloat(point && (point.lon != null ? point.lon : point.lng));
         if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
@@ -239,6 +317,7 @@ function cleanPoints(rawPoints) {
 }
 
 async function readPoiCache(types, segmentKeys) {
+    if (!segmentKeys.length) return [];
     const { data, error } = await supabase
         .from('poi_cache')
         .select('poi_type, segment_key, payload, fetched_at')
@@ -260,21 +339,33 @@ async function writePoiCache(rows) {
 }
 
 export async function fetchOverpass(query, options = {}) {
-    const mirrors = options.mirrors || OVERPASS_MIRRORS;
+    const mirror = options.mirror || OVERPASS_PRIMARY;
     const fetchImpl = options.fetchImpl || fetch;
-    const sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
-    const backoffMs = options.backoffMs || OVERPASS_BACKOFF_MS;
-    const attemptLimit = options.attemptLimit || OVERPASS_ATTEMPT_LIMIT;
+    const now = options.now || Date.now;
+    const startedAt = options.startedAt == null ? now() : options.startedAt;
+    const budgetMs = options.budgetMs == null ? POI_HANDLER_BUDGET_MS : options.budgetMs;
+    const reserveMs = options.reserveMs == null ? POI_ATTEMPT_RESERVE_MS : options.reserveMs;
     const timeoutMs = options.timeoutMs == null ? OVERPASS_TIMEOUT_MS : options.timeoutMs;
-    const attempts = Math.min(attemptLimit, mirrors.length);
-    let lastStatus = 0;
-    let lastDetail = 'невідома помилка';
+    const attemptLimit = options.attemptLimit == null ? OVERPASS_ATTEMPT_LIMIT : options.attemptLimit;
+    let last = null;
 
-    for (let i = 0; i < attempts; i++) {
-        const mirror = mirrors[i];
+    for (let attempt = 0; attempt < attemptLimit; attempt++) {
+        if (attempt > 0 && !overpassRetryable(last)) break;
+        if (!poiCanStart(startedAt, now(), budgetMs, reserveMs)) {
+            if (last) return last;
+            return {
+                error: true,
+                skipped: true,
+                code: 'OVERPASS_TIMEOUT',
+                status: 504,
+                detail: { mirror: mirror, status: 0, ms: 0 }
+            };
+        }
+        const began = now();
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         let status = 0;
+        let network = false;
         try {
             const overpassRes = await fetchImpl(mirror, {
                 method: 'POST',
@@ -292,33 +383,38 @@ export async function fetchOverpass(query, options = {}) {
                 const data = await overpassRes.json();
                 const elements = Array.isArray(data.elements) ? data.elements : [];
                 const remark = String((data && (data.remark || data.error)) || '');
-                if (!elements.length && /timed out|runtime error|rate_limited/i.test(remark)) {
+                if (!elements.length && /timed out|timeout|rate_limited/i.test(remark)) {
                     status = 504;
-                    lastStatus = 504;
-                    lastDetail = 'timeout';
+                } else if (!elements.length && /runtime error|out of memory|memory/i.test(remark)) {
+                    status = 500;
                 } else {
-                    return { elements: elements };
+                    return {
+                        elements: elements,
+                        detail: { mirror: mirror, status: overpassRes.status, ms: Math.max(0, now() - began) }
+                    };
                 }
             }
-            lastStatus = status;
-            lastDetail = 'HTTP ' + status;
         } catch (error) {
             clearTimeout(timeoutId);
-            lastDetail = error && error.name === 'AbortError' ? 'timeout' : ((error && error.message) || 'network');
+            network = error && error.name === 'AbortError' ? 'timeout' : true;
+            status = network === 'timeout' ? 504 : 0;
         }
-        if (i < attempts - 1 && isOverpassBackoffStatus(status)) {
-            await sleep(backoffMs[Math.min(i, backoffMs.length - 1)]);
-        }
+        last = classifyOverpassFailure({
+            status: status,
+            network: network,
+            mirror: mirror,
+            ms: Math.max(0, now() - began)
+        });
     }
-    return { error: 'overpass_busy', status: lastStatus, detail: lastDetail };
+    return last;
 }
 
-function cachedItems(fresh, types) {
+function cachedItemsFor(fresh, types, cacheKey) {
     const items = [];
     const seen = new Set();
-    for (const [key, payload] of fresh) {
-        const type = key.split('|')[0];
-        if (!types.includes(type) || !Array.isArray(payload)) continue;
+    for (const type of types) {
+        const payload = fresh.get(type + '|' + cacheKey);
+        if (!Array.isArray(payload)) continue;
         for (const item of payload) {
             if (!item || seen.has(item.id)) continue;
             seen.add(item.id);
@@ -328,7 +424,34 @@ function cachedItems(fresh, types) {
     return items;
 }
 
+function storeChunk(fresh, types, cacheKey, elements) {
+    const buckets = new Map();
+    for (const type of types) buckets.set(type, []);
+    for (const element of elements) {
+        const item = normalizePoiElement(element);
+        if (!item || !buckets.has(item.kind)) continue;
+        const bucket = buckets.get(item.kind);
+        if (bucket.some(existing => existing.id === item.id)) continue;
+        bucket.push(item);
+    }
+    const fetchedAt = new Date().toISOString();
+    const rows = [];
+    const stored = [];
+    for (const [type, payload] of buckets) {
+        rows.push({
+            poi_type: type,
+            segment_key: cacheKey,
+            payload: payload,
+            fetched_at: fetchedAt
+        });
+        fresh.set(type + '|' + cacheKey, payload);
+        stored.push(...payload);
+    }
+    return { rows: rows, elements: stored };
+}
+
 export default async function handler(req, res) {
+    const startedAt = Date.now();
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
@@ -359,84 +482,78 @@ export default async function handler(req, res) {
         }
 
         const body = req.body || {};
-        const rawPoints = Array.isArray(body.points) ? body.points : [];
-        if (rawPoints.length === 0) {
+        const segmentInputs = Array.isArray(body.segments) && body.segments.length
+            ? body.segments
+            : [Array.isArray(body.points) ? body.points : []];
+        if (segmentInputs.length > POI_SEGMENTS_PER_CALL) {
+            return res.status(400).json({ error: 'Забагато відрізків за один виклик. Максимум 2.' });
+        }
+        const groups = segmentInputs.map(cleanPoints).filter(points => points.length);
+        const totalPoints = groups.reduce((sum, points) => sum + points.length, 0);
+        if (!totalPoints) {
             return res.status(400).json({ error: 'Не передано жодної точки маршруту.' });
         }
-        if (!poiPointsWithinLimit(rawPoints.length)) {
+        if (!poiPointsWithinLimit(totalPoints)) {
             return res.status(400).json({
                 code: 'POI_POINTS_LIMIT',
-                error: 'Забагато точок маршруту. Максимум 25.'
+                error: 'Забагато точок маршруту. Максимум ' + POI_POINTS_LIMIT + '.'
             });
-        }
-        const points = cleanPoints(rawPoints);
-        if (!points.length) {
-            return res.status(400).json({ error: 'Точки маршруту некоректні.' });
         }
         const types = selectedPoiTypes(body);
         if (!types.length) {
             return res.status(400).json({ error: 'Оберіть хоча б одну категорію.' });
         }
 
-        const chunks = corridorChunks(points);
+        const chunks = groups.flatMap(points => corridorChunks(points));
         const cacheKeys = chunks.map(chunk => poiRouteCacheKey(chunk, types));
-        const nowMs = Date.now();
         const cacheRows = await readPoiCache(types, cacheKeys);
         const fresh = new Map();
         if (cacheRows) {
             for (const row of cacheRows) {
-                if (cacheKeys.includes(row.segment_key) && poiCacheFresh(row.fetched_at, nowMs)) {
+                if (cacheKeys.includes(row.segment_key) && poiCacheFresh(row.fetched_at, Date.now())) {
                     fresh.set(row.poi_type + '|' + row.segment_key, row.payload);
                 }
             }
         }
 
-        let askedNetwork = false;
-        let networkFailed = false;
-        for (let index = 0; index < chunks.length; index++) {
-            const chunk = chunks[index];
-            const cacheKey = cacheKeys[index];
-            const missingTypes = types.filter(type => !fresh.has(type + '|' + cacheKey));
-            if (!missingTypes.length) continue;
-            if (askedNetwork) await new Promise(resolve => setTimeout(resolve, CHUNK_GAP_MS));
-            askedNetwork = true;
-            const fetched = await fetchOverpass(overpassCorridorQuery(chunk, missingTypes));
-            if (fetched.error) {
-                networkFailed = true;
-                console.warn('poi overpass:', fetched.status || '', fetched.detail || '');
-                break;
+        const collected = await collectCorridorSegments(chunks, {
+            startedAt: startedAt,
+            load: async (chunk, index) => {
+                const cacheKey = cacheKeys[index];
+                const missingTypes = types.filter(type => !fresh.has(type + '|' + cacheKey));
+                if (!missingTypes.length) {
+                    return { elements: cachedItemsFor(fresh, types, cacheKey), cached: true };
+                }
+                const fetched = await fetchOverpass(overpassCorridorQuery(chunk, missingTypes), { startedAt: startedAt });
+                if (fetched.skipped) return fetched;
+                if (fetched.error) {
+                    console.warn('poi overpass:', fetched.code, fetched.detail && fetched.detail.status, fetched.detail && fetched.detail.ms);
+                    return fetched;
+                }
+                const stored = storeChunk(fresh, missingTypes, cacheKey, fetched.elements);
+                await writePoiCache(stored.rows);
+                const elements = cachedItemsFor(fresh, types, cacheKey);
+                return { elements: elements, cached: false };
             }
-            const buckets = new Map();
-            for (const type of missingTypes) buckets.set(type, []);
-            for (const element of fetched.elements) {
-                const item = normalizePoiElement(element);
-                if (!item || !buckets.has(item.kind)) continue;
-                const bucket = buckets.get(item.kind);
-                if (bucket.some(existing => existing.id === item.id)) continue;
-                bucket.push(item);
-            }
-            const fetchedAt = new Date().toISOString();
-            const rows = [];
-            for (const [type, payload] of buckets) {
-                rows.push({
-                    poi_type: type,
-                    segment_key: cacheKey,
-                    payload: payload,
-                    fetched_at: fetchedAt
-                });
-                fresh.set(type + '|' + cacheKey, payload);
-            }
-            await writePoiCache(rows);
-        }
+        });
 
-        const elements = cachedItems(fresh, types);
-        if (!elements.length && networkFailed) {
-            return res.status(503).json({ code: 'OVERPASS_BUSY', error: POI_BUSY_MESSAGE });
+        const payload = poiResultPayload(collected);
+        if (!payload.elements.length && payload.failed.length) {
+            const failure = payload.failed[0];
+            return res.status(failure.code === 'OVERPASS_TIMEOUT' ? 504 : (failure.code === 'OVERPASS_RATE_LIMIT' ? 429 : 502)).json({
+                code: failure.code,
+                error: POI_ERROR_TEXT[failure.code] || POI_ERROR_TEXT.OVERPASS_UNAVAILABLE,
+                detail: failure.detail,
+                failed: payload.failed,
+                pending: payload.pending,
+                elements: []
+            });
         }
         return res.status(200).json({
-            elements: elements,
-            cached: !askedNetwork,
-            warning: networkFailed ? 'Сервіс карт перевантажений. Показано те, що вдалося знайти.' : undefined,
+            elements: payload.elements,
+            cached: payload.cached,
+            failed: payload.failed,
+            pending: payload.pending,
             attribution: '© OpenStreetMap contributors'
         });
     } catch (err) {
