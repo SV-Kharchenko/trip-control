@@ -2909,11 +2909,10 @@
                     <button type="button" class="preset-tile" data-preset="цистерна" onclick="applyPreset('цистерна', this)"><span class="pt-ico">🛢️</span>Цистерна<span class="pt-hint">наливні</span></button>
                 </div>
 
-                <div class="form-row two-cols" id="vehicle-norm-row" hidden>
-                    <label for="vehicle-norm">Авто з парку:</label>
-                    <select id="vehicle-norm" onchange="onVehicleNormChange()">
-                        <option value="">Норми компанії</option>
-                    </select>
+                <div id="vehicle-norm-row" hidden>
+                    <div class="preset-bar-label">Авто з парку</div>
+                    <p class="tc-history-meta">Познач одне або кілька авто. Заповнені витрата, AdBlue і тип причепа замінять шаблон кабінету. Якщо нічого не позначено — розрахунок із загальних норм компанії.</p>
+                    <div id="vehicle-norm-list" class="tc-template-form"></div>
                 </div>
 
                 <div class="form-row two-cols">
@@ -4856,20 +4855,25 @@
         onTrailerChange();
     }
 
-    function onTrailerChange() {
-        if (!currentSessionToken) return; // Не запускати якщо не авторизовані
-        
-        const trailer = document.getElementById('trailer-type').value;
+    function syncTrailerExtras() {
+        const trailerEl = document.getElementById('trailer-type');
+        const trailer = trailerEl ? trailerEl.value : '';
         const refConsumption = document.getElementById('field-ref-consumption');
         const refHours = document.getElementById('field-ref-hours');
-        if (trailer === 'рефрижератор') { refConsumption.classList.add('active'); refHours.classList.add('active'); } 
-        else { refConsumption.classList.remove('active'); refHours.classList.remove('active'); }
-
+        if (refConsumption && refHours) {
+            if (trailer === 'рефрижератор') { refConsumption.classList.add('active'); refHours.classList.add('active'); }
+            else { refConsumption.classList.remove('active'); refHours.classList.remove('active'); }
+        }
         const washCost = document.getElementById('field-wash-cost');
         const washFreq = document.getElementById('field-wash-freq');
-        if (trailer === 'цистерна') { washCost.classList.add('active'); washFreq.classList.add('active'); } 
-        else { washCost.classList.remove('active'); washFreq.classList.remove('active'); }
-        
+        if (washCost && washFreq) {
+            if (trailer === 'цистерна') { washCost.classList.add('active'); washFreq.classList.add('active'); }
+            else { washCost.classList.remove('active'); washFreq.classList.remove('active'); }
+        }
+    }
+    function onTrailerChange() {
+        if (!currentSessionToken) return; // Не запускати якщо не авторизовані
+        syncTrailerExtras();
         calculate();
     }
 
@@ -4880,26 +4884,78 @@
         if (!Number.isFinite(n) || n < min || n > max) return null;
         return n;
     }
-    function vehicleNormPatch(vehicle) {
-        if (!vehicle || typeof vehicle !== 'object') return null;
-        const trailers = ['зерновоз', 'рефрижератор', 'тент', 'цистерна'];
-        const patch = {};
-        const fuelLoad = vehicleNormNumber(vehicle.fuel_load, 0.1, 80);
-        const fuelEmpty = vehicleNormNumber(vehicle.fuel_empty, 0.1, 80);
-        const normWeight = vehicleNormNumber(vehicle.norm_weight, 0.1, 80);
-        if (fuelLoad !== null) patch.fuelLoad = fuelLoad;
-        if (fuelEmpty !== null) patch.fuelEmpty = fuelEmpty;
-        if (normWeight !== null) patch.normWeight = normWeight;
-        if (trailers.indexOf(vehicle.trailer_type) >= 0) patch.trailerType = vehicle.trailer_type;
-        return Object.keys(patch).length ? patch : null;
-    }
-    function applyVehicleNorms(base, vehicle) {
+    function applyVehicleNorms(base, vehicles) {
         const source = base && typeof base === 'object' ? base : {};
-        const patch = vehicleNormPatch(vehicle);
         const copy = {};
         Object.keys(source).forEach(function (key) { copy[key] = source[key]; });
-        if (!patch) return copy;
-        Object.keys(patch).forEach(function (key) { copy[key] = patch[key]; });
+        const list = Array.isArray(vehicles)
+            ? vehicles.filter(function (item) { return item && typeof item === 'object'; })
+            : (vehicles && typeof vehicles === 'object' ? [vehicles] : []);
+        if (!list.length) return copy;
+        const trailers = ['зерновоз', 'рефрижератор', 'тент', 'цистерна'];
+        const companyNumber = function (key) {
+            const n = Number(source[key]);
+            return Number.isFinite(n) ? n : null;
+        };
+        const mean = function (values) {
+            if (!values.length) return null;
+            let sum = 0;
+            values.forEach(function (n) { sum += n; });
+            return Math.round((sum / values.length) * 100) / 100;
+        };
+        const flag = function (value) {
+            if (value === true || value === 'on' || value === 'true') return true;
+            if (value === false || value === 'off' || value === 'false') return false;
+            return null;
+        };
+        const loads = [];
+        const empties = [];
+        const adblue = [];
+        const types = [];
+        let anyLoad = false;
+        let anyEmpty = false;
+        let anyAdblue = false;
+        list.forEach(function (vehicle) {
+            const load = vehicleNormNumber(vehicle.fuel_load, 0.1, 80);
+            const loadBase = companyNumber('fuelLoad');
+            if (load !== null) { anyLoad = true; loads.push(load); }
+            else if (loadBase !== null) loads.push(loadBase);
+            const empty = vehicleNormNumber(vehicle.fuel_empty, 0.1, 80);
+            const emptyBase = companyNumber('fuelEmpty');
+            if (empty !== null) { anyEmpty = true; empties.push(empty); }
+            else if (emptyBase !== null) empties.push(emptyBase);
+            const on = flag(vehicle.adblue_on);
+            const rate = vehicleNormNumber(vehicle.adblue_consumption, 0.05, 30);
+            const companyOn = flag(source.useAdblue);
+            const companyRate = companyNumber('adblueConsumption') || 0;
+            if (on === false) {
+                anyAdblue = true;
+                adblue.push(0);
+            } else if (on === true || rate !== null) {
+                anyAdblue = true;
+                adblue.push(rate !== null ? rate : companyRate);
+            } else {
+                adblue.push(companyOn === false ? 0 : companyRate);
+            }
+            if (trailers.indexOf(vehicle.trailer_type) >= 0) types.push(vehicle.trailer_type);
+        });
+        copy.carsCount = list.length;
+        if (anyLoad) {
+            const value = mean(loads);
+            if (value !== null) copy.fuelLoad = value;
+        }
+        if (anyEmpty) {
+            const value = mean(empties);
+            if (value !== null) copy.fuelEmpty = value;
+        }
+        if (anyAdblue) {
+            const value = mean(adblue);
+            copy.adblueConsumption = value === null ? 0 : value;
+            copy.useAdblue = copy.adblueConsumption > 0;
+        }
+        if (types.length === list.length && types.every(function (item) { return item === types[0]; })) {
+            copy.trailerType = types[0];
+        }
         return copy;
     }
     function readVehicleNormForm() {
@@ -4910,8 +4966,10 @@
         return {
             fuelLoad: value('fuel-load'),
             fuelEmpty: value('fuel-empty'),
-            normWeight: value('norm-weight'),
-            trailerType: value('trailer-type')
+            trailerType: value('trailer-type'),
+            carsCount: value('cars-count'),
+            useAdblue: value('adblue-enable') !== 'off',
+            adblueConsumption: value('adblue-consumption')
         };
     }
     function writeVehicleNormForm(values) {
@@ -4922,65 +4980,87 @@
             document.querySelectorAll('.preset-tile').forEach(function (btn) {
                 btn.classList.toggle('active', btn.dataset.preset === data.trailerType);
             });
+            syncTrailerExtras();
         }
         const fuelLoad = document.getElementById('fuel-load');
         const fuelEmpty = document.getElementById('fuel-empty');
-        const normWeight = document.getElementById('norm-weight');
+        const cars = document.getElementById('cars-count');
+        const adblue = document.getElementById('adblue-enable');
+        const adblueRate = document.getElementById('adblue-consumption');
         if (fuelLoad && data.fuelLoad != null && data.fuelLoad !== '') fuelLoad.value = data.fuelLoad;
         if (fuelEmpty && data.fuelEmpty != null && data.fuelEmpty !== '') fuelEmpty.value = data.fuelEmpty;
-        if (normWeight && data.normWeight != null && data.normWeight !== '') normWeight.value = data.normWeight;
+        if (cars && data.carsCount != null && data.carsCount !== '') cars.value = data.carsCount;
+        if (adblueRate && data.adblueConsumption != null && data.adblueConsumption !== '') adblueRate.value = data.adblueConsumption;
+        if (adblue && data.useAdblue != null) {
+            const on = !!data.useAdblue;
+            adblue.value = on ? 'on' : 'off';
+            const consumption = document.getElementById('field-adblue-consumption');
+            const price = document.getElementById('field-adblue-price');
+            if (consumption) consumption.classList.toggle('active', on);
+            if (price) price.classList.toggle('active', on);
+        }
+    }
+    function chosenFleetVehicles() {
+        const list = document.getElementById('vehicle-norm-list');
+        if (!list) return [];
+        const chosen = [];
+        list.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) {
+            const vehicle = fleetVehicles.find(function (item) { return String(item.id) === input.value; });
+            if (vehicle) chosen.push(vehicle);
+        });
+        return chosen;
     }
     function clearVehicleNormChoice() {
+        if (vehicleNormBaseline) writeVehicleNormForm(vehicleNormBaseline);
         vehicleNormBaseline = null;
-        const sel = document.getElementById('vehicle-norm');
-        if (sel) sel.value = '';
+        const list = document.getElementById('vehicle-norm-list');
+        if (!list) return;
+        list.querySelectorAll('input[type="checkbox"]').forEach(function (input) { input.checked = false; });
     }
     function renderVehicleNormSelect() {
         const row = document.getElementById('vehicle-norm-row');
-        const sel = document.getElementById('vehicle-norm');
-        if (!row || !sel) return;
-        const current = sel.value;
-        while (sel.firstChild) sel.removeChild(sel.firstChild);
-        const empty = document.createElement('option');
-        empty.value = '';
-        empty.textContent = 'Норми компанії';
-        sel.appendChild(empty);
+        const list = document.getElementById('vehicle-norm-list');
+        if (!row || !list) return;
+        const checked = {};
+        list.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) { checked[input.value] = true; });
+        list.textContent = '';
         fleetVehicles.forEach(function (vehicle) {
-            const opt = document.createElement('option');
-            opt.value = String(vehicle.id);
-            opt.textContent = String(vehicle.label || 'Авто');
-            sel.appendChild(opt);
+            const id = String(vehicle.id);
+            const label = document.createElement('label');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.value = id;
+            input.checked = !!checked[id];
+            input.addEventListener('change', onVehicleNormChange);
+            const plate = String(vehicle.label || 'Авто');
+            const make = vehicle.make_model ? String(vehicle.make_model) : '';
+            label.appendChild(input);
+            label.appendChild(document.createTextNode(make ? plate + ' · ' + make : plate));
+            list.appendChild(label);
         });
-        const still = current && fleetVehicles.some(function (vehicle) { return String(vehicle.id) === current; });
-        sel.value = still ? current : '';
         row.hidden = !fleetVehicles.length;
-        if (current && !still && vehicleNormBaseline) {
-            writeVehicleNormForm(vehicleNormBaseline);
-            vehicleNormBaseline = null;
-        }
+        const missing = Object.keys(checked).some(function (id) {
+            return !fleetVehicles.some(function (vehicle) { return String(vehicle.id) === id; });
+        });
+        if (missing) onVehicleNormChange();
     }
     function reapplySelectedVehicleNorms() {
-        const sel = document.getElementById('vehicle-norm');
-        if (!sel || !sel.value || !vehicleNormBaseline) return;
-        const vehicle = fleetVehicles.find(function (item) { return String(item.id) === sel.value; });
-        if (!vehicle) return;
-        writeVehicleNormForm(applyVehicleNorms(vehicleNormBaseline, vehicle));
+        if (!vehicleNormBaseline) return;
+        const chosen = chosenFleetVehicles();
+        if (!chosen.length) return;
+        writeVehicleNormForm(applyVehicleNorms(vehicleNormBaseline, chosen));
         if (currentSessionToken) onTrailerChange();
     }
     function onVehicleNormChange() {
-        const sel = document.getElementById('vehicle-norm');
-        const id = sel ? sel.value : '';
-        if (!id) {
+        const chosen = chosenFleetVehicles();
+        if (!chosen.length) {
             if (vehicleNormBaseline) writeVehicleNormForm(vehicleNormBaseline);
             vehicleNormBaseline = null;
             if (currentSessionToken) onTrailerChange();
             return;
         }
-        const vehicle = fleetVehicles.find(function (item) { return String(item.id) === id; });
         if (!vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
-        const patch = vehicleNormPatch(vehicle);
-        writeVehicleNormForm(applyVehicleNorms(vehicleNormBaseline, vehicle));
-        if (!patch) showToast('У цього авто немає своїх норм. Лишаються норми компанії.');
+        writeVehicleNormForm(applyVehicleNorms(vehicleNormBaseline, chosen));
         if (currentSessionToken) onTrailerChange();
     }
 
@@ -5320,11 +5400,12 @@
         });
         html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
             '<div class="cab-card-head"><h3>Документи автопарку</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
-            '<p class="tc-fleet-note">Необов’язково. Норми авто підставляються в калькулятор, коли обираєш це авто. Порожнє поле лишає норму компанії. Дати документів калькулятор не використовує.</p>' +
+            '<p class="tc-fleet-note">Якщо ці дані заповнені і в розрахунку обране це авто або кілька, вони впливають на розрахунок. Якщо поле порожнє або авто не обране — розрахунок іде із загального шаблону кабінету. Марка, держномер, рік і номер причепа на суму не впливають. Кілька авто: витрата і AdBlue усереднюються, кількість авто стає кількістю обраних. Дати документів калькулятор не читає.</p>' +
             '<label id="fleet-warn-label" for="fleet-warn-days">Попереджати за, днів ' +
             '<input type="number" id="fleet-warn-days" min="1" max="180" step="1" value="30" onchange="saveFleetWarnDays()"></label>' +
             '<div class="tc-fleet-add" id="fleet-add">' +
-            '<input type="text" id="fleet-label" maxlength="40" placeholder="Номер, напр. AA1234BB">' +
+            '<input type="text" id="fleet-make" maxlength="80" placeholder="Марка і модель, необов’язково">' +
+            '<input type="text" id="fleet-label" maxlength="40" placeholder="Держ. номер, напр. AA1234BB">' +
             '<button type="button" class="btn" onclick="addFleetVehicle()">Додати авто</button></div>' +
             '<div id="fleet-list"></div></div></div>';
         if (currentWorkMode === 'team') {
@@ -5357,7 +5438,7 @@
         ['service_on', 'ТО']
     ];
     const FLEET_DOC_COLUMNS = 'id, label, oscpv_on, kasko_on, green_card_on, inspection_on, tachograph_on, service_on';
-    const FLEET_NORM_COLUMNS = 'fuel_load, fuel_empty, norm_weight, trailer_type';
+    const FLEET_NORM_COLUMNS = 'make_model, year_made, fuel_load, fuel_empty, adblue_on, adblue_consumption, trailer_plate, trailer_type';
     const FLEET_COLUMNS = FLEET_DOC_COLUMNS + ', ' + FLEET_NORM_COLUMNS;
     function kyivTodayYmd(now) {
         const date = now instanceof Date ? now : new Date(now || Date.now());
@@ -5418,9 +5499,10 @@
         if (message.indexOf('FLEET_LIMIT') !== -1) return 'У списку вже 100 авто.';
         if (message.indexOf('FLEET_LABEL') !== -1) return 'Вкажи номер або назву авто, до 40 символів.';
         if (message.indexOf('FLEET_FORBIDDEN') !== -1) return 'Документи змінює власник.';
-        if (code === '23514' || message.indexOf('fleet_vehicles_fuel') !== -1 || message.indexOf('fleet_vehicles_norm') !== -1 || message.indexOf('fleet_vehicles_trailer') !== -1) {
-            return 'Норма авто: витрата і завантаження від 0,1 до 80, причіп зі списку.';
+        if (code === '23514' || message.indexOf('fleet_vehicles_fuel') !== -1 || message.indexOf('fleet_vehicles_adblue') !== -1 || message.indexOf('fleet_vehicles_year') !== -1 || message.indexOf('fleet_vehicles_make') !== -1 || message.indexOf('fleet_vehicles_trailer') !== -1) {
+            return 'Перевір норми: витрата 0,1–80, AdBlue 0,05–30, рік 1980–2100, причіп зі списку.';
         }
+        if (/column|schema cache/i.test(message)) return 'База ще без нових полів авто. Номер і дати лишаються.';
         return 'Не вдалося зберегти документи.';
     }
     function emptyFleetDates() {
@@ -5437,36 +5519,88 @@
         if (input && document.activeElement !== input) input.value = String(fleetWarnValue());
     }
     function fleetNormMarkup(vehicle, owner) {
-        const num = function (key, label) {
-            const value = vehicle[key] == null || vehicle[key] === '' ? '' : vehicle[key];
+        const off = owner ? '' : ' disabled';
+        const text = function (key, label, max, value) {
             return '<label>' + label +
-                '<input type="number" data-norm="' + key + '" min="0.1" max="80" step="0.1" value="' + teamEsc(value) + '"' + (owner ? '' : ' disabled') + '>' +
+                '<input type="text" data-norm="' + key + '" maxlength="' + max + '" value="' + teamEsc(value || '') + '"' + off + '>' +
+                '</label>';
+        };
+        const num = function (key, label, min, max, step, value) {
+            const shown = value == null || value === '' ? '' : value;
+            return '<label>' + label +
+                '<input type="number" data-norm="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + teamEsc(shown) + '"' + off + '>' +
                 '</label>';
         };
         const trailer = ['', 'зерновоз', 'рефрижератор', 'тент', 'цистерна'].map(function (item) {
             const selected = vehicle.trailer_type === item ? ' selected' : '';
             return '<option value="' + item + '"' + selected + '>' + (item || 'Як у компанії') + '</option>';
         }).join('');
+        const adblue = vehicle.adblue_on === true ? 'on' : (vehicle.adblue_on === false ? 'off' : '');
+        const adblueOptions = [['', 'Як у компанії'], ['on', 'Є'], ['off', 'Немає']].map(function (item) {
+            return '<option value="' + item[0] + '"' + (adblue === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+        }).join('');
         return '<div class="tc-fleet-docs">' +
-            '<label>Причіп<select data-norm="trailer_type"' + (owner ? '' : ' disabled') + '>' + trailer + '</select></label>' +
-            num('fuel_load', 'Витрата з вантажем, л/100 км') +
-            num('fuel_empty', 'Витрата порожнім, л/100 км') +
-            num('norm_weight', 'Норма завантаження, т') +
+            text('make_model', 'Марка / модель', 80, vehicle.make_model) +
+            text('label', 'Держ. номер', 40, vehicle.label) +
+            num('year_made', 'Рік випуску', 1980, 2100, '1', vehicle.year_made) +
+            num('fuel_load', 'Витрата з вантажем, л/100 км', 0.1, 80, '0.1', vehicle.fuel_load) +
+            num('fuel_empty', 'Витрата порожнім, л/100 км', 0.1, 80, '0.1', vehicle.fuel_empty) +
+            '<label>AdBlue<select data-norm="adblue_on"' + off + '>' + adblueOptions + '</select></label>' +
+            num('adblue_consumption', 'Витрата AdBlue, л/100 км', 0.05, 30, '0.05', vehicle.adblue_consumption) +
+            text('trailer_plate', 'Держ. номер причепа', 40, vehicle.trailer_plate) +
+            '<label>Тип причепа<select data-norm="trailer_type"' + off + '>' + trailer + '</select></label>' +
             '</div>';
     }
     function readFleetNorms(id) {
         const card = document.getElementById('fleet-card-' + id);
-        const norms = { fuel_load: null, fuel_empty: null, norm_weight: null, trailer_type: null };
+        const norms = {
+            make_model: null, label: null, year_made: null, fuel_load: null, fuel_empty: null,
+            adblue_on: null, adblue_consumption: null, trailer_plate: null, trailer_type: null
+        };
         if (!card) return { ok: false, error: 'Авто не знайдено.' };
-        const fields = [['fuel_load', 0.1, 80], ['fuel_empty', 0.1, 80], ['norm_weight', 0.1, 80]];
-        for (let i = 0; i < fields.length; i++) {
-            const input = card.querySelector('[data-norm="' + fields[i][0] + '"]');
-            const raw = input && input.value ? input.value.trim() : '';
-            if (!raw) continue;
-            const n = vehicleNormNumber(raw, fields[i][1], fields[i][2]);
-            if (n === null) return { ok: false, error: 'Норма авто: число від 0,1 до 80.' };
-            norms[fields[i][0]] = n;
+        const textOf = function (key) {
+            const input = card.querySelector('[data-norm="' + key + '"]');
+            return input && input.value ? input.value.trim() : '';
+        };
+        const make = textOf('make_model');
+        if (make.length > 80) return { ok: false, error: 'Марка і модель: до 80 символів.' };
+        norms.make_model = make || null;
+        const plate = textOf('label');
+        if (!plate || plate.length > 40) return { ok: false, error: 'Держ. номер: від 1 до 40 символів.' };
+        const duplicate = fleetVehicles.some(function (item) {
+            return item.id !== id && String(item.label || '').trim().toLowerCase() === plate.toLowerCase();
+        });
+        if (duplicate) return { ok: false, error: 'Таке авто вже є.' };
+        norms.label = plate;
+        const yearRaw = textOf('year_made');
+        if (yearRaw) {
+            if (!/^\d{4}$/.test(yearRaw) || Number(yearRaw) < 1980 || Number(yearRaw) > 2100) {
+                return { ok: false, error: 'Рік випуску: від 1980 до 2100.' };
+            }
+            norms.year_made = Number(yearRaw);
         }
+        const fuels = [['fuel_load', 'Витрата з вантажем'], ['fuel_empty', 'Витрата порожнім']];
+        for (let i = 0; i < fuels.length; i++) {
+            const raw = textOf(fuels[i][0]);
+            if (!raw) continue;
+            const n = vehicleNormNumber(raw, 0.1, 80);
+            if (n === null) return { ok: false, error: fuels[i][1] + ': від 0,1 до 80 л/100 км.' };
+            norms[fuels[i][0]] = n;
+        }
+        const adblue = card.querySelector('[data-norm="adblue_on"]');
+        const adblueValue = adblue ? adblue.value : '';
+        if (adblueValue === 'on') norms.adblue_on = true;
+        else if (adblueValue === 'off') norms.adblue_on = false;
+        else if (adblueValue) return { ok: false, error: 'AdBlue: є, немає або як у компанії.' };
+        const adblueRaw = textOf('adblue_consumption');
+        if (adblueRaw) {
+            const n = vehicleNormNumber(adblueRaw, 0.05, 30);
+            if (n === null) return { ok: false, error: 'Витрата AdBlue: від 0,05 до 30 л/100 км.' };
+            norms.adblue_consumption = n;
+        }
+        const trailerPlate = textOf('trailer_plate');
+        if (trailerPlate.length > 40) return { ok: false, error: 'Держ. номер причепа: до 40 символів.' };
+        norms.trailer_plate = trailerPlate || null;
         const trailer = card.querySelector('[data-norm="trailer_type"]');
         const trailerValue = trailer ? trailer.value : '';
         if (trailerValue && ['зерновоз', 'рефрижератор', 'тент', 'цистерна'].indexOf(trailerValue) < 0) {
@@ -5476,7 +5610,10 @@
         return { ok: true, norms: norms };
     }
     function emptyFleetNorms() {
-        return { fuel_load: null, fuel_empty: null, norm_weight: null, trailer_type: null };
+        return {
+            make_model: null, year_made: null, fuel_load: null, fuel_empty: null,
+            adblue_on: null, adblue_consumption: null, trailer_plate: null, trailer_type: null
+        };
     }
     function renderFleetDocs() {
         renderVehicleNormSelect();
@@ -5520,7 +5657,7 @@
                 .from('fleet_vehicles')
                 .select(FLEET_COLUMNS)
                 .order('label');
-            if (error && /fuel_load|norm_weight|trailer_type|column/i.test(String((error && (error.message || error.details)) || error))) {
+            if (error && /make_model|year_made|fuel_load|adblue_on|adblue_consumption|trailer_plate|trailer_type|column/i.test(String((error && (error.message || error.details)) || error))) {
                 const fallback = await supabaseClient.from('fleet_vehicles').select(FLEET_DOC_COLUMNS).order('label');
                 data = fallback.data;
                 error = fallback.error;
@@ -5535,9 +5672,15 @@
     async function addFleetVehicle() {
         if (currentOrgRole !== 'owner') return;
         const input = document.getElementById('fleet-label');
+        const makeInput = document.getElementById('fleet-make');
         const label = input ? input.value.trim() : '';
+        const make = makeInput ? makeInput.value.trim() : '';
         if (!label || label.length > 40) {
-            showToast('Вкажи номер або назву авто, до 40 символів.');
+            showToast('Держ. номер: від 1 до 40 символів.');
+            return;
+        }
+        if (make.length > 80) {
+            showToast('Марка і модель: до 80 символів.');
             return;
         }
         if (fleetVehicles.length >= 100) {
@@ -5549,25 +5692,29 @@
             return;
         }
         if (uiPreview) {
-            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label }, emptyFleetDates(), emptyFleetNorms()));
+            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label, make_model: make || null }, emptyFleetDates(), emptyFleetNorms(), { make_model: make || null }));
             fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
             fleetDeleteId = null;
             if (input) input.value = '';
+            if (makeInput) makeInput.value = '';
             renderFleetDocs();
             showToast('Авто додано');
             return;
         }
         if (!currentOrgId) return;
         try {
-            const { data, error } = await supabaseClient.from('fleet_vehicles')
-                .insert({ org_id: currentOrgId, label: label })
-                .select(FLEET_COLUMNS)
-                .single();
-            if (error) throw error;
-            fleetVehicles.push(data);
+            const payload = { org_id: currentOrgId, label: label };
+            if (make) payload.make_model = make;
+            let inserted = await supabaseClient.from('fleet_vehicles').insert(payload).select(FLEET_COLUMNS).single();
+            if (inserted.error && make && /make_model|column|schema cache/i.test(String(inserted.error.message || inserted.error.details || ''))) {
+                inserted = await supabaseClient.from('fleet_vehicles').insert({ org_id: currentOrgId, label: label }).select(FLEET_DOC_COLUMNS).single();
+            }
+            if (inserted.error) throw inserted.error;
+            fleetVehicles.push(inserted.data);
             fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
             fleetDeleteId = null;
             if (input) input.value = '';
+            if (makeInput) makeInput.value = '';
             renderFleetDocs();
             showToast('Авто додано');
         } catch (e) {
@@ -5615,6 +5762,21 @@
             reapplySelectedVehicleNorms();
             showToast('Збережено');
         } catch (e) {
+            const message = String((e && (e.message || e.details)) || e);
+            if (/column|schema cache/i.test(message)) {
+                try {
+                    const datesOnly = await supabaseClient.from('fleet_vehicles').update(dates).eq('id', id).select(FLEET_DOC_COLUMNS).single();
+                    if (datesOnly.error) throw datesOnly.error;
+                    const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
+                    if (index >= 0) fleetVehicles[index] = Object.assign({}, fleetVehicles[index], datesOnly.data);
+                    renderFleetDocs();
+                    showToast('Дати збережено. Норми з’являться після оновлення бази.');
+                    return;
+                } catch (inner) {
+                    showToast(fleetWriteError(inner));
+                    return;
+                }
+            }
             showToast(fleetWriteError(e));
         }
     }
@@ -8872,8 +9034,8 @@
             'preview-1': { revenue: 40000, costs: 28900, plannedOverhead: 4100, profit: 7000 }
         };
         fleetVehicles = [
-            { id: 'preview-fleet-1', label: 'AA0001KA', oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15', fuel_load: 31, fuel_empty: 26, norm_weight: 20, trailer_type: 'тент' },
-            { id: 'preview-fleet-2', label: 'AA0002KA', oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null, fuel_load: null, fuel_empty: null, norm_weight: null, trailer_type: null }
+            { id: 'preview-fleet-1', label: 'AA0001KA', make_model: 'Volvo FH', year_made: 2019, oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15', fuel_load: 31, fuel_empty: 26, adblue_on: true, adblue_consumption: 3, trailer_plate: 'AA1111XP', trailer_type: 'тент' },
+            { id: 'preview-fleet-2', label: 'AA0002KA', make_model: 'DAF XF', year_made: 2016, oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null, fuel_load: 35, fuel_empty: 30, adblue_on: false, adblue_consumption: null, trailer_plate: null, trailer_type: 'тент' }
         ];
         renderVehicleNormSelect();
         currentUserId = 'preview-owner';

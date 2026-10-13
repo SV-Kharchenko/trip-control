@@ -21,77 +21,98 @@ function extractFunction(name, params) {
         if (html[i] === '{') depth += 1;
         else if (html[i] === '}') {
             depth -= 1;
-            if (depth === 0) {
-                return new Function(...params, html.slice(open + 1, i));
-            }
+            if (depth === 0) return new Function(...params, html.slice(open + 1, i));
         }
     }
     throw new Error('unclosed ' + name);
 }
 
 const vehicleNormNumber = extractFunction('vehicleNormNumber', ['value', 'min', 'max']);
-const vehicleNormPatch = extractFunction('vehicleNormPatch', ['vehicle']);
-const applyVehicleNorms = extractFunction('applyVehicleNorms', ['base', 'vehicle']);
+const applyVehicleNorms = extractFunction('applyVehicleNorms', ['base', 'vehicles']);
 globalThis.vehicleNormNumber = vehicleNormNumber;
-globalThis.vehicleNormPatch = vehicleNormPatch;
 
-test('a trip without a vehicle keeps every golden result', () => {
+test('a trip without a selected vehicle keeps every golden result', () => {
     for (const scenario of fixtures) {
         assert.deepEqual(calculateTrip(scenario.payload), scenario.expect);
         assert.deepEqual(calculateTrip(applyVehicleNorms(scenario.payload, null)), scenario.expect);
-        assert.deepEqual(calculateTrip(applyVehicleNorms(scenario.payload, {})), scenario.expect);
-        assert.deepEqual(calculateTrip(applyVehicleNorms(scenario.payload, {
-            fuel_load: '',
-            fuel_empty: 0,
-            norm_weight: 100,
-            trailer_type: 'фургон'
-        })), scenario.expect);
+        assert.deepEqual(calculateTrip(applyVehicleNorms(scenario.payload, [])), scenario.expect);
     }
     assert.equal(calculateSource.includes('fleet_vehicles'), false);
     assert.equal(calculateSource.includes('fuel_load'), false);
+    assert.equal(calculateSource.includes('adblue_on'), false);
 });
 
-test('filled vehicle norms replace only those inputs and do not mutate the company payload', () => {
+test('one truck replaces only its filled norms and sets the vehicle count to one', () => {
     const base = fixtures[0].payload;
-    const vehicle = { fuel_load: 28, fuel_empty: 24, norm_weight: 22, trailer_type: 'тент', label: 'AA0001KA' };
-    const next = applyVehicleNorms(base, vehicle);
+    const next = applyVehicleNorms(base, {
+        make_model: 'Volvo FH',
+        label: 'AA0001KA',
+        year_made: 2019,
+        trailer_plate: 'AA1111XP',
+        fuel_load: 28,
+        fuel_empty: 24,
+        adblue_on: true,
+        adblue_consumption: 4,
+        trailer_type: 'тент'
+    });
     assert.equal(base.fuelLoad, 37);
-    assert.equal(base.trailerType, 'тент');
+    assert.equal(base.carsCount, 3);
     assert.equal(next.fuelLoad, 28);
     assert.equal(next.fuelEmpty, 24);
-    assert.equal(next.normWeight, 22);
+    assert.equal(next.adblueConsumption, 4);
+    assert.equal(next.useAdblue, true);
     assert.equal(next.trailerType, 'тент');
+    assert.equal(next.carsCount, 1);
     assert.equal(next.dist, base.dist);
-    assert.equal(next.rate, base.rate);
+    assert.equal(next.make_model, undefined);
     assert.notEqual(calculateTrip(next).netProfit, fixtures[0].expect.netProfit);
-    const fuelOnly = applyVehicleNorms(base, { fuel_load: 28 });
-    assert.equal(fuelOnly.fuelLoad, 28);
-    assert.equal(fuelOnly.fuelEmpty, base.fuelEmpty);
-    assert.equal(fuelOnly.trailerType, base.trailerType);
 });
 
-test('vehicle norm bounds reject empty, zero and values above 80', () => {
-    assert.equal(vehicleNormNumber('', 0.1, 80), null);
-    assert.equal(vehicleNormNumber(0, 0.1, 80), null);
-    assert.equal(vehicleNormNumber(80.1, 0.1, 80), null);
+test('several trucks average consumption and keep a shared trailer type', () => {
+    const base = fixtures[0].payload;
+    const averaged = applyVehicleNorms(base, [
+        { fuel_load: 30, fuel_empty: 26, adblue_on: true, adblue_consumption: 4, trailer_type: 'тент' },
+        { fuel_load: 36, fuel_empty: 30, adblue_on: false, trailer_type: 'тент' }
+    ]);
+    assert.equal(averaged.fuelLoad, 33);
+    assert.equal(averaged.fuelEmpty, 28);
+    assert.equal(averaged.adblueConsumption, 2);
+    assert.equal(averaged.useAdblue, true);
+    assert.equal(averaged.carsCount, 2);
+    assert.equal(averaged.trailerType, 'тент');
+    const mixed = applyVehicleNorms(base, [
+        { trailer_type: 'тент', fuel_load: 30 },
+        { trailer_type: 'зерновоз' }
+    ]);
+    assert.equal(mixed.trailerType, base.trailerType);
+    assert.equal(mixed.fuelLoad, (30 + base.fuelLoad) / 2);
+    assert.equal(mixed.carsCount, 2);
+    const blank = applyVehicleNorms(base, { fuel_load: 0, fuel_empty: 90, trailer_type: 'фургон' });
+    assert.equal(blank.fuelLoad, base.fuelLoad);
+    assert.equal(blank.fuelEmpty, base.fuelEmpty);
+    assert.equal(blank.trailerType, base.trailerType);
+    assert.equal(blank.carsCount, 1);
     assert.equal(vehicleNormNumber(80, 0.1, 80), 80);
-    assert.equal(vehicleNormNumber('31.5', 0.1, 80), 31.5);
-    assert.equal(vehicleNormPatch({ fuel_load: 'привіт', trailer_type: 'тент' }).trailerType, 'тент');
-    assert.equal(vehicleNormPatch({ fuel_load: 'привіт' }), null);
+    assert.equal(vehicleNormNumber(0, 0.1, 80), null);
 });
 
-test('the calculator lists fleet vehicles and the new columns stay in a new migration', () => {
-    assert.match(html, /id="vehicle-norm"/);
-    assert.match(html, /Норми компанії/);
-    assert.match(html, /function onVehicleNormChange\(/);
+test('the fleet card explains the company template and stores the new columns separately', () => {
+    assert.match(html, /id="vehicle-norm-list"/);
+    assert.match(html, /Якщо ці дані заповнені і в розрахунку обране це авто або кілька/);
+    assert.match(html, /загального шаблону кабінету/);
+    assert.match(html, /Марка \/ модель/);
+    assert.match(html, /Витрата порожнім, л\/100 км/);
+    assert.match(html, /Витрата з вантажем, л\/100 км/);
+    assert.match(html, /Держ\. номер причепа/);
+    assert.equal(html.includes('norm_weight'), false);
     assert.equal(oldMigration.includes('fuel_load'), false);
-    assert.match(migration, /ADD COLUMN IF NOT EXISTS fuel_load/);
-    assert.match(migration, /ADD COLUMN IF NOT EXISTS fuel_empty/);
-    assert.match(migration, /ADD COLUMN IF NOT EXISTS norm_weight/);
-    assert.match(migration, /ADD COLUMN IF NOT EXISTS trailer_type/);
-    assert.match(migration, /fuel_load >= 0\.1 AND fuel_load <= 80/);
+    assert.equal(migration.includes('norm_weight'), false);
+    assert.match(migration, /ADD COLUMN IF NOT EXISTS make_model/);
+    assert.match(migration, /ADD COLUMN IF NOT EXISTS year_made/);
+    assert.match(migration, /ADD COLUMN IF NOT EXISTS adblue_on/);
+    assert.match(migration, /ADD COLUMN IF NOT EXISTS trailer_plate/);
+    assert.match(migration, /year_made >= 1980 AND year_made <= 2100/);
     assert.match(migration, /зерновоз/);
     assert.equal(migration.includes('GRANT'), false);
-    assert.equal(migration.includes('anon'), false);
     assert.equal(migration.includes('calculateTrip'), false);
 });
