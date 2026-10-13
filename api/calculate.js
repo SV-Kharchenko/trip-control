@@ -270,7 +270,7 @@ export function calculateTrip(body) {
     const rateExVatPerTon = Math.round(rate / 1.2);
 
     const detailedRows = [
-        { name: '⛽ Пальне (ДП завантажений + пустий + подача' + (refFuelCost > 0 ? ' + реф' : '') + ')', val: Math.round(fuelTotal) },
+        { name: '⛽ Пальне (ДП завантажений + порожній + подача' + (refFuelCost > 0 ? ' + реф' : '') + ')', val: Math.round(fuelTotal) },
         { name: useAdblue ? '💧 Рідина AdBlue' : '💧 Рідина AdBlue (вимкнено)', val: Math.round(adblueTotal) },
         { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові', val: Math.round(driverTotal) },
         { name: '🔧 ТО, Шини та Ремонти' + (tankWashTotal > 0 ? ' + промивка цистерни' : ''), val: Math.round(maintenanceTotal) },
