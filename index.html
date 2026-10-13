@@ -3128,6 +3128,7 @@
                     <label><input type="checkbox" id="poi-sto" style="width:auto;"> 🔧 СТО</label>
                 </div>
                 <button type="button" class="btn" style="width: 100%;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти</button>
+                <div id="poi-attribution" style="font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; text-align: center;">© OpenStreetMap contributors</div>
                 <div id="poi-status" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
                 <div id="poi-results" style="margin-top: 6px;"></div>
             </div>
@@ -4029,6 +4030,7 @@
         googleMapsPromise = new Promise((resolve, reject) => {
             if (window.google && window.google.maps) { resolve(); return; }
             const s = document.createElement('script');
+            // places — лише автопідказки адрес. Об'єкти вздовж маршруту йдуть через /api/poi, не через Places.
             s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(GOOGLE_MAPS_BROWSER_KEY) + '&libraries=places,geometry';
             s.async = true;
             s.onload = () => resolve();
@@ -8146,106 +8148,107 @@
         }
 
         clearPOIMarkers();
-        let samplePoints = sampleRoutePoints(lastRoutePath, 60000);
-        if (samplePoints.length > 6) {
-            const step = Math.ceil(samplePoints.length / 6);
-            samplePoints = samplePoints.filter((_, i) => i % step === 0);
+        const samplePoints = corridorSample(lastRoutePath);
+        const points = samplePoints.map(routePointPayload).filter(point => Number.isFinite(point.lat) && Number.isFinite(point.lon));
+        if (!points.length) {
+            statusEl.innerText = '⚠️ На маршруті немає координат для пошуку';
+            statusEl.style.color = 'var(--warning)';
+            return;
         }
 
-        statusEl.innerText = `🔍 Google Places: шукаємо у ${samplePoints.length} точках маршруту...`;
+        statusEl.innerText = '🔍 OpenStreetMap: коридор уздовж маршруту...';
         statusEl.style.color = 'var(--text-muted)';
 
-        const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
-
-        const categories = [];
-        if (wantGas) categories.push({ type: 'gas_station', icon: '⛽', label: 'АЗС' });
-        if (wantCafe) categories.push({ type: 'cafe', icon: '☕', label: 'Кафе' });
-        if (wantSto) categories.push({ type: 'car_repair', icon: '🔧', label: 'СТО' });
-
-        const seenIds = new Set();
-        let foundCount = 0;
-        let callCount = 0;
-        let errorCount = 0;
-
-        for (const pt of samplePoints) {
-            for (const cat of categories) {
-                callCount++;
-                try {
-                    const { places } = await Place.searchNearby({
-                        fields: ['id', 'displayName', 'location', 'formattedAddress'],
-                        locationRestriction: { center: pt, radius: 8000 },
-                        includedPrimaryTypes: [cat.type],
-                        maxResultCount: 3,
-                        rankPreference: SearchNearbyRankPreference.DISTANCE
-                    });
-                    (places || []).forEach(place => {
-                        if (seenIds.has(place.id)) return;
-                        seenIds.add(place.id);
-                        foundCount++;
-                        addPOIMarkerGoogle(place, cat.icon, cat.label);
-                    });
-                } catch (e) {
-                    errorCount++;
-                    console.warn('Places searchNearby помилка:', e);
-                }
+        try {
+            const { data: { session: freshSession } } = await supabaseClient.auth.getSession();
+            if (freshSession) currentSessionToken = freshSession.access_token;
+            const response = await fetch('/api/poi', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + (currentSessionToken || '')
+                },
+                body: JSON.stringify({
+                    points: points,
+                    wantGas: wantGas,
+                    wantTir: wantTir,
+                    wantCafe: wantCafe,
+                    wantSto: wantSto
+                })
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                statusEl.innerText = '❌ ' + (payload.error || 'Overpass недоступний. Спробуйте ще раз.');
+                statusEl.style.color = 'var(--danger)';
+                return;
             }
-
-            if (wantTir) {
-                callCount++;
-                try {
-                    const { places } = await Place.searchByText({
-                        textQuery: 'truck parking TIR стоянка вантажівок',
-                        fields: ['id', 'displayName', 'location', 'formattedAddress'],
-                        locationBias: { center: pt, radius: 8000 },
-                        maxResultCount: 3
-                    });
-                    (places || []).forEach(place => {
-                        if (seenIds.has(place.id)) return;
-                        seenIds.add(place.id);
-                        foundCount++;
-                        addPOIMarkerGoogle(place, '🅿️', 'TIR стоянка');
-                    });
-                } catch (e) {
-                    errorCount++;
-                    console.warn('Places searchByText помилка:', e);
-                }
+            const elements = Array.isArray(payload.elements) ? payload.elements : [];
+            elements.forEach(addPoiMarker);
+            const cached = payload.cached ? ' · з кешу' : '';
+            if (payload.warning) {
+                statusEl.innerText = '⚠️ ' + payload.warning + ' Знайдено ' + elements.length + '.';
+                statusEl.style.color = 'var(--warning)';
+            } else {
+                statusEl.innerText = '✅ Знайдено ' + elements.length + ' об’єктів уздовж маршруту (OpenStreetMap' + cached + ')';
+                statusEl.style.color = 'var(--success)';
             }
-        }
-
-        if (errorCount === callCount && callCount > 0) {
-            statusEl.innerText = `❌ Жоден запит не пройшов — перевірте консоль (F12) і статус Places API в Cloud Console`;
+        } catch (e) {
+            statusEl.innerText = '❌ Overpass недоступний. Спробуйте ще раз.';
             statusEl.style.color = 'var(--danger)';
-        } else if (errorCount > 0) {
-            statusEl.innerText = `⚠️ Знайдено ${foundCount} об'єктів (${errorCount} з ${callCount} запитів не відповіли)`;
-            statusEl.style.color = 'var(--warning)';
-        } else {
-            statusEl.innerText = `✅ Знайдено ${foundCount} об'єктів вздовж маршруту (Google Places, ${callCount} запитів)`;
-            statusEl.style.color = 'var(--success)';
         }
     }
 
-    function addPOIMarkerGoogle(place, icon, label) {
-        if (!place.location) return;
-        const position = place.location;
-        const name = place.displayName || label;
+    function corridorSample(path) {
+        const dense = sampleRoutePoints(path, 20000);
+        if (dense.length <= 25) return dense;
+        const last = dense.length - 1;
+        const out = [];
+        for (let i = 0; i < 25; i++) out.push(dense[Math.round(i * last / 24)]);
+        return out;
+    }
 
+    function routePointPayload(point) {
+        const lat = typeof point.lat === 'function' ? point.lat() : Number(point.lat);
+        const lon = typeof point.lng === 'function' ? point.lng() : Number(point.lon != null ? point.lon : point.lng);
+        return { lat: lat, lon: lon };
+    }
+
+    function poiPresentation(item) {
+        if (item.kind === 'gas') return { icon: '⛽', label: 'АЗС' };
+        if (item.kind === 'cafe') return { icon: '☕', label: 'Кафе' };
+        if (item.kind === 'sto') return { icon: '🔧', label: 'СТО' };
+        return { icon: '🅿️', label: 'TIR стоянка' };
+    }
+
+    function addPoiMarker(item) {
+        if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)) return;
+        const presentation = poiPresentation(item);
+        const name = item.name || presentation.label;
+        const position = { lat: item.lat, lng: item.lon };
         const marker = new google.maps.Marker({
             position: position,
             map: map,
-            label: { text: icon, fontSize: '14px' },
+            label: { text: presentation.icon, fontSize: '14px' },
             title: name
         });
         poiMarkers.push(marker);
 
         const infoWindow = new google.maps.InfoWindow({
-            content: `<div style="color:#1e293b; font-size:0.85rem;"><b>${icon} ${name}</b><br>${label}${place.formattedAddress ? '<br>' + place.formattedAddress : ''}</div>`
+            content: '<div style="color:#1e293b; font-size:0.85rem;"><b>' + presentation.icon + ' ' + escAdm(name) + '</b><br>' +
+                escAdm(presentation.label) + (item.address ? '<br>' + escAdm(item.address) : '') + '</div>'
         });
         marker.addListener('click', () => infoWindow.open(map, marker));
 
         const resultsBox = document.getElementById('poi-results');
         const row = document.createElement('div');
         row.style.cssText = 'padding:4px 0; border-bottom:1px solid var(--border-color); cursor:pointer;';
-        row.innerHTML = `${icon} <b>${name}</b><br><span style="color:var(--text-muted); font-size:0.75rem;">${label}</span>`;
+        const title = document.createElement('b');
+        title.textContent = presentation.icon + ' ' + name;
+        const meta = document.createElement('div');
+        meta.style.cssText = 'color:var(--text-muted); font-size:0.75rem;';
+        meta.textContent = presentation.label + (item.address ? ' · ' + item.address : '');
+        row.appendChild(title);
+        row.appendChild(meta);
         row.onclick = () => { map.panTo(position); map.setZoom(13); infoWindow.open(map, marker); };
         resultsBox.appendChild(row);
     }
