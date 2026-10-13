@@ -3338,9 +3338,9 @@
         <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
         <button class="btn full-only" onclick="window.print()">📄 Експорт у PDF</button>
         <button class="btn full-only" onclick="exportExcel()">📊 Експорт у Excel</button>
-        <button class="btn btn-warning full-only" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
+        <button class="btn btn-warning full-only" onclick="shareOffer()">📱 Надіслати у Viber</button>
         <button class="btn full-only" type="button" onclick="shareTelegram()">✈️ Надіслати в Telegram</button>
-        <button class="btn btn-locked demo-only" disabled>🔒 PDF · Excel · Viber/Telegram — доступно після оплати</button>
+        <button class="btn btn-locked demo-only" disabled>🔒 PDF · Excel · Viber · Telegram — доступно після оплати</button>
     </div>
 
     <section id="studio-overview" aria-label="Огляд">
@@ -7564,7 +7564,7 @@
             navigator.share({ title: 'Розрахунок рейсу', text: text }).catch(err => console.log('Share API error:', err));
         } else if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(function () {
-                showToast('Текст скопійовано. Вставте його у Viber або Telegram.', 3200);
+                showToast('Текст скопійовано. Вставте його у Viber.', 3200);
             }).catch(function () {
                 showToast('Не вдалося скопіювати текст.', 3200);
             });

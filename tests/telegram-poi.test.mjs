@@ -72,6 +72,9 @@ test('telegram share URL encodes cyrillic, ampersand, hash and newline', () => {
 test('telegram button reuses the offer text and never writes it with innerHTML', () => {
     const share = html.slice(html.indexOf('function shareTelegram()'), html.indexOf('let mapInitialized'));
     assert.match(html, /onclick="shareTelegram\(\)"/);
+    assert.match(html, /Надіслати у Viber</);
+    assert.equal(html.includes('Viber / Telegram'), false);
+    assert.equal(html.includes('Viber або Telegram'), false);
     assert.match(html, /Надіслати в Telegram/);
     assert.match(share, /offerShareText\(\)/);
     assert.match(share, /matchMedia\('\(pointer:coarse\)'\)/);
