@@ -1014,6 +1014,26 @@
         }
         .tc-template-form input[type="text"] { flex: 1 1 180px; width: auto; text-align: left; }
         .tc-template-form label { display: inline-flex; gap: 6px; align-items: center; font-size: 0.75rem; }
+        #vehicle-split { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+        #vehicle-split .preset-btn.is-on { border-color: var(--accent); color: var(--accent); }
+        .tc-vehicle-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1 1 260px; }
+        .tc-vehicle-pick input[type="number"] { width: 5.5rem; flex: 0 0 auto; text-align: right; }
+        #vehicle-norm-row { container-type: inline-size; container-name: vehicles; }
+        #vehicle-breakdown { margin-top: 4px; max-width: 100%; }
+        #vehicle-breakdown table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
+        #vehicle-breakdown th, #vehicle-breakdown td {
+            text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border-color); white-space: normal;
+        }
+        #vehicle-breakdown tr.is-total td { font-weight: 700; }
+        @container vehicles (max-width: 640px) {
+            #vehicle-breakdown thead { display: none; }
+            #vehicle-breakdown tr {
+                display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px;
+                padding: 8px 0; border-bottom: 1px solid var(--border-color);
+            }
+            #vehicle-breakdown td { display: flex; justify-content: space-between; gap: 8px; border: none; padding: 2px 0; }
+            #vehicle-breakdown td::before { content: attr(data-label); color: var(--text-muted); }
+        }
         .tc-template-list { display: flex; flex-wrap: wrap; gap: 6px; }
         .tc-status {
             display: inline-block; border-radius: 999px; padding: 2px 8px;
@@ -2907,6 +2927,19 @@
                     <button type="button" class="preset-tile" data-preset="рефрижератор" onclick="applyPreset('рефрижератор', this)"><span class="pt-ico">❄️</span>Реф<span class="pt-hint">холод</span></button>
                     <button type="button" class="preset-tile" data-preset="тент" onclick="applyPreset('тент', this)"><span class="pt-ico">🚛</span>Тент<span class="pt-hint">універсал</span></button>
                     <button type="button" class="preset-tile" data-preset="цистерна" onclick="applyPreset('цистерна', this)"><span class="pt-ico">🛢️</span>Цистерна<span class="pt-hint">наливні</span></button>
+                </div>
+
+                <div id="vehicle-norm-row" hidden>
+                    <div class="preset-bar-label">Авто з парку</div>
+                    <p class="tc-history-meta">Познач одне або кілька авто. Тоннаж ділиться порівну, за вантажопідйомністю або вручну. Пальне й AdBlue рахуються за нормою кожного авто; порожнє поле бере норму компанії. Сума по авто — це підсумок рейсу.</p>
+                    <div id="vehicle-split">
+                        <button type="button" class="preset-btn is-on" data-split="even" onclick="setVehicleSplitMode('even')">Порівну</button>
+                        <button type="button" class="preset-btn" data-split="capacity" onclick="setVehicleSplitMode('capacity')">За вантажопідйомністю</button>
+                        <button type="button" class="preset-btn" data-split="manual" onclick="setVehicleSplitMode('manual')">Вручну</button>
+                    </div>
+                    <p id="vehicle-split-note" class="tc-history-meta"></p>
+                    <div id="vehicle-norm-list" class="tc-template-form"></div>
+                    <div id="vehicle-breakdown" hidden></div>
                 </div>
 
                 <div class="form-row two-cols">
@@ -4819,6 +4852,7 @@
     }
 
     function applyPreset(type, btnElement) {
+        clearVehicleNormChoice();
         document.getElementById('trailer-type').value = type;
         
         if (btnElement) {
@@ -4848,21 +4882,376 @@
         onTrailerChange();
     }
 
-    function onTrailerChange() {
-        if (!currentSessionToken) return; // Не запускати якщо не авторизовані
-        
-        const trailer = document.getElementById('trailer-type').value;
+    function syncTrailerExtras() {
+        const trailerEl = document.getElementById('trailer-type');
+        const trailer = trailerEl ? trailerEl.value : '';
         const refConsumption = document.getElementById('field-ref-consumption');
         const refHours = document.getElementById('field-ref-hours');
-        if (trailer === 'рефрижератор') { refConsumption.classList.add('active'); refHours.classList.add('active'); } 
-        else { refConsumption.classList.remove('active'); refHours.classList.remove('active'); }
-
+        if (refConsumption && refHours) {
+            if (trailer === 'рефрижератор') { refConsumption.classList.add('active'); refHours.classList.add('active'); }
+            else { refConsumption.classList.remove('active'); refHours.classList.remove('active'); }
+        }
         const washCost = document.getElementById('field-wash-cost');
         const washFreq = document.getElementById('field-wash-freq');
-        if (trailer === 'цистерна') { washCost.classList.add('active'); washFreq.classList.add('active'); } 
-        else { washCost.classList.remove('active'); washFreq.classList.remove('active'); }
-        
+        if (washCost && washFreq) {
+            if (trailer === 'цистерна') { washCost.classList.add('active'); washFreq.classList.add('active'); }
+            else { washCost.classList.remove('active'); washFreq.classList.remove('active'); }
+        }
+    }
+    function onTrailerChange() {
+        if (!currentSessionToken) return; // Не запускати якщо не авторизовані
+        syncTrailerExtras();
         calculate();
+    }
+
+    let vehicleNormBaseline = null;
+    let vehicleSplitMode = 'even';
+    let vehicleTonnageDraft = {};
+    let vehicleNormLock = false;
+    function vehicleNormNumber(value, min, max) {
+        if (value === null || value === undefined || value === '') return null;
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < min || n > max) return null;
+        return n;
+    }
+    function splitTonnageShares(totalTons, weights) {
+        const count = Array.isArray(weights) ? weights.length : 0;
+        const total = Math.round(Number(totalTons) * 1000);
+        if (!(count > 0) || !(total > 0)) return [];
+        const clean = weights.map(function (weight) {
+            const n = Number(weight);
+            return n > 0 ? n : 0;
+        });
+        const sumWeights = clean.reduce(function (sum, n) { return sum + n; }, 0);
+        const even = !(sumWeights > 0);
+        const shares = [];
+        let used = 0;
+        for (let i = 0; i < count; i++) {
+            if (i === count - 1) {
+                shares.push((total - used) / 1000);
+                break;
+            }
+            const share = even ? Math.floor(total / count) : Math.floor(total * clean[i] / sumWeights);
+            used += share;
+            shares.push(share / 1000);
+        }
+        return shares;
+    }
+    function vehicleResolvedNorms(vehicle) {
+        const item = vehicle && typeof vehicle === 'object' ? vehicle : {};
+        const resolved = {};
+        const load = vehicleNormNumber(item.fuel_load, 0.1, 80);
+        const empty = vehicleNormNumber(item.fuel_empty, 0.1, 80);
+        if (load !== null) resolved.fuelLoad = load;
+        if (empty !== null) resolved.fuelEmpty = empty;
+        const on = item.adblue_on === true || item.adblue_on === 'on' || item.adblue_on === 'true'
+            ? true
+            : ((item.adblue_on === false || item.adblue_on === 'off' || item.adblue_on === 'false') ? false : null);
+        const rate = vehicleNormNumber(item.adblue_consumption, 0.05, 30);
+        if (on === false) {
+            resolved.useAdblue = false;
+            resolved.adblueConsumption = 0;
+        } else if (on === true || rate !== null) {
+            resolved.useAdblue = true;
+            if (rate !== null) resolved.adblueConsumption = rate;
+        }
+        if (['зерновоз', 'рефрижератор', 'тент', 'цистерна'].indexOf(item.trailer_type) >= 0) {
+            resolved.trailerType = item.trailer_type;
+        }
+        const payload = vehicleNormNumber(item.payload_t, 0.1, 80);
+        if (payload !== null) resolved.payloadTons = payload;
+        return resolved;
+    }
+    function vehicleContractTons() {
+        const modeEl = document.getElementById('return-mode');
+        const volumeEl = document.getElementById('volume');
+        const normEl = document.getElementById('norm-weight');
+        const mode = modeEl ? modeEl.value : '';
+        const volume = volumeEl ? parseFloat(volumeEl.value) : 0;
+        const norm = normEl ? parseFloat(normEl.value) : 0;
+        const count = chosenFleetVehicles().length;
+        if (mode === 'разовий') {
+            if (volume > 0) return volume;
+            if (norm > 0 && count > 0) return Math.round(norm * count * 1000) / 1000;
+            return 0;
+        }
+        return volume > 0 ? volume : 0;
+    }
+    function formatTons(value) {
+        const n = Math.round(Number(value) * 1000) / 1000;
+        return Number.isFinite(n) ? String(n) : '0';
+    }
+    function readVehicleNormForm() {
+        const value = function (id) {
+            const el = document.getElementById(id);
+            return el ? el.value : '';
+        };
+        return {
+            fuelLoad: value('fuel-load'),
+            fuelEmpty: value('fuel-empty'),
+            trailerType: value('trailer-type'),
+            carsCount: value('cars-count'),
+            useAdblue: value('adblue-enable') !== 'off',
+            adblueConsumption: value('adblue-consumption')
+        };
+    }
+    function writeVehicleNormForm(values) {
+        const data = values || {};
+        const trailer = document.getElementById('trailer-type');
+        if (trailer && data.trailerType) {
+            trailer.value = data.trailerType;
+            document.querySelectorAll('.preset-tile').forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.preset === data.trailerType);
+            });
+            syncTrailerExtras();
+        }
+        const fuelLoad = document.getElementById('fuel-load');
+        const fuelEmpty = document.getElementById('fuel-empty');
+        const cars = document.getElementById('cars-count');
+        const adblue = document.getElementById('adblue-enable');
+        const adblueRate = document.getElementById('adblue-consumption');
+        if (fuelLoad && data.fuelLoad != null && data.fuelLoad !== '') fuelLoad.value = data.fuelLoad;
+        if (fuelEmpty && data.fuelEmpty != null && data.fuelEmpty !== '') fuelEmpty.value = data.fuelEmpty;
+        if (cars && data.carsCount != null && data.carsCount !== '') cars.value = data.carsCount;
+        if (adblueRate && data.adblueConsumption != null && data.adblueConsumption !== '') adblueRate.value = data.adblueConsumption;
+        if (adblue && data.useAdblue != null) {
+            const on = !!data.useAdblue;
+            adblue.value = on ? 'on' : 'off';
+            const consumption = document.getElementById('field-adblue-consumption');
+            const price = document.getElementById('field-adblue-price');
+            if (consumption) consumption.classList.toggle('active', on);
+            if (price) price.classList.toggle('active', on);
+        }
+    }
+    function chosenFleetVehicles() {
+        const list = document.getElementById('vehicle-norm-list');
+        if (!list) return [];
+        const chosen = [];
+        list.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) {
+            const vehicle = fleetVehicles.find(function (item) { return String(item.id) === input.value; });
+            if (vehicle) chosen.push(vehicle);
+        });
+        return chosen;
+    }
+    function clearVehicleNormChoice() {
+        if (vehicleNormBaseline) writeVehicleNormForm(vehicleNormBaseline);
+        vehicleNormBaseline = null;
+        vehicleTonnageDraft = {};
+        vehicleSplitMode = 'even';
+        const list = document.getElementById('vehicle-norm-list');
+        if (list) list.querySelectorAll('input[type="checkbox"]').forEach(function (input) { input.checked = false; });
+        markVehicleSplitMode();
+        renderVehicleNormSelect();
+        refreshVehicleTonnage();
+    }
+    function markVehicleSplitMode() {
+        document.querySelectorAll('#vehicle-split button').forEach(function (btn) {
+            btn.classList.toggle('is-on', btn.getAttribute('data-split') === vehicleSplitMode);
+        });
+    }
+    function setVehicleSplitMode(mode) {
+        if (mode !== 'even' && mode !== 'manual' && mode !== 'capacity') return;
+        vehicleSplitMode = mode;
+        markVehicleSplitMode();
+        refreshVehicleTonnage();
+        if (currentSessionToken) calculate();
+    }
+    function renderVehicleNormSelect() {
+        const row = document.getElementById('vehicle-norm-row');
+        const list = document.getElementById('vehicle-norm-list');
+        if (!row || !list) return;
+        const checked = {};
+        list.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) { checked[input.value] = true; });
+        list.textContent = '';
+        fleetVehicles.forEach(function (vehicle) {
+            const id = String(vehicle.id);
+            const pick = document.createElement('div');
+            pick.className = 'tc-vehicle-pick';
+            const label = document.createElement('label');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.value = id;
+            input.checked = !!checked[id];
+            input.addEventListener('change', onVehicleNormChange);
+            const plate = String(vehicle.label || 'Авто');
+            const make = vehicle.make_model ? String(vehicle.make_model) : '';
+            label.appendChild(input);
+            label.appendChild(document.createTextNode(make ? plate + ' · ' + make : plate));
+            pick.appendChild(label);
+            if (checked[id]) {
+                const tons = document.createElement('input');
+                tons.type = 'number';
+                tons.min = '0.001';
+                tons.step = '0.001';
+                tons.setAttribute('data-tons', id);
+                tons.value = vehicleTonnageDraft[id] != null ? formatTons(vehicleTonnageDraft[id]) : '';
+                tons.readOnly = vehicleSplitMode !== 'manual';
+                tons.addEventListener('input', onVehicleTonsInput);
+                pick.appendChild(tons);
+                pick.appendChild(document.createTextNode('т'));
+            }
+            list.appendChild(pick);
+        });
+        row.hidden = !fleetVehicles.length;
+        const missing = Object.keys(checked).some(function (id) {
+            return !fleetVehicles.some(function (vehicle) { return String(vehicle.id) === id; });
+        });
+        if (missing && !vehicleNormLock) onVehicleNormChange();
+    }
+    function updateVehicleSplitNote(shares) {
+        const note = document.getElementById('vehicle-split-note');
+        if (!note) return;
+        const chosen = chosenFleetVehicles();
+        if (!chosen.length) {
+            note.textContent = '';
+            return;
+        }
+        const target = vehicleContractTons();
+        const sum = (shares || []).reduce(function (acc, n) { return acc + (Number(n) || 0); }, 0);
+        if (!(target > 0)) {
+            note.textContent = 'Вкажи обсяг рейсу, щоб розкласти тоннаж.';
+            return;
+        }
+        if (Math.abs(sum - target) > 0.0005) {
+            note.textContent = 'Розкладено ' + formatTons(sum) + ' з ' + formatTons(target) + ' т. Підсумок рахується з розкладеного.';
+            return;
+        }
+        note.textContent = 'Разом ' + formatTons(sum) + ' т на ' + chosen.length + ' авто.';
+    }
+    function refreshVehicleTonnage() {
+        const chosen = chosenFleetVehicles();
+        if (!chosen.length) {
+            updateVehicleSplitNote([]);
+            const box = document.getElementById('vehicle-breakdown');
+            if (box && !chosen.length) { box.hidden = true; box.textContent = ''; }
+            return [];
+        }
+        const target = vehicleContractTons();
+        const normEl = document.getElementById('norm-weight');
+        const norm = normEl ? parseFloat(normEl.value) : 0;
+        let shares;
+        if (vehicleSplitMode === 'manual') {
+            shares = chosen.map(function (vehicle) {
+                const id = String(vehicle.id);
+                const input = document.querySelector('#vehicle-norm-list input[data-tons="' + id + '"]');
+                const raw = input ? input.value : vehicleTonnageDraft[id];
+                const n = Number(raw);
+                return Number.isFinite(n) ? n : 0;
+            });
+        } else if (vehicleSplitMode === 'capacity') {
+            const weights = chosen.map(function (vehicle) {
+                const payload = vehicleNormNumber(vehicle.payload_t, 0.1, 80);
+                return payload !== null ? payload : (norm > 0 ? norm : 1);
+            });
+            shares = splitTonnageShares(target, weights);
+        } else {
+            shares = splitTonnageShares(target, chosen.map(function () { return 1; }));
+        }
+        chosen.forEach(function (vehicle, index) {
+            const id = String(vehicle.id);
+            vehicleTonnageDraft[id] = shares[index];
+            const input = document.querySelector('#vehicle-norm-list input[data-tons="' + id + '"]');
+            if (!input) return;
+            input.readOnly = vehicleSplitMode !== 'manual';
+            if (document.activeElement !== input) input.value = formatTons(shares[index]);
+        });
+        updateVehicleSplitNote(shares);
+        return shares;
+    }
+    function onVehicleTonsInput(event) {
+        if (vehicleSplitMode !== 'manual') return;
+        const input = event.target;
+        if (!input || !input.getAttribute) return;
+        const id = input.getAttribute('data-tons');
+        vehicleTonnageDraft[id] = Number(input.value);
+        const shares = chosenFleetVehicles().map(function (vehicle) {
+            return Number(vehicleTonnageDraft[String(vehicle.id)]) || 0;
+        });
+        updateVehicleSplitNote(shares);
+        if (currentSessionToken) calculate();
+    }
+    function reapplySelectedVehicleNorms() {
+        if (!chosenFleetVehicles().length) return;
+        refreshVehicleTonnage();
+        if (currentSessionToken) calculate();
+    }
+    function onVehicleNormChange() {
+        if (vehicleNormLock) return;
+        vehicleNormLock = true;
+        try {
+            const chosen = chosenFleetVehicles();
+            if (!chosen.length) {
+                if (vehicleNormBaseline) writeVehicleNormForm(vehicleNormBaseline);
+                vehicleNormBaseline = null;
+                renderVehicleNormSelect();
+                refreshVehicleTonnage();
+                if (currentSessionToken) calculate();
+                return;
+            }
+            if (!vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
+            const cars = document.getElementById('cars-count');
+            if (cars) cars.value = String(chosen.length);
+            if (vehicleSplitMode === 'manual') {
+                const target = vehicleContractTons();
+                const known = chosen.filter(function (vehicle) { return Number(vehicleTonnageDraft[String(vehicle.id)]) > 0; });
+                const knownSum = known.reduce(function (sum, vehicle) { return sum + Number(vehicleTonnageDraft[String(vehicle.id)]); }, 0);
+                const fresh = chosen.filter(function (vehicle) { return !(Number(vehicleTonnageDraft[String(vehicle.id)]) > 0); });
+                const leftover = Math.max(0, Math.round((target - knownSum) * 1000) / 1000);
+                const extra = splitTonnageShares(leftover, fresh.map(function () { return 1; }));
+                fresh.forEach(function (vehicle, index) { vehicleTonnageDraft[String(vehicle.id)] = extra[index] || 0; });
+            }
+            renderVehicleNormSelect();
+            refreshVehicleTonnage();
+            if (currentSessionToken) calculate();
+        } finally {
+            vehicleNormLock = false;
+        }
+    }
+    function readVehicleAssignments() {
+        return chosenFleetVehicles().map(function (vehicle) {
+            const id = String(vehicle.id);
+            const resolved = vehicleResolvedNorms(vehicle);
+            const snapshot = {
+                label: vehicle.label || 'Авто',
+                make_model: vehicle.make_model || null,
+                year_made: vehicle.year_made == null ? null : vehicle.year_made,
+                trailer_plate: vehicle.trailer_plate || null,
+                fuel_load: vehicle.fuel_load == null ? null : vehicle.fuel_load,
+                fuel_empty: vehicle.fuel_empty == null ? null : vehicle.fuel_empty,
+                adblue_on: vehicle.adblue_on == null ? null : vehicle.adblue_on,
+                adblue_consumption: vehicle.adblue_consumption == null ? null : vehicle.adblue_consumption,
+                trailer_type: vehicle.trailer_type || null,
+                payload_t: vehicle.payload_t == null ? null : vehicle.payload_t,
+                resolved: resolved
+            };
+            return Object.assign({
+                id: vehicle.id,
+                label: vehicle.label || 'Авто',
+                tonnage: Number(vehicleTonnageDraft[id]) || 0,
+                snapshot: snapshot
+            }, resolved);
+        });
+    }
+    function applySavedVehicles(vehicles, mode) {
+        vehicleTonnageDraft = {};
+        (vehicles || []).forEach(function (item) {
+            if (!item || item.id == null) return;
+            vehicleTonnageDraft[String(item.id)] = Number(item.tonnage);
+        });
+        vehicleSplitMode = (vehicles && vehicles.length) ? (mode || 'manual') : 'even';
+        markVehicleSplitMode();
+        const list = document.getElementById('vehicle-norm-list');
+        if (list) {
+            list.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+                input.checked = Object.prototype.hasOwnProperty.call(vehicleTonnageDraft, input.value);
+            });
+        }
+        if (vehicles && vehicles.length && !vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
+        if (!vehicles || !vehicles.length) vehicleNormBaseline = null;
+        renderVehicleNormSelect();
+        const cars = document.getElementById('cars-count');
+        if (cars && vehicles && vehicles.length) cars.value = String(vehicles.length);
+        refreshVehicleTonnage();
     }
 
     function toggleRoundTrip() {
@@ -5201,11 +5590,12 @@
         });
         html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
             '<div class="cab-card-head"><h3>Документи автопарку</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
-            '<p class="tc-fleet-note">Необов’язково. Дата закінчення по кожному авто: ОСЦПВ, КАСКО, Зелена карта, техогляд, тахограф, ТО. Калькулятор ці дати не використовує.</p>' +
+            '<p class="tc-fleet-note">Якщо ці дані заповнені і в розрахунку обране це авто або кілька, вони впливають на розрахунок. Якщо поле порожнє або авто не обране — розрахунок іде із загального шаблону кабінету. Марка, держномер, рік і номер причепа на суму не впливають. Кілька авто: тоннаж ділиться між ними, пальне і AdBlue рахуються окремо за нормою кожного, сума по авто дорівнює підсумку. Дати документів калькулятор не читає.</p>' +
             '<label id="fleet-warn-label" for="fleet-warn-days">Попереджати за, днів ' +
             '<input type="number" id="fleet-warn-days" min="1" max="180" step="1" value="30" onchange="saveFleetWarnDays()"></label>' +
             '<div class="tc-fleet-add" id="fleet-add">' +
-            '<input type="text" id="fleet-label" maxlength="40" placeholder="Номер, напр. AA1234BB">' +
+            '<input type="text" id="fleet-make" maxlength="80" placeholder="Марка і модель, необов’язково">' +
+            '<input type="text" id="fleet-label" maxlength="40" placeholder="Держ. номер, напр. AA1234BB">' +
             '<button type="button" class="btn" onclick="addFleetVehicle()">Додати авто</button></div>' +
             '<div id="fleet-list"></div></div></div>';
         if (currentWorkMode === 'team') {
@@ -5237,7 +5627,9 @@
         ['tachograph_on', 'Тахограф'],
         ['service_on', 'ТО']
     ];
-    const FLEET_COLUMNS = 'id, label, oscpv_on, kasko_on, green_card_on, inspection_on, tachograph_on, service_on';
+    const FLEET_DOC_COLUMNS = 'id, label, oscpv_on, kasko_on, green_card_on, inspection_on, tachograph_on, service_on';
+    const FLEET_NORM_COLUMNS = 'make_model, year_made, fuel_load, fuel_empty, adblue_on, adblue_consumption, trailer_plate, trailer_type, payload_t';
+    const FLEET_COLUMNS = FLEET_DOC_COLUMNS + ', ' + FLEET_NORM_COLUMNS;
     function kyivTodayYmd(now) {
         const date = now instanceof Date ? now : new Date(now || Date.now());
         const parts = new Intl.DateTimeFormat('en-CA', {
@@ -5297,6 +5689,10 @@
         if (message.indexOf('FLEET_LIMIT') !== -1) return 'У списку вже 100 авто.';
         if (message.indexOf('FLEET_LABEL') !== -1) return 'Вкажи номер або назву авто, до 40 символів.';
         if (message.indexOf('FLEET_FORBIDDEN') !== -1) return 'Документи змінює власник.';
+        if (code === '23514' || message.indexOf('fleet_vehicles_fuel') !== -1 || message.indexOf('fleet_vehicles_adblue') !== -1 || message.indexOf('fleet_vehicles_year') !== -1 || message.indexOf('fleet_vehicles_make') !== -1 || message.indexOf('fleet_vehicles_trailer') !== -1 || message.indexOf('fleet_vehicles_payload') !== -1) {
+            return 'Перевір норми: витрата 0,1–80, AdBlue 0,05–30, вантажопідйомність 0,1–80 т, рік 1980–2100, причіп зі списку.';
+        }
+        if (/column|schema cache/i.test(message)) return 'База ще без нових полів авто. Номер і дати лишаються.';
         return 'Не вдалося зберегти документи.';
     }
     function emptyFleetDates() {
@@ -5312,7 +5708,106 @@
         if (add) add.hidden = currentOrgRole !== 'owner';
         if (input && document.activeElement !== input) input.value = String(fleetWarnValue());
     }
+    function fleetNormMarkup(vehicle, owner) {
+        const off = owner ? '' : ' disabled';
+        const text = function (key, label, max, value) {
+            return '<label>' + label +
+                '<input type="text" data-norm="' + key + '" maxlength="' + max + '" value="' + teamEsc(value || '') + '"' + off + '>' +
+                '</label>';
+        };
+        const num = function (key, label, min, max, step, value) {
+            const shown = value == null || value === '' ? '' : value;
+            return '<label>' + label +
+                '<input type="number" data-norm="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + teamEsc(shown) + '"' + off + '>' +
+                '</label>';
+        };
+        const trailer = ['', 'зерновоз', 'рефрижератор', 'тент', 'цистерна'].map(function (item) {
+            const selected = vehicle.trailer_type === item ? ' selected' : '';
+            return '<option value="' + item + '"' + selected + '>' + (item || 'Як у компанії') + '</option>';
+        }).join('');
+        const adblue = vehicle.adblue_on === true ? 'on' : (vehicle.adblue_on === false ? 'off' : '');
+        const adblueOptions = [['', 'Як у компанії'], ['on', 'Є'], ['off', 'Немає']].map(function (item) {
+            return '<option value="' + item[0] + '"' + (adblue === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+        }).join('');
+        return '<div class="tc-fleet-docs">' +
+            text('make_model', 'Марка / модель', 80, vehicle.make_model) +
+            text('label', 'Держ. номер', 40, vehicle.label) +
+            num('year_made', 'Рік випуску', 1980, 2100, '1', vehicle.year_made) +
+            num('fuel_load', 'Витрата з вантажем, л/100 км', 0.1, 80, '0.1', vehicle.fuel_load) +
+            num('fuel_empty', 'Витрата порожнім, л/100 км', 0.1, 80, '0.1', vehicle.fuel_empty) +
+            num('payload_t', 'Вантажопідйомність, т', 0.1, 80, '0.1', vehicle.payload_t) +
+            '<label>AdBlue<select data-norm="adblue_on"' + off + '>' + adblueOptions + '</select></label>' +
+            num('adblue_consumption', 'Витрата AdBlue, л/100 км', 0.05, 30, '0.05', vehicle.adblue_consumption) +
+            text('trailer_plate', 'Держ. номер причепа', 40, vehicle.trailer_plate) +
+            '<label>Тип причепа<select data-norm="trailer_type"' + off + '>' + trailer + '</select></label>' +
+            '</div>';
+    }
+    function readFleetNorms(id) {
+        const card = document.getElementById('fleet-card-' + id);
+        const norms = {
+            make_model: null, label: null, year_made: null, fuel_load: null, fuel_empty: null,
+            adblue_on: null, adblue_consumption: null, trailer_plate: null, trailer_type: null, payload_t: null
+        };
+        if (!card) return { ok: false, error: 'Авто не знайдено.' };
+        const textOf = function (key) {
+            const input = card.querySelector('[data-norm="' + key + '"]');
+            return input && input.value ? input.value.trim() : '';
+        };
+        const make = textOf('make_model');
+        if (make.length > 80) return { ok: false, error: 'Марка і модель: до 80 символів.' };
+        norms.make_model = make || null;
+        const plate = textOf('label');
+        if (!plate || plate.length > 40) return { ok: false, error: 'Держ. номер: від 1 до 40 символів.' };
+        const duplicate = fleetVehicles.some(function (item) {
+            return item.id !== id && String(item.label || '').trim().toLowerCase() === plate.toLowerCase();
+        });
+        if (duplicate) return { ok: false, error: 'Таке авто вже є.' };
+        norms.label = plate;
+        const yearRaw = textOf('year_made');
+        if (yearRaw) {
+            if (!/^\d{4}$/.test(yearRaw) || Number(yearRaw) < 1980 || Number(yearRaw) > 2100) {
+                return { ok: false, error: 'Рік випуску: від 1980 до 2100.' };
+            }
+            norms.year_made = Number(yearRaw);
+        }
+        const fuels = [['fuel_load', 'Витрата з вантажем', ' л/100 км'], ['fuel_empty', 'Витрата порожнім', ' л/100 км'], ['payload_t', 'Вантажопідйомність', ' т']];
+        for (let i = 0; i < fuels.length; i++) {
+            const raw = textOf(fuels[i][0]);
+            if (!raw) continue;
+            const n = vehicleNormNumber(raw, 0.1, 80);
+            if (n === null) return { ok: false, error: fuels[i][1] + ': від 0,1 до 80' + fuels[i][2] + '.' };
+            norms[fuels[i][0]] = n;
+        }
+        const adblue = card.querySelector('[data-norm="adblue_on"]');
+        const adblueValue = adblue ? adblue.value : '';
+        if (adblueValue === 'on') norms.adblue_on = true;
+        else if (adblueValue === 'off') norms.adblue_on = false;
+        else if (adblueValue) return { ok: false, error: 'AdBlue: є, немає або як у компанії.' };
+        const adblueRaw = textOf('adblue_consumption');
+        if (adblueRaw) {
+            const n = vehicleNormNumber(adblueRaw, 0.05, 30);
+            if (n === null) return { ok: false, error: 'Витрата AdBlue: від 0,05 до 30 л/100 км.' };
+            norms.adblue_consumption = n;
+        }
+        const trailerPlate = textOf('trailer_plate');
+        if (trailerPlate.length > 40) return { ok: false, error: 'Держ. номер причепа: до 40 символів.' };
+        norms.trailer_plate = trailerPlate || null;
+        const trailer = card.querySelector('[data-norm="trailer_type"]');
+        const trailerValue = trailer ? trailer.value : '';
+        if (trailerValue && ['зерновоз', 'рефрижератор', 'тент', 'цистерна'].indexOf(trailerValue) < 0) {
+            return { ok: false, error: 'Невідомий тип причепа.' };
+        }
+        norms.trailer_type = trailerValue || null;
+        return { ok: true, norms: norms };
+    }
+    function emptyFleetNorms() {
+        return {
+            make_model: null, year_made: null, fuel_load: null, fuel_empty: null,
+            adblue_on: null, adblue_consumption: null, trailer_plate: null, trailer_type: null, payload_t: null
+        };
+    }
     function renderFleetDocs() {
+        renderVehicleNormSelect();
         syncFleetWarnControl();
         const list = document.getElementById('fleet-list');
         const summary = document.getElementById('fleet-summary');
@@ -5335,11 +5830,12 @@
             }).join('');
             const removeLabel = fleetDeleteId === vehicle.id ? 'Підтвердити' : 'Видалити';
             const actions = owner
-                ? '<div class="tc-fleet-actions"><button type="button" onclick="saveFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">Зберегти дати</button>' +
+                ? '<div class="tc-fleet-actions"><button type="button" onclick="saveFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">Зберегти</button>' +
                     '<button type="button" class="is-danger" onclick="removeFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">' + removeLabel + '</button></div>'
                 : '';
             return '<article class="tc-fleet-card' + (tone ? ' is-' + tone : '') + '" id="fleet-card-' + teamEsc(vehicle.id) + '">' +
                 '<div class="tc-fleet-head"><b>' + teamEsc(vehicle.label) + '</b></div>' +
+                fleetNormMarkup(vehicle, owner) +
                 '<div class="tc-fleet-docs">' + fields + '</div>' + actions + '</article>';
         }).join('');
         if (summary) summary.textContent = fleetVehicles.length ? ('Прострочено: ' + overdue + ' · скоро: ' + soon) : '';
@@ -5348,10 +5844,15 @@
     async function loadFleetVehicles() {
         if (uiPreview || !currentOrgId) return;
         try {
-            const { data, error } = await supabaseClient
+            let { data, error } = await supabaseClient
                 .from('fleet_vehicles')
                 .select(FLEET_COLUMNS)
                 .order('label');
+            if (error && /make_model|year_made|fuel_load|adblue_on|adblue_consumption|trailer_plate|trailer_type|payload_t|column/i.test(String((error && (error.message || error.details)) || error))) {
+                const fallback = await supabaseClient.from('fleet_vehicles').select(FLEET_DOC_COLUMNS).order('label');
+                data = fallback.data;
+                error = fallback.error;
+            }
             if (error) throw error;
             fleetVehicles = data || [];
         } catch (e) {
@@ -5362,9 +5863,15 @@
     async function addFleetVehicle() {
         if (currentOrgRole !== 'owner') return;
         const input = document.getElementById('fleet-label');
+        const makeInput = document.getElementById('fleet-make');
         const label = input ? input.value.trim() : '';
+        const make = makeInput ? makeInput.value.trim() : '';
         if (!label || label.length > 40) {
-            showToast('Вкажи номер або назву авто, до 40 символів.');
+            showToast('Держ. номер: від 1 до 40 символів.');
+            return;
+        }
+        if (make.length > 80) {
+            showToast('Марка і модель: до 80 символів.');
             return;
         }
         if (fleetVehicles.length >= 100) {
@@ -5376,25 +5883,29 @@
             return;
         }
         if (uiPreview) {
-            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label }, emptyFleetDates()));
+            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label, make_model: make || null }, emptyFleetDates(), emptyFleetNorms(), { make_model: make || null }));
             fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
             fleetDeleteId = null;
             if (input) input.value = '';
+            if (makeInput) makeInput.value = '';
             renderFleetDocs();
             showToast('Авто додано');
             return;
         }
         if (!currentOrgId) return;
         try {
-            const { data, error } = await supabaseClient.from('fleet_vehicles')
-                .insert({ org_id: currentOrgId, label: label })
-                .select(FLEET_COLUMNS)
-                .single();
-            if (error) throw error;
-            fleetVehicles.push(data);
+            const payload = { org_id: currentOrgId, label: label };
+            if (make) payload.make_model = make;
+            let inserted = await supabaseClient.from('fleet_vehicles').insert(payload).select(FLEET_COLUMNS).single();
+            if (inserted.error && make && /make_model|column|schema cache/i.test(String(inserted.error.message || inserted.error.details || ''))) {
+                inserted = await supabaseClient.from('fleet_vehicles').insert({ org_id: currentOrgId, label: label }).select(FLEET_DOC_COLUMNS).single();
+            }
+            if (inserted.error) throw inserted.error;
+            fleetVehicles.push(inserted.data);
             fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
             fleetDeleteId = null;
             if (input) input.value = '';
+            if (makeInput) makeInput.value = '';
             renderFleetDocs();
             showToast('Авто додано');
         } catch (e) {
@@ -5413,18 +5924,25 @@
     }
     async function saveFleetVehicle(id) {
         if (currentOrgRole !== 'owner') return;
+        const parsed = readFleetNorms(id);
+        if (!parsed.ok) {
+            showToast(parsed.error);
+            return;
+        }
         const dates = readFleetDates(id);
+        const patch = Object.assign({}, dates, parsed.norms);
         const row = fleetVehicles.find(function (item) { return item.id === id; });
         if (!row) return;
         if (uiPreview || String(id).indexOf('preview-fleet-') === 0) {
-            Object.assign(row, dates);
+            Object.assign(row, patch);
             renderFleetDocs();
-            showToast('Дати збережено');
+            reapplySelectedVehicleNorms();
+            showToast('Збережено');
             return;
         }
         try {
             const { data, error } = await supabaseClient.from('fleet_vehicles')
-                .update(dates)
+                .update(patch)
                 .eq('id', id)
                 .select(FLEET_COLUMNS)
                 .single();
@@ -5432,8 +5950,24 @@
             const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
             if (index >= 0) fleetVehicles[index] = data;
             renderFleetDocs();
-            showToast('Дати збережено');
+            reapplySelectedVehicleNorms();
+            showToast('Збережено');
         } catch (e) {
+            const message = String((e && (e.message || e.details)) || e);
+            if (/column|schema cache/i.test(message)) {
+                try {
+                    const datesOnly = await supabaseClient.from('fleet_vehicles').update(dates).eq('id', id).select(FLEET_DOC_COLUMNS).single();
+                    if (datesOnly.error) throw datesOnly.error;
+                    const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
+                    if (index >= 0) fleetVehicles[index] = Object.assign({}, fleetVehicles[index], datesOnly.data);
+                    renderFleetDocs();
+                    showToast('Дати збережено. Норми з’являться після оновлення бази.');
+                    return;
+                } catch (inner) {
+                    showToast(fleetWriteError(inner));
+                    return;
+                }
+            }
             showToast(fleetWriteError(e));
         }
     }
@@ -6269,7 +6803,7 @@
     }
 
     function readTripPayload() {
-        return {
+        const payload = {
             calcType: document.getElementById('calc-type').value,
             returnMode: document.getElementById('return-mode').value,
             roadQuality: document.getElementById('road-quality').value,
@@ -6327,6 +6861,149 @@
             ferryCost: document.getElementById('ferry-cost').value,
             clientName: clientNameValue()
         };
+        const assignments = readVehicleAssignments();
+        if (assignments.length) {
+            payload.vehicles = assignments;
+            payload.vehicleSplitMode = vehicleSplitMode;
+        }
+        return payload;
+    }
+    function renderVehicleBreakdown(result) {
+        const box = document.getElementById('vehicle-breakdown');
+        if (!box) return;
+        const rows = result && result.vehicleBreakdown;
+        if (!rows || !rows.length) {
+            box.hidden = true;
+            box.textContent = '';
+            return;
+        }
+        box.hidden = false;
+        box.textContent = '';
+        const title = document.createElement('div');
+        title.className = 'preset-bar-label';
+        title.textContent = 'По авто';
+        box.appendChild(title);
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const head = document.createElement('tr');
+        ['Авто', 'Тонни', 'Пальне', 'AdBlue', 'Інші витрати', 'Прибуток'].forEach(function (name) {
+            const th = document.createElement('th');
+            th.textContent = name;
+            head.appendChild(th);
+        });
+        thead.appendChild(head);
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        const totals = { tonnage: 0, fuel: 0, adblue: 0, costs: 0, profit: 0 };
+        rows.forEach(function (row) {
+            totals.tonnage += Number(row.tonnage) || 0;
+            totals.fuel += Number(row.fuel) || 0;
+            totals.adblue += Number(row.adblue) || 0;
+            totals.costs += Number(row.costs) || 0;
+            totals.profit += Number(row.profit) || 0;
+            const tr = document.createElement('tr');
+            [['Авто', row.label || 'Авто'], ['Тонни', formatTons(row.tonnage) + ' т'], ['Пальне', formatMoney(row.fuel)], ['AdBlue', formatMoney(row.adblue)], ['Інші витрати', formatMoney(row.costs)], ['Прибуток', formatMoney(row.profit)]].forEach(function (pair) {
+                const td = document.createElement('td');
+                td.setAttribute('data-label', pair[0]);
+                td.textContent = pair[1];
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        const total = document.createElement('tr');
+        total.className = 'is-total';
+        [['Авто', 'Разом'], ['Тонни', formatTons(totals.tonnage) + ' т'], ['Пальне', formatMoney(totals.fuel)], ['AdBlue', formatMoney(totals.adblue)], ['Інші витрати', formatMoney(totals.costs)], ['Прибуток', formatMoney(result.netProfit)]].forEach(function (pair) {
+            const td = document.createElement('td');
+            td.setAttribute('data-label', pair[0]);
+            td.textContent = pair[1];
+            total.appendChild(td);
+        });
+        tbody.appendChild(total);
+        table.appendChild(tbody);
+        box.appendChild(table);
+    }
+    function applyCalcResult(result, payload, routeName) {
+        const trailerType = payload.trailerType;
+        const safeVolume = result.assignedTonnage > 0
+            ? result.assignedTonnage
+            : (parseFloat(payload.volume) > 0 ? parseFloat(payload.volume) : 1);
+        ['res-income','res-margin','res-ebitda','res-profit','res-breakeven-full'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.classList.remove('tc-flash'); void el.offsetWidth; el.classList.add('tc-flash'); } });
+        document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
+        document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}${fxSuffix(result.netIncome)}`;
+        document.getElementById('res-margin').innerText = formatMoney(result.marginalIncome);
+        document.getElementById('res-margin-ton').innerText = `на 1 т: ${result.marginPerTon} грн${fxSuffix(result.marginPerTon)}`;
+        document.getElementById('res-ebitda').innerText = formatMoney(result.ebitda);
+        document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн${fxSuffix(result.ebitdaPerTon)}`;
+        document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
+        const profitFx = document.getElementById('res-profit-fx');
+        if (profitFx) profitFx.textContent = fxSuffix(result.netProfit);
+        paintProfitHero(result);
+        updateKpiSparklines(result);
+        updateRouteBar();
+        document.getElementById('trip-volume-info').innerText = result.tripVolumeText || '';
+        document.getElementById('rt-info').innerText = result.rtInfoText || '';
+        document.getElementById('podacha-info').innerText = result.podachaText || '';
+        document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
+        const badge = document.getElementById('res-badge');
+        badge.innerText = result.profitabilityPct.toFixed(1) + '%';
+        badge.className = 'badge ' + (result.profitabilityPct >= 15 ? 'badge-success' : result.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
+        const fmtBE = v => Math.round(v).toLocaleString('uk-UA');
+        const beUnit = contractCurrency === 'UAH' ? 'грн/т' : contractCurrency + '/т';
+        const beShown = v => {
+            if (v === null || v === undefined) return '—';
+            if (contractCurrency === 'UAH') return fmtBE(v);
+            const fx = contractFx();
+            if (!(fx > 0)) return fmtBE(v);
+            return (Math.round((v / fx) * 100) / 100).toLocaleString('uk-UA', { maximumFractionDigits: 2 });
+        };
+        const beFullEl = document.getElementById('res-breakeven-full');
+        const beOpEl = document.getElementById('res-breakeven-op');
+        const beGapEl = document.getElementById('res-breakeven-gap');
+        const beChip = document.getElementById('kpi-breakeven-chip');
+        if (result.breakevenFullPerTon === null || result.breakevenFullPerTon === undefined) {
+            beFullEl.innerText = 'недосяжна';
+            beOpEl.innerText = 'за цієї схеми оплати';
+            beGapEl.innerText = '';
+            beGapEl.className = 'kpi-sub tc-gap-pill';
+            beChip.title = 'Беззбитковість недосяжна: відсоток ЗП водія, ПДВ і податок разом «з\'їдають» усю розцінку. Перевірте модель оплати водія.';
+        } else {
+            beFullEl.innerText = `${beShown(result.breakevenFullPerTon)} ${beUnit}`;
+            const m = result.breakevenMarginPerTon, e = result.breakevenEbitdaPerTon;
+            beOpEl.innerText = `маржа ${m === null ? '—' : beShown(m)} · EBITDA ${e === null ? '—' : beShown(e)}${contractCurrency === 'UAH' ? '' : ' · ' + fmtBE(result.breakevenFullPerTon) + ' грн/т'}`;
+            const gap = result.breakevenGapPerTon;
+            if (gap >= 0) {
+                beGapEl.innerText = `Запас +${beShown(gap)} ${beUnit}`;
+                beGapEl.className = 'kpi-sub tc-gap-pill is-up';
+            } else {
+                beGapEl.innerText = `Дефіцит ${beShown(gap)} ${beUnit}`;
+                beGapEl.className = 'kpi-sub tc-gap-pill is-down';
+            }
+            let tip = `Розцінка (${beUnit}), при якій чистий прибуток = 0. При розцінці ${beShown(result.breakevenEbitdaPerTon)} EBITDA = 0, при ${beShown(result.breakevenMarginPerTon)} маржа = 0.`;
+            if (contractCurrency !== 'UAH') tip += ` У гривні: ${fmtBE(result.breakevenFullPerTon)} грн/т.`;
+            if (result.breakevenExVatPerTon !== null && result.breakevenExVatPerTon !== undefined) {
+                tip += ` Розцінка вводиться з ПДВ, тому й беззбитковість показана з ПДВ. Без ПДВ: ${beShown(result.breakevenExVatPerTon)} ${beUnit} (ваша розцінка без ПДВ: ${beShown(result.rateExVatPerTon)} ${beUnit}).`;
+            }
+            beChip.title = tip;
+        }
+        const tbody = document.getElementById('cost-breakdown');
+        let totalCostsSum = (result.detailedRows || []).reduce((sum, r) => sum + r.val, 0);
+        tbody.innerHTML = (result.detailedRows || []).map(r => `
+            <tr>
+                <td>${r.name}</td>
+                <td>${formatMoney(r.val)}${fxSuffix(r.val)}</td>
+                <td>${Math.round(r.val / safeVolume)} грн${fxSuffix(r.val / safeVolume)}</td>
+                <td>${totalCostsSum > 0 ? (r.val / totalCostsSum * 100).toFixed(1) + '%' : '0%'}</td>
+            </tr>
+        `).join('');
+        renderVehicleBreakdown(result);
+        renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
+        lastCalcData = {
+            routeName, trailerType, volume: payload.volume, rate: payload.rate,
+            contractCurrency: payload.contractCurrency, fxRate: payload.fxRate,
+            dist: payload.dist, podachaDist: payload.podachaDist,
+            grossIncome: result.grossIncome, marginalIncome: result.marginalIncome,
+            ebitda: result.ebitda, netProfit: result.netProfit, profitabilityPct: result.profitabilityPct
+        };
     }
 
     async function calculate() {
@@ -6362,11 +7039,20 @@
         mh.dataset.dismissKey = '';
         const myRequestId = ++calcRequestId; // ФІКС: позначаємо цей виклик, щоб пізніше відрізнити застарілу відповідь
 
+        if (chosenFleetVehicles().length) {
+            const cars = document.getElementById('cars-count');
+            if (cars) cars.value = String(chosenFleetVehicles().length);
+            refreshVehicleTonnage();
+        }
         const payload = readTripPayload();
+        const chosenCount = chosenFleetVehicles().length;
+        if (chosenCount && (!(payload.vehicles && payload.vehicles.length === chosenCount) || payload.vehicles.some(function (item) { return !(Number(item.tonnage) > 0); }))) {
+            setDemoHint('Вкажи тоннаж кожного обраного авто.', true);
+            invalidateCalcResult();
+            return;
+        }
 
         const routeName = document.getElementById('route-name').value || 'Заявка';
-        const trailerType = payload.trailerType;
-        const safeVolume = parseFloat(payload.volume) > 0 ? parseFloat(payload.volume) : 1;
 
         try {
             // Токен доступу живе ~1 годину: беремо актуальний (getSession сам оновлює його при потребі),
@@ -6392,7 +7078,7 @@
                     setDemoHint('🚫 ' + errInfo.error, true);
                     return;
                 }
-                if (errInfo && errInfo.error && (errInfo.code === 'BAD_FX' || errInfo.code === 'BAD_CCY' || errInfo.code === 'MISSING_FIELDS')) {
+                if (errInfo && errInfo.error && (errInfo.code === 'BAD_FX' || errInfo.code === 'BAD_CCY' || errInfo.code === 'MISSING_FIELDS' || errInfo.code === 'BAD_TONNAGE')) {
                     setDemoHint(errInfo.error, true);
                     const mhErr = document.getElementById('missing-hint');
                     if (mhErr && errInfo.code !== 'MISSING_FIELDS') {
@@ -6418,95 +7104,7 @@
                 setDemoHint('Результат актуальний. Змінили параметри — натисніть «Розрахувати» ще раз.');
             }
 
-            ['res-income','res-margin','res-ebitda','res-profit','res-breakeven-full'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.classList.remove('tc-flash'); void el.offsetWidth; el.classList.add('tc-flash'); } });
-            document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
-            document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}${fxSuffix(result.netIncome)}`;
-            document.getElementById('res-margin').innerText = formatMoney(result.marginalIncome);
-            document.getElementById('res-margin-ton').innerText = `на 1 т: ${result.marginPerTon} грн${fxSuffix(result.marginPerTon)}`;
-            document.getElementById('res-ebitda').innerText = formatMoney(result.ebitda);
-            document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн${fxSuffix(result.ebitdaPerTon)}`;
-            document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
-            const profitFx = document.getElementById('res-profit-fx');
-            if (profitFx) profitFx.textContent = fxSuffix(result.netProfit);
-            paintProfitHero(result);
-            updateKpiSparklines(result);
-            updateRouteBar();
-            
-            document.getElementById('trip-volume-info').innerText = result.tripVolumeText || '';
-            document.getElementById('rt-info').innerText = result.rtInfoText || '';
-            document.getElementById('podacha-info').innerText = result.podachaText || '';
-            document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
-            
-            const badge = document.getElementById('res-badge');
-            badge.innerText = result.profitabilityPct.toFixed(1) + '%';
-            badge.className = 'badge ' + (result.profitabilityPct >= 15 ? 'badge-success' : result.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
-
-            // ФІКС: раніше тут стояла заглушка Math.round(result.netProfit ? 0 : 0), яка завжди
-            // давала 0 незалежно від прибутку. Тепер виводимо реальні значення з сервера,
-            // і другий рядок (операційна беззбитковість) теж оновлюється — раніше він
-            // взагалі не чіпався і назавжди лишався "0 грн/т" зі статичної розмітки.
-            // --- Точка беззбитковості: 3 рівні + запас/дефіцит + підказка ---
-            const fmtBE = v => Math.round(v).toLocaleString('uk-UA');
-            const beUnit = contractCurrency === 'UAH' ? 'грн/т' : contractCurrency + '/т';
-            const beShown = v => {
-                if (v === null || v === undefined) return '—';
-                if (contractCurrency === 'UAH') return fmtBE(v);
-                const fx = contractFx();
-                if (!(fx > 0)) return fmtBE(v);
-                return (Math.round((v / fx) * 100) / 100).toLocaleString('uk-UA', { maximumFractionDigits: 2 });
-            };
-            const beFullEl = document.getElementById('res-breakeven-full');
-            const beOpEl = document.getElementById('res-breakeven-op');
-            const beGapEl = document.getElementById('res-breakeven-gap');
-            const beChip = document.getElementById('kpi-breakeven-chip');
-
-            if (result.breakevenFullPerTon === null || result.breakevenFullPerTon === undefined) {
-                beFullEl.innerText = 'недосяжна';
-                beOpEl.innerText = 'за цієї схеми оплати';
-                beGapEl.innerText = '';
-                beGapEl.className = 'kpi-sub tc-gap-pill';
-                beChip.title = 'Беззбитковість недосяжна: відсоток ЗП водія, ПДВ і податок разом «з\'їдають» усю розцінку. Перевірте модель оплати водія.';
-            } else {
-                beFullEl.innerText = `${beShown(result.breakevenFullPerTon)} ${beUnit}`;
-                const m = result.breakevenMarginPerTon, e = result.breakevenEbitdaPerTon;
-                beOpEl.innerText = `маржа ${m === null ? '—' : beShown(m)} · EBITDA ${e === null ? '—' : beShown(e)}${contractCurrency === 'UAH' ? '' : ' · ' + fmtBE(result.breakevenFullPerTon) + ' грн/т'}`;
-                const gap = result.breakevenGapPerTon;
-                if (gap >= 0) {
-                    beGapEl.innerText = `Запас +${beShown(gap)} ${beUnit}`;
-                    beGapEl.className = 'kpi-sub tc-gap-pill is-up';
-                } else {
-                    beGapEl.innerText = `Дефіцит ${beShown(gap)} ${beUnit}`;
-                    beGapEl.className = 'kpi-sub tc-gap-pill is-down';
-                }
-                let tip = `Розцінка (${beUnit}), при якій чистий прибуток = 0. При розцінці ${beShown(result.breakevenEbitdaPerTon)} EBITDA = 0, при ${beShown(result.breakevenMarginPerTon)} маржа = 0.`;
-                if (contractCurrency !== 'UAH') tip += ` У гривні: ${fmtBE(result.breakevenFullPerTon)} грн/т.`;
-                if (result.breakevenExVatPerTon !== null && result.breakevenExVatPerTon !== undefined) {
-                    tip += ` Розцінка вводиться з ПДВ, тому й беззбитковість показана з ПДВ. Без ПДВ: ${beShown(result.breakevenExVatPerTon)} ${beUnit} (ваша розцінка без ПДВ: ${beShown(result.rateExVatPerTon)} ${beUnit}).`;
-                }
-                beChip.title = tip;
-            }
-
-            const tbody = document.getElementById('cost-breakdown');
-            let totalCostsSum = (result.detailedRows || []).reduce((sum, r) => sum + r.val, 0);
-            
-            tbody.innerHTML = (result.detailedRows || []).map(r => `
-                <tr>
-                    <td>${r.name}</td>
-                    <td>${formatMoney(r.val)}${fxSuffix(r.val)}</td>
-                    <td>${Math.round(r.val / safeVolume)} грн${fxSuffix(r.val / safeVolume)}</td>
-                    <td>${totalCostsSum > 0 ? (r.val / totalCostsSum * 100).toFixed(1) + '%' : '0%'}</td>
-                </tr>
-            `).join('');
-
-            renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
-
-            lastCalcData = { 
-                routeName, trailerType, volume: payload.volume, rate: payload.rate,
-                contractCurrency: payload.contractCurrency, fxRate: payload.fxRate,
-                dist: payload.dist, podachaDist: payload.podachaDist,
-                grossIncome: result.grossIncome, marginalIncome: result.marginalIncome, 
-                ebitda: result.ebitda, netProfit: result.netProfit, profitabilityPct: result.profitabilityPct 
-            };
+            applyCalcResult(result, payload, routeName);
 
         } catch (err) {
             console.error('Помилка обчислення:', err);
@@ -6528,6 +7126,8 @@
         });
         const tbody = document.getElementById('cost-breakdown');
         if (tbody) tbody.innerHTML = '';
+        const splitBox = document.getElementById('vehicle-breakdown');
+        if (splitBox) { splitBox.hidden = true; splitBox.textContent = ''; }
         renderChart(0, 0, 0, 0, 0, 0);
         lastCalcData = {};
         lastExport = null;
@@ -6657,6 +7257,7 @@
                 tonnage: r.tonnage,
                 tripDays: r.trip_days
             }));
+            await loadCalcVehicleLinks();
             await loadRouteTemplates();
         } catch (e) {
             console.error('Не вдалося завантажити збережені розрахунки:', e);
@@ -6687,6 +7288,55 @@
         } catch (e) {}
     }
 
+    function isVehicleUuid(value) {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+    }
+    async function saveCalcVehicles(calcId, vehicles) {
+        const rows = (vehicles || []).filter(function (item) { return item && isVehicleUuid(item.id) && Number(item.tonnage) > 0; }).map(function (item) {
+            return {
+                calc_id: calcId,
+                vehicle_id: item.id,
+                tonnage: Number(item.tonnage),
+                snapshot: item.snapshot && typeof item.snapshot === 'object' ? item.snapshot : {}
+            };
+        });
+        if (!calcId || !rows.length) return '';
+        try {
+            const { error } = await supabaseClient.from('calc_vehicles').insert(rows);
+            if (error) throw error;
+            return '';
+        } catch (e) {
+            const message = dbErrorText(e);
+            if (/calc_vehicles|relation|schema cache|42P01|PGRST205/i.test(message)) {
+                return 'Розрахунок збережено. Прив’язка авто з’явиться після міграції.';
+            }
+            return 'Розрахунок збережено, авто до нього не прив’язались.';
+        }
+    }
+    async function loadCalcVehicleLinks() {
+        const ids = savedCalculations.map(function (item) { return item.id; }).filter(Boolean);
+        if (!ids.length) return;
+        try {
+            const { data, error } = await supabaseClient.from('calc_vehicles').select('calc_id, vehicle_id, tonnage, snapshot').in('calc_id', ids);
+            if (error || !data) return;
+            const byCalc = {};
+            data.forEach(function (row) {
+                if (!byCalc[row.calc_id]) byCalc[row.calc_id] = [];
+                const snap = row.snapshot && typeof row.snapshot === 'object' ? row.snapshot : {};
+                byCalc[row.calc_id].push(Object.assign({}, snap.resolved || {}, {
+                    id: row.vehicle_id,
+                    label: snap.label || 'Авто',
+                    tonnage: Number(row.tonnage),
+                    snapshot: snap
+                }));
+            });
+            savedCalculations.forEach(function (item) {
+                if (byCalc[item.id] && byCalc[item.id].length) {
+                    item.inputs = Object.assign({}, item.inputs || {}, { vehicles: byCalc[item.id], vehicleSplitMode: 'manual' });
+                }
+            });
+        } catch (e) {}
+    }
     function demoSaveLimitText() {
         return 'Демо-режим: можна зберегти до ' + DEMO_MAX_SAVED + ' розрахунків. Видаліть один зі збережених або отримайте повний доступ.';
     }
@@ -6712,6 +7362,7 @@
                 .select('id')
                 .single();
             if (error) throw error;
+            const linkNote = await saveCalcVehicles(data.id, inputs.vehicles || []);
             savedCalculations.unshift(Object.assign({}, snapshot, {
                 id: data.id,
                 userId: currentUserId,
@@ -6720,7 +7371,7 @@
                 inputs: inputs
             }));
             renderSavedTable();
-            showToast('Розрахунок збережено');
+            showToast(linkNote || 'Розрахунок збережено', linkNote ? 4200 : 2200);
         } catch (e) {
             const message = dbErrorText(e);
             if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) showToast(demoSaveLimitText(), 4200);
@@ -7579,6 +8230,7 @@
         setPlaceText('osm-from-wrap', 'osm-from', data.origin || '');
         setPlaceText('osm-to-wrap', 'osm-to', data.destination || '');
         setPlaceText('osm-base-wrap', 'osm-base', data.base || '');
+        applySavedVehicles(Array.isArray(data.vehicles) ? data.vehicles : [], data.vehicleSplitMode);
         lastCalcData = {};
         lastExport = null;
         updateRouteBar();
@@ -7623,6 +8275,7 @@
                 results: snapshot
             }).select('id').single();
             if (error) throw error;
+            const linkNote = await saveCalcVehicles(data.id, (row.inputs && row.inputs.vehicles) || []);
             savedCalculations.unshift(Object.assign({}, snapshot, {
                 id: data.id,
                 userId: currentUserId,
@@ -7632,7 +8285,7 @@
             }));
             historyPage = 0;
             renderSavedTable();
-            showToast('Копію збережено як чернетку');
+            showToast(linkNote || 'Копію збережено як чернетку', linkNote ? 4200 : 2200);
         } catch (e) {
             const message = dbErrorText(e);
             if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) {
@@ -8691,9 +9344,10 @@
             'preview-1': { revenue: 40000, costs: 28900, plannedOverhead: 4100, profit: 7000 }
         };
         fleetVehicles = [
-            { id: 'preview-fleet-1', label: 'AA0001KA', oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15' },
-            { id: 'preview-fleet-2', label: 'AA0002KA', oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null }
+            { id: 'preview-fleet-1', label: 'AA0001KA', make_model: 'Volvo FH', year_made: 2019, oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15', fuel_load: 31, fuel_empty: 26, adblue_on: true, adblue_consumption: 3, trailer_plate: 'AA1111XP', trailer_type: 'тент', payload_t: 22 },
+            { id: 'preview-fleet-2', label: 'AA0002KA', make_model: 'DAF XF', year_made: 2016, oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null, fuel_load: 35, fuel_empty: 30, adblue_on: false, adblue_consumption: null, trailer_plate: null, trailer_type: 'тент', payload_t: 18 }
         ];
+        renderVehicleNormSelect();
         currentUserId = 'preview-owner';
         currentOrgRole = 'owner';
         teamState.members = [

@@ -38,7 +38,8 @@ test('a broken contract rate is rejected before any money is returned', () => {
 
 test('the request handler still wraps the same function and keeps the demo flag', () => {
     assert.match(source, /export function calculateTrip\(body\)/);
-    assert.match(source, /const computed = calculateTrip\(req\.body \|\| \{\}\)/);
+    assert.match(source, /: calculateTrip\(req\.body \|\| \{\}\)/);
+    assert.match(source, /sumVehicleTrips\(req\.body \|\| \{\}, vehicleSplit\.list\)/);
     assert.match(source, /demo: demoInfo/);
     assert.match(source, /grossIncome \* 0\.06/);
     assert.match(source, /const workDaysYear = 300/);

@@ -270,7 +270,7 @@ export function calculateTrip(body) {
     const rateExVatPerTon = Math.round(rate / 1.2);
 
     const detailedRows = [
-        { name: '⛽ Пальне (ДП завантажений + пустий + подача' + (refFuelCost > 0 ? ' + реф' : '') + ')', val: Math.round(fuelTotal) },
+        { name: '⛽ Пальне (ДП завантажений + порожній + подача' + (refFuelCost > 0 ? ' + реф' : '') + ')', val: Math.round(fuelTotal) },
         { name: useAdblue ? '💧 Рідина AdBlue' : '💧 Рідина AdBlue (вимкнено)', val: Math.round(adblueTotal) },
         { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові', val: Math.round(driverTotal) },
         { name: '🔧 ТО, Шини та Ремонти' + (tankWashTotal > 0 ? ' + промивка цистерни' : ''), val: Math.round(maintenanceTotal) },
@@ -336,6 +336,194 @@ export function calculateTrip(body) {
     };
 }
 
+const VEHICLE_TRAILERS = ['зерновоз', 'рефрижератор', 'тент', 'цистерна'];
+
+function formatCalcTons(value) {
+    const n = Math.round(Number(value) * 1000) / 1000;
+    return Number.isFinite(n) ? String(n) : '0';
+}
+
+function positiveCalcNumber(value) {
+    const n = Number(value);
+    return n > 0 ? n : null;
+}
+
+// Тонни в тисячних: остання частка забирає залишок, тож сума дорівнює обсягу.
+export function splitTonnageShares(totalTons, weights) {
+    const count = Array.isArray(weights) ? weights.length : 0;
+    const total = Math.round(Number(totalTons) * 1000);
+    if (!(count > 0) || !(total > 0)) return [];
+    const clean = weights.map(function (weight) {
+        const n = Number(weight);
+        return n > 0 ? n : 0;
+    });
+    const sumWeights = clean.reduce(function (sum, n) { return sum + n; }, 0);
+    const even = !(sumWeights > 0);
+    const shares = [];
+    let used = 0;
+    for (let i = 0; i < count; i++) {
+        if (i === count - 1) {
+            shares.push((total - used) / 1000);
+            break;
+        }
+        const share = even
+            ? Math.floor(total / count)
+            : Math.floor(total * clean[i] / sumWeights);
+        used += share;
+        shares.push(share / 1000);
+    }
+    return shares;
+}
+
+function vehicleSlicePayload(base, assignment) {
+    const slice = {};
+    Object.keys(base || {}).forEach(function (key) {
+        if (key !== 'vehicles' && key !== 'vehicleSplitMode') slice[key] = base[key];
+    });
+    slice.carsCount = 1;
+    const tons = Number(assignment.tonnage);
+    if (String(slice.returnMode) === 'разовий') slice.normWeight = tons;
+    else slice.volume = tons;
+    const fuelLoad = positiveCalcNumber(assignment.fuelLoad);
+    const fuelEmpty = positiveCalcNumber(assignment.fuelEmpty);
+    if (fuelLoad !== null) slice.fuelLoad = fuelLoad;
+    if (fuelEmpty !== null) slice.fuelEmpty = fuelEmpty;
+    if (assignment.useAdblue === false) {
+        slice.useAdblue = false;
+        slice.adblueConsumption = 0;
+    } else if (assignment.useAdblue === true) {
+        slice.useAdblue = true;
+        const rate = positiveCalcNumber(assignment.adblueConsumption);
+        if (rate !== null) slice.adblueConsumption = rate;
+    }
+    if (VEHICLE_TRAILERS.indexOf(assignment.trailerType) >= 0) slice.trailerType = assignment.trailerType;
+    if (String(slice.returnMode) !== 'разовий') {
+        const capacity = positiveCalcNumber(assignment.payloadTons);
+        if (capacity !== null) slice.normWeight = capacity;
+    }
+    return slice;
+}
+
+function vehicleRowValue(result, needle) {
+    return (result.detailedRows || [])
+        .filter(function (row) { return String(row.name).indexOf(needle) !== -1; })
+        .reduce(function (sum, row) { return sum + row.val; }, 0);
+}
+
+function weightedVehicleRate(parts, key) {
+    if (parts.some(function (part) { return part.result[key] === null || part.result[key] === undefined; })) return null;
+    const weight = parts.reduce(function (sum, part) { return sum + Number(part.assignment.tonnage); }, 0);
+    if (!(weight > 0)) return null;
+    const acc = parts.reduce(function (sum, part) { return sum + part.result[key] * Number(part.assignment.tonnage); }, 0);
+    return Math.round(acc / weight);
+}
+
+// Кожне авто — окремий calculateTrip. Гроші вже округлені, тому сума рядків дорівнює підсумку.
+// Порожній список сюди не приходить: рейс без авто лишає calculateTrip без змін.
+export function sumVehicleTrips(base, assignments) {
+    if (!Array.isArray(assignments) || !assignments.length) return null;
+    const parts = assignments.map(function (assignment) {
+        const payload = vehicleSlicePayload(base, assignment);
+        return { assignment: assignment, payload: payload, result: calculateTrip(payload) };
+    });
+    const failed = parts.find(function (part) { return part.result && part.result.status; });
+    if (failed) return failed.result;
+
+    const moneyKeys = ['grossIncome', 'netIncome', 'marginalIncome', 'ebitda', 'netProfit', 'fuelTotal', 'driverTotal', 'toTotal', 'extrasTotal', 'overheadTotal', 'taxesTotal'];
+    const combined = {
+        contractCurrency: parts[0].result.contractCurrency,
+        fxRate: parts[0].result.fxRate
+    };
+    moneyKeys.forEach(function (key) {
+        combined[key] = parts.reduce(function (sum, part) { return sum + part.result[key]; }, 0);
+    });
+    const assigned = parts.reduce(function (sum, part) { return sum + Number(part.assignment.tonnage); }, 0);
+    combined.assignedTonnage = Math.round(assigned * 1000) / 1000;
+    combined.marginPerTon = assigned > 0 ? Math.round(combined.marginalIncome / assigned) : 0;
+    combined.ebitdaPerTon = assigned > 0 ? Math.round(combined.ebitda / assigned) : 0;
+    combined.profitabilityPct = combined.netIncome > 0 ? (combined.netProfit / combined.netIncome) * 100 : 0;
+    combined.breakevenMarginPerTon = weightedVehicleRate(parts, 'breakevenMarginPerTon');
+    combined.breakevenEbitdaPerTon = weightedVehicleRate(parts, 'breakevenEbitdaPerTon');
+    combined.breakevenFullPerTon = weightedVehicleRate(parts, 'breakevenFullPerTon');
+    combined.breakevenGapPerTon = weightedVehicleRate(parts, 'breakevenGapPerTon');
+    combined.breakevenExVatPerTon = weightedVehicleRate(parts, 'breakevenExVatPerTon');
+    combined.rateExVatPerTon = parts[0].result.rateExVatPerTon;
+
+    const rowOrder = [];
+    const rowValues = {};
+    parts.forEach(function (part) {
+        (part.result.detailedRows || []).forEach(function (row) {
+            if (!Object.prototype.hasOwnProperty.call(rowValues, row.name)) {
+                rowValues[row.name] = 0;
+                rowOrder.push(row.name);
+            }
+            rowValues[row.name] += row.val;
+        });
+    });
+    combined.detailedRows = rowOrder.map(function (name) { return { name: name, val: rowValues[name] }; });
+
+    const labels = parts.map(function (part) {
+        return (part.assignment.label || 'Авто') + ' ' + formatCalcTons(part.assignment.tonnage) + ' т';
+    });
+    combined.tripVolumeText = 'По авто: ' + labels.join(' · ') + ' | разом ' + formatCalcTons(assigned) + ' т';
+    const contractVolume = parseFloat(base && base.volume);
+    if (String(base && base.returnMode) !== 'разовий' && contractVolume > 0 && Math.abs(contractVolume - assigned) > 0.0005) {
+        combined.tripVolumeText += ' | розкладено ' + formatCalcTons(assigned) + ' з ' + formatCalcTons(contractVolume) + ' т';
+    }
+    combined.rtInfoText = parts.map(function (part) { return part.result.rtInfoText; }).filter(Boolean).join(' | ');
+    combined.podachaText = parts.map(function (part) { return part.result.podachaText; }).filter(Boolean).join(' · ');
+    const diesel = vehicleRowValue(combined, 'Пальне');
+    const adblue = vehicleRowValue(combined, 'AdBlue');
+    const km = parts.reduce(function (sum, part) {
+        const text = String(part.result.fuelSummaryText || '');
+        const match = text.match(/(\d+)\s*км/);
+        return sum + (match ? Number(match[1]) : 0);
+    }, 0);
+    combined.fuelSummaryText = '⛽ Пальне: ' + parts.length + ' авто, пробіг ' + km + ' км | Витрати: ' + diesel + ' грн';
+    combined.adblueSummaryText = adblue > 0
+        ? '💧 AdBlue: витрати ' + adblue + ' грн'
+        : '💧 AdBlue: не використовується';
+
+    combined.vehicleBreakdown = parts.map(function (part) {
+        const fuel = vehicleRowValue(part.result, 'Пальне');
+        const adblueCost = vehicleRowValue(part.result, 'AdBlue');
+        const costs = (part.result.detailedRows || []).reduce(function (sum, row) {
+            if (String(row.name).indexOf('Пальне') !== -1 || String(row.name).indexOf('AdBlue') !== -1) return sum;
+            return sum + row.val;
+        }, 0);
+        return {
+            id: part.assignment.id || null,
+            label: part.assignment.label || 'Авто',
+            tonnage: Number(part.assignment.tonnage),
+            fuel: fuel,
+            adblue: adblueCost,
+            costs: costs,
+            profit: part.result.netProfit
+        };
+    });
+    return combined;
+}
+
+function vehicleAssignmentsFromBody(body) {
+    const raw = body && body.vehicles;
+    if (!Array.isArray(raw) || !raw.length) return null;
+    const list = [];
+    for (let i = 0; i < raw.length; i++) {
+        const item = raw[i];
+        if (!item || typeof item !== 'object' || !(Number(item.tonnage) > 0)) {
+            return {
+                error: {
+                    status: 400,
+                    code: 'BAD_TONNAGE',
+                    error: 'Вкажи тоннаж кожного обраного авто.'
+                }
+            };
+        }
+        list.push(item);
+    }
+    return { list: list };
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -398,6 +586,14 @@ export default async function handler(req, res) {
             return res.status(400).json({ code: 'BAD_CCY', error: 'Валюта контракту: гривня, долар або євро.' });
         }
 
+        const vehicleSplit = vehicleAssignmentsFromBody(reqBody);
+        if (vehicleSplit && vehicleSplit.error) {
+            return res.status(vehicleSplit.error.status).json({
+                code: vehicleSplit.error.code,
+                error: vehicleSplit.error.error
+            });
+        }
+
         // --- Демо-режим: ліміт лише з профілю в БД (is_approved). Клієнтський isDemo / ?preview ігнорується. ---
         const isDemo = !profile.is_approved;
         let demoInfo = null;
@@ -431,7 +627,9 @@ export default async function handler(req, res) {
             }
         }
 
-        const computed = calculateTrip(req.body || {});
+        const computed = vehicleSplit
+            ? sumVehicleTrips(req.body || {}, vehicleSplit.list)
+            : calculateTrip(req.body || {});
         if (computed.status) {
             return res.status(computed.status).json({ code: computed.code, error: computed.error });
         }
