@@ -7,15 +7,23 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/20261013100000_poi_cache.sql', import.meta.url), 'utf8');
+const poiSource = readFileSync(new URL('../api/poi.js', import.meta.url), 'utf8');
 const {
     POI_CORRIDOR_BUFFER_M,
     POI_CACHE_TTL_MS,
+    OVERPASS_MIRRORS,
+    OVERPASS_USER_AGENT,
+    OVERPASS_BACKOFF_MS,
+    OVERPASS_ATTEMPT_LIMIT,
+    POI_BUSY_MESSAGE,
     geohashEncode,
     corridorSegmentKeys,
     poiCacheFresh,
     overpassCorridorQuery,
     normalizePoiElement,
-    nearestSegmentKey
+    nearestSegmentKey,
+    poiRouteCacheKey,
+    fetchOverpass
 } = await import('../api/poi.js');
 
 function sliceBetween(source, start, end) {
@@ -37,6 +45,12 @@ test('the route search is one corridor, not a circle on every point', () => {
     assert.match(query, /\["amenity"="cafe"\]/);
     assert.match(query, /\["shop"="car_repair"\]/);
     assert.match(query, /\["highway"="rest_area"\]/);
+    assert.equal(query.split('[out:json]').length - 1, 1);
+    assert.equal((query.match(/around:/g) || []).length, 5);
+    const cacheBeforeFetch = poiSource.indexOf('poiRouteCacheKey(points, types)');
+    const fetchCall = poiSource.indexOf('fetchOverpass(overpassCorridorQuery');
+    assert.equal(cacheBeforeFetch > 0 && fetchCall > cacheBeforeFetch, true);
+    assert.equal(poiSource.split('fetchOverpass(overpassCorridorQuery').length - 1, 1);
     assert.equal(geohashEncode(kyiv.lat, kyiv.lon, 5), geohashEncode(kyiv.lat, kyiv.lon, 5));
     assert.notEqual(geohashEncode(kyiv.lat, kyiv.lon, 5), geohashEncode(lviv.lat, lviv.lon, 5));
     assert.deepEqual(corridorSegmentKeys([kyiv, kyiv, lviv]).length, 2);
@@ -60,10 +74,79 @@ test('cache rows expire after 30 days and names stay data, not markup', () => {
     assert.equal(nearestSegmentKey(item, [{ lat: 50.45, lon: 30.52 }, { lat: 49.84, lon: 24.03 }]), geohashEncode(50.45, 30.52, 5));
 });
 
+test('a repeat route reuses one cache key from rounded coordinates and categories', () => {
+    const types = ['gas', 'cafe'];
+    const exact = poiRouteCacheKey([{ lat: 50.4501, lon: 30.5234 }], types);
+    const roundedSame = poiRouteCacheKey([{ lat: 50.454, lon: 30.524 }], types);
+    const roundedOther = poiRouteCacheKey([{ lat: 50.456, lon: 30.5234 }], types);
+    const otherTypes = poiRouteCacheKey([{ lat: 50.4501, lon: 30.5234 }], ['cafe', 'gas', 'sto']);
+    assert.equal(exact, roundedSame);
+    assert.notEqual(exact, roundedOther);
+    assert.notEqual(exact, otherTypes);
+    assert.equal(exact.length, 12);
+    assert.match(exact, /^[0-9a-f]{12}$/);
+    assert.equal(poiSource.includes('відповів HTTP'), false);
+    assert.match(poiSource, /code: 'OVERPASS_BUSY'/);
+    assert.match(poiSource, /POI_CACHE_TTL_MS/);
+});
+
+test('overpass falls through mirrors on 429 and 504, then stops at three attempts', async () => {
+    assert.deepEqual(OVERPASS_MIRRORS, [
+        'https://overpass-api.de/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass.private.coffee/api/interpreter'
+    ]);
+    assert.deepEqual(OVERPASS_BACKOFF_MS, [1000, 3000]);
+    assert.equal(OVERPASS_ATTEMPT_LIMIT, 3);
+    assert.equal(OVERPASS_USER_AGENT, 'trip-control.com (support@trip-control.com)');
+    assert.equal(POI_BUSY_MESSAGE, 'Сервіс карт перевантажений, спробуй за хвилину');
+
+    const calls = [];
+    const sleeps = [];
+    const result = await fetchOverpass('[out:json];out;', {
+        timeoutMs: 20,
+        sleep: ms => {
+            sleeps.push(ms);
+            return Promise.resolve();
+        },
+        fetchImpl: async (url, init) => {
+            calls.push({ url, init });
+            if (calls.length === 1) return { ok: false, status: 429, json: async () => ({}) };
+            if (calls.length === 2) return { ok: false, status: 504, json: async () => ({}) };
+            return { ok: true, status: 200, json: async () => ({ elements: [{ type: 'node', id: 1 }] }) };
+        }
+    });
+    assert.deepEqual(sleeps, [1000, 3000]);
+    assert.equal(calls.length, 3);
+    assert.deepEqual(calls.map(call => call.url), OVERPASS_MIRRORS);
+    for (const call of calls) {
+        assert.equal(call.init.headers['User-Agent'], OVERPASS_USER_AGENT);
+        assert.equal(call.init.method, 'POST');
+    }
+    assert.equal(result.elements.length, 1);
+
+    const extraCalls = [];
+    const busy = await fetchOverpass('[out:json];out;', {
+        timeoutMs: 20,
+        mirrors: OVERPASS_MIRRORS.concat('https://example.test/api/interpreter'),
+        sleep: () => Promise.resolve(),
+        fetchImpl: async () => {
+            extraCalls.push(1);
+            return { ok: false, status: 429, json: async () => ({}) };
+        }
+    });
+    assert.equal(extraCalls.length, 3);
+    assert.equal(busy.error, 'overpass_busy');
+    assert.equal(JSON.stringify(busy).includes('http'), false);
+});
+
 test('the page asks api/poi and does not send POI names through Places', () => {
     const search = sliceBetween(html, 'async function searchPOIsAlongRoute', 'function corridorSample');
     const marker = sliceBetween(html, 'function addPoiMarker', 'function isUiPreviewHostAllowed');
     assert.match(search, /fetch\('\/api\/poi'/);
+    assert.match(search, /Сервіс карт перевантажений, спробуй за хвилину/);
+    assert.equal(search.includes('відповів HTTP'), false);
+    assert.equal(search.includes('overpass.kumi.systems'), false);
     assert.equal(search.includes('searchNearby'), false);
     assert.equal(search.includes('searchByText'), false);
     assert.equal(search.includes("importLibrary('places')"), false);

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -5,12 +6,18 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Основний сервер + резервне дзеркало — якщо перший недоступний/перевантажений (CORS сюди не
-// стосується взагалі, бо це запит сервер-до-сервера, а не з браузера).
-const OVERPASS_MIRRORS = [
+// Один запит на маршрут. Якщо дзеркало відповідає 429 або 504, чекаємо і беремо наступне.
+// Без свого User-Agent публічні сервери Overpass ріжуть запит як анонімний.
+export const OVERPASS_MIRRORS = [
     'https://overpass-api.de/api/interpreter',
-    'https://overpass.kumi.systems/api/interpreter'
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.private.coffee/api/interpreter'
 ];
+export const OVERPASS_USER_AGENT = 'trip-control.com (support@trip-control.com)';
+export const OVERPASS_BACKOFF_MS = [1000, 3000];
+export const OVERPASS_ATTEMPT_LIMIT = 3;
+export const POI_BUSY_MESSAGE = 'Сервіс карт перевантажений, спробуй за хвилину';
+const OVERPASS_TIMEOUT_MS = 9000;
 
 export const POI_POINTS_LIMIT = 25;
 export const POI_CORRIDOR_BUFFER_M = 4000;
@@ -144,6 +151,26 @@ export function normalizePoiElement(element) {
     };
 }
 
+export function roundPoiCoord(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return null;
+    return Math.round(number * 100) / 100;
+}
+
+export function poiRouteCacheKey(points, types) {
+    const coords = points.map(point => {
+        const lat = roundPoiCoord(point.lat);
+        const lon = roundPoiCoord(point.lon);
+        return lat.toFixed(2) + ',' + lon.toFixed(2);
+    }).join(';');
+    const categories = [...types].sort().join(',');
+    return createHash('sha256').update(coords + '|' + categories).digest('hex').slice(0, 12);
+}
+
+export function isOverpassBackoffStatus(status) {
+    return status === 429 || status === 504;
+}
+
 export function nearestSegmentKey(item, points) {
     let best = points[0];
     let bestDistance = Infinity;
@@ -190,36 +217,50 @@ async function writePoiCache(rows) {
     if (error) console.warn('poi_cache write:', error.message);
 }
 
-async function fetchOverpass(query) {
-    let lastError = 'невідома помилка';
-    for (let i = 0; i < OVERPASS_MIRRORS.length; i++) {
-        const mirror = OVERPASS_MIRRORS[i];
+export async function fetchOverpass(query, options = {}) {
+    const mirrors = options.mirrors || OVERPASS_MIRRORS;
+    const fetchImpl = options.fetchImpl || fetch;
+    const sleep = options.sleep || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+    const backoffMs = options.backoffMs || OVERPASS_BACKOFF_MS;
+    const attemptLimit = options.attemptLimit || OVERPASS_ATTEMPT_LIMIT;
+    const timeoutMs = options.timeoutMs == null ? OVERPASS_TIMEOUT_MS : options.timeoutMs;
+    const attempts = Math.min(attemptLimit, mirrors.length);
+    let lastStatus = 0;
+    let lastDetail = 'невідома помилка';
+
+    for (let i = 0; i < attempts; i++) {
+        const mirror = mirrors[i];
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        let status = 0;
         try {
-            const overpassRes = await fetch(mirror, {
+            const overpassRes = await fetchImpl(mirror, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                    'User-Agent': OVERPASS_USER_AGENT
+                },
                 body: 'data=' + encodeURIComponent(query),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
+            status = overpassRes.status;
             if (overpassRes.ok) {
                 const data = await overpassRes.json();
                 return { elements: Array.isArray(data.elements) ? data.elements : [] };
             }
-            lastError = mirror + ' відповів HTTP ' + overpassRes.status;
+            lastStatus = status;
+            lastDetail = 'HTTP ' + status;
         } catch (error) {
             clearTimeout(timeoutId);
-            lastError = error.name === 'AbortError'
-                ? mirror + ': перевищено таймаут (4с)'
-                : mirror + ': ' + error.message;
+            lastDetail = error && error.name === 'AbortError' ? 'timeout' : ((error && error.message) || 'network');
         }
-        if (i < OVERPASS_MIRRORS.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+        if (i < attempts - 1 && isOverpassBackoffStatus(status)) {
+            await sleep(backoffMs[Math.min(i, backoffMs.length - 1)]);
         }
     }
-    return { error: lastError };
+    return { error: 'overpass_busy', status: lastStatus, detail: lastDetail };
 }
 
 function cachedItems(fresh, types) {
@@ -287,18 +328,18 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Оберіть хоча б одну категорію.' });
         }
 
-        const segmentKeys = corridorSegmentKeys(points);
+        const cacheKey = poiRouteCacheKey(points, types);
         const nowMs = Date.now();
-        const cacheRows = await readPoiCache(types, segmentKeys);
+        const cacheRows = await readPoiCache(types, [cacheKey]);
         const fresh = new Map();
         if (cacheRows) {
             for (const row of cacheRows) {
-                if (poiCacheFresh(row.fetched_at, nowMs)) {
+                if (row.segment_key === cacheKey && poiCacheFresh(row.fetched_at, nowMs)) {
                     fresh.set(row.poi_type + '|' + row.segment_key, row.payload);
                 }
             }
         }
-        const missingTypes = types.filter(type => segmentKeys.some(key => !fresh.has(type + '|' + key)));
+        const missingTypes = types.filter(type => !fresh.has(type + '|' + cacheKey));
         if (!missingTypes.length) {
             return res.status(200).json({
                 elements: cachedItems(fresh, types),
@@ -309,37 +350,35 @@ export default async function handler(req, res) {
 
         const fetched = await fetchOverpass(overpassCorridorQuery(points, missingTypes));
         if (fetched.error) {
+            console.warn('poi overpass:', fetched.status || '', fetched.detail || '');
             const saved = cachedItems(fresh, types);
             if (saved.length) {
                 return res.status(200).json({
                     elements: saved,
                     cached: true,
-                    warning: 'Overpass недоступний. Показано збережені об’єкти.',
+                    warning: 'Сервіс карт перевантажений. Показано збережені об’єкти.',
                     attribution: '© OpenStreetMap contributors'
                 });
             }
-            return res.status(502).json({ error: 'Overpass недоступний: ' + fetched.error });
+            return res.status(503).json({ code: 'OVERPASS_BUSY', error: POI_BUSY_MESSAGE });
         }
 
         const buckets = new Map();
-        for (const type of missingTypes) {
-            for (const key of segmentKeys) buckets.set(type + '|' + key, []);
-        }
+        for (const type of missingTypes) buckets.set(type, []);
         for (const element of fetched.elements) {
             const item = normalizePoiElement(element);
-            if (!item || !missingTypes.includes(item.kind)) continue;
-            const key = item.kind + '|' + nearestSegmentKey(item, points);
-            const bucket = buckets.get(key);
-            if (!bucket || bucket.some(existing => existing.id === item.id)) continue;
+            if (!item || !buckets.has(item.kind)) continue;
+            const bucket = buckets.get(item.kind);
+            if (bucket.some(existing => existing.id === item.id)) continue;
             bucket.push(item);
         }
         const fetchedAt = new Date(nowMs).toISOString();
         const rows = [];
-        for (const [key, payload] of buckets) {
-            const split = key.indexOf('|');
+        for (const [type, payload] of buckets) {
+            const key = type + '|' + cacheKey;
             rows.push({
-                poi_type: key.slice(0, split),
-                segment_key: key.slice(split + 1),
+                poi_type: type,
+                segment_key: cacheKey,
                 payload: payload,
                 fetched_at: fetchedAt
             });

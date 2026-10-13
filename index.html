@@ -8178,7 +8178,10 @@
             });
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
-                statusEl.innerText = '❌ ' + (payload.error || 'Overpass недоступний. Спробуйте ще раз.');
+                const busy = payload.code === 'OVERPASS_BUSY' || response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504;
+                statusEl.innerText = busy
+                    ? '❌ Сервіс карт перевантажений, спробуй за хвилину'
+                    : '❌ ' + (payload.error || 'Не вдалося знайти об’єкти.');
                 statusEl.style.color = 'var(--danger)';
                 return;
             }
@@ -8193,7 +8196,7 @@
                 statusEl.style.color = 'var(--success)';
             }
         } catch (e) {
-            statusEl.innerText = '❌ Overpass недоступний. Спробуйте ще раз.';
+            statusEl.innerText = '❌ Сервіс карт перевантажений, спробуй за хвилину';
             statusEl.style.color = 'var(--danger)';
         }
     }
