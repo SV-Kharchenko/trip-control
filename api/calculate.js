@@ -320,7 +320,7 @@ export function calculateTrip(body) {
         breakevenGapPerTon,
         breakevenExVatPerTon,
         rateExVatPerTon,
-        fuelTotal: Math.round(fuelTotal + adblueTotal),
+        fuelAndAdblueTotal: Math.round(fuelTotal + adblueTotal),
         driverTotal: Math.round(driverTotal),
         toTotal: Math.round(maintenanceTotal),
         extrasTotal: Math.round(extrasTotal),
@@ -429,7 +429,7 @@ export function sumVehicleTrips(base, assignments) {
     const failed = parts.find(function (part) { return part.result && part.result.status; });
     if (failed) return failed.result;
 
-    const moneyKeys = ['grossIncome', 'netIncome', 'marginalIncome', 'ebitda', 'netProfit', 'fuelTotal', 'driverTotal', 'toTotal', 'extrasTotal', 'overheadTotal', 'taxesTotal'];
+    const moneyKeys = ['grossIncome', 'netIncome', 'marginalIncome', 'ebitda', 'netProfit', 'fuelAndAdblueTotal', 'driverTotal', 'toTotal', 'extrasTotal', 'overheadTotal', 'taxesTotal'];
     const combined = {
         contractCurrency: parts[0].result.contractCurrency,
         fxRate: parts[0].result.fxRate
@@ -441,7 +441,6 @@ export function sumVehicleTrips(base, assignments) {
     combined.assignedTonnage = Math.round(assigned * 1000) / 1000;
     combined.marginPerTon = assigned > 0 ? Math.round(combined.marginalIncome / assigned) : 0;
     combined.ebitdaPerTon = assigned > 0 ? Math.round(combined.ebitda / assigned) : 0;
-    combined.profitabilityPct = combined.netIncome > 0 ? (combined.netProfit / combined.netIncome) * 100 : 0;
     combined.breakevenMarginPerTon = weightedVehicleRate(parts, 'breakevenMarginPerTon');
     combined.breakevenEbitdaPerTon = weightedVehicleRate(parts, 'breakevenEbitdaPerTon');
     combined.breakevenFullPerTon = weightedVehicleRate(parts, 'breakevenFullPerTon');
@@ -461,6 +460,17 @@ export function sumVehicleTrips(base, assignments) {
         });
     });
     combined.detailedRows = rowOrder.map(function (name) { return { name: name, val: rowValues[name] }; });
+    let fleetTaxDelta = 0;
+    if (parts.length >= 2 && String(base && base.calcType) === 'фоп') {
+        const onceTax = Math.round(combined.grossIncome * 0.06);
+        fleetTaxDelta = onceTax - combined.taxesTotal;
+        combined.taxesTotal = onceTax;
+        combined.netProfit -= fleetTaxDelta;
+        combined.detailedRows.forEach(function (row) {
+            if (String(row.name).indexOf('Податки') !== -1) row.val = onceTax;
+        });
+    }
+    combined.profitabilityPct = combined.netIncome > 0 ? (combined.netProfit / combined.netIncome) * 100 : 0;
 
     const labels = parts.map(function (part) {
         return (part.assignment.label || 'Авто') + ' ' + formatCalcTons(part.assignment.tonnage) + ' т';
@@ -484,13 +494,14 @@ export function sumVehicleTrips(base, assignments) {
         ? '💧 AdBlue: витрати ' + adblue + ' грн'
         : '💧 AdBlue: не використовується';
 
-    combined.vehicleBreakdown = parts.map(function (part) {
+    combined.vehicleBreakdown = parts.map(function (part, index) {
         const fuel = vehicleRowValue(part.result, 'Пальне');
         const adblueCost = vehicleRowValue(part.result, 'AdBlue');
+        const taxAdjust = index === parts.length - 1 ? fleetTaxDelta : 0;
         const costs = (part.result.detailedRows || []).reduce(function (sum, row) {
             if (String(row.name).indexOf('Пальне') !== -1 || String(row.name).indexOf('AdBlue') !== -1) return sum;
             return sum + row.val;
-        }, 0);
+        }, 0) + taxAdjust;
         return {
             id: part.assignment.id || null,
             label: part.assignment.label || 'Авто',
@@ -498,7 +509,7 @@ export function sumVehicleTrips(base, assignments) {
             fuel: fuel,
             adblue: adblueCost,
             costs: costs,
-            profit: part.result.netProfit
+            profit: part.result.netProfit - taxAdjust
         };
     });
     return combined;

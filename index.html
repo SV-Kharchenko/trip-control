@@ -3622,6 +3622,30 @@
     let factEditorId = null;
     const HISTORY_PAGE_SIZE = 50;
     let calcRequestId = 0; // захист від застарілих відповідей при швидкому вводі
+    let vehicleCalcTimer = null;
+    function calcResultIsFresh(requestId, latestId) {
+        return requestId === latestId;
+    }
+    function collapseCalcSwitches(states) {
+        let latestId = 0;
+        let pending = null;
+        (states || []).forEach(function (state) {
+            latestId += 1;
+            pending = { id: latestId, state: state };
+        });
+        if (!pending || !calcResultIsFresh(pending.id, latestId)) return null;
+        return pending.state;
+    }
+    function scheduleVehicleCalc() {
+        if (vehicleCalcTimer) clearTimeout(vehicleCalcTimer);
+        calcRequestId += 1;
+        const generation = calcRequestId;
+        vehicleCalcTimer = setTimeout(function () {
+            vehicleCalcTimer = null;
+            if (!calcResultIsFresh(generation, calcRequestId)) return;
+            calculate();
+        }, 150);
+    }
     let map, directionsService, directionsRenderer, directionsRendererBackhaul;
     let waypointCounter = 0;
     let poiMarkers = [];
@@ -5183,14 +5207,14 @@
         }
         renderVehicleNormSelect();
         if (mode === 'fleet' && chosenFleetVehicles().length) refreshVehicleTonnage();
-        if (currentSessionToken) calculate();
+        if (currentSessionToken) scheduleVehicleCalc();
     }
     function setVehicleSplitMode(mode) {
         if (mode !== 'even' && mode !== 'manual' && mode !== 'capacity') return;
         vehicleSplitMode = mode;
         markVehicleSplitMode();
         refreshVehicleTonnage();
-        if (currentSessionToken) calculate();
+        if (currentSessionToken) scheduleVehicleCalc();
     }
     function syncVehicleMenu() {
         const panel = document.getElementById('vehicle-panel');
@@ -5464,12 +5488,12 @@
             return Number(vehicleTonnageDraft[String(vehicle.id)]) || 0;
         });
         updateVehicleSplitNote(shares);
-        if (currentSessionToken) calculate();
+        if (currentSessionToken) scheduleVehicleCalc();
     }
     function reapplySelectedVehicleNorms() {
         if (!fleetChoiceActive()) return;
         refreshVehicleTonnage();
-        if (currentSessionToken) calculate();
+        if (currentSessionToken) scheduleVehicleCalc();
     }
     function onVehicleNormChange() {
         if (vehicleNormLock) return;
@@ -5481,7 +5505,7 @@
                 if (!chosen.length) vehicleNormBaseline = null;
                 renderVehicleNormSelect();
                 refreshVehicleTonnage();
-                if (currentSessionToken) calculate();
+                if (currentSessionToken) scheduleVehicleCalc();
                 return;
             }
             if (!vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
@@ -5498,7 +5522,7 @@
             }
             renderVehicleNormSelect();
             refreshVehicleTonnage();
-            if (currentSessionToken) calculate();
+            if (currentSessionToken) scheduleVehicleCalc();
         } finally {
             vehicleNormLock = false;
         }
@@ -7185,7 +7209,8 @@
         }
         return payload;
     }
-    function renderVehicleBreakdown(result) {
+    function renderVehicleBreakdown(result, requestId) {
+        if (requestId != null && !calcResultIsFresh(requestId, calcRequestId)) return;
         const box = document.getElementById('vehicle-breakdown');
         if (!box) return;
         const rows = result && result.vehicleBreakdown;
@@ -7239,7 +7264,8 @@
         table.appendChild(tbody);
         box.appendChild(table);
     }
-    function applyCalcResult(result, payload, routeName) {
+    function applyCalcResult(result, payload, routeName, requestId) {
+        if (requestId != null && !calcResultIsFresh(requestId, calcRequestId)) return;
         const trailerType = payload.trailerType;
         const safeVolume = result.assignedTonnage > 0
             ? result.assignedTonnage
@@ -7312,8 +7338,8 @@
                 <td>${totalCostsSum > 0 ? (r.val / totalCostsSum * 100).toFixed(1) + '%' : '0%'}</td>
             </tr>
         `).join('');
-        renderVehicleBreakdown(result);
-        renderChart(result.fuelTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
+        renderVehicleBreakdown(result, requestId);
+        renderChart(result.fuelAndAdblueTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
         lastCalcData = {
             routeName, trailerType, volume: payload.volume, rate: payload.rate,
             contractCurrency: payload.contractCurrency, fxRate: payload.fxRate,
@@ -7421,7 +7447,7 @@
                 setDemoHint('Результат актуальний. Змінили параметри — натисніть «Розрахувати» ще раз.');
             }
 
-            applyCalcResult(result, payload, routeName);
+            applyCalcResult(result, payload, routeName, myRequestId);
 
         } catch (err) {
             console.error('Помилка обчислення:', err);
@@ -7979,6 +8005,20 @@
         if (mode === 'разовий' && cars !== null && norm !== null) return cars * norm;
         return historyNum(inputs.volume != null ? inputs.volume : row.volume);
     }
+    function historyPlacesFromName(name) {
+        const text = String(name || '').trim();
+        const parts = text.split(/\s*(?:—|–|→|->)\s*|\s+-\s+/);
+        if (parts.length < 2) return { from: '', to: '' };
+        const from = parts[0].trim();
+        const to = parts.slice(1).join(' - ').trim();
+        if (!from || !to) return { from: '', to: '' };
+        return { from: from, to: to };
+    }
+    function historyEmptyMessage(savedCount, shownCount) {
+        if (shownCount > 0) return '';
+        if (!(Number(savedCount) > 0)) return 'Немає збережених розрахунків.';
+        return 'Нічого не знайдено за фільтром.';
+    }
     function historyFields(row) {
         const inputs = row && row.inputs ? row.inputs : {};
         const km = row.distanceKm != null && row.distanceKm !== '' ? historyNum(row.distanceKm) : (savedTripKm(row) || null);
@@ -7988,11 +8028,18 @@
         const tons = row.tonnage != null && row.tonnage !== '' ? historyNum(row.tonnage) : derivedTonnage(inputs, row);
         const days = row.tripDays != null && row.tripDays !== '' ? historyNum(row.tripDays) : historyNum(inputs.daysPerTrip);
         const rate = row.rateValue != null && row.rateValue !== '' ? row.rateValue : (inputs.rate != null ? inputs.rate : row.rate);
+        let from = row.routeFrom || inputs.origin || '';
+        let to = row.routeTo || inputs.destination || '';
+        if (!String(from).trim() && !String(to).trim()) {
+            const parsed = historyPlacesFromName(row.routeName || row.name || '');
+            from = parsed.from;
+            to = parsed.to;
+        }
         return {
             status: row.status || 'draft',
             date: row.tripDate || row.createdAt,
-            from: row.routeFrom || inputs.origin || '',
-            to: row.routeTo || inputs.destination || '',
+            from: from,
+            to: to,
             name: row.routeName || row.name || 'Рейс',
             km: km,
             cars: cars,
@@ -8094,7 +8141,7 @@
         return text;
     }
     function historyExportHeaders() {
-        return ['Дата', 'Автор', 'Маршрут', 'Звідки', 'Куди', 'Клієнт', 'Причіп', 'Км', 'Авто', 'Тонаж', 'Діб', 'Ставка', 'Валюта', 'Дохід, грн', 'Прибуток, грн', 'Факт, грн', 'грн/км', 'Статус'];
+        return ['Дата', 'Автор', 'Маршрут', 'Звідки', 'Куди', 'Клієнт', 'Причіп', 'Км', 'Авто', 'Тонаж', 'Діб', 'Ставка', 'Валюта', 'Дохід, грн', 'Прибуток, грн', 'Факт, грн', 'грн/км маршруту', 'Статус'];
     }
     function historyExportValues(row) {
         return [
@@ -8147,7 +8194,7 @@
                 revenue: num(fields.revenue),
                 profit: num(fields.profit),
                 fact: actual && Number.isFinite(Number(actual.profit)) ? Number(actual.profit) : null,
-                perKm: perKm === null ? null : Math.round(perKm * 100) / 100,
+                perKm: perKm === null ? null : Math.round(perKm),
                 status: statusLabel(fields.status)
             };
         });
@@ -8415,8 +8462,6 @@
         const pager = document.getElementById('history-pager');
         const pageLabel = document.getElementById('history-page-label');
         if (!tbody) return;
-        const authorSelect = document.getElementById('saved-author-filter');
-        const authorId = currentWorkMode === 'team' && authorSelect ? authorSelect.value : '';
         const rows = filteredHistory();
         const columns = historyColumnCount();
         const pages = Math.max(1, Math.ceil(rows.length / HISTORY_PAGE_SIZE));
@@ -8426,7 +8471,7 @@
         if (pager) pager.hidden = rows.length <= HISTORY_PAGE_SIZE;
         if (pageLabel) pageLabel.textContent = (historyPage + 1) + ' / ' + pages;
         if (!slice.length) {
-            const message = authorId ? 'У цього учасника ще немає збережених розрахунків.' : 'Немає збережених розрахунків.';
+            const message = historyEmptyMessage(savedCalculations.length, rows.length);
             tbody.innerHTML = '<tr><td colspan="' + columns + '" style="text-align: center; color: var(--text-muted);">' + message + '</td></tr>';
             if (cards) cards.innerHTML = '<p class="tc-history-meta">' + message + '</p>';
             return;

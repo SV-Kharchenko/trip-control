@@ -123,4 +123,20 @@ test('history export uses the filtered period, not the visible page, and adds no
     assert.equal(/api[_-]?key|1[CС]|onec/i.test(body), false);
     assert.match(body, /loadExcelJS\(\)/);
     assert.equal(body.includes('innerHTML'), false);
+    assert.match(historyExportHeaders().join(';'), /грн\/км маршруту/);
+});
+
+test('a route title fills empty origin and destination, and a filter miss is not an empty archive', () => {
+    const historyPlacesFromName = extractFunction('historyPlacesFromName', ['name']);
+    const historyEmptyMessage = extractFunction('historyEmptyMessage', ['savedCount', 'shownCount']);
+    assert.deepEqual(historyPlacesFromName('Київ — Львів'), { from: 'Київ', to: 'Львів' });
+    assert.deepEqual(historyPlacesFromName('Умань - Ізмаїл'), { from: 'Умань', to: 'Ізмаїл' });
+    assert.deepEqual(historyPlacesFromName('Маршрут 1'), { from: '', to: '' });
+    assert.equal(historyEmptyMessage(0, 0), 'Немає збережених розрахунків.');
+    assert.equal(historyEmptyMessage(4, 0), 'Нічого не знайдено за фільтром.');
+    assert.equal(historyEmptyMessage(4, 2), '');
+    assert.match(html, /historyEmptyMessage\(savedCalculations\.length, rows\.length\)/);
+    assert.match(html, /perKm: perKm === null \? null : Math\.round\(perKm\)/);
+    assert.equal(html.includes('Math.round(perKm * 100)'), false);
+    assert.equal(Math.round(-1500.4 / 540), -3);
 });
