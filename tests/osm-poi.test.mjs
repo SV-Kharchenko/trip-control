@@ -23,7 +23,9 @@ const {
     normalizePoiElement,
     nearestSegmentKey,
     poiRouteCacheKey,
-    fetchOverpass
+    fetchOverpass,
+    corridorChunks,
+    CORRIDOR_CHUNK_MAX
 } = await import('../api/poi.js');
 
 function sliceBetween(source, start, end) {
@@ -47,10 +49,11 @@ test('the route search is one corridor, not a circle on every point', () => {
     assert.match(query, /\["highway"="rest_area"\]/);
     assert.equal(query.split('[out:json]').length - 1, 1);
     assert.equal((query.match(/around:/g) || []).length, 5);
-    const cacheBeforeFetch = poiSource.indexOf('poiRouteCacheKey(points, types)');
-    const fetchCall = poiSource.indexOf('fetchOverpass(overpassCorridorQuery');
+    assert.equal(query.includes('nwr['), false);
+    const cacheBeforeFetch = poiSource.indexOf('corridorChunks(points)');
+    const fetchCall = poiSource.indexOf('fetchOverpass(overpassCorridorQuery(chunk');
     assert.equal(cacheBeforeFetch > 0 && fetchCall > cacheBeforeFetch, true);
-    assert.equal(poiSource.split('fetchOverpass(overpassCorridorQuery').length - 1, 1);
+    assert.equal(poiSource.split('fetchOverpass(overpassCorridorQuery(chunk').length - 1, 1);
     assert.equal(geohashEncode(kyiv.lat, kyiv.lon, 5), geohashEncode(kyiv.lat, kyiv.lon, 5));
     assert.notEqual(geohashEncode(kyiv.lat, kyiv.lon, 5), geohashEncode(lviv.lat, lviv.lon, 5));
     assert.deepEqual(corridorSegmentKeys([kyiv, kyiv, lviv]).length, 2);
@@ -72,6 +75,23 @@ test('cache rows expire after 30 days and names stay data, not markup', () => {
     assert.equal(item.name, '<script>');
     assert.equal(item.address, 'Київ');
     assert.equal(nearestSegmentKey(item, [{ lat: 50.45, lon: 30.52 }, { lat: 49.84, lon: 24.03 }]), geohashEncode(50.45, 30.52, 5));
+});
+
+test('a long route is several short corridors, a short one stays a single query', () => {
+    const short = corridorChunks([
+        { lat: 50.45, lon: 30.52 },
+        { lat: 50.46, lon: 30.62 }
+    ]);
+    assert.equal(short.length, 1);
+    const points = [];
+    for (let i = 0; i < 16; i++) points.push({ lat: 50.45, lon: 30.5 - i * 0.8 });
+    const chunks = corridorChunks(points);
+    assert.equal(chunks.length > 1 && chunks.length <= CORRIDOR_CHUNK_MAX, true);
+    const firstQuery = overpassCorridorQuery(chunks[0], ['gas']);
+    const last = points[points.length - 1];
+    assert.equal(firstQuery.includes(last.lon + ''), false);
+    assert.equal(firstQuery.split('[out:json]').length - 1, 1);
+    assert.match(poiSource, /maxDuration: 60/);
 });
 
 test('a repeat route reuses one cache key from rounded coordinates and categories', () => {
