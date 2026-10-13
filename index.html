@@ -3339,6 +3339,7 @@
         <button class="btn full-only" onclick="window.print()">📄 Експорт у PDF</button>
         <button class="btn full-only" onclick="exportExcel()">📊 Експорт у Excel</button>
         <button class="btn btn-warning full-only" onclick="shareOffer()">📱 Надіслати у Viber / Telegram</button>
+        <button class="btn full-only" type="button" onclick="shareTelegram()">✈️ Надіслати в Telegram</button>
         <button class="btn btn-locked demo-only" disabled>🔒 PDF · Excel · Viber/Telegram — доступно після оплати</button>
     </div>
 
@@ -7541,11 +7542,11 @@
         }
     }
 
-    function shareOffer() {
+    function offerShareText() {
         const d = lastCalcData;
-        if (!d || !d.routeName) return;
+        if (!d || !d.routeName) return '';
         const rateUnit = d.contractCurrency && d.contractCurrency !== 'UAH' ? d.contractCurrency + '/т' : 'грн/т';
-        const text = `🚛 *КОМЕРЦІЙНА ПРОПОЗИЦІЯ / РОЗРАХУНОК РЕЙСУ*
+        return `🚛 *КОМЕРЦІЙНА ПРОПОЗИЦІЯ / РОЗРАХУНОК РЕЙСУ*
 
 📍 Маршрут: ${d.routeName}
 🚛 Причіп: ${d.trailerType}
@@ -7554,19 +7555,71 @@
 💵 Дохід: ${formatMoney(d.grossIncome)}${fxSuffix(d.grossIncome)}
 📈 Чистий прибуток: ${formatMoney(d.netProfit)}${fxSuffix(d.netProfit)}
 📊 Рентабельність: ${d.profitabilityPct.toFixed(1)}%`;
+    }
+
+    function shareOffer() {
+        const text = offerShareText();
+        if (!text) return;
         if (navigator.share) {
             navigator.share({ title: 'Розрахунок рейсу', text: text }).catch(err => console.log('Share API error:', err));
-        } else {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(function () {
-                    showToast('Текст скопійовано. Вставте його у Viber або Telegram.', 3200);
-                }).catch(function () {
-                    showToast('Не вдалося скопіювати текст.', 3200);
-                });
-            } else {
+        } else if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+                showToast('Текст скопійовано. Вставте його у Viber або Telegram.', 3200);
+            }).catch(function () {
                 showToast('Не вдалося скопіювати текст.', 3200);
-            }
+            });
+        } else {
+            showToast('Не вдалося скопіювати текст.', 3200);
         }
+    }
+
+    function telegramShareUrl(text, url) {
+        return 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text);
+    }
+
+    function copyTextFallback(text) {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.left = '-9999px';
+        document.body.appendChild(area);
+        area.select();
+        let copied = false;
+        try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+        area.remove();
+        showToast(copied ? 'Текст скопійовано' : 'Не вдалося скопіювати текст.');
+    }
+
+    function copyOfferText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+                showToast('Текст скопійовано');
+            }).catch(function () {
+                copyTextFallback(text);
+            });
+            return;
+        }
+        copyTextFallback(text);
+    }
+
+    function shareTelegram() {
+        const text = offerShareText();
+        if (!text) return;
+        const url = location.origin;
+        const coarse = window.matchMedia && window.matchMedia('(pointer:coarse)').matches;
+        if (coarse && navigator.share) {
+            navigator.share({ title: 'Розрахунок рейсу', text: text }).catch(function (err) {
+                console.log('Share API error:', err);
+            });
+            return;
+        }
+        const popup = window.open(telegramShareUrl(text, url), '_blank');
+        if (!popup) {
+            copyOfferText(text);
+            return;
+        }
+        popup.opener = null;
     }
 
     let mapInitialized = false;
@@ -8288,16 +8341,35 @@
         }
         if (token !== poiSearchToken) return;
         poiFailedSegments = failed;
-        if (failed.length) {
+        const found = poiSeenIds.size;
+        const missed = failed.length;
+        const objectWord = plural(found, ['об’єкт', 'об’єкти', 'об’єктів']);
+        const segmentWord = plural(missed, ['відрізок', 'відрізки', 'відрізків']);
+        if (missed && found) {
+            statusEl.textContent = '⚠️ Знайдено ' + found + ' ' + objectWord + ', ' + missed + ' ' + segmentWord + ' не завантажено';
+            statusEl.style.color = 'var(--warning)';
+            if (retryBtn) retryBtn.style.display = 'block';
+        } else if (missed) {
             const reason = networkError ? 'Помилка мережі. ' : (lastCode ? poiFailureText(lastCode) + '. ' : '');
-            statusEl.innerText = reason + failed.length + ' відрізків не завантажено';
+            statusEl.textContent = reason + missed + ' ' + segmentWord + ' не завантажено';
             statusEl.style.color = 'var(--danger)';
             if (retryBtn) retryBtn.style.display = 'block';
         } else {
-            statusEl.innerText = '✅ Знайдено ' + poiSeenIds.size + ' об’єктів уздовж маршруту (OpenStreetMap)';
+            statusEl.textContent = '✅ Знайдено ' + found + ' ' + objectWord + ' уздовж маршруту (OpenStreetMap)';
             statusEl.style.color = 'var(--success)';
             if (retryBtn) retryBtn.style.display = 'none';
         }
+    }
+
+    function plural(n, forms) {
+        const value = Math.abs(Math.trunc(Number(n)));
+        if (!Number.isFinite(value)) return forms[2];
+        const mod100 = value % 100;
+        const mod10 = value % 10;
+        if (mod100 >= 11 && mod100 <= 14) return forms[2];
+        if (mod10 === 1) return forms[0];
+        if (mod10 >= 2 && mod10 <= 4) return forms[1];
+        return forms[2];
     }
 
     function corridorSample(path) {
