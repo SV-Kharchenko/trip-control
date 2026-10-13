@@ -12,6 +12,12 @@ const OVERPASS_MIRRORS = [
     'https://overpass.kumi.systems/api/interpreter'
 ];
 
+export const POI_POINTS_LIMIT = 25;
+
+export function poiPointsWithinLimit(count) {
+    return Number.isInteger(count) && count > 0 && count <= POI_POINTS_LIMIT;
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -47,6 +53,12 @@ export default async function handler(req, res) {
         const points = Array.isArray(body.points) ? body.points : [];
         if (points.length === 0) {
             return res.status(400).json({ error: 'Не передано жодної точки маршруту.' });
+        }
+        if (!poiPointsWithinLimit(points.length)) {
+            return res.status(400).json({
+                code: 'POI_POINTS_LIMIT',
+                error: 'Забагато точок маршруту. Максимум 25.'
+            });
         }
         const radius = Math.min(parseInt(body.radius) || 8000, 20000); // захист від надто широкого запиту
 

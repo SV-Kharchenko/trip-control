@@ -126,11 +126,26 @@ export function activationExceedsLogistCap({ activeLogists, pendingInvites, wasA
     return active + pending >= MAX_TEAM_SEATS;
 }
 
+// Invite creates and resends share one bucket: 10 audited actions per org per hour.
+export const INVITE_RATE_LIMIT = 10;
+const INVITE_RATE_WINDOW_MS = 60 * 60 * 1000;
+
+export function inviteActionRateLimited(recentActions, limit = INVITE_RATE_LIMIT) {
+    return (Number(recentActions) || 0) >= limit;
+}
+
+export function secondActiveOwnerBlocked(otherActiveOwners) {
+    return (Number(otherActiveOwners) || 0) >= 1;
+}
+
 function profileWriteError(error, ownerMessage) {
     const mapped = inviteRpcHttpError(error && error.message);
     if (mapped) return mapped;
     if (String(error && error.message || '').includes('LAST_ACTIVE_OWNER')) {
         return new HttpError(409, 'LAST_ACTIVE_OWNER', ownerMessage);
+    }
+    if (String(error && error.message || '').includes('SECOND_ACTIVE_OWNER')) {
+        return new HttpError(409, 'SECOND_ACTIVE_OWNER', 'У компанії вже є активний власник.');
     }
     return null;
 }
@@ -176,6 +191,33 @@ async function audit(actorId, orgId, action, entity, entityId, detail = null) {
         detail
     });
     if (error) console.warn('team audit failed:', error.message);
+}
+
+async function activeOwnerCount(orgId, excludeUserId = null) {
+    let query = supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('member_status', 'active')
+        .eq('org_role', 'owner');
+    if (excludeUserId) query = query.neq('id', excludeUserId);
+    const { count, error } = await query;
+    if (error) throw error;
+    return count || 0;
+}
+
+async function assertInviteRate(orgId) {
+    const since = new Date(Date.now() - INVITE_RATE_WINDOW_MS).toISOString();
+    const { count, error } = await supabase
+        .from('security_audit_log')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .in('action', ['invite_member', 'resend_invite'])
+        .gte('at', since);
+    if (error) throw error;
+    if (inviteActionRateLimited(count)) {
+        throw new HttpError(429, 'INVITE_RATE_LIMIT', 'Забагато запрошень за останню годину. Спробуйте пізніше.');
+    }
 }
 
 async function activeLogistCount(orgId, excludeUserId = null) {
@@ -361,6 +403,7 @@ async function inviteMember(actor, body) {
     if (seats.used >= seats.limit) {
         throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
     }
+    await assertInviteRate(orgId);
 
     const rawToken = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + INVITE_TTL_MS).toISOString();
@@ -476,6 +519,13 @@ async function changeRole(actor, body) {
         throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Учасника не знайдено.');
     }
 
+    if (role === 'owner' && target.member_status === 'active' && target.org_role !== 'owner') {
+        const others = await activeOwnerCount(actor.profile.org_id, userId);
+        if (secondActiveOwnerBlocked(others)) {
+            throw new HttpError(409, 'SECOND_ACTIVE_OWNER', 'У компанії вже є активний власник.');
+        }
+    }
+
     const wasActiveLogist = target.org_role === 'logist' && target.member_status === 'active';
     const becomesActiveLogist = role === 'logist' && target.member_status === 'active';
     if (becomesActiveLogist) {
@@ -566,6 +616,13 @@ async function enableMember(actor, body) {
         return { ok: true, user_id: userId, member_status: 'active' };
     }
 
+    if (target.org_role === 'owner') {
+        const others = await activeOwnerCount(actor.profile.org_id, userId);
+        if (secondActiveOwnerBlocked(others)) {
+            throw new HttpError(409, 'SECOND_ACTIVE_OWNER', 'У компанії вже є активний власник.');
+        }
+    }
+
     if (target.org_role === 'logist') {
         const seats = await teamSeatUsage(actor.profile.org_id);
         if (activationExceedsLogistCap({
@@ -650,6 +707,7 @@ async function resendInvite(actor, body) {
     if (seats.used >= seats.limit) {
         throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
     }
+    await assertInviteRate(actor.profile.org_id);
 
     const now = new Date();
     const { data: invite, error } = await supabase
