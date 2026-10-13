@@ -6,8 +6,8 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// Один запит на маршрут. Якщо дзеркало відповідає 429 або 504, чекаємо і беремо наступне.
-// Без свого User-Agent публічні сервери Overpass ріжуть запит як анонімний.
+// Довгий рейс ріжемо на короткі коридори: один важкий запит на всю Україну Overpass відповідає 429.
+// Кожен відрізок — один union. На 429/504 пауза і наступне дзеркало, не більше трьох спроб.
 export const OVERPASS_MIRRORS = [
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
@@ -17,7 +17,12 @@ export const OVERPASS_USER_AGENT = 'trip-control.com (support@trip-control.com)'
 export const OVERPASS_BACKOFF_MS = [1000, 3000];
 export const OVERPASS_ATTEMPT_LIMIT = 3;
 export const POI_BUSY_MESSAGE = 'Сервіс карт перевантажений, спробуй за хвилину';
-const OVERPASS_TIMEOUT_MS = 9000;
+export const CORRIDOR_CHUNK_METERS = 100000;
+export const CORRIDOR_CHUNK_MAX = 6;
+const OVERPASS_TIMEOUT_MS = 8000;
+const CHUNK_GAP_MS = 400;
+
+export const config = { maxDuration: 60 };
 
 export const POI_POINTS_LIMIT = 25;
 export const POI_CORRIDOR_BUFFER_M = 4000;
@@ -100,17 +105,54 @@ export function corridorAroundClause(points, bufferMeters) {
     return 'around:' + bufferMeters + ',' + coords;
 }
 
+export function haversineMeters(from, to) {
+    const toRad = degrees => degrees * Math.PI / 180;
+    const dLat = toRad(to.lat - from.lat);
+    const dLon = toRad(to.lon - from.lon);
+    const lat1 = toRad(from.lat);
+    const lat2 = toRad(to.lat);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+export function corridorChunks(points, maxSpanMeters = CORRIDOR_CHUNK_METERS, maxChunks = CORRIDOR_CHUNK_MAX) {
+    if (!points.length) return [];
+    if (points.length === 1) return [points.slice()];
+    let total = 0;
+    const steps = [];
+    for (let i = 1; i < points.length; i++) {
+        const step = haversineMeters(points[i - 1], points[i]);
+        steps.push(step);
+        total += step;
+    }
+    const span = Math.max(maxSpanMeters, total / maxChunks);
+    const chunks = [];
+    let current = [points[0]];
+    let run = 0;
+    for (let i = 1; i < points.length; i++) {
+        if (current.length > 1 && run >= span && chunks.length < maxChunks - 1) {
+            chunks.push(current);
+            current = [points[i - 1]];
+            run = 0;
+        }
+        current.push(points[i]);
+        run += steps[i - 1];
+    }
+    chunks.push(current);
+    return chunks;
+}
+
 export function overpassCorridorQuery(points, types, bufferMeters = POI_CORRIDOR_BUFFER_M) {
     const around = corridorAroundClause(points, bufferMeters);
     const lines = [];
-    if (types.includes('gas')) lines.push('nwr["amenity"="fuel"](' + around + ');');
-    if (types.includes('cafe')) lines.push('nwr["amenity"="cafe"](' + around + ');');
-    if (types.includes('sto')) lines.push('nwr["shop"="car_repair"](' + around + ');');
+    if (types.includes('gas')) lines.push('nw["amenity"="fuel"](' + around + ');');
+    if (types.includes('cafe')) lines.push('nw["amenity"="cafe"](' + around + ');');
+    if (types.includes('sto')) lines.push('nw["shop"="car_repair"](' + around + ');');
     if (types.includes('tir')) {
-        lines.push('nwr["amenity"="parking"]["hgv"](' + around + ');');
-        lines.push('nwr["highway"="rest_area"](' + around + ');');
+        lines.push('nw["amenity"="parking"]["hgv"](' + around + ');');
+        lines.push('nw["highway"="rest_area"](' + around + ');');
     }
-    return '[out:json][timeout:8];(' + lines.join('') + ');out center 200;';
+    return '[out:json][timeout:7];(' + lines.join('') + ');out center 120;';
 }
 
 export function poiKind(tags) {
@@ -248,7 +290,15 @@ export async function fetchOverpass(query, options = {}) {
             status = overpassRes.status;
             if (overpassRes.ok) {
                 const data = await overpassRes.json();
-                return { elements: Array.isArray(data.elements) ? data.elements : [] };
+                const elements = Array.isArray(data.elements) ? data.elements : [];
+                const remark = String((data && (data.remark || data.error)) || '');
+                if (!elements.length && /timed out|runtime error|rate_limited/i.test(remark)) {
+                    status = 504;
+                    lastStatus = 504;
+                    lastDetail = 'timeout';
+                } else {
+                    return { elements: elements };
+                }
             }
             lastStatus = status;
             lastDetail = 'HTTP ' + status;
@@ -328,67 +378,65 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Оберіть хоча б одну категорію.' });
         }
 
-        const cacheKey = poiRouteCacheKey(points, types);
+        const chunks = corridorChunks(points);
+        const cacheKeys = chunks.map(chunk => poiRouteCacheKey(chunk, types));
         const nowMs = Date.now();
-        const cacheRows = await readPoiCache(types, [cacheKey]);
+        const cacheRows = await readPoiCache(types, cacheKeys);
         const fresh = new Map();
         if (cacheRows) {
             for (const row of cacheRows) {
-                if (row.segment_key === cacheKey && poiCacheFresh(row.fetched_at, nowMs)) {
+                if (cacheKeys.includes(row.segment_key) && poiCacheFresh(row.fetched_at, nowMs)) {
                     fresh.set(row.poi_type + '|' + row.segment_key, row.payload);
                 }
             }
         }
-        const missingTypes = types.filter(type => !fresh.has(type + '|' + cacheKey));
-        if (!missingTypes.length) {
-            return res.status(200).json({
-                elements: cachedItems(fresh, types),
-                cached: true,
-                attribution: '© OpenStreetMap contributors'
-            });
+
+        let askedNetwork = false;
+        let networkFailed = false;
+        for (let index = 0; index < chunks.length; index++) {
+            const chunk = chunks[index];
+            const cacheKey = cacheKeys[index];
+            const missingTypes = types.filter(type => !fresh.has(type + '|' + cacheKey));
+            if (!missingTypes.length) continue;
+            if (askedNetwork) await new Promise(resolve => setTimeout(resolve, CHUNK_GAP_MS));
+            askedNetwork = true;
+            const fetched = await fetchOverpass(overpassCorridorQuery(chunk, missingTypes));
+            if (fetched.error) {
+                networkFailed = true;
+                console.warn('poi overpass:', fetched.status || '', fetched.detail || '');
+                break;
+            }
+            const buckets = new Map();
+            for (const type of missingTypes) buckets.set(type, []);
+            for (const element of fetched.elements) {
+                const item = normalizePoiElement(element);
+                if (!item || !buckets.has(item.kind)) continue;
+                const bucket = buckets.get(item.kind);
+                if (bucket.some(existing => existing.id === item.id)) continue;
+                bucket.push(item);
+            }
+            const fetchedAt = new Date().toISOString();
+            const rows = [];
+            for (const [type, payload] of buckets) {
+                rows.push({
+                    poi_type: type,
+                    segment_key: cacheKey,
+                    payload: payload,
+                    fetched_at: fetchedAt
+                });
+                fresh.set(type + '|' + cacheKey, payload);
+            }
+            await writePoiCache(rows);
         }
 
-        const fetched = await fetchOverpass(overpassCorridorQuery(points, missingTypes));
-        if (fetched.error) {
-            console.warn('poi overpass:', fetched.status || '', fetched.detail || '');
-            const saved = cachedItems(fresh, types);
-            if (saved.length) {
-                return res.status(200).json({
-                    elements: saved,
-                    cached: true,
-                    warning: 'Сервіс карт перевантажений. Показано збережені об’єкти.',
-                    attribution: '© OpenStreetMap contributors'
-                });
-            }
+        const elements = cachedItems(fresh, types);
+        if (!elements.length && networkFailed) {
             return res.status(503).json({ code: 'OVERPASS_BUSY', error: POI_BUSY_MESSAGE });
         }
-
-        const buckets = new Map();
-        for (const type of missingTypes) buckets.set(type, []);
-        for (const element of fetched.elements) {
-            const item = normalizePoiElement(element);
-            if (!item || !buckets.has(item.kind)) continue;
-            const bucket = buckets.get(item.kind);
-            if (bucket.some(existing => existing.id === item.id)) continue;
-            bucket.push(item);
-        }
-        const fetchedAt = new Date(nowMs).toISOString();
-        const rows = [];
-        for (const [type, payload] of buckets) {
-            const key = type + '|' + cacheKey;
-            rows.push({
-                poi_type: type,
-                segment_key: cacheKey,
-                payload: payload,
-                fetched_at: fetchedAt
-            });
-            fresh.set(key, payload);
-        }
-        await writePoiCache(rows);
-
         return res.status(200).json({
-            elements: cachedItems(fresh, types),
-            cached: false,
+            elements: elements,
+            cached: !askedNetwork,
+            warning: networkFailed ? 'Сервіс карт перевантажений. Показано те, що вдалося знайти.' : undefined,
             attribution: '© OpenStreetMap contributors'
         });
     } catch (err) {
