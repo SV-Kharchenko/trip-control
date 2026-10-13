@@ -284,6 +284,34 @@ export async function collectCorridorSegments(chunks, options) {
     return { done: done, failed: failed, pending: pending };
 }
 
+export function poiJobsFromSegments(segmentInputs) {
+    const jobs = [];
+    let totalPoints = 0;
+    const inputs = Array.isArray(segmentInputs) ? segmentInputs : [];
+    inputs.forEach((raw, sourceIndex) => {
+        const points = cleanPoints(raw);
+        totalPoints += points.length;
+        if (!points.length) return;
+        for (const piece of corridorChunks(points)) {
+            jobs.push({ index: sourceIndex, points: piece });
+        }
+    });
+    return { jobs: jobs, totalPoints: totalPoints };
+}
+
+export function alignPoiIndexes(collected, sourceIndexes) {
+    const indexes = sourceIndexes || [];
+    return {
+        done: (collected.done || []).map(part => Object.assign({}, part, {
+            index: indexes[part.index]
+        })),
+        failed: (collected.failed || []).map(item => Object.assign({}, item, {
+            index: indexes[item.index]
+        })),
+        pending: (collected.pending || []).map(index => indexes[index])
+    };
+}
+
 export function poiResultPayload(collected) {
     const elements = [];
     const seen = new Set();
@@ -488,8 +516,8 @@ export default async function handler(req, res) {
         if (segmentInputs.length > POI_SEGMENTS_PER_CALL) {
             return res.status(400).json({ error: 'Забагато відрізків за один виклик. Максимум 2.' });
         }
-        const groups = segmentInputs.map(cleanPoints).filter(points => points.length);
-        const totalPoints = groups.reduce((sum, points) => sum + points.length, 0);
+        const planned = poiJobsFromSegments(segmentInputs);
+        const totalPoints = planned.totalPoints;
         if (!totalPoints) {
             return res.status(400).json({ error: 'Не передано жодної точки маршруту.' });
         }
@@ -504,7 +532,8 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Оберіть хоча б одну категорію.' });
         }
 
-        const chunks = groups.flatMap(points => corridorChunks(points));
+        const chunks = planned.jobs.map(job => job.points);
+        const sourceIndexes = planned.jobs.map(job => job.index);
         const cacheKeys = chunks.map(chunk => poiRouteCacheKey(chunk, types));
         const cacheRows = await readPoiCache(types, cacheKeys);
         const fresh = new Map();
@@ -537,7 +566,7 @@ export default async function handler(req, res) {
             }
         });
 
-        const payload = poiResultPayload(collected);
+        const payload = poiResultPayload(alignPoiIndexes(collected, sourceIndexes));
         if (!payload.elements.length && payload.failed.length) {
             const failure = payload.failed[0];
             return res.status(failure.code === 'OVERPASS_TIMEOUT' ? 504 : (failure.code === 'OVERPASS_RATE_LIMIT' ? 429 : 502)).json({

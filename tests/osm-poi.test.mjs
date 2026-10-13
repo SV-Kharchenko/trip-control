@@ -228,7 +228,10 @@ test('the page asks api/poi and does not send POI names through Places', () => {
     assert.match(search, /fetch\('\/api\/poi'/);
     assert.match(search, /segments: batch/);
     assert.match(search, /Відрізок /);
-    assert.match(search, /відрізків не завантажено/);
+    assert.match(search, /plural\(missed, \['відрізок', 'відрізки', 'відрізків'\]\)/);
+    assert.match(search, /не завантажено/);
+    assert.match(search, /var\(--warning\)/);
+    assert.match(search, /Знайдено /);
     assert.match(search, /setTimeout\(resolve, 500\)/);
     assert.match(html, /Повторити невдалі/);
     assert.match(html, /Помилка мережі/);
