@@ -2909,6 +2909,13 @@
                     <button type="button" class="preset-tile" data-preset="цистерна" onclick="applyPreset('цистерна', this)"><span class="pt-ico">🛢️</span>Цистерна<span class="pt-hint">наливні</span></button>
                 </div>
 
+                <div class="form-row two-cols" id="vehicle-norm-row" hidden>
+                    <label for="vehicle-norm">Авто з парку:</label>
+                    <select id="vehicle-norm" onchange="onVehicleNormChange()">
+                        <option value="">Норми компанії</option>
+                    </select>
+                </div>
+
                 <div class="form-row two-cols">
                     <label>Назва / Маршрут заявки:</label>
                     <input type="text" id="route-name" value="Маршрут 1" style="text-align: left;" oninput="onRouteNameInput()">
@@ -4819,6 +4826,7 @@
     }
 
     function applyPreset(type, btnElement) {
+        clearVehicleNormChoice();
         document.getElementById('trailer-type').value = type;
         
         if (btnElement) {
@@ -4863,6 +4871,117 @@
         else { washCost.classList.remove('active'); washFreq.classList.remove('active'); }
         
         calculate();
+    }
+
+    let vehicleNormBaseline = null;
+    function vehicleNormNumber(value, min, max) {
+        if (value === null || value === undefined || value === '') return null;
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < min || n > max) return null;
+        return n;
+    }
+    function vehicleNormPatch(vehicle) {
+        if (!vehicle || typeof vehicle !== 'object') return null;
+        const trailers = ['зерновоз', 'рефрижератор', 'тент', 'цистерна'];
+        const patch = {};
+        const fuelLoad = vehicleNormNumber(vehicle.fuel_load, 0.1, 80);
+        const fuelEmpty = vehicleNormNumber(vehicle.fuel_empty, 0.1, 80);
+        const normWeight = vehicleNormNumber(vehicle.norm_weight, 0.1, 80);
+        if (fuelLoad !== null) patch.fuelLoad = fuelLoad;
+        if (fuelEmpty !== null) patch.fuelEmpty = fuelEmpty;
+        if (normWeight !== null) patch.normWeight = normWeight;
+        if (trailers.indexOf(vehicle.trailer_type) >= 0) patch.trailerType = vehicle.trailer_type;
+        return Object.keys(patch).length ? patch : null;
+    }
+    function applyVehicleNorms(base, vehicle) {
+        const source = base && typeof base === 'object' ? base : {};
+        const patch = vehicleNormPatch(vehicle);
+        const copy = {};
+        Object.keys(source).forEach(function (key) { copy[key] = source[key]; });
+        if (!patch) return copy;
+        Object.keys(patch).forEach(function (key) { copy[key] = patch[key]; });
+        return copy;
+    }
+    function readVehicleNormForm() {
+        const value = function (id) {
+            const el = document.getElementById(id);
+            return el ? el.value : '';
+        };
+        return {
+            fuelLoad: value('fuel-load'),
+            fuelEmpty: value('fuel-empty'),
+            normWeight: value('norm-weight'),
+            trailerType: value('trailer-type')
+        };
+    }
+    function writeVehicleNormForm(values) {
+        const data = values || {};
+        const trailer = document.getElementById('trailer-type');
+        if (trailer && data.trailerType) {
+            trailer.value = data.trailerType;
+            document.querySelectorAll('.preset-tile').forEach(function (btn) {
+                btn.classList.toggle('active', btn.dataset.preset === data.trailerType);
+            });
+        }
+        const fuelLoad = document.getElementById('fuel-load');
+        const fuelEmpty = document.getElementById('fuel-empty');
+        const normWeight = document.getElementById('norm-weight');
+        if (fuelLoad && data.fuelLoad != null && data.fuelLoad !== '') fuelLoad.value = data.fuelLoad;
+        if (fuelEmpty && data.fuelEmpty != null && data.fuelEmpty !== '') fuelEmpty.value = data.fuelEmpty;
+        if (normWeight && data.normWeight != null && data.normWeight !== '') normWeight.value = data.normWeight;
+    }
+    function clearVehicleNormChoice() {
+        vehicleNormBaseline = null;
+        const sel = document.getElementById('vehicle-norm');
+        if (sel) sel.value = '';
+    }
+    function renderVehicleNormSelect() {
+        const row = document.getElementById('vehicle-norm-row');
+        const sel = document.getElementById('vehicle-norm');
+        if (!row || !sel) return;
+        const current = sel.value;
+        while (sel.firstChild) sel.removeChild(sel.firstChild);
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'Норми компанії';
+        sel.appendChild(empty);
+        fleetVehicles.forEach(function (vehicle) {
+            const opt = document.createElement('option');
+            opt.value = String(vehicle.id);
+            opt.textContent = String(vehicle.label || 'Авто');
+            sel.appendChild(opt);
+        });
+        const still = current && fleetVehicles.some(function (vehicle) { return String(vehicle.id) === current; });
+        sel.value = still ? current : '';
+        row.hidden = !fleetVehicles.length;
+        if (current && !still && vehicleNormBaseline) {
+            writeVehicleNormForm(vehicleNormBaseline);
+            vehicleNormBaseline = null;
+        }
+    }
+    function reapplySelectedVehicleNorms() {
+        const sel = document.getElementById('vehicle-norm');
+        if (!sel || !sel.value || !vehicleNormBaseline) return;
+        const vehicle = fleetVehicles.find(function (item) { return String(item.id) === sel.value; });
+        if (!vehicle) return;
+        writeVehicleNormForm(applyVehicleNorms(vehicleNormBaseline, vehicle));
+        if (currentSessionToken) onTrailerChange();
+    }
+    function onVehicleNormChange() {
+        const sel = document.getElementById('vehicle-norm');
+        const id = sel ? sel.value : '';
+        if (!id) {
+            if (vehicleNormBaseline) writeVehicleNormForm(vehicleNormBaseline);
+            vehicleNormBaseline = null;
+            if (currentSessionToken) onTrailerChange();
+            return;
+        }
+        const vehicle = fleetVehicles.find(function (item) { return String(item.id) === id; });
+        if (!vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
+        const patch = vehicleNormPatch(vehicle);
+        writeVehicleNormForm(applyVehicleNorms(vehicleNormBaseline, vehicle));
+        if (!patch) showToast('У цього авто немає своїх норм. Лишаються норми компанії.');
+        if (currentSessionToken) onTrailerChange();
     }
 
     function toggleRoundTrip() {
@@ -5201,7 +5320,7 @@
         });
         html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
             '<div class="cab-card-head"><h3>Документи автопарку</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
-            '<p class="tc-fleet-note">Необов’язково. Дата закінчення по кожному авто: ОСЦПВ, КАСКО, Зелена карта, техогляд, тахограф, ТО. Калькулятор ці дати не використовує.</p>' +
+            '<p class="tc-fleet-note">Необов’язково. Норми авто підставляються в калькулятор, коли обираєш це авто. Порожнє поле лишає норму компанії. Дати документів калькулятор не використовує.</p>' +
             '<label id="fleet-warn-label" for="fleet-warn-days">Попереджати за, днів ' +
             '<input type="number" id="fleet-warn-days" min="1" max="180" step="1" value="30" onchange="saveFleetWarnDays()"></label>' +
             '<div class="tc-fleet-add" id="fleet-add">' +
@@ -5237,7 +5356,9 @@
         ['tachograph_on', 'Тахограф'],
         ['service_on', 'ТО']
     ];
-    const FLEET_COLUMNS = 'id, label, oscpv_on, kasko_on, green_card_on, inspection_on, tachograph_on, service_on';
+    const FLEET_DOC_COLUMNS = 'id, label, oscpv_on, kasko_on, green_card_on, inspection_on, tachograph_on, service_on';
+    const FLEET_NORM_COLUMNS = 'fuel_load, fuel_empty, norm_weight, trailer_type';
+    const FLEET_COLUMNS = FLEET_DOC_COLUMNS + ', ' + FLEET_NORM_COLUMNS;
     function kyivTodayYmd(now) {
         const date = now instanceof Date ? now : new Date(now || Date.now());
         const parts = new Intl.DateTimeFormat('en-CA', {
@@ -5297,6 +5418,9 @@
         if (message.indexOf('FLEET_LIMIT') !== -1) return 'У списку вже 100 авто.';
         if (message.indexOf('FLEET_LABEL') !== -1) return 'Вкажи номер або назву авто, до 40 символів.';
         if (message.indexOf('FLEET_FORBIDDEN') !== -1) return 'Документи змінює власник.';
+        if (code === '23514' || message.indexOf('fleet_vehicles_fuel') !== -1 || message.indexOf('fleet_vehicles_norm') !== -1 || message.indexOf('fleet_vehicles_trailer') !== -1) {
+            return 'Норма авто: витрата і завантаження від 0,1 до 80, причіп зі списку.';
+        }
         return 'Не вдалося зберегти документи.';
     }
     function emptyFleetDates() {
@@ -5312,7 +5436,50 @@
         if (add) add.hidden = currentOrgRole !== 'owner';
         if (input && document.activeElement !== input) input.value = String(fleetWarnValue());
     }
+    function fleetNormMarkup(vehicle, owner) {
+        const num = function (key, label) {
+            const value = vehicle[key] == null || vehicle[key] === '' ? '' : vehicle[key];
+            return '<label>' + label +
+                '<input type="number" data-norm="' + key + '" min="0.1" max="80" step="0.1" value="' + teamEsc(value) + '"' + (owner ? '' : ' disabled') + '>' +
+                '</label>';
+        };
+        const trailer = ['', 'зерновоз', 'рефрижератор', 'тент', 'цистерна'].map(function (item) {
+            const selected = vehicle.trailer_type === item ? ' selected' : '';
+            return '<option value="' + item + '"' + selected + '>' + (item || 'Як у компанії') + '</option>';
+        }).join('');
+        return '<div class="tc-fleet-docs">' +
+            '<label>Причіп<select data-norm="trailer_type"' + (owner ? '' : ' disabled') + '>' + trailer + '</select></label>' +
+            num('fuel_load', 'Витрата з вантажем, л/100 км') +
+            num('fuel_empty', 'Витрата порожнім, л/100 км') +
+            num('norm_weight', 'Норма завантаження, т') +
+            '</div>';
+    }
+    function readFleetNorms(id) {
+        const card = document.getElementById('fleet-card-' + id);
+        const norms = { fuel_load: null, fuel_empty: null, norm_weight: null, trailer_type: null };
+        if (!card) return { ok: false, error: 'Авто не знайдено.' };
+        const fields = [['fuel_load', 0.1, 80], ['fuel_empty', 0.1, 80], ['norm_weight', 0.1, 80]];
+        for (let i = 0; i < fields.length; i++) {
+            const input = card.querySelector('[data-norm="' + fields[i][0] + '"]');
+            const raw = input && input.value ? input.value.trim() : '';
+            if (!raw) continue;
+            const n = vehicleNormNumber(raw, fields[i][1], fields[i][2]);
+            if (n === null) return { ok: false, error: 'Норма авто: число від 0,1 до 80.' };
+            norms[fields[i][0]] = n;
+        }
+        const trailer = card.querySelector('[data-norm="trailer_type"]');
+        const trailerValue = trailer ? trailer.value : '';
+        if (trailerValue && ['зерновоз', 'рефрижератор', 'тент', 'цистерна'].indexOf(trailerValue) < 0) {
+            return { ok: false, error: 'Невідомий тип причепа.' };
+        }
+        norms.trailer_type = trailerValue || null;
+        return { ok: true, norms: norms };
+    }
+    function emptyFleetNorms() {
+        return { fuel_load: null, fuel_empty: null, norm_weight: null, trailer_type: null };
+    }
     function renderFleetDocs() {
+        renderVehicleNormSelect();
         syncFleetWarnControl();
         const list = document.getElementById('fleet-list');
         const summary = document.getElementById('fleet-summary');
@@ -5335,11 +5502,12 @@
             }).join('');
             const removeLabel = fleetDeleteId === vehicle.id ? 'Підтвердити' : 'Видалити';
             const actions = owner
-                ? '<div class="tc-fleet-actions"><button type="button" onclick="saveFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">Зберегти дати</button>' +
+                ? '<div class="tc-fleet-actions"><button type="button" onclick="saveFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">Зберегти</button>' +
                     '<button type="button" class="is-danger" onclick="removeFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">' + removeLabel + '</button></div>'
                 : '';
             return '<article class="tc-fleet-card' + (tone ? ' is-' + tone : '') + '" id="fleet-card-' + teamEsc(vehicle.id) + '">' +
                 '<div class="tc-fleet-head"><b>' + teamEsc(vehicle.label) + '</b></div>' +
+                fleetNormMarkup(vehicle, owner) +
                 '<div class="tc-fleet-docs">' + fields + '</div>' + actions + '</article>';
         }).join('');
         if (summary) summary.textContent = fleetVehicles.length ? ('Прострочено: ' + overdue + ' · скоро: ' + soon) : '';
@@ -5348,10 +5516,15 @@
     async function loadFleetVehicles() {
         if (uiPreview || !currentOrgId) return;
         try {
-            const { data, error } = await supabaseClient
+            let { data, error } = await supabaseClient
                 .from('fleet_vehicles')
                 .select(FLEET_COLUMNS)
                 .order('label');
+            if (error && /fuel_load|norm_weight|trailer_type|column/i.test(String((error && (error.message || error.details)) || error))) {
+                const fallback = await supabaseClient.from('fleet_vehicles').select(FLEET_DOC_COLUMNS).order('label');
+                data = fallback.data;
+                error = fallback.error;
+            }
             if (error) throw error;
             fleetVehicles = data || [];
         } catch (e) {
@@ -5376,7 +5549,7 @@
             return;
         }
         if (uiPreview) {
-            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label }, emptyFleetDates()));
+            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label }, emptyFleetDates(), emptyFleetNorms()));
             fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
             fleetDeleteId = null;
             if (input) input.value = '';
@@ -5413,18 +5586,25 @@
     }
     async function saveFleetVehicle(id) {
         if (currentOrgRole !== 'owner') return;
+        const parsed = readFleetNorms(id);
+        if (!parsed.ok) {
+            showToast(parsed.error);
+            return;
+        }
         const dates = readFleetDates(id);
+        const patch = Object.assign({}, dates, parsed.norms);
         const row = fleetVehicles.find(function (item) { return item.id === id; });
         if (!row) return;
         if (uiPreview || String(id).indexOf('preview-fleet-') === 0) {
-            Object.assign(row, dates);
+            Object.assign(row, patch);
             renderFleetDocs();
-            showToast('Дати збережено');
+            reapplySelectedVehicleNorms();
+            showToast('Збережено');
             return;
         }
         try {
             const { data, error } = await supabaseClient.from('fleet_vehicles')
-                .update(dates)
+                .update(patch)
                 .eq('id', id)
                 .select(FLEET_COLUMNS)
                 .single();
@@ -5432,7 +5612,8 @@
             const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
             if (index >= 0) fleetVehicles[index] = data;
             renderFleetDocs();
-            showToast('Дати збережено');
+            reapplySelectedVehicleNorms();
+            showToast('Збережено');
         } catch (e) {
             showToast(fleetWriteError(e));
         }
@@ -8691,9 +8872,10 @@
             'preview-1': { revenue: 40000, costs: 28900, plannedOverhead: 4100, profit: 7000 }
         };
         fleetVehicles = [
-            { id: 'preview-fleet-1', label: 'AA0001KA', oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15' },
-            { id: 'preview-fleet-2', label: 'AA0002KA', oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null }
+            { id: 'preview-fleet-1', label: 'AA0001KA', oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15', fuel_load: 31, fuel_empty: 26, norm_weight: 20, trailer_type: 'тент' },
+            { id: 'preview-fleet-2', label: 'AA0002KA', oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null, fuel_load: null, fuel_empty: null, norm_weight: null, trailer_type: null }
         ];
+        renderVehicleNormSelect();
         currentUserId = 'preview-owner';
         currentOrgRole = 'owner';
         teamState.members = [
