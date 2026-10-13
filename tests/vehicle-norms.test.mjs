@@ -183,6 +183,34 @@ test('two trucks keep their own norms and the rounded money sums to the total', 
     assert.equal(vehicleNormNumber(0, 0.1, 80), null);
 });
 
+test('company mode keeps a vehicle choice out of the calculation', () => {
+    const vehiclesForCalc = extractFunction('vehiclesForCalc', ['sourceMode', 'assignments']);
+    const vehiclePlateMatches = extractFunction('vehiclePlateMatches', ['plate', 'query']);
+    const kept = [{ id: 'a', tonnage: 60 }, { id: 'b', tonnage: 40 }];
+    assert.deepEqual(vehiclesForCalc('company', kept), []);
+    assert.deepEqual(vehiclesForCalc('fleet', kept), kept);
+    assert.deepEqual(vehiclesForCalc('fleet', null), []);
+    assert.equal(vehiclePlateMatches('AA0001KA', '0001'), true);
+    assert.equal(vehiclePlateMatches('AA0001KA', 'aa0001ka'), true);
+    assert.equal(vehiclePlateMatches('AA0001KA', 'volvo'), false);
+    assert.equal(vehiclePlateMatches('AA0001KA', '  '), true);
+    assert.match(html, /Весь автопарк/);
+    assert.match(html, /Вибір авто/);
+    assert.match(html, /placeholder="Номер авто"/);
+    assert.match(html, /max-height: 280px/);
+    assert.match(html, /class="tc-info"/);
+    assert.match(html, /ще /);
+    assert.equal(html.includes('Познач одне або кілька'), false);
+    assert.equal(html.includes('Загально'), false);
+    const payload = html.slice(html.indexOf('function readTripPayload'), html.indexOf('function renderVehicleBreakdown'));
+    assert.match(payload, /vehiclesForCalc\(vehicleSourceMode, readVehicleAssignments\(\)\)/);
+    const calc = html.slice(html.indexOf('async function calculate()'), html.indexOf('function clearCalcVisuals()'));
+    assert.match(calc, /if \(fleetChoiceActive\(\)\)/);
+    const pickerCss = html.slice(html.indexOf('.tc-vehicle-label {'), html.indexOf('#vehicle-tons .tc-vehicle-pick'));
+    assert.equal(pickerCss.includes('ocean'), false);
+    assert.equal(pickerCss.includes('[data-theme="ocean"]'), false);
+});
+
 test('the fleet card explains the split and the calc_vehicles migration stays unapplied in its own file', () => {
     assert.match(html, /id="vehicle-norm-list"/);
     assert.match(html, /id="vehicle-breakdown"/);
