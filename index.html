@@ -2253,6 +2253,45 @@
             body.layout-studio .tc-rates-item,
             body.layout-studio .tc-rates-item.tc-dp-item { position: static; flex: 1 1 auto; }
         }
+        /* live-check-360: лише Control/Paper. Океан цей блок не бачить. */
+        @media (max-width: 360px) {
+            body.layout-studio #studio-columns,
+            body.layout-studio[data-theme="control"] #studio-columns,
+            body.layout-studio[data-theme="paper"] #studio-columns {
+                display: flex !important;
+                flex-direction: column;
+                grid-template-columns: minmax(0, 1fr) !important;
+                width: 100%;
+                max-width: 100%;
+            }
+            body.layout-studio .tc-brand {
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                row-gap: 4px;
+                max-width: 100%;
+            }
+            body.layout-studio .tc-actions {
+                flex-wrap: wrap;
+                justify-content: flex-start;
+                row-gap: 6px;
+            }
+            body.layout-studio .tc-studio-nav {
+                flex: 1 1 100%;
+                margin-right: 0;
+            }
+            body.layout-studio .tc-studio-nav button { padding: 8px 10px; }
+            body.layout-studio .tc-profit-value {
+                font-size: 20px;
+                overflow-wrap: anywhere;
+            }
+            body.layout-studio .tc-unit-row b { overflow-wrap: anywhere; }
+            body.layout-studio .tc-unit-row span { white-space: normal; }
+            body.layout-studio .tc-work .form-row,
+            body.layout-studio .tc-lower .form-row {
+                grid-template-columns: minmax(0, 1fr) auto;
+            }
+        }
+        /* /live-check-360 */
         body.layout-studio .tc-work .form-row,
         body.layout-studio .tc-lower .form-row {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 4.2rem;
@@ -3470,6 +3509,8 @@
     let lastRoutePath = null;
     let lastDirectionsResponse = null;
     let routeBuilt = false;
+    let routeRequestGen = 0;
+    let routeAttemptTimer = null;
     let lastCalcData = {};
     let nbuRates = { USD: 41.5, EUR: 45.2 };
     let contractCurrency = 'UAH';
@@ -3629,7 +3670,7 @@
             const et = document.getElementById('res-ebitda-ton');
             if (et) et.textContent = 'на 1 т: —';
             const badge = document.getElementById('res-badge');
-            if (badge) badge.textContent = '—';
+            if (badge) { badge.textContent = '—'; badge.className = 'badge'; }
             const gap = document.getElementById('res-breakeven-gap');
             if (gap) { gap.textContent = ''; gap.className = 'kpi-sub tc-gap-pill'; }
             if (document.body.classList.contains('layout-studio')) syncStudioSums(null);
@@ -6308,7 +6349,7 @@
             mh.innerHTML = '<div class="hint-text">⚠️ Підсвічено поля, без яких рахувати не можна: <b>' + missing.map(m => m[1]).join(', ') + '</b>. Норми компанії — у <button class="link-btn" onclick="openCabinet()">кабінеті</button>.</div><button type="button" class="hint-close" onclick="dismissHint(\'missing-hint\')" aria-label="Закрити" title="Закрити">×</button>';
             showHintBanner(mh);
             markInvalidFields(missing);
-            paintProfitHero(null);
+            invalidateCalcResult();
             return;
         }
         markInvalidFields([]);
@@ -6341,6 +6382,7 @@
             if (!response.ok) {
                 let errInfo = null;
                 try { errInfo = await response.json(); } catch (e) {}
+                if (myRequestId !== calcRequestId) return;
                 if (response.status === 429 && errInfo && errInfo.code === 'DEMO_LIMIT') {
                     updateDemoCounter(errInfo.used, errInfo.limit);
                     setDemoHint('🚫 ' + errInfo.error, true);
@@ -6353,6 +6395,7 @@
                         mhErr.innerHTML = '<div class="hint-text">⚠️ ' + errInfo.error + '</div>';
                         showHintBanner(mhErr);
                     }
+                    clearCalcVisuals();
                     return;
                 }
                 throw new Error('Помилка сервера розрахунків');
@@ -6463,7 +6506,33 @@
 
         } catch (err) {
             console.error('Помилка обчислення:', err);
+            if (myRequestId === calcRequestId) clearCalcVisuals();
         }
+    }
+
+    function clearCalcVisuals() {
+        paintProfitHero(null);
+        const beOp = document.getElementById('res-breakeven-op');
+        if (beOp) beOp.textContent = 'маржа — · EBITDA —';
+        const beChip = document.getElementById('kpi-breakeven-chip');
+        if (beChip) beChip.removeAttribute('title');
+        const fx = document.getElementById('res-profit-fx');
+        if (fx) fx.textContent = '';
+        ['trip-volume-info', 'rt-info', 'podacha-info', 'fuel-summary-box'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '';
+        });
+        const tbody = document.getElementById('cost-breakdown');
+        if (tbody) tbody.innerHTML = '';
+        renderChart(0, 0, 0, 0, 0, 0);
+        lastCalcData = {};
+        lastExport = null;
+        updateRouteBar();
+    }
+
+    function invalidateCalcResult() {
+        calcRequestId++;
+        clearCalcVisuals();
     }
 
     function renderChart(fuel, driver, maintenance, overhead, taxes, extras) {
@@ -7853,6 +7922,11 @@
         }
         statusEl.innerText = 'Будуємо маршрут…';
         statusEl.style.color = 'var(--text-muted)';
+        const routeGen = ++routeRequestGen;
+        if (routeAttemptTimer) {
+            clearTimeout(routeAttemptTimer);
+            routeAttemptTimer = null;
+        }
         setRouteBusy(true);
 
         let waypoints = [];
@@ -7887,12 +7961,12 @@
         const canTryAlts = ENABLE_ROUTE_ALTERNATIVES && waypoints.length === 0;
         let settled = false;
         let activeGen = 0;
-        let routeTimer = null;
 
         function failFinal(msg) {
-            if (settled) return;
+            if (settled || routeGen !== routeRequestGen) return;
             settled = true;
-            if (routeTimer) clearTimeout(routeTimer);
+            if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
+            routeAttemptTimer = null;
             setRouteBusy(false);
             routeBuilt = false;
             updateRouteBar();
@@ -7903,10 +7977,11 @@
         }
 
         function onRouteResult(gen, response, status, usedAlts) {
-            if (settled || gen !== activeGen) return;
+            if (settled || gen !== activeGen || routeGen !== routeRequestGen) return;
             if (status === 'OK') {
                 settled = true;
-                if (routeTimer) clearTimeout(routeTimer);
+                if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
+                routeAttemptTimer = null;
                 try {
                     lastDirectionsResponse = response;
                     applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
@@ -7915,6 +7990,9 @@
                     rememberRecentRoute();
                     updateRouteBar();
                 } catch (err) {
+                    setRouteBusy(false);
+                    routeBuilt = false;
+                    updateRouteBar();
                     statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
                     statusEl.style.color = 'var(--danger)';
                     console.error('applyMainRoute failed', err);
@@ -7932,14 +8010,14 @@
         }
 
         function runAttempt(wantAlts) {
-            if (settled) return;
+            if (settled || routeGen !== routeRequestGen) return;
             const usedAlts = !!wantAlts;
             const gen = ++activeGen;
             // Перша спроба (alts або single): ~18s; retry без alts коротший.
             const timeoutMs = usedAlts ? 18000 : (canTryAlts ? 12000 : 20000);
-            if (routeTimer) clearTimeout(routeTimer);
-            routeTimer = setTimeout(function () {
-                if (settled || gen !== activeGen) return;
+            if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
+            routeAttemptTimer = setTimeout(function () {
+                if (settled || gen !== activeGen || routeGen !== routeRequestGen) return;
                 if (usedAlts) {
                     statusEl.innerText = '🔍 Альтернативи не відповіли — будуємо основний маршрут...';
                     statusEl.style.color = 'var(--text-muted)';
@@ -7954,7 +8032,7 @@
                     onRouteResult(gen, response, status, usedAlts);
                 });
             } catch (err) {
-                if (gen !== activeGen || settled) return;
+                if (gen !== activeGen || settled || routeGen !== routeRequestGen) return;
                 if (usedAlts) {
                     runAttempt(false);
                     return;
