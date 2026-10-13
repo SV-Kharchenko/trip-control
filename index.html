@@ -1034,6 +1034,75 @@
             #vehicle-breakdown td { display: flex; justify-content: space-between; gap: 8px; border: none; padding: 2px 0; }
             #vehicle-breakdown td::before { content: attr(data-label); color: var(--text-muted); }
         }
+        .tc-vehicle-label { position: relative; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+        .tc-vehicle-label .preset-bar-label { width: auto; margin: 0; }
+        .tc-info {
+            width: 22px; height: 22px; border-radius: 50%; padding: 0;
+            border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-muted);
+            font-family: var(--font-ui); font-size: 0.75rem; letter-spacing: 0; text-transform: none;
+            line-height: 1; cursor: pointer;
+        }
+        .tc-info:hover, .tc-info[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+        .tc-tip {
+            position: absolute; z-index: 6; left: 0; top: calc(100% + 4px); width: min(280px, 100%);
+            padding: 8px 10px; background: var(--card-bg); color: var(--text-main);
+            border: 1px solid var(--border-color); border-radius: 8px;
+            font-size: 0.75rem; line-height: 1.45; letter-spacing: 0; text-transform: none; font-weight: 400;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        }
+        .tc-segment {
+            display: flex; width: 100%; margin: 0 0 10px;
+            border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden;
+        }
+        .tc-segment .preset-btn { flex: 1 1 0; border: none; border-radius: 0; white-space: nowrap; }
+        .tc-segment .preset-btn + .preset-btn { border-left: 1px solid var(--border-color); }
+        .tc-segment .preset-btn.is-on {
+            background: color-mix(in srgb, var(--accent) 22%, var(--input-bg));
+            color: var(--accent); font-weight: 700;
+        }
+        .tc-vehicle-combo { margin: 0 0 8px; }
+        .tc-vehicle-face {
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center; position: relative;
+            min-height: 40px; padding: 6px 28px 6px 8px;
+            border: 1px solid var(--border-color); border-radius: 8px;
+            background: var(--input-bg); cursor: pointer;
+        }
+        .tc-vehicle-face:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .tc-vehicle-caret {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            color: var(--text-muted); pointer-events: none;
+        }
+        .tc-vehicle-placeholder { color: var(--text-muted); font-size: 0.8rem; }
+        .tc-vehicle-chip {
+            display: inline-flex; align-items: center; gap: 2px; max-width: 100%;
+            padding: 2px 2px 2px 8px; border-radius: 999px;
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            color: var(--text-main); font-size: 0.75rem;
+        }
+        .tc-vehicle-chip-x {
+            border: none; background: transparent; color: var(--text-muted); cursor: pointer;
+            font-family: var(--font-ui); font-size: 0.9rem; line-height: 1; padding: 0 4px;
+        }
+        .tc-vehicle-chip-x:hover { color: var(--text-main); }
+        .tc-vehicle-more { color: var(--text-muted); font-size: 0.75rem; }
+        .tc-vehicle-panel {
+            margin-top: 4px; padding: 8px;
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px;
+        }
+        #vehicle-search { width: 100%; text-align: left; margin: 0 0 6px; }
+        #vehicle-norm-list { max-height: 280px; overflow: auto; }
+        .tc-vehicle-option {
+            display: grid; grid-template-columns: 18px minmax(72px, 0.9fr) minmax(0, 1.2fr) auto;
+            gap: 6px; align-items: center; padding: 6px 4px; border-radius: 6px;
+            cursor: pointer; font-size: 0.78rem; color: var(--text-main);
+        }
+        .tc-vehicle-option:hover { background: var(--input-bg); }
+        .tc-vehicle-option span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tc-vehicle-plate { font-weight: 700; }
+        .tc-vehicle-make, .tc-vehicle-payload { color: var(--text-muted); }
+        .tc-vehicle-empty { color: var(--text-muted); font-size: 0.75rem; padding: 8px 4px; }
+        #vehicle-tons { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; }
+        #vehicle-tons .tc-vehicle-pick { flex: none; width: 100%; }
         .tc-template-list { display: flex; flex-wrap: wrap; gap: 6px; }
         .tc-status {
             display: inline-block; border-radius: 999px; padding: 2px 8px;
@@ -2930,15 +2999,31 @@
                 </div>
 
                 <div id="vehicle-norm-row" hidden>
-                    <div class="preset-bar-label">Авто з парку</div>
-                    <p class="tc-history-meta">Познач одне або кілька авто. Тоннаж ділиться порівну, за вантажопідйомністю або вручну. Пальне й AdBlue рахуються за нормою кожного авто; порожнє поле бере норму компанії. Сума по авто — це підсумок рейсу.</p>
-                    <div id="vehicle-split">
-                        <button type="button" class="preset-btn is-on" data-split="even" onclick="setVehicleSplitMode('even')">Порівну</button>
-                        <button type="button" class="preset-btn" data-split="capacity" onclick="setVehicleSplitMode('capacity')">За вантажопідйомністю</button>
-                        <button type="button" class="preset-btn" data-split="manual" onclick="setVehicleSplitMode('manual')">Вручну</button>
+                    <div class="tc-vehicle-label">
+                        <div class="preset-bar-label">Авто з парку</div>
+                        <button type="button" class="tc-info" id="vehicle-info-btn" aria-label="Як рахується авто з парку" aria-expanded="false" aria-controls="vehicle-info-tip" onclick="toggleVehicleInfo(event)">ⓘ</button>
+                        <p id="vehicle-info-tip" class="tc-tip" role="tooltip" hidden>Одне або кілька авто. Тоннаж ділиться порівну, за вантажопідйомністю або вручну. Пальне й AdBlue рахуються за нормою кожного авто; порожнє поле бере норму компанії. Сума по авто — це підсумок рейсу. Режим «Весь автопарк» рахує за нормами компанії і не враховує вибір.</p>
                     </div>
-                    <p id="vehicle-split-note" class="tc-history-meta"></p>
-                    <div id="vehicle-norm-list" class="tc-template-form"></div>
+                    <div class="tc-segment" id="vehicle-source" role="group" aria-label="Джерело норм">
+                        <button type="button" class="preset-btn is-on" data-source="company" aria-pressed="true" onclick="setVehicleSourceMode('company')">Весь автопарк</button>
+                        <button type="button" class="preset-btn" data-source="fleet" aria-pressed="false" onclick="setVehicleSourceMode('fleet')">Вибір авто</button>
+                    </div>
+                    <div id="vehicle-fleet-box" hidden>
+                        <div class="tc-vehicle-combo" id="vehicle-combo">
+                            <div id="vehicle-face" class="tc-vehicle-face" role="combobox" aria-expanded="false" aria-controls="vehicle-panel" aria-haspopup="listbox" tabindex="0" onclick="onVehicleFaceClick(event)" onkeydown="onVehicleFaceKey(event)"></div>
+                            <div class="tc-vehicle-panel" id="vehicle-panel" hidden>
+                                <input type="search" id="vehicle-search" placeholder="Номер авто" autocomplete="off" aria-label="Номер авто" oninput="onVehicleSearchInput(event)">
+                                <div id="vehicle-norm-list" role="listbox" aria-multiselectable="true"></div>
+                            </div>
+                        </div>
+                        <div id="vehicle-split" hidden>
+                            <button type="button" class="preset-btn is-on" data-split="even" onclick="setVehicleSplitMode('even')">Порівну</button>
+                            <button type="button" class="preset-btn" data-split="capacity" onclick="setVehicleSplitMode('capacity')">За вантажопідйомністю</button>
+                            <button type="button" class="preset-btn" data-split="manual" onclick="setVehicleSplitMode('manual')">Вручну</button>
+                        </div>
+                        <p id="vehicle-split-note" class="tc-history-meta" hidden></p>
+                        <div id="vehicle-tons" hidden></div>
+                    </div>
                     <div id="vehicle-breakdown" hidden></div>
                 </div>
 
@@ -4906,6 +4991,10 @@
 
     let vehicleNormBaseline = null;
     let vehicleSplitMode = 'even';
+    let vehicleSourceMode = 'company';
+    let vehicleChecked = {};
+    let vehicleMenuOpen = false;
+    let vehicleSearchQuery = '';
     let vehicleTonnageDraft = {};
     let vehicleNormLock = false;
     function vehicleNormNumber(value, min, max) {
@@ -5024,22 +5113,31 @@
         }
     }
     function chosenFleetVehicles() {
-        const list = document.getElementById('vehicle-norm-list');
-        if (!list) return [];
-        const chosen = [];
-        list.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) {
-            const vehicle = fleetVehicles.find(function (item) { return String(item.id) === input.value; });
-            if (vehicle) chosen.push(vehicle);
-        });
-        return chosen;
+        return fleetVehicles.filter(function (vehicle) { return !!vehicleChecked[String(vehicle.id)]; });
+    }
+    function fleetChoiceActive() {
+        return vehicleSourceMode === 'fleet' && chosenFleetVehicles().length > 0;
+    }
+    function vehiclesForCalc(sourceMode, assignments) {
+        if (sourceMode !== 'fleet') return [];
+        return Array.isArray(assignments) ? assignments : [];
+    }
+    function vehiclePlateMatches(plate, query) {
+        const q = String(query || '').trim().toLowerCase();
+        if (!q) return true;
+        return String(plate || '').toLowerCase().indexOf(q) >= 0;
     }
     function clearVehicleNormChoice() {
         if (vehicleNormBaseline) writeVehicleNormForm(vehicleNormBaseline);
         vehicleNormBaseline = null;
         vehicleTonnageDraft = {};
+        vehicleChecked = {};
         vehicleSplitMode = 'even';
-        const list = document.getElementById('vehicle-norm-list');
-        if (list) list.querySelectorAll('input[type="checkbox"]').forEach(function (input) { input.checked = false; });
+        vehicleSourceMode = 'company';
+        vehicleMenuOpen = false;
+        vehicleSearchQuery = '';
+        const search = document.getElementById('vehicle-search');
+        if (search) search.value = '';
         markVehicleSplitMode();
         renderVehicleNormSelect();
         refreshVehicleTonnage();
@@ -5049,6 +5147,44 @@
             btn.classList.toggle('is-on', btn.getAttribute('data-split') === vehicleSplitMode);
         });
     }
+    function markVehicleSourceMode() {
+        document.querySelectorAll('#vehicle-source button').forEach(function (btn) {
+            const on = btn.getAttribute('data-source') === vehicleSourceMode;
+            btn.classList.toggle('is-on', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+    }
+    function restoreVehicleCarsCount() {
+        if (!vehicleNormBaseline) return;
+        const cars = document.getElementById('cars-count');
+        if (cars && vehicleNormBaseline.carsCount != null && vehicleNormBaseline.carsCount !== '') {
+            cars.value = vehicleNormBaseline.carsCount;
+        }
+    }
+    function rememberCompanyCars() {
+        const current = readVehicleNormForm();
+        if (!vehicleNormBaseline) vehicleNormBaseline = current;
+        else vehicleNormBaseline.carsCount = current.carsCount;
+    }
+    function setVehicleSourceMode(mode) {
+        if (mode !== 'company' && mode !== 'fleet') return;
+        if (mode === vehicleSourceMode) return;
+        if (mode === 'fleet') rememberCompanyCars();
+        vehicleSourceMode = mode;
+        vehicleMenuOpen = false;
+        if (mode === 'company') {
+            restoreVehicleCarsCount();
+            const box = document.getElementById('vehicle-breakdown');
+            if (box) { box.hidden = true; box.textContent = ''; }
+        } else {
+            const chosen = chosenFleetVehicles();
+            const cars = document.getElementById('cars-count');
+            if (cars && chosen.length) cars.value = String(chosen.length);
+        }
+        renderVehicleNormSelect();
+        if (mode === 'fleet' && chosenFleetVehicles().length) refreshVehicleTonnage();
+        if (currentSessionToken) calculate();
+    }
     function setVehicleSplitMode(mode) {
         if (mode !== 'even' && mode !== 'manual' && mode !== 'capacity') return;
         vehicleSplitMode = mode;
@@ -5056,29 +5192,158 @@
         refreshVehicleTonnage();
         if (currentSessionToken) calculate();
     }
-    function renderVehicleNormSelect() {
-        const row = document.getElementById('vehicle-norm-row');
+    function syncVehicleMenu() {
+        const panel = document.getElementById('vehicle-panel');
+        const face = document.getElementById('vehicle-face');
+        const open = vehicleSourceMode === 'fleet' && vehicleMenuOpen;
+        if (panel) panel.hidden = !open;
+        if (face) face.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function toggleVehicleMenu(force) {
+        if (vehicleSourceMode !== 'fleet') return;
+        vehicleMenuOpen = typeof force === 'boolean' ? force : !vehicleMenuOpen;
+        syncVehicleMenu();
+        if (vehicleMenuOpen) {
+            const search = document.getElementById('vehicle-search');
+            if (search) search.focus();
+        }
+    }
+    function onVehicleFaceClick(event) {
+        if (event && event.target && event.target.closest && event.target.closest('.tc-vehicle-chip-x')) return;
+        toggleVehicleMenu();
+    }
+    function onVehicleFaceKey(event) {
+        if (!event) return;
+        if (event.key === 'Escape') {
+            vehicleMenuOpen = false;
+            syncVehicleMenu();
+            event.preventDefault();
+            return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            toggleVehicleMenu();
+        }
+    }
+    function onVehicleSearchInput(event) {
+        vehicleSearchQuery = event && event.target ? event.target.value : '';
+        renderVehicleMenuList();
+    }
+    function toggleVehicleInfo(event) {
+        if (event) event.stopPropagation();
+        const tip = document.getElementById('vehicle-info-tip');
+        const btn = document.getElementById('vehicle-info-btn');
+        if (!tip) return;
+        tip.hidden = !tip.hidden;
+        if (btn) btn.setAttribute('aria-expanded', tip.hidden ? 'false' : 'true');
+    }
+    function removeVehicleChip(id, event) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        delete vehicleChecked[String(id)];
+        onVehicleNormChange();
+    }
+    function renderVehicleFace() {
+        const face = document.getElementById('vehicle-face');
+        if (!face) return;
+        const chosen = chosenFleetVehicles();
+        face.textContent = '';
+        if (!chosen.length) {
+            const placeholder = document.createElement('span');
+            placeholder.className = 'tc-vehicle-placeholder';
+            placeholder.textContent = 'Обери авто';
+            face.appendChild(placeholder);
+        } else {
+            chosen.slice(0, 3).forEach(function (vehicle) {
+                const chip = document.createElement('span');
+                chip.className = 'tc-vehicle-chip';
+                const text = document.createElement('span');
+                text.textContent = String(vehicle.label || 'Авто');
+                chip.appendChild(text);
+                const close = document.createElement('button');
+                close.type = 'button';
+                close.className = 'tc-vehicle-chip-x';
+                close.setAttribute('aria-label', 'Прибрати ' + String(vehicle.label || 'авто'));
+                close.textContent = '×';
+                close.addEventListener('click', function (event) { removeVehicleChip(vehicle.id, event); });
+                chip.appendChild(close);
+                face.appendChild(chip);
+            });
+            if (chosen.length > 3) {
+                const more = document.createElement('span');
+                more.className = 'tc-vehicle-more';
+                more.textContent = 'ще ' + (chosen.length - 3);
+                face.appendChild(more);
+            }
+        }
+        const caret = document.createElement('span');
+        caret.className = 'tc-vehicle-caret';
+        caret.setAttribute('aria-hidden', 'true');
+        caret.textContent = '▾';
+        face.appendChild(caret);
+    }
+    function renderVehicleMenuList() {
         const list = document.getElementById('vehicle-norm-list');
-        if (!row || !list) return;
-        const checked = {};
-        list.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) { checked[input.value] = true; });
+        if (!list) return;
+        const scroll = list.scrollTop;
         list.textContent = '';
+        let shown = 0;
         fleetVehicles.forEach(function (vehicle) {
+            const plate = String(vehicle.label || '');
+            if (!vehiclePlateMatches(plate, vehicleSearchQuery)) return;
+            shown += 1;
             const id = String(vehicle.id);
-            const pick = document.createElement('div');
-            pick.className = 'tc-vehicle-pick';
-            const label = document.createElement('label');
+            const option = document.createElement('label');
+            option.className = 'tc-vehicle-option';
             const input = document.createElement('input');
             input.type = 'checkbox';
             input.value = id;
-            input.checked = !!checked[id];
-            input.addEventListener('change', onVehicleNormChange);
-            const plate = String(vehicle.label || 'Авто');
-            const make = vehicle.make_model ? String(vehicle.make_model) : '';
-            label.appendChild(input);
-            label.appendChild(document.createTextNode(make ? plate + ' · ' + make : plate));
-            pick.appendChild(label);
-            if (checked[id]) {
+            input.checked = !!vehicleChecked[id];
+            input.addEventListener('change', function () {
+                if (input.checked) vehicleChecked[id] = true;
+                else delete vehicleChecked[id];
+                onVehicleNormChange();
+            });
+            const plateEl = document.createElement('span');
+            plateEl.className = 'tc-vehicle-plate';
+            plateEl.textContent = plate || '—';
+            const makeEl = document.createElement('span');
+            makeEl.className = 'tc-vehicle-make';
+            makeEl.textContent = vehicle.make_model ? String(vehicle.make_model) : '—';
+            const payload = vehicleNormNumber(vehicle.payload_t, 0.1, 80);
+            const tonsEl = document.createElement('span');
+            tonsEl.className = 'tc-vehicle-payload';
+            tonsEl.textContent = payload !== null ? formatTons(payload) + ' т' : '—';
+            option.appendChild(input);
+            option.appendChild(plateEl);
+            option.appendChild(makeEl);
+            option.appendChild(tonsEl);
+            list.appendChild(option);
+        });
+        if (!shown) {
+            const empty = document.createElement('div');
+            empty.className = 'tc-vehicle-empty';
+            empty.textContent = 'Немає такого номера';
+            list.appendChild(empty);
+        }
+        list.scrollTop = scroll;
+    }
+    function renderVehicleTons() {
+        const box = document.getElementById('vehicle-tons');
+        if (!box) return;
+        const chosen = chosenFleetVehicles();
+        const show = vehicleSourceMode === 'fleet' && chosen.length >= 2;
+        box.hidden = !show;
+        if (!show) return;
+        const ids = chosen.map(function (vehicle) { return String(vehicle.id); }).join(',');
+        if (box.getAttribute('data-ids') !== ids) {
+            box.textContent = '';
+            box.setAttribute('data-ids', ids);
+            chosen.forEach(function (vehicle) {
+                const id = String(vehicle.id);
+                const pick = document.createElement('div');
+                pick.className = 'tc-vehicle-pick';
+                const name = document.createElement('span');
+                name.textContent = String(vehicle.label || 'Авто');
                 const tons = document.createElement('input');
                 tons.type = 'number';
                 tons.min = '0.001';
@@ -5087,16 +5352,47 @@
                 tons.value = vehicleTonnageDraft[id] != null ? formatTons(vehicleTonnageDraft[id]) : '';
                 tons.readOnly = vehicleSplitMode !== 'manual';
                 tons.addEventListener('input', onVehicleTonsInput);
+                pick.appendChild(name);
                 pick.appendChild(tons);
                 pick.appendChild(document.createTextNode('т'));
-            }
-            list.appendChild(pick);
+                box.appendChild(pick);
+            });
+        }
+        chosen.forEach(function (vehicle) {
+            const id = String(vehicle.id);
+            const input = box.querySelector('input[data-tons="' + id.replace(/"/g, '') + '"]');
+            if (!input) return;
+            input.readOnly = vehicleSplitMode !== 'manual';
+            if (document.activeElement !== input && vehicleTonnageDraft[id] != null) input.value = formatTons(vehicleTonnageDraft[id]);
         });
-        row.hidden = !fleetVehicles.length;
-        const missing = Object.keys(checked).some(function (id) {
+    }
+    function renderVehicleNormSelect() {
+        const row = document.getElementById('vehicle-norm-row');
+        if (!row) return;
+        const missing = Object.keys(vehicleChecked).filter(function (id) {
             return !fleetVehicles.some(function (vehicle) { return String(vehicle.id) === id; });
         });
-        if (missing && !vehicleNormLock) onVehicleNormChange();
+        missing.forEach(function (id) {
+            delete vehicleChecked[id];
+            delete vehicleTonnageDraft[id];
+        });
+        row.hidden = !fleetVehicles.length;
+        markVehicleSourceMode();
+        const fleetBox = document.getElementById('vehicle-fleet-box');
+        const chosen = chosenFleetVehicles();
+        const showFleet = vehicleSourceMode === 'fleet';
+        const showSplit = showFleet && chosen.length >= 2;
+        if (fleetBox) fleetBox.hidden = !showFleet;
+        const split = document.getElementById('vehicle-split');
+        if (split) split.hidden = !showSplit;
+        const note = document.getElementById('vehicle-split-note');
+        if (note) note.hidden = !showSplit;
+        markVehicleSplitMode();
+        renderVehicleFace();
+        renderVehicleMenuList();
+        syncVehicleMenu();
+        renderVehicleTons();
+        if (missing.length && !vehicleNormLock) onVehicleNormChange();
     }
     function updateVehicleSplitNote(shares) {
         const note = document.getElementById('vehicle-split-note');
@@ -5130,15 +5426,15 @@
         const normEl = document.getElementById('norm-weight');
         const norm = normEl ? parseFloat(normEl.value) : 0;
         let shares;
-        if (vehicleSplitMode === 'manual') {
+        if (chosen.length >= 2 && vehicleSplitMode === 'manual') {
             shares = chosen.map(function (vehicle) {
                 const id = String(vehicle.id);
-                const input = document.querySelector('#vehicle-norm-list input[data-tons="' + id + '"]');
+                const input = document.querySelector('#vehicle-tons input[data-tons="' + id.replace(/"/g, '') + '"]');
                 const raw = input ? input.value : vehicleTonnageDraft[id];
                 const n = Number(raw);
                 return Number.isFinite(n) ? n : 0;
             });
-        } else if (vehicleSplitMode === 'capacity') {
+        } else if (chosen.length >= 2 && vehicleSplitMode === 'capacity') {
             const weights = chosen.map(function (vehicle) {
                 const payload = vehicleNormNumber(vehicle.payload_t, 0.1, 80);
                 return payload !== null ? payload : (norm > 0 ? norm : 1);
@@ -5150,7 +5446,7 @@
         chosen.forEach(function (vehicle, index) {
             const id = String(vehicle.id);
             vehicleTonnageDraft[id] = shares[index];
-            const input = document.querySelector('#vehicle-norm-list input[data-tons="' + id + '"]');
+            const input = document.querySelector('#vehicle-tons input[data-tons="' + id.replace(/"/g, '') + '"]');
             if (!input) return;
             input.readOnly = vehicleSplitMode !== 'manual';
             if (document.activeElement !== input) input.value = formatTons(shares[index]);
@@ -5171,7 +5467,7 @@
         if (currentSessionToken) calculate();
     }
     function reapplySelectedVehicleNorms() {
-        if (!chosenFleetVehicles().length) return;
+        if (!fleetChoiceActive()) return;
         refreshVehicleTonnage();
         if (currentSessionToken) calculate();
     }
@@ -5180,9 +5476,9 @@
         vehicleNormLock = true;
         try {
             const chosen = chosenFleetVehicles();
-            if (!chosen.length) {
-                if (vehicleNormBaseline) writeVehicleNormForm(vehicleNormBaseline);
-                vehicleNormBaseline = null;
+            if (vehicleSourceMode !== 'fleet' || !chosen.length) {
+                restoreVehicleCarsCount();
+                if (!chosen.length) vehicleNormBaseline = null;
                 renderVehicleNormSelect();
                 refreshVehicleTonnage();
                 if (currentSessionToken) calculate();
@@ -5208,6 +5504,7 @@
         }
     }
     function readVehicleAssignments() {
+        if (vehicleSourceMode !== 'fleet') return [];
         return chosenFleetVehicles().map(function (vehicle) {
             const id = String(vehicle.id);
             const resolved = vehicleResolvedNorms(vehicle);
@@ -5234,25 +5531,45 @@
     }
     function applySavedVehicles(vehicles, mode) {
         vehicleTonnageDraft = {};
+        vehicleChecked = {};
+        vehicleMenuOpen = false;
+        vehicleSearchQuery = '';
+        const search = document.getElementById('vehicle-search');
+        if (search) search.value = '';
         (vehicles || []).forEach(function (item) {
             if (!item || item.id == null) return;
+            vehicleChecked[String(item.id)] = true;
             vehicleTonnageDraft[String(item.id)] = Number(item.tonnage);
         });
-        vehicleSplitMode = (vehicles && vehicles.length) ? (mode || 'manual') : 'even';
+        const has = !!(vehicles && vehicles.length);
+        vehicleSourceMode = has ? 'fleet' : 'company';
+        vehicleSplitMode = has ? (mode || 'manual') : 'even';
+        if (has && !vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
+        if (!has) vehicleNormBaseline = null;
         markVehicleSplitMode();
-        const list = document.getElementById('vehicle-norm-list');
-        if (list) {
-            list.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
-                input.checked = Object.prototype.hasOwnProperty.call(vehicleTonnageDraft, input.value);
-            });
-        }
-        if (vehicles && vehicles.length && !vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
-        if (!vehicles || !vehicles.length) vehicleNormBaseline = null;
         renderVehicleNormSelect();
         const cars = document.getElementById('cars-count');
-        if (cars && vehicles && vehicles.length) cars.value = String(vehicles.length);
-        refreshVehicleTonnage();
+        if (cars && has) cars.value = String(vehicles.length);
+        if (has) refreshVehicleTonnage();
     }
+    document.addEventListener('click', function (event) {
+        const combo = document.getElementById('vehicle-combo');
+        if (vehicleMenuOpen && combo && !combo.contains(event.target)) {
+            vehicleMenuOpen = false;
+            syncVehicleMenu();
+        }
+        const tip = document.getElementById('vehicle-info-tip');
+        const infoBtn = document.getElementById('vehicle-info-btn');
+        if (tip && !tip.hidden && infoBtn && !infoBtn.contains(event.target) && !tip.contains(event.target)) {
+            tip.hidden = true;
+            infoBtn.setAttribute('aria-expanded', 'false');
+        }
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape' || !vehicleMenuOpen) return;
+        vehicleMenuOpen = false;
+        syncVehicleMenu();
+    });
 
     function toggleRoundTrip() {
         const val = document.getElementById('round-trip-enable').value;
@@ -6861,7 +7178,7 @@
             ferryCost: document.getElementById('ferry-cost').value,
             clientName: clientNameValue()
         };
-        const assignments = readVehicleAssignments();
+        const assignments = vehiclesForCalc(vehicleSourceMode, readVehicleAssignments());
         if (assignments.length) {
             payload.vehicles = assignments;
             payload.vehicleSplitMode = vehicleSplitMode;
@@ -7039,13 +7356,13 @@
         mh.dataset.dismissKey = '';
         const myRequestId = ++calcRequestId; // ФІКС: позначаємо цей виклик, щоб пізніше відрізнити застарілу відповідь
 
-        if (chosenFleetVehicles().length) {
+        if (fleetChoiceActive()) {
             const cars = document.getElementById('cars-count');
             if (cars) cars.value = String(chosenFleetVehicles().length);
             refreshVehicleTonnage();
         }
         const payload = readTripPayload();
-        const chosenCount = chosenFleetVehicles().length;
+        const chosenCount = fleetChoiceActive() ? chosenFleetVehicles().length : 0;
         if (chosenCount && (!(payload.vehicles && payload.vehicles.length === chosenCount) || payload.vehicles.some(function (item) { return !(Number(item.tonnage) > 0); }))) {
             setDemoHint('Вкажи тоннаж кожного обраного авто.', true);
             invalidateCalcResult();
