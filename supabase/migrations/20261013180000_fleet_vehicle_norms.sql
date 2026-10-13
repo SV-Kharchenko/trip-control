@@ -11,7 +11,8 @@ ALTER TABLE public.fleet_vehicles
   ADD COLUMN IF NOT EXISTS adblue_on boolean,
   ADD COLUMN IF NOT EXISTS adblue_consumption numeric,
   ADD COLUMN IF NOT EXISTS trailer_plate text,
-  ADD COLUMN IF NOT EXISTS trailer_type text;
+  ADD COLUMN IF NOT EXISTS trailer_type text,
+  ADD COLUMN IF NOT EXISTS payload_t numeric;
 
 ALTER TABLE public.fleet_vehicles
   DROP CONSTRAINT IF EXISTS fleet_vehicles_make_model_chk;
@@ -54,3 +55,9 @@ ALTER TABLE public.fleet_vehicles
 ALTER TABLE public.fleet_vehicles
   ADD CONSTRAINT fleet_vehicles_trailer_chk
   CHECK (trailer_type IS NULL OR trailer_type IN ('зерновоз', 'рефрижератор', 'тент', 'цистерна'));
+
+ALTER TABLE public.fleet_vehicles
+  DROP CONSTRAINT IF EXISTS fleet_vehicles_payload_chk;
+ALTER TABLE public.fleet_vehicles
+  ADD CONSTRAINT fleet_vehicles_payload_chk
+  CHECK (payload_t IS NULL OR (payload_t >= 0.1 AND payload_t <= 80));
