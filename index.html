@@ -3310,6 +3310,9 @@
                     <option value="">Усі учасники</option>
                 </select>
             </label>
+            <button type="button" class="btn full-only" onclick="exportHistory('csv')">Експорт CSV</button>
+            <button type="button" class="btn full-only" onclick="exportHistory('xlsx')">Експорт Excel</button>
+            <span class="demo-only tc-history-meta">Експорт історії — після оплати.</span>
         </div>
         <div class="tc-template-box">
             <div class="tc-template-head">
@@ -7110,6 +7113,129 @@
             return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
         });
         return rows;
+    }
+    function historyCsvCell(value) {
+        if (value === null || value === undefined || value === '') return '';
+        if (typeof value === 'number') {
+            if (!Number.isFinite(value)) return '';
+            return String(value);
+        }
+        let text = String(value);
+        if (/^[=+\-@]/.test(text)) text = "'" + text;
+        if (/[;"\n\r]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
+        return text;
+    }
+    function historyExportHeaders() {
+        return ['Дата', 'Автор', 'Маршрут', 'Звідки', 'Куди', 'Клієнт', 'Причіп', 'Км', 'Авто', 'Тонаж', 'Діб', 'Ставка', 'Валюта', 'Дохід, грн', 'Прибуток, грн', 'Факт, грн', 'грн/км', 'Статус'];
+    }
+    function historyExportValues(row) {
+        return [
+            row.date, row.author, row.route, row.from, row.to, row.client, row.trailer,
+            row.km, row.cars, row.tons, row.days, row.rate, row.currency,
+            row.revenue, row.profit, row.fact, row.perKm, row.status
+        ];
+    }
+    function historyCsv(records) {
+        const lines = [historyExportHeaders().map(historyCsvCell).join(';')];
+        (records || []).forEach(function (row) {
+            lines.push(historyExportValues(row).map(historyCsvCell).join(';'));
+        });
+        return '\uFEFF' + lines.join('\r\n');
+    }
+    function historyExportName(from, to, ext) {
+        const clean = function (value) {
+            const text = String(value || '');
+            return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+        };
+        const start = clean(from);
+        const end = clean(to);
+        const period = (start || end) ? '_' + (start || 'початок') + '_' + (end || 'кінець') : '';
+        return 'TripControl_історія' + period + '.' + (ext === 'csv' ? 'csv' : 'xlsx');
+    }
+    function historyExportRecords() {
+        return filteredHistory().map(function (row) {
+            const fields = historyFields(row);
+            const actual = tripActuals[row.id];
+            const num = function (value) {
+                if (value === null || value === undefined || value === '') return null;
+                const n = Number(value);
+                return Number.isFinite(n) ? n : null;
+            };
+            const perKm = num(fields.perKm);
+            return {
+                date: fields.date ? String(fields.date).slice(0, 10) : '',
+                author: savedAuthorLabel(row.userId),
+                route: historyRouteLabel(fields),
+                from: fields.from || '',
+                to: fields.to || '',
+                client: fields.client || '',
+                trailer: fields.trailer || '',
+                km: num(fields.km),
+                cars: num(fields.cars),
+                tons: num(fields.tons),
+                days: num(fields.days),
+                rate: num(fields.rate),
+                currency: fields.currency || 'UAH',
+                revenue: num(fields.revenue),
+                profit: num(fields.profit),
+                fact: actual && Number.isFinite(Number(actual.profit)) ? Number(actual.profit) : null,
+                perKm: perKm === null ? null : Math.round(perKm * 100) / 100,
+                status: statusLabel(fields.status)
+            };
+        });
+    }
+    function downloadHistoryFile(filename, data, type) {
+        const blob = data instanceof Blob ? data : new Blob([data], { type: type });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    }
+    async function exportHistory(kind) {
+        if (isDemo) return;
+        const fromEl = document.getElementById('history-from');
+        const toEl = document.getElementById('history-to');
+        const from = fromEl ? fromEl.value : '';
+        const to = toEl ? toEl.value : '';
+        if (from && to && from > to) {
+            showToast('Дата «від» пізніша за дату «до».');
+            return;
+        }
+        const records = historyExportRecords();
+        if (!records.length) {
+            showToast('За цей період немає збережених розрахунків.');
+            return;
+        }
+        const filename = historyExportName(from, to, kind === 'csv' ? 'csv' : 'xlsx');
+        if (kind === 'csv') {
+            downloadHistoryFile(filename, historyCsv(records), 'text/csv;charset=utf-8');
+            showToast('CSV: ' + records.length + ' рядків');
+            return;
+        }
+        try { await loadExcelJS(); } catch (e) {
+            showToast('Не вдалося завантажити модуль Excel. Спробуйте ще раз.', 3600);
+            return;
+        }
+        if (typeof ExcelJS === 'undefined') {
+            showToast('Не вдалося завантажити модуль Excel. Спробуйте ще раз.', 3600);
+            return;
+        }
+        const headers = historyExportHeaders();
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Історія');
+        ws.addRow(headers);
+        ws.getRow(1).font = { bold: true };
+        records.forEach(function (row) { ws.addRow(historyExportValues(row)); });
+        [8, 9, 10, 11, 12, 14, 15, 16, 17].forEach(function (col) { ws.getColumn(col).numFmt = '#,##0.00'; });
+        ws.columns.forEach(function (col, index) { col.width = index === 2 ? 32 : 16; });
+        ws.views = [{ state: 'frozen', ySplit: 1 }];
+        ws.autoFilter = { from: 'A1', to: ws.getRow(1).getCell(headers.length).address };
+        const buf = await wb.xlsx.writeBuffer();
+        downloadHistoryFile(filename, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        showToast('Excel: ' + records.length + ' рядків');
     }
     function historyActions(row) {
         const id = escHtml(row.id);
