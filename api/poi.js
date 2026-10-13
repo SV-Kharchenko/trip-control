@@ -13,9 +13,228 @@ const OVERPASS_MIRRORS = [
 ];
 
 export const POI_POINTS_LIMIT = 25;
+export const POI_CORRIDOR_BUFFER_M = 4000;
+export const POI_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const GEOHASH_BASE = '0123456789bcdefghjkmnpqrstuvwxyz';
 
 export function poiPointsWithinLimit(count) {
     return Number.isInteger(count) && count > 0 && count <= POI_POINTS_LIMIT;
+}
+
+export function geohashEncode(lat, lon, precision = 5) {
+    let idx = 0;
+    let bit = 0;
+    let even = true;
+    let hash = '';
+    let latMin = -90;
+    let latMax = 90;
+    let lonMin = -180;
+    let lonMax = 180;
+    while (hash.length < precision) {
+        if (even) {
+            const mid = (lonMin + lonMax) / 2;
+            if (lon >= mid) {
+                idx = idx * 2 + 1;
+                lonMin = mid;
+            } else {
+                idx = idx * 2;
+                lonMax = mid;
+            }
+        } else {
+            const mid = (latMin + latMax) / 2;
+            if (lat >= mid) {
+                idx = idx * 2 + 1;
+                latMin = mid;
+            } else {
+                idx = idx * 2;
+                latMax = mid;
+            }
+        }
+        even = !even;
+        if (++bit === 5) {
+            hash += GEOHASH_BASE[idx];
+            bit = 0;
+            idx = 0;
+        }
+    }
+    return hash;
+}
+
+export function corridorSegmentKeys(points, precision = 5) {
+    const keys = [];
+    const seen = new Set();
+    for (const point of points) {
+        const key = geohashEncode(point.lat, point.lon, precision);
+        if (!seen.has(key)) {
+            seen.add(key);
+            keys.push(key);
+        }
+    }
+    return keys;
+}
+
+export function poiCacheFresh(fetchedAt, nowMs, ttlMs = POI_CACHE_TTL_MS) {
+    const fetched = new Date(fetchedAt).getTime();
+    if (!Number.isFinite(fetched) || !Number.isFinite(nowMs)) return false;
+    return nowMs - fetched <= ttlMs;
+}
+
+export function selectedPoiTypes(body) {
+    const types = [];
+    if (body && body.wantGas) types.push('gas');
+    if (body && body.wantTir) types.push('tir');
+    if (body && body.wantCafe) types.push('cafe');
+    if (body && body.wantSto) types.push('sto');
+    return types;
+}
+
+export function corridorAroundClause(points, bufferMeters) {
+    const coords = points.map(point => point.lat + ',' + point.lon).join(',');
+    return 'around:' + bufferMeters + ',' + coords;
+}
+
+export function overpassCorridorQuery(points, types, bufferMeters = POI_CORRIDOR_BUFFER_M) {
+    const around = corridorAroundClause(points, bufferMeters);
+    const lines = [];
+    if (types.includes('gas')) lines.push('nwr["amenity"="fuel"](' + around + ');');
+    if (types.includes('cafe')) lines.push('nwr["amenity"="cafe"](' + around + ');');
+    if (types.includes('sto')) lines.push('nwr["shop"="car_repair"](' + around + ');');
+    if (types.includes('tir')) {
+        lines.push('nwr["amenity"="parking"]["hgv"](' + around + ');');
+        lines.push('nwr["highway"="rest_area"](' + around + ');');
+    }
+    return '[out:json][timeout:8];(' + lines.join('') + ');out center 200;';
+}
+
+export function poiKind(tags) {
+    const value = tags || {};
+    if (value.amenity === 'fuel') return 'gas';
+    if (value.amenity === 'cafe') return 'cafe';
+    if (value.shop === 'car_repair') return 'sto';
+    if (value.highway === 'rest_area') return 'tir';
+    if (value.amenity === 'parking' && value.hgv) return 'tir';
+    return null;
+}
+
+export function elementLatLon(element) {
+    if (!element) return null;
+    if (Number.isFinite(element.lat) && Number.isFinite(element.lon)) {
+        return { lat: element.lat, lon: element.lon };
+    }
+    if (element.center && Number.isFinite(element.center.lat) && Number.isFinite(element.center.lon)) {
+        return { lat: element.center.lat, lon: element.center.lon };
+    }
+    return null;
+}
+
+export function normalizePoiElement(element) {
+    const tags = element && element.tags ? element.tags : {};
+    const kind = poiKind(tags);
+    const pos = elementLatLon(element);
+    if (!kind || !pos) return null;
+    const name = tags.name || tags['name:uk'] || tags.brand || '';
+    const address = [tags['addr:street'], tags['addr:housenumber'], tags['addr:city']].filter(Boolean).join(', ');
+    return {
+        id: String(element.type || 'n') + '/' + String(element.id),
+        lat: pos.lat,
+        lon: pos.lon,
+        name: String(name),
+        address: address,
+        kind: kind
+    };
+}
+
+export function nearestSegmentKey(item, points) {
+    let best = points[0];
+    let bestDistance = Infinity;
+    for (const point of points) {
+        const distance = (point.lat - item.lat) ** 2 + (point.lon - item.lon) ** 2;
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            best = point;
+        }
+    }
+    return geohashEncode(best.lat, best.lon, 5);
+}
+
+function cleanPoints(rawPoints) {
+    const points = [];
+    for (const point of rawPoints) {
+        const lat = parseFloat(point && point.lat);
+        const lon = parseFloat(point && (point.lon != null ? point.lon : point.lng));
+        if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+            points.push({ lat: lat, lon: lon });
+        }
+    }
+    return points;
+}
+
+async function readPoiCache(types, segmentKeys) {
+    const { data, error } = await supabase
+        .from('poi_cache')
+        .select('poi_type, segment_key, payload, fetched_at')
+        .in('poi_type', types)
+        .in('segment_key', segmentKeys);
+    if (error) {
+        console.warn('poi_cache read:', error.message);
+        return null;
+    }
+    return data || [];
+}
+
+async function writePoiCache(rows) {
+    if (!rows.length) return;
+    const { error } = await supabase
+        .from('poi_cache')
+        .upsert(rows, { onConflict: 'poi_type,segment_key' });
+    if (error) console.warn('poi_cache write:', error.message);
+}
+
+async function fetchOverpass(query) {
+    let lastError = 'невідома помилка';
+    for (let i = 0; i < OVERPASS_MIRRORS.length; i++) {
+        const mirror = OVERPASS_MIRRORS[i];
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        try {
+            const overpassRes = await fetch(mirror, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'data=' + encodeURIComponent(query),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (overpassRes.ok) {
+                const data = await overpassRes.json();
+                return { elements: Array.isArray(data.elements) ? data.elements : [] };
+            }
+            lastError = mirror + ' відповів HTTP ' + overpassRes.status;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            lastError = error.name === 'AbortError'
+                ? mirror + ': перевищено таймаут (4с)'
+                : mirror + ': ' + error.message;
+        }
+        if (i < OVERPASS_MIRRORS.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    return { error: lastError };
+}
+
+function cachedItems(fresh, types) {
+    const items = [];
+    const seen = new Set();
+    for (const [key, payload] of fresh) {
+        const type = key.split('|')[0];
+        if (!types.includes(type) || !Array.isArray(payload)) continue;
+        for (const item of payload) {
+            if (!item || seen.has(item.id)) continue;
+            seen.add(item.id);
+            items.push(item);
+        }
+    }
+    return items;
 }
 
 export default async function handler(req, res) {
@@ -24,7 +243,6 @@ export default async function handler(req, res) {
     }
 
     try {
-        // --- Перевірка авторизації та схвалення акаунта (той самий патерн, що й /api/calculate) ---
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({ error: 'Необхідна авторизація.' });
@@ -50,78 +268,92 @@ export default async function handler(req, res) {
         }
 
         const body = req.body || {};
-        const points = Array.isArray(body.points) ? body.points : [];
-        if (points.length === 0) {
+        const rawPoints = Array.isArray(body.points) ? body.points : [];
+        if (rawPoints.length === 0) {
             return res.status(400).json({ error: 'Не передано жодної точки маршруту.' });
         }
-        if (!poiPointsWithinLimit(points.length)) {
+        if (!poiPointsWithinLimit(rawPoints.length)) {
             return res.status(400).json({
                 code: 'POI_POINTS_LIMIT',
                 error: 'Забагато точок маршруту. Максимум 25.'
             });
         }
-        const radius = Math.min(parseInt(body.radius) || 8000, 20000); // захист від надто широкого запиту
-
-        // Один комбінований запит на ВСІ точки одразу, замість окремого запиту на кожну —
-        // менше звернень до Overpass = менший ризик впертись у ліміт частоти (429).
-        const filters = [];
-        for (const pt of points) {
-            const lat = parseFloat(pt.lat);
-            const lon = parseFloat(pt.lon);
-            if (isNaN(lat) || isNaN(lon)) continue;
-            if (body.wantGas) filters.push(`nwr["amenity"="fuel"](around:${radius},${lat},${lon});`);
-            if (body.wantCafe) filters.push(`nwr["amenity"="cafe"](around:${radius},${lat},${lon});`);
-            if (body.wantSto) filters.push(`nwr["shop"="car_repair"](around:${radius},${lat},${lon});`);
-            if (body.wantTir) {
-                filters.push(`nwr["amenity"="parking"]["hgv"](around:${radius},${lat},${lon});`);
-                filters.push(`nwr["highway"="rest_area"](around:${radius},${lat},${lon});`);
-            }
+        const points = cleanPoints(rawPoints);
+        if (!points.length) {
+            return res.status(400).json({ error: 'Точки маршруту некоректні.' });
+        }
+        const types = selectedPoiTypes(body);
+        if (!types.length) {
+            return res.status(400).json({ error: 'Оберіть хоча б одну категорію.' });
         }
 
-        if (filters.length === 0) {
-            return res.status(200).json({ elements: [] });
-        }
-
-        // Overpass повертає об'єднання (union) без дублів навіть якщо кілька "around" збігаються,
-        // тож ліміт виводу піднімаємо пропорційно кількості точок, а не лишаємо фіксовані 15 на все.
-        const outLimit = Math.min(points.length * 20, 200);
-        const query = `[out:json][timeout:8];(${filters.join('')});out center ${outLimit};`;
-
-        let lastError = 'невідома помилка';
-        for (let i = 0; i < OVERPASS_MIRRORS.length; i++) {
-            const mirror = OVERPASS_MIRRORS[i];
-            // Vercel Hobby вбиває функцію за 10с загалом — власний таймаут гарантує, що повільне
-            // дзеркало не з'їсть увесь бюджет часу, лишивши нуль секунд на спробу другого.
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 4000);
-            try {
-                const overpassRes = await fetch(mirror, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: 'data=' + encodeURIComponent(query),
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                if (overpassRes.ok) {
-                    const data = await overpassRes.json();
-                    return res.status(200).json(data);
+        const segmentKeys = corridorSegmentKeys(points);
+        const nowMs = Date.now();
+        const cacheRows = await readPoiCache(types, segmentKeys);
+        const fresh = new Map();
+        if (cacheRows) {
+            for (const row of cacheRows) {
+                if (poiCacheFresh(row.fetched_at, nowMs)) {
+                    fresh.set(row.poi_type + '|' + row.segment_key, row.payload);
                 }
-                lastError = `${mirror} відповів HTTP ${overpassRes.status}`;
-            } catch (e) {
-                clearTimeout(timeoutId);
-                lastError = e.name === 'AbortError' ? `${mirror}: перевищено таймаут (4с)` : `${mirror}: ${e.message}`;
-            }
-            // Невелика пауза перед спробою дзеркала — щоб не бити в той самий ліміт частоти миттєво повторно
-            if (i < OVERPASS_MIRRORS.length - 1) {
-                await new Promise(r => setTimeout(r, 500));
             }
         }
+        const missingTypes = types.filter(type => segmentKeys.some(key => !fresh.has(type + '|' + key)));
+        if (!missingTypes.length) {
+            return res.status(200).json({
+                elements: cachedItems(fresh, types),
+                cached: true,
+                attribution: '© OpenStreetMap contributors'
+            });
+        }
 
-        // Обидва дзеркала не відповіли — повертаємо реальну помилку, а не тиху "0 об'єктів"
-        return res.status(502).json({ error: 'Overpass недоступний: ' + lastError });
+        const fetched = await fetchOverpass(overpassCorridorQuery(points, missingTypes));
+        if (fetched.error) {
+            const saved = cachedItems(fresh, types);
+            if (saved.length) {
+                return res.status(200).json({
+                    elements: saved,
+                    cached: true,
+                    warning: 'Overpass недоступний. Показано збережені об’єкти.',
+                    attribution: '© OpenStreetMap contributors'
+                });
+            }
+            return res.status(502).json({ error: 'Overpass недоступний: ' + fetched.error });
+        }
 
+        const buckets = new Map();
+        for (const type of missingTypes) {
+            for (const key of segmentKeys) buckets.set(type + '|' + key, []);
+        }
+        for (const element of fetched.elements) {
+            const item = normalizePoiElement(element);
+            if (!item || !missingTypes.includes(item.kind)) continue;
+            const key = item.kind + '|' + nearestSegmentKey(item, points);
+            const bucket = buckets.get(key);
+            if (!bucket || bucket.some(existing => existing.id === item.id)) continue;
+            bucket.push(item);
+        }
+        const fetchedAt = new Date(nowMs).toISOString();
+        const rows = [];
+        for (const [key, payload] of buckets) {
+            const split = key.indexOf('|');
+            rows.push({
+                poi_type: key.slice(0, split),
+                segment_key: key.slice(split + 1),
+                payload: payload,
+                fetched_at: fetchedAt
+            });
+            fresh.set(key, payload);
+        }
+        await writePoiCache(rows);
+
+        return res.status(200).json({
+            elements: cachedItems(fresh, types),
+            cached: false,
+            attribution: '© OpenStreetMap contributors'
+        });
     } catch (err) {
         console.error('POI proxy error:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Не вдалося знайти об’єкти вздовж маршруту.' });
     }
 }
