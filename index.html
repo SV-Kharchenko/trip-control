@@ -3013,7 +3013,6 @@
             box-shadow: inset 0 -2px 0 var(--accent);
             border-radius: 0;
         }
-        body.layout-studio .tc-role-badge { display: inline-flex; align-items: center; min-height: 28px; color: var(--text); }
         body.layout-studio .tc-demo-badge {
             color: var(--warning-text);
             background: color-mix(in srgb, var(--warning) 16%, var(--surface));
@@ -3041,9 +3040,15 @@
             font: 600 12px/1 Manrope, sans-serif; padding: 0 12px; min-height: 40px; cursor: pointer;
         }
         .tc-view-switch button.on { background: var(--accent); color: var(--on-accent); }
-        .tc-menu-wrap { position: relative; }
+        .tc-menu-wrap {
+            position: relative;
+            flex: 0 0 40px;
+            width: 40px;
+            height: 40px;
+        }
+        .tc-menu-wrap > .tc-avatar { width: 40px; height: 40px; }
         .tc-user-menu {
-            position: absolute; top: calc(100% + 8px); right: 0; z-index: 80;
+            position: absolute; top: calc(100% + 8px); right: 0; left: auto; z-index: 80;
             width: min(320px, calc(100vw - 24px));
             background: var(--surface); color: var(--text);
             border: 1px solid var(--border); border-radius: 14px;
@@ -3311,7 +3316,6 @@
                         </div>
                     </div>
                 </div>
-                <span class="tc-role-badge" id="tc-role-badge">Директор</span>
             </div>
         </div>
 
@@ -4666,7 +4670,10 @@
         const menu = document.getElementById('tc-user-menu');
         if (!menu || menu.hidden) return;
         if (menu.contains(event.target)) return;
+        const btn = document.getElementById('tc-avatar-btn');
+        if (btn && (event.target === btn || btn.contains(event.target))) return;
         closeUserMenu();
+        if (btn) btn.focus();
     });
     document.addEventListener('keydown', function (event) {
         const menu = document.getElementById('tc-user-menu');
