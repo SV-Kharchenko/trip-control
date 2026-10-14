@@ -50,3 +50,121 @@ test('light is the default theme and stored ocean, paper and control migrate', (
     assert.match(manifest, /assets\/brand\/icon-1024\.png/);
     assert.match(manifest, /apple-touch-icon\.png/);
 });
+
+function cssBlock(selector) {
+    const marker = selector + ' {';
+    const start = html.indexOf(marker);
+    assert.notEqual(start, -1, selector);
+    const open = html.indexOf('{', start);
+    let depth = 0;
+    for (let i = open; i < html.length; i++) {
+        if (html[i] === '{') depth += 1;
+        else if (html[i] === '}') {
+            depth -= 1;
+            if (depth === 0) return html.slice(open + 1, i);
+        }
+    }
+    throw new Error('unclosed ' + selector);
+}
+
+function sourceOf(name) {
+    const start = html.indexOf('function ' + name + '(');
+    assert.notEqual(start, -1, name);
+    const open = html.indexOf('{', start);
+    let depth = 0;
+    for (let i = open; i < html.length; i++) {
+        if (html[i] === '{') depth += 1;
+        else if (html[i] === '}') {
+            depth -= 1;
+            if (depth === 0) return html.slice(start, i + 1);
+        }
+    }
+    throw new Error('unclosed ' + name);
+}
+
+function token(block, name) {
+    const match = block.match(new RegExp('--' + name + ':\\s*(#[0-9A-Fa-f]{6})'));
+    assert.ok(match, name);
+    return match[1].toUpperCase();
+}
+
+function channel(hex) {
+    const value = parseInt(hex.slice(1), 16);
+    const raw = [value >> 16, (value >> 8) & 255, value & 255];
+    return raw.map(function (part) {
+        const c = part / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+}
+
+function contrast(fg, bg) {
+    const L = function (hex) {
+        const [r, g, b] = channel(hex);
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const hi = Math.max(L(fg), L(bg));
+    const lo = Math.min(L(fg), L(bg));
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+test('light and dark text pairs stay at least 4.5:1', () => {
+    const light = cssBlock('[data-theme="light"]');
+    const dark = cssBlock('[data-theme="dark"]');
+    const lightTokens = {
+        bg: token(light, 'bg'),
+        surface: token(light, 'surface'),
+        input: token(light, 'input'),
+        text: token(light, 'text'),
+        muted: token(light, 'muted'),
+        accent: token(light, 'accent'),
+        onAccent: token(light, 'on-accent'),
+        teal: token(light, 'teal')
+    };
+    const darkTokens = {
+        bg: token(dark, 'bg'),
+        surface: token(dark, 'surface'),
+        input: token(dark, 'input'),
+        text: token(dark, 'text'),
+        muted: token(dark, 'muted'),
+        accent: token(dark, 'accent'),
+        onAccent: token(dark, 'on-accent'),
+        teal: token(dark, 'teal')
+    };
+    assert.equal(lightTokens.muted, '#5A6B66');
+    assert.equal(lightTokens.teal, '#1A6B65');
+    assert.equal(light.includes('#6B7D78'), false);
+    assert.equal(light.includes('#2F8F86'), false);
+    assert.deepEqual(darkTokens, {
+        bg: '#0E1117',
+        surface: '#161B24',
+        input: '#11151C',
+        text: '#E8EAF0',
+        muted: '#8B93A3',
+        accent: '#7C9CFF',
+        onAccent: '#0B0E14',
+        teal: '#4FD1C5'
+    });
+    for (const tokens of [lightTokens, darkTokens]) {
+        for (const bg of [tokens.bg, tokens.surface, tokens.input]) {
+            assert.ok(contrast(tokens.text, bg) >= 4.5, tokens.text + ' on ' + bg);
+            assert.ok(contrast(tokens.muted, bg) >= 4.5, tokens.muted + ' on ' + bg);
+            assert.ok(contrast(tokens.teal, bg) >= 4.5, tokens.teal + ' on ' + bg);
+        }
+        assert.ok(contrast(tokens.onAccent, tokens.accent) >= 4.5);
+    }
+    assert.match(html, /\[data-theme="ocean"\]/);
+    assert.match(html, /body\[data-theme="light"\] \.auth-card \{[\s\S]*background: var\(--surface\)/);
+    assert.match(html, /body\[data-theme="light"\] \.auth-tabs button\.on \{[\s\S]*background: var\(--accent\);[\s\S]*color: var\(--on-accent\)/);
+    assert.match(html, /\.preset-tile\.active \{[\s\S]*color: var\(--on-accent\)/);
+    assert.match(html, /\.preset-tile\.active \.pt-hint,[\s\S]*color: var\(--on-accent\)/);
+    assert.equal(html.includes('paperStudio'), false);
+    assert.equal(html.includes('function dressPaperSections'), false);
+    for (const name of ['applyMapTheme', 'mountStudioDom', 'renderChart', 'initMap']) {
+        const source = sourceOf(name);
+        assert.equal(source.includes("'paper'"), false, name);
+        assert.equal(source.includes("'control'"), false, name);
+    }
+    const migrate = sourceOf('normalizeTheme');
+    assert.match(migrate, /t === 'paper'/);
+    assert.match(migrate, /t === 'control'/);
+});

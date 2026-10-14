@@ -56,11 +56,11 @@
         }
         [data-theme="light"] {
             --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE;
-            --text: #0D2A28; --muted: #6B7D78; --tab-muted: #5F716C;
+            --text: #0D2A28; --muted: #5A6B66; --tab-muted: #5F716C;
             --border: #D9D1BD; --border-soft: #E3DCCB;
             --accent: #0D2A29; --on-accent: #F4EFE5; --gold: #B08A4C;
             --positive: #1F6F4D; --negative: #C2453F; --negative-on-dark: #FF8A8A;
-            --teal: #2F8F86; --chart-neutral: #CDBF9F; --muted-on-dark: #A9BCB7;
+            --teal: #1A6B65; --chart-neutral: #CDBF9F; --muted-on-dark: #A9BCB7;
             --radius-card: 14px; --radius-control: 10px;
             --bg-color: var(--bg); --card-bg: var(--surface); --border-color: var(--border);
             --text-main: var(--text); --text-muted: var(--muted);
@@ -1393,15 +1393,21 @@
         }
         .preset-tile .pt-hint {
             font-size: 0.58rem; letter-spacing: 0.04em; text-transform: none; font-weight: 500;
-            color: var(--text-muted); opacity: 0.85;
+            color: var(--text-muted); opacity: 1;
         }
         .preset-tile:hover { border-color: color-mix(in srgb, var(--pt) 55%, var(--border-color)); color: var(--text-main); transform: translateY(-2px); }
         .preset-tile.active {
-            color: var(--text-main); border-color: var(--pt);
-            background:
-                radial-gradient(100% 90% at 50% 0%, color-mix(in srgb, var(--pt) 22%, transparent), transparent 62%),
-                color-mix(in srgb, var(--pt) 10%, var(--input-bg));
-            box-shadow: 0 10px 22px color-mix(in srgb, var(--pt) 18%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--pt) 28%, transparent);
+            color: var(--on-accent); border-color: var(--accent);
+            background: var(--accent);
+            box-shadow: none;
+        }
+        .preset-tile.active .pt-hint,
+        .preset-tile.active .pt-ico {
+            color: var(--on-accent); opacity: 1;
+        }
+        .preset-tile.active .pt-ico {
+            background: color-mix(in srgb, var(--on-accent) 16%, transparent);
+            border-color: color-mix(in srgb, var(--on-accent) 35%, transparent);
         }
         .preset-tile.active::after {
             content: '✓'; position: absolute; top: 8px; right: 9px; width: 18px; height: 18px;
@@ -2836,6 +2842,76 @@
         }
         body.layout-studio[data-theme="paper"] .tc-lockup--cab .tc-lockup__wordmark { color: #0B2629; }
         body.layout-studio[data-theme="control"] .tc-lockup--cab .tc-lockup__wordmark { color: #F3DFB5; }
+        body[data-theme="light"] #auth-screen {
+            background: var(--bg);
+            background-image: none;
+        }
+        body[data-theme="light"] .auth-card {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+            box-shadow: 0 16px 40px rgba(13, 42, 41, 0.08);
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
+        body[data-theme="light"] .auth-card .tc-lockup__wordmark,
+        body[data-theme="light"] .auth-tagline,
+        body[data-theme="light"] #auth-message {
+            color: var(--text);
+        }
+        body[data-theme="light"] .auth-tagline-sub,
+        body[data-theme="light"] .auth-email-hint,
+        body[data-theme="light"] .tc-footer,
+        body[data-theme="light"] .tc-footer a,
+        body[data-theme="light"] .auth-legal {
+            color: var(--muted);
+        }
+        body[data-theme="light"] .auth-legal a,
+        body[data-theme="light"] .auth-forgot,
+        body[data-theme="light"] .auth-forgot:hover {
+            color: var(--accent);
+        }
+        body[data-theme="light"] .auth-tabs button {
+            color: var(--muted);
+            border-color: var(--border);
+            background: transparent;
+        }
+        body[data-theme="light"] .auth-tabs button.on {
+            background: var(--accent);
+            color: var(--on-accent);
+            -webkit-text-fill-color: var(--on-accent);
+            border-color: var(--accent);
+        }
+        body[data-theme="light"] #auth-screen input,
+        body[data-theme="light"] #auth-screen select {
+            background: var(--input);
+            color: var(--text);
+            border-color: var(--border);
+            -webkit-text-fill-color: var(--text);
+        }
+        body[data-theme="light"] #auth-screen input::placeholder {
+            color: var(--muted);
+            opacity: 1;
+        }
+        body[data-theme="light"] #auth-screen .btn,
+        body[data-theme="light"] #auth-screen .btn-success,
+        body[data-theme="light"] #auth-screen .btn:hover,
+        body[data-theme="light"] #auth-screen .btn-success:hover {
+            background: var(--accent);
+            color: var(--on-accent);
+            -webkit-text-fill-color: var(--on-accent);
+            border: 1px solid var(--accent);
+            box-shadow: none;
+            filter: none;
+        }
+        body[data-theme="light"] #auth-signup-btn,
+        body[data-theme="light"] #auth-back-btn {
+            background: var(--surface) !important;
+            color: var(--text) !important;
+            -webkit-text-fill-color: var(--text) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: none !important;
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -4759,16 +4835,12 @@
     }
     function applyMapTheme() {
         if (!map || typeof google === 'undefined' || !google.maps) return;
-        const theme = document.body.getAttribute('data-theme');
-        if (theme === 'light' || theme === 'paper') {
-            map.setOptions({ styles: TC_MAP_PAPER_STYLES, backgroundColor: '#F4EFE4' });
-        } else if (theme === 'dark' || theme === 'control') {
-            map.setOptions({ styles: TC_MAP_CONTROL_STYLES, backgroundColor: '#0E1117' });
-        } else {
-            map.setOptions({ styles: TC_MAP_DARK_STYLES, backgroundColor: '#0b1018' });
-        }
-        const strokeMain = (theme === 'light' || theme === 'paper') ? '#0D2A29' : ((theme === 'dark' || theme === 'control') ? '#7C9CFF' : '#7dd3fc');
-        const strokeBack = (theme === 'light' || theme === 'paper') ? '#B08A4C' : ((theme === 'dark' || theme === 'control') ? '#E0B25A' : '#f59e0b');
+        const lightMap = document.body.getAttribute('data-theme') === 'light';
+        map.setOptions(lightMap
+            ? { styles: TC_MAP_PAPER_STYLES, backgroundColor: '#F4EFE4' }
+            : { styles: TC_MAP_CONTROL_STYLES, backgroundColor: '#0E1117' });
+        const strokeMain = lightMap ? '#0D2A29' : '#7C9CFF';
+        const strokeBack = lightMap ? '#B08A4C' : '#E0B25A';
         if (typeof directionsRenderer !== 'undefined' && directionsRenderer) {
             directionsRenderer.setOptions({ polylineOptions: { strokeColor: strokeMain, strokeWeight: 5, strokeOpacity: 0.95 } });
         }
@@ -4816,51 +4888,6 @@
         });
     }
 
-    function dressPaperSections() {
-        if (document.getElementById('paper-route')) return;
-        const card = document.querySelector('.tc-work > .card');
-        if (!card) return;
-        const rowOf = function (id) {
-            const el = document.getElementById(id);
-            return el ? el.closest('.form-row') : null;
-        };
-        const route = document.createElement('section');
-        route.id = 'paper-route';
-        route.className = 'paper-sec';
-        route.innerHTML = '<h3><i>1</i> Маршрут</h3><div class="paper-route-grid"><div class="paper-route-fields"></div><div class="paper-route-map"></div></div>';
-        const cargo = document.createElement('section');
-        cargo.id = 'paper-cargo';
-        cargo.className = 'paper-sec';
-        cargo.innerHTML = '<h3><i>2</i> Вантаж</h3><div class="paper-cargo-grid"></div>';
-        const fields = route.querySelector('.paper-route-fields');
-        const mapHost = route.querySelector('.paper-route-map');
-        const cargoHost = cargo.querySelector('.paper-cargo-grid');
-        const take = function (node, host) { if (node) host.appendChild(node); };
-        take(rowOf('route-name'), fields);
-        take(document.getElementById('route-fields-slot'), fields);
-        take(document.getElementById('podacha-info'), fields);
-        take(rowOf('podacha-dist'), fields);
-        take(rowOf('dist'), fields);
-        take(document.getElementById('trip-volume-info'), cargoHost);
-        ['volume', 'norm-weight', 'cars-count', 'days-per-trip', 'contract-currency'].forEach(function (id) {
-            take(rowOf(id), cargoHost);
-        });
-        take(document.getElementById('contract-fx-note'), cargoHost);
-        take(rowOf('rate'), cargoHost);
-        const more = card.querySelector('details.tc-more');
-        if (more) {
-            card.insertBefore(cargo, more);
-            card.insertBefore(route, cargo);
-        } else {
-            card.appendChild(route);
-            card.appendChild(cargo);
-        }
-        const map = document.querySelector('.tc-map-frame');
-        if (map) mapHost.appendChild(map);
-        const alts = document.getElementById('map-route-alts');
-        if (alts) mapHost.appendChild(alts);
-    }
-
     function restoreStudioDom() {
         undressPaperSections();
         const sum = document.getElementById('studio-sum');
@@ -4886,9 +4913,6 @@
         main.insertBefore(wrap, saved);
         const left = wrap.querySelector('#studio-left');
         const right = wrap.querySelector('#studio-right');
-        const theme = document.body.getAttribute('data-theme');
-        const paperStudio = theme === 'paper';
-        const controlStudio = theme === 'control' || theme === 'light' || theme === 'dark';
         const nodes = {
             work: document.querySelector('.tc-work'),
             lower: document.querySelector('.tc-lower'),
@@ -4899,26 +4923,17 @@
             route: document.querySelector('.tc-route-bar'),
             costs: document.querySelector('.tc-costs-visual')
         };
-        if (paperStudio && nodes.map) left.appendChild(studioTake(nodes.map));
-        if (paperStudio && nodes.alts) left.appendChild(studioTake(nodes.alts));
         if (nodes.work) left.appendChild(studioTake(nodes.work));
         if (nodes.lower) left.appendChild(studioTake(nodes.lower));
-        if (nodes.poi && !controlStudio) left.appendChild(studioTake(nodes.poi));
         if (nodes.dock) right.appendChild(studioTake(nodes.dock));
-        if (!paperStudio && nodes.map) right.appendChild(studioTake(nodes.map));
-        if (!paperStudio && nodes.alts) right.appendChild(studioTake(nodes.alts));
+        if (nodes.map) right.appendChild(studioTake(nodes.map));
+        if (nodes.alts) right.appendChild(studioTake(nodes.alts));
         if (nodes.route) right.appendChild(studioTake(nodes.route));
         if (nodes.costs) right.appendChild(studioTake(nodes.costs));
-        if (paperStudio) {
-            dressPaperSections();
-            left.appendChild(studioTake(saved));
-        }
-        if (controlStudio) {
-            const actions = document.querySelector('.actions-bar');
-            if (nodes.poi) right.appendChild(studioTake(nodes.poi));
-            right.appendChild(studioTake(saved));
-            if (actions) right.appendChild(studioTake(actions));
-        }
+        const actions = document.querySelector('.actions-bar');
+        if (nodes.poi) right.appendChild(studioTake(nodes.poi));
+        right.appendChild(studioTake(saved));
+        if (actions) right.appendChild(studioTake(actions));
         if (nodes.dock && !document.getElementById('studio-sum')) {
             const sum = document.createElement('div');
             sum.id = 'studio-sum';
@@ -7603,11 +7618,9 @@
     function renderChart(fuel, driver, maintenance, overhead, taxes, extras) {
         extras = extras || 0;
             const theme = document.body.getAttribute('data-theme');
-        const palette = (theme === 'light' || theme === 'paper')
-            ? ['#0D2A29', '#2F8F86', '#B08A4C', '#6B7D78', '#C2453F', '#CDBF9F']
-            : (theme === 'dark' || theme === 'control')
-                ? ['#7C9CFF', '#4FD1C5', '#E0B25A', '#8B93A3', '#FF6B6B', '#6B7486']
-                : ['#7dd3fc', '#34d399', '#f59e0b', '#60a5fa', '#f87171', '#fbbf24'];
+        const palette = theme === 'light'
+            ? ['#0D2A29', '#1A6B65', '#B08A4C', '#5A6B66', '#C2453F', '#CDBF9F']
+            : ['#7C9CFF', '#4FD1C5', '#E0B25A', '#8B93A3', '#FF6B6B', '#6B7486'];
         const items = [
             { name: 'Пальне+AdBlue', val: fuel, color: palette[0] },
             { name: 'Екіпаж', val: driver, color: palette[1] },
@@ -8956,22 +8969,6 @@
     let mapInitialized = false;
     let mapExpanded = false;
 
-    const TC_MAP_DARK_STYLES = [
-        { elementType: 'geometry', stylers: [{ color: '#0f141c' }] },
-        { elementType: 'labels.text.fill', stylers: [{ color: '#8b93a7' }] },
-        { elementType: 'labels.text.stroke', stylers: [{ color: '#0c0e12' }] },
-        { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#2a3140' }] },
-        { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
-        { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-        { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#12181f' }] },
-        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1a2230' }] },
-        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#0c0e12' }] },
-        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#243044' }] },
-        { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#f59e0b' }] },
-        { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0a1624' }] },
-        { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4a6280' }] }
-    ];
     const TC_MAP_CONTROL_STYLES = [
         { elementType: 'geometry', stylers: [{ color: '#05211f' }] },
         { elementType: 'labels.text.fill', stylers: [{ color: '#8ea7a3' }] },
@@ -9063,16 +9060,9 @@
     async function initMap() {
         if (mapInitialized) return; // захист від повторного запуску (checkUserAccess може спрацювати двічі)
         mapInitialized = true;
-        const themeAtInit = document.body.getAttribute('data-theme');
-        let mapStyles = TC_MAP_DARK_STYLES;
-        let mapBg = '#0b1018';
-        if (themeAtInit === 'paper') {
-            mapStyles = TC_MAP_PAPER_STYLES;
-            mapBg = '#F4EEE1';
-        } else if (themeAtInit === 'control') {
-            mapStyles = TC_MAP_CONTROL_STYLES;
-            mapBg = '#05211f';
-        }
+        const lightMap = document.body.getAttribute('data-theme') === 'light';
+        const mapStyles = lightMap ? TC_MAP_PAPER_STYLES : TC_MAP_CONTROL_STYLES;
+        const mapBg = lightMap ? '#F4EFE4' : '#0E1117';
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 48.3794, lng: 31.1656 },
             zoom: 6,
@@ -9089,8 +9079,8 @@
         directionsService = new google.maps.DirectionsService();
         // suppressAlternatives: UI кнопок #map-route-alts керує вибором через setRouteIndex —
         // інакше Google малює всі альти одразу і setRouteIndex до setDirections ламає рендер.
-        const strokeMain = themeAtInit === 'paper' ? '#0D3337' : (themeAtInit === 'control' ? '#c9a66b' : '#7dd3fc');
-        const strokeBack = themeAtInit === 'paper' ? '#8D6A3F' : (themeAtInit === 'control' ? '#4f9b97' : '#f59e0b');
+        const strokeMain = lightMap ? '#0D2A29' : '#7C9CFF';
+        const strokeBack = lightMap ? '#B08A4C' : '#E0B25A';
         directionsRenderer = new google.maps.DirectionsRenderer({
             polylineOptions: { strokeColor: strokeMain, strokeWeight: 5, strokeOpacity: 0.95 },
             suppressMarkers: false,
