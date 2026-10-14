@@ -3346,6 +3346,265 @@
             display: none !important;
         }
         body.layout-studio #dispatcher-result.is-empty #tc-result-empty { display: block; }
+        body.layout-studio[data-theme="light"] #dispatcher-result:not(.is-empty),
+        body.layout-studio[data-theme="dark"] #dispatcher-result:not(.is-empty) {
+            --tc-result-fg: #F4EFE6;
+            --tc-result-muted: var(--muted-on-dark);
+            --tc-result-up: #5FE0A8;
+            --tc-result-down: var(--negative-on-dark);
+            --tc-result-be: #E9DCC0;
+            background: #0D2A29;
+            color: var(--tc-result-fg);
+            border-color: #0D2A29;
+            align-self: start;
+            height: auto;
+        }
+        body.layout-studio[data-theme="dark"] #dispatcher-result:not(.is-empty) {
+            --tc-result-fg: var(--text);
+            --tc-result-up: var(--positive);
+            --tc-result-be: var(--gold);
+            background: var(--surface);
+            border-color: var(--border);
+        }
+        body.layout-studio[data-theme="light"] #studio-sum,
+        body.layout-studio[data-theme="dark"] #studio-sum { display: none !important; }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-hero {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px 28px;
+            width: 100%;
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-kicker {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--tc-result-muted);
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-value {
+            font-size: 44px;
+            color: var(--tc-result-fg);
+        }
+        body.layout-studio #dispatcher-result.is-up:not(.is-empty) .tc-profit-value { color: var(--tc-result-up); }
+        body.layout-studio #dispatcher-result.is-down:not(.is-empty) .tc-profit-value { color: var(--tc-result-down); }
+        body.layout-studio #dispatcher-result.is-up:not(.is-empty) .tc-unit-row b,
+        body.layout-studio #dispatcher-result.is-down:not(.is-empty) .tc-unit-row b { color: var(--tc-result-fg); }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-unit-row {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, auto));
+            gap: 8px 22px;
+            flex: 1 1 280px;
+            margin: 0;
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-unit-row > div {
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-unit-row b {
+            display: block;
+            font-size: 18px;
+            font-weight: 700;
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-unit-row span {
+            color: var(--tc-result-muted);
+            font-size: 11px;
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) #kpi-breakeven-chip {
+            display: flex !important;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            width: auto !important;
+            max-width: 240px;
+            margin-left: auto;
+            padding: 0 !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        body.layout-studio #dispatcher-result #spark-breakeven { display: none !important; }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-be-label {
+            font-size: 11px;
+            color: var(--tc-result-muted);
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) #res-breakeven-full {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--tc-result-be);
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) #res-breakeven-op {
+            color: var(--tc-result-muted);
+            font-size: 11px;
+            text-align: right;
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) #res-breakeven-gap.tc-gap-pill {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) #res-breakeven-gap.tc-gap-pill.is-up {
+            background: rgba(95, 224, 168, 0.16);
+            color: var(--tc-result-up);
+        }
+        body.layout-studio #dispatcher-result:not(.is-empty) #res-breakeven-gap.tc-gap-pill.is-down {
+            background: rgba(255, 138, 138, 0.18);
+            color: var(--tc-result-down);
+        }
+        body.layout-studio[data-theme="light"] #studio-right > .tc-result-dock,
+        body.layout-studio[data-theme="dark"] #studio-right > .tc-result-dock {
+            grid-column: 1 / -1;
+            grid-row: 1;
+            align-self: start;
+        }
+        body.layout-studio[data-theme="light"] #studio-right > .tc-map-frame,
+        body.layout-studio[data-theme="dark"] #studio-right > .tc-map-frame {
+            grid-column: 1;
+            grid-row: 2;
+            min-height: 280px;
+        }
+        body.layout-studio[data-theme="light"] #studio-right > .tc-costs-visual,
+        body.layout-studio[data-theme="dark"] #studio-right > .tc-costs-visual { display: contents; }
+        body.layout-studio #tc-cascade,
+        body.layout-studio #tc-cost-table { min-width: 0; }
+        body.layout-studio #tc-cascade { grid-column: 2; grid-row: 2; align-self: stretch; }
+        body.layout-studio #tc-cost-table { grid-column: 1 / -1; grid-row: 3; }
+        body.layout-studio[data-theme="light"] #studio-right > .tc-route-bar,
+        body.layout-studio[data-theme="dark"] #studio-right > .tc-route-bar { grid-column: 1 / -1; grid-row: 4; }
+        body.layout-studio[data-theme="light"] #studio-right > .actions-bar,
+        body.layout-studio[data-theme="dark"] #studio-right > .actions-bar { grid-column: 1 / -1; grid-row: 5; margin-top: 0; }
+        #tc-cascade-rows { display: flex; flex-direction: column; }
+        .tc-cascade-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            padding: 7px 0;
+            border-bottom: 1px solid var(--border-soft);
+            font-size: 13px;
+        }
+        .tc-cascade-row.is-muted { color: var(--muted); font-weight: 500; }
+        .tc-cascade-row.is-strong,
+        .tc-cascade-row.is-profit,
+        .tc-cascade-row.is-loss { font-weight: 800; }
+        .tc-cascade-num {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-weight: 600;
+            text-align: right;
+        }
+        .tc-cascade-row.is-profit .tc-cascade-num { color: var(--positive); }
+        .tc-cascade-row.is-loss .tc-cascade-num { color: var(--negative); }
+        .tc-cascade-note {
+            display: block;
+            margin-top: 2px;
+            font-family: Manrope, sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--muted);
+        }
+        .tc-cascade-empty { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.4; }
+        body.layout-studio #tc-cascade.is-empty,
+        body.layout-studio #tc-cost-table.is-empty { display: none; }
+        body.layout-studio #studio-right:has(#tc-cascade.is-empty) > .tc-map-frame { grid-column: 1 / -1; }
+        #res-breakeven-gap:empty { display: none !important; }
+        body.layout-studio #tc-cascade .tc-costs-body { margin-top: 12px; }
+        body.layout-studio #tc-cascade .cost-scale-bar {
+            height: 10px;
+            border-radius: 5px;
+            gap: 2px;
+            background: transparent;
+        }
+        body.layout-studio #tc-cascade .donut-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px 12px;
+        }
+        body.layout-studio #tc-cascade .donut-legend-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+        body.layout-studio #tc-cascade .donut-legend-row .dot { margin-top: 0; }
+        body.layout-studio #tc-cascade .donut-legend-row .meta {
+            flex-direction: row;
+            align-items: baseline;
+            gap: 6px;
+        }
+        body.layout-studio #tc-cascade .donut-legend-row .nums { display: inline; }
+        body.layout-studio #tc-cascade .donut-legend-row .pct,
+        body.layout-studio #tc-cascade .donut-legend-row .sum {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+        }
+        .tc-cost-head {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+        .tc-cost-head h2 { margin: 0; }
+        #donut-total {
+            margin-left: auto;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        body.layout-studio #tc-cost-table td:nth-child(n+2) {
+            text-align: right;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+        }
+        body.layout-studio[data-theme="light"] .actions-bar .btn,
+        body.layout-studio[data-theme="light"] .actions-bar .btn:hover,
+        body.layout-studio[data-theme="dark"] .actions-bar .btn,
+        body.layout-studio[data-theme="dark"] .actions-bar .btn:hover {
+            background: var(--surface);
+            color: var(--text);
+            -webkit-text-fill-color: var(--text);
+            border: 1px solid var(--border);
+            box-shadow: none;
+            filter: none;
+            transform: none;
+        }
+        body.layout-studio[data-theme="light"] .actions-bar .btn-success,
+        body.layout-studio[data-theme="light"] .actions-bar .btn-success:hover,
+        body.layout-studio[data-theme="dark"] .actions-bar .btn-success,
+        body.layout-studio[data-theme="dark"] .actions-bar .btn-success:hover {
+            background: var(--accent);
+            color: var(--on-accent);
+            -webkit-text-fill-color: var(--on-accent);
+            border-color: transparent;
+        }
+        @media (max-width: 900px) {
+            body.layout-studio[data-theme="light"] #dispatcher-result:not(.is-empty),
+            body.layout-studio[data-theme="dark"] #dispatcher-result:not(.is-empty) {
+                background: #0D2A29;
+                border-color: #0D2A29;
+            }
+            body.layout-studio[data-theme="dark"] #dispatcher-result:not(.is-empty) {
+                background: var(--surface);
+                border-color: var(--border);
+            }
+            body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-value { font-size: 22px; }
+            body.layout-studio #dispatcher-result:not(.is-empty) .tc-unit-row b { font-size: 12px; }
+            body.layout-studio #dispatcher-result:not(.is-empty) #res-breakeven-op { display: none; }
+            body.layout-studio #dispatcher-result:not(.is-empty) #kpi-breakeven-chip {
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: baseline;
+                justify-content: flex-start;
+                max-width: none;
+                width: 100% !important;
+                margin-left: 0;
+                gap: 6px 10px;
+            }
+            body.layout-studio #tc-cascade,
+            body.layout-studio #tc-cost-table { order: 5; width: 100%; grid-column: auto; grid-row: auto; }
+            body.layout-studio .actions-bar { order: 6; }
+            body.layout-studio #main-app { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
+        }
         @media (max-width: 720px) {
             #tc-step-strip {
                 overflow-x: auto;
@@ -3576,13 +3835,22 @@
     <aside class="tc-result-dock is-empty" id="dispatcher-result">
         <p id="tc-result-empty">Заповніть маршрут і тариф</p>
         <div class="tc-profit-hero">
-            <div class="tc-profit-kicker">Чистий прибуток</div>
-            <div class="tc-profit-value" id="res-profit-hero">—</div>
+            <div class="tc-profit-main">
+                <div class="tc-profit-kicker">Чистий прибуток</div>
+                <div class="tc-profit-value" id="res-profit-hero">—</div>
+            </div>
             <div class="tc-unit-row">
                 <div><b id="res-per-km">—</b><span>грн/км</span></div>
                 <div><b id="res-per-day">—</b><span>грн/добу</span></div>
                 <div><b id="res-per-ton">—</b><span>грн/т</span></div>
-                <div><b id="res-margin-pct">—</b><span>маржа</span></div>
+                <div><b id="res-margin-pct">—</b><span>рентабельність</span></div>
+            </div>
+            <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
+                <div class="kpi-spark" id="spark-breakeven"></div>
+                <span class="tc-be-label">Беззбитковість</span>
+                <div class="kpi-value" id="res-breakeven-full">—</div>
+                <div class="kpi-sub" id="res-breakeven-op">маржа — · EBITDA —</div>
+                <div class="kpi-sub tc-gap-pill" id="res-breakeven-gap"></div>
             </div>
         </div>
         <div class="tc-kpi kpi-strip">
@@ -3609,13 +3877,6 @@
                 <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">↑</span><div class="kpi-title">Прибуток</div></div>
                 <div class="kpi-value" id="res-profit">—</div>
                 <div class="kpi-sub" id="res-profit-pct"><span class="badge badge-success" id="res-badge">—</span><span id="res-profit-fx"></span></div>
-            </div>
-            <div class="kpi-chip" id="kpi-breakeven-chip" style="cursor: help;">
-                <div class="kpi-spark" id="spark-breakeven"></div>
-                <div class="kpi-head"><span class="kpi-ico" aria-hidden="true">◎</span><div class="kpi-title">Беззбитковість</div></div>
-                <div class="kpi-value" id="res-breakeven-full">—</div>
-                <div class="kpi-sub" id="res-breakeven-op">маржа — · EBITDA —</div>
-                <div class="kpi-sub tc-gap-pill" id="res-breakeven-gap"></div>
             </div>
         </div>
     </aside>
@@ -3980,23 +4241,26 @@
                 <div id="poi-results" style="margin-top: 6px;"></div>
             </div>
             <div class="tc-costs-visual">
-                <div class="card">
-                    <h2><span class="tc-sec-ico" aria-hidden="true">◎</span>Структура витрат</h2>
+                <div class="card is-empty" id="tc-cascade">
+                    <h2>Від доходу до прибутку</h2>
+                    <div id="tc-cascade-rows"><p class="tc-cascade-empty">Після розрахунку тут буде шлях від доходу до прибутку</p></div>
                     <div class="tc-costs-body" id="bar-chart">
-                        <div class="cost-scale-head">
-                            <div class="cost-scale-label">витрати</div>
-                            <div class="cost-scale-total" id="donut-total">—</div>
-                        </div>
                         <div class="cost-scale-bar" id="cost-scale-bar" aria-hidden="true"></div>
                         <div class="donut-legend" id="chart-legend"></div>
                         <svg id="donut-svg" viewBox="0 0 42 42" aria-hidden="true" style="display:none"></svg>
+                    </div>
+                </div>
+                <div class="card is-empty" id="tc-cost-table">
+                    <div class="tc-cost-head">
+                        <h2>Статті витрат</h2>
+                        <b id="donut-total">—</b>
                     </div>
                     <div class="tc-costs-table-wrap">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Стаття витрат</th>
-                                    <th>Сума (грн)</th>
+                                    <th>Стаття</th>
+                                    <th>Сума</th>
                                     <th>На 1 т</th>
                                     <th>Частка</th>
                                 </tr>
@@ -4183,7 +4447,7 @@
         </div>
     </div>
 
-    <div class="actions-bar" style="margin-top: 20px;">
+    <div class="actions-bar" id="tc-result-actions" aria-label="Дії з розрахунком">
         <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
         <button class="btn full-only" onclick="window.print()">📄 Експорт у PDF</button>
         <button class="btn full-only" onclick="exportExcel()">📊 Експорт у Excel</button>
@@ -4479,6 +4743,45 @@
         return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n));
     }
 
+    function cascadeRows(result) {
+        if (!result) return [];
+        const gross = Number(result.grossIncome) || 0;
+        const net = Number(result.netIncome) || 0;
+        const margin = Number(result.marginalIncome) || 0;
+        const ebitda = Number(result.ebitda) || 0;
+        const profit = Number(result.netProfit) || 0;
+        return [
+            { key: 'Дохід', amount: gross, tone: 'plain' },
+            { key: 'Чистий дохід', amount: net, tone: 'plain' },
+            { key: '− Змінні витрати', amount: net - margin, tone: 'muted' },
+            { key: 'Маржинальний дохід', amount: margin, tone: 'strong', perTon: result.marginPerTon },
+            { key: '− Накладні', amount: margin - ebitda, tone: 'muted' },
+            { key: 'EBITDA', amount: ebitda, tone: 'strong', perTon: result.ebitdaPerTon },
+            { key: '− Амортизація, податки', amount: ebitda - profit, tone: 'muted' },
+            { key: 'Чистий прибуток', amount: profit, tone: profit < 0 ? 'loss' : 'profit' }
+        ];
+    }
+
+    function paintCascade(result) {
+        const host = document.getElementById('tc-cascade-rows');
+        const card = document.getElementById('tc-cascade');
+        const table = document.getElementById('tc-cost-table');
+        const rows = cascadeRows(result);
+        if (card) card.classList.toggle('is-empty', !rows.length);
+        if (table) table.classList.toggle('is-empty', !rows.length);
+        if (!host) return;
+        if (!rows.length) {
+            host.innerHTML = '<p class="tc-cascade-empty">Після розрахунку тут буде шлях від доходу до прибутку</p>';
+            return;
+        }
+        host.innerHTML = rows.map(function (row) {
+            const note = (row.perTon === null || row.perTon === undefined || row.perTon === '')
+                ? ''
+                : '<span class="tc-cascade-note">на 1 т: ' + numPlain(row.perTon) + ' грн</span>';
+            return '<div class="tc-cascade-row is-' + row.tone + '"><span>' + row.key + '</span><span class="tc-cascade-num">' + formatMoney(row.amount) + note + '</span></div>';
+        }).join('');
+    }
+
     function paintProfitHero(result) {
         const hero = document.getElementById('res-profit-hero');
         const perKm = document.getElementById('res-per-km');
@@ -4514,6 +4817,7 @@
             const gap = document.getElementById('res-breakeven-gap');
             if (gap) { gap.textContent = ''; gap.className = 'kpi-sub tc-gap-pill'; }
             if (document.body.classList.contains('layout-studio')) syncStudioSums(null);
+            paintCascade(null);
             return;
         }
         const profit = Number(result.netProfit) || 0;
@@ -4534,6 +4838,7 @@
         if (perTon) perTon.textContent = tons > 0 ? numPlain(profit / tons) : '—';
         if (margin) margin.textContent = (Number(result.profitabilityPct) || 0).toFixed(1) + '%';
         if (document.body.classList.contains('layout-studio')) syncStudioSums(result);
+        paintCascade(result);
     }
     function syncStudioSums(result) {
         const inc = document.getElementById('studio-sum-income');
@@ -8682,12 +8987,12 @@
         extras = extras || 0;
             const theme = document.body.getAttribute('data-theme');
         const palette = theme === 'light'
-            ? ['#0D2A29', '#1A6B65', '#B08A4C', '#5A6B66', '#C2453F', '#CDBF9F']
-            : ['#7C9CFF', '#4FD1C5', '#E0B25A', '#8B93A3', '#FF6B6B', '#6B7486'];
+            ? ['#B08A4C', '#1A6B65', '#7FB5AD', '#CDBF9F', '#C2453F', '#5A6B66']
+            : ['#E0B25A', '#4FD1C5', '#7C9CFF', '#9AA6C4', '#FF8A8A', '#6B7486'];
         const items = [
-            { name: 'Пальне+AdBlue', val: fuel, color: palette[0] },
+            { name: 'Пальне', val: fuel, color: palette[0] },
             { name: 'Екіпаж', val: driver, color: palette[1] },
-            { name: 'ТО/Шини', val: maintenance, color: palette[2] },
+            { name: 'ТО', val: maintenance, color: palette[2] },
             { name: 'Накладні', val: overhead, color: palette[3] },
             { name: 'Податки', val: taxes, color: palette[4] },
             { name: 'Супутні', val: extras, color: palette[5] }
@@ -10857,8 +11162,29 @@
         document.getElementById('res-badge').textContent = '15.7%';
         document.getElementById('res-breakeven-full').textContent = '1 820 грн/т';
         document.getElementById('res-breakeven-op').textContent = 'маржа 1 650 · EBITDA 1 480';
+        const previewGap = document.getElementById('res-breakeven-gap');
+        if (previewGap) {
+            previewGap.textContent = 'Запас +120 грн/т';
+            previewGap.className = 'kpi-sub tc-gap-pill is-up';
+        }
         renderKpiSparklines({ sample: true });
-        if (typeof renderChart === 'function') renderChart(42000, 28000, 6500, 12000, 8500, 3200);
+        paintCascade({
+            grossIncome: 184250,
+            netIncome: 156612,
+            marginalIncome: 62480,
+            marginPerTon: 2499,
+            ebitda: 41120,
+            ebitdaPerTon: 1645,
+            netProfit: 28940
+        });
+        const previewCosts = [['Пальне', 42000], ['Екіпаж', 28000], ['ТО', 6500], ['Накладні', 12000], ['Податки', 8500], ['Супутні', 3200]];
+        const previewCostTotal = previewCosts.reduce(function (sum, row) { return sum + row[1]; }, 0);
+        const previewBody = document.getElementById('cost-breakdown');
+        if (previewBody) {
+            previewBody.innerHTML = previewCosts.map(function (row) {
+                return '<tr><td>' + row[0] + '</td><td>' + formatMoney(row[1]) + '</td><td>' + numPlain(row[1] / 25) + ' грн</td><td>' + (row[1] / previewCostTotal * 100).toFixed(1) + '%</td></tr>';
+            }).join('');
+        }
         savedCalculations = [
             {
                 id: 'preview-1', userId: 'preview-owner', routeName: 'Умань — Ізмаїл',
@@ -10916,6 +11242,7 @@
         if (new URLSearchParams(location.search).get('menu') === '1') openUserMenu();
         const stepQ = Number(previewParams.get('step'));
         if (stepQ >= 1 && stepQ <= 4) showCalcStep(stepQ);
+        if (typeof renderChart === 'function') renderChart(42000, 28000, 6500, 12000, 8500, 3200);
         refreshSetupChecklist();
     }
 
