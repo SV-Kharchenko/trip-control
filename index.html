@@ -3140,34 +3140,46 @@
         }
 
         /* Етап 3: степер калькулятора. Лише покроковий режим. */
-        #tc-stepper { min-width: 0; }
+        #tc-step-strip {
+            grid-column: 1 / -1;
+            min-width: 0;
+            max-width: 100%;
+            margin: 0 0 14px;
+        }
         .tc-step-tabs {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 4px;
-            margin: 0 0 14px;
+            gap: 0;
+            border-bottom: 1px solid var(--border);
         }
         .tc-step-tab {
             display: flex;
             flex-direction: column;
-            align-items: center;
+            align-items: flex-start;
             justify-content: flex-start;
-            gap: 4px;
+            gap: 2px;
             min-width: 0;
-            min-height: 44px;
-            padding: 6px 2px 8px;
+            min-height: 64px;
+            padding: 8px 12px 10px;
             border: none;
             border-bottom: 2px solid transparent;
-            border-radius: 8px 8px 0 0;
             background: transparent;
             color: var(--muted);
-            font: 600 12px/1.15 Manrope, sans-serif;
-            text-align: center;
+            font: 600 13px/1.2 Manrope, sans-serif;
+            text-align: left;
             cursor: pointer;
+        }
+        .tc-step-tab-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            max-width: 100%;
         }
         .tc-step-tab i {
             display: grid;
             place-items: center;
+            flex: 0 0 auto;
             width: 22px;
             height: 22px;
             border-radius: 50%;
@@ -3177,11 +3189,23 @@
             font-size: 12px;
             font-weight: 600;
         }
-        .tc-step-tab span {
+        .tc-step-tab b {
+            min-width: 0;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tc-step-sum {
             display: block;
             max-width: 100%;
-            white-space: normal;
-            overflow-wrap: break-word;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .tc-step-tab[aria-selected="true"] {
             color: var(--text);
@@ -3192,31 +3216,42 @@
             border-color: var(--accent);
             color: var(--on-accent);
         }
+        .tc-step-tab.is-invalid i {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+        .tc-step-tab.is-invalid[aria-selected="true"] i {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: #fff;
+        }
         .tc-step-tab:focus-visible {
             outline: 2px solid var(--accent);
             outline-offset: 2px;
         }
+        #tc-stepper { min-width: 0; }
+        .tc-step-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 14px;
+        }
         .tc-step-kicker {
             margin: 0;
             color: var(--muted);
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0;
+            text-transform: none;
+            white-space: nowrap;
         }
         .tc-step-title {
-            margin: 2px 0 0;
+            margin: 0;
             color: var(--text);
             font-size: 1.25rem;
             font-weight: 700;
             line-height: 1.2;
-        }
-        .tc-step-summary {
-            margin: 4px 0 12px;
-            min-height: 1.2em;
-            color: var(--muted);
-            font-size: 13px;
-            overflow-wrap: anywhere;
         }
         .tc-step-panel { min-width: 0; }
         .tc-step-panel[hidden] { display: none !important; }
@@ -3231,6 +3266,20 @@
             margin: 0;
         }
         #tc-step-panel-3 .tc-lower > .card > h2 { display: none; }
+        .tc-recent-toggle {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
+            margin: 0 0 4px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font: 600 13px/1.2 Manrope, sans-serif;
+            cursor: pointer;
+        }
+        #tc-recent-panel[hidden] { display: none !important; }
+        #tc-recent-panel { margin: 0 0 8px; }
         #tc-step-nav {
             display: flex;
             justify-content: space-between;
@@ -3277,8 +3326,38 @@
             min-height: 40px;
             box-shadow: none;
         }
-        @media (max-width: 360px) {
-            .tc-step-tab { font-size: 11px; padding: 4px 1px 6px; }
+        #tc-result-empty {
+            display: none;
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        body.layout-studio #dispatcher-result.is-empty,
+        body.layout-studio #studio-right > #dispatcher-result.is-empty {
+            align-self: start;
+            height: auto;
+            padding: 14px 16px;
+        }
+        body.layout-studio #dispatcher-result.is-empty > .tc-profit-hero,
+        body.layout-studio #dispatcher-result.is-empty .tc-profit-hero,
+        body.layout-studio #dispatcher-result.is-empty .tc-kpi,
+        body.layout-studio #dispatcher-result.is-empty #studio-sum {
+            display: none !important;
+        }
+        body.layout-studio #dispatcher-result.is-empty #tc-result-empty { display: block; }
+        @media (max-width: 720px) {
+            #tc-step-strip {
+                overflow-x: auto;
+                overscroll-behavior-x: contain;
+            }
+            .tc-step-tabs {
+                display: flex;
+                flex-wrap: nowrap;
+                width: max-content;
+                min-width: 100%;
+            }
+            .tc-step-tab { flex: 1 0 148px; max-width: 220px; }
             .tc-step-title { font-size: 1.05rem; }
             body.layout-studio #tc-step-nav .btn { padding: 10px 12px; }
         }
@@ -3494,7 +3573,8 @@
         </div>
         <div id="cab-warning" style="display:none"></div>
 
-    <aside class="tc-result-dock" id="dispatcher-result">
+    <aside class="tc-result-dock is-empty" id="dispatcher-result">
+        <p id="tc-result-empty">Заповніть маршрут і тариф</p>
         <div class="tc-profit-hero">
             <div class="tc-profit-kicker">Чистий прибуток</div>
             <div class="tc-profit-value" id="res-profit-hero">—</div>
@@ -3640,11 +3720,11 @@
                     <label>Назва / Маршрут заявки:</label>
                     <input type="text" id="route-name" value="Маршрут 1" style="text-align: left;" oninput="onRouteNameInput()">
                 </div>
-                <div class="form-row two-cols">
+                <div class="form-row two-cols tc-keep-hidden">
                     <label for="client-name">Клієнт:</label>
                     <input type="text" id="client-name" maxlength="120" autocomplete="organization" style="text-align: left;" placeholder="Назва компанії">
                 </div>
-                <div id="saved-recent" class="tc-recent" aria-label="Останні маршрути"></div>
+                <div id="saved-recent" class="tc-recent"></div>
                 <div id="route-fields-slot"></div>
 
                 <div id="tc-demo-fields-note" class="demo-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245,158,11,0.35); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; line-height: 1.5;">
@@ -3818,7 +3898,7 @@
                     </div>
 
                     <div class="form-row two-cols" style="margin-bottom: 6px; margin-top: 10px;">
-                        <label style="color: var(--warning); font-weight: 600;">🌍 Супутні витрати (дороги, кордон, брокер тощо):</label>
+                        <label style="color: var(--warning-text); font-weight: 600;">🌍 Супутні витрати (дороги, кордон, брокер тощо):</label>
                         <select id="extras-enable" onchange="onExtrasToggle()">
                             <option value="off" selected>Вимкнено</option>
                             <option value="on">Увімкнено</option>
@@ -4410,7 +4490,11 @@
         if (!result) {
             hero.textContent = '—';
             hero.className = 'tc-profit-value';
-            if (dock) { dock.classList.remove('is-up'); dock.classList.remove('is-down'); }
+            if (dock) {
+                dock.classList.remove('is-up');
+                dock.classList.remove('is-down');
+                dock.classList.add('is-empty');
+            }
             if (perKm) perKm.textContent = '—';
             if (perDay) perDay.textContent = '—';
             if (perTon) perTon.textContent = '—';
@@ -4436,6 +4520,7 @@
         hero.textContent = formatMoney(profit);
         hero.className = 'tc-profit-value ' + (profit > 0 ? 'is-up' : profit < 0 ? 'is-down' : '');
         if (dock) {
+            dock.classList.remove('is-empty');
             dock.classList.toggle('is-up', profit > 0);
             dock.classList.toggle('is-down', profit < 0);
         }
@@ -4468,8 +4553,8 @@
     function markInvalidFields(missing) {
         document.querySelectorAll('.form-row.tc-invalid').forEach(function (row) { row.classList.remove('tc-invalid'); });
         document.querySelectorAll('[aria-invalid="true"]').forEach(function (el) { el.removeAttribute('aria-invalid'); });
+        document.querySelectorAll('.tc-step-tab.is-invalid').forEach(function (tab) { tab.classList.remove('is-invalid'); });
         let openMore = false;
-        let step = 0;
         missing.forEach(function (pair) {
             const input = document.getElementById(pair[0]);
             if (!input) return;
@@ -4480,14 +4565,38 @@
             const panel = input.closest('.tc-step-panel');
             if (panel && panel.id) {
                 const n = parseInt(panel.id.replace('tc-step-panel-', ''), 10);
-                if (n && (!step || n < step)) step = n;
+                const tab = n ? document.getElementById('tc-step-tab-' + n) : null;
+                if (tab) {
+                    tab.classList.add('is-invalid');
+                    tab.setAttribute('aria-invalid', 'true');
+                }
             }
         });
         if (openMore) {
             const more = document.querySelector('details.tc-more');
             if (more) more.open = true;
         }
-        if (step) showCalcStep(step);
+    }
+    function revealInvalidStep() {
+        let step = 0;
+        document.querySelectorAll('.tc-step-tab.is-invalid').forEach(function (tab) {
+            const n = parseInt(tab.getAttribute('data-step'), 10);
+            if (n && (!step || n < step)) step = n;
+        });
+        if (!step) return;
+        showCalcStep(step);
+        const panel = document.getElementById('tc-step-panel-' + step);
+        const field = panel && panel.querySelector('[aria-invalid="true"]');
+        if (field && field.focus) field.focus();
+    }
+    function missingHintHtml(missing) {
+        return missing.map(function (pair) {
+            const input = document.getElementById(pair[0]);
+            const panel = input && input.closest('.tc-step-panel');
+            const n = panel && panel.id ? parseInt(panel.id.replace('tc-step-panel-', ''), 10) : 0;
+            if (!n) return pair[1];
+            return '<button type="button" class="link-btn" onclick="showCalcStep(' + n + ')">' + pair[1] + '</button>';
+        }).join(', ');
     }
 
     function showToast(text, ms) {
@@ -4533,6 +4642,8 @@
             const el = document.getElementById(id);
             if (el) el.value = STARTER_TRIP[id];
         });
+        const client = document.getElementById('client-name');
+        if (client) client.value = '';
         const presetBtn = document.querySelector('.preset-tile[data-preset="зерновоз"]');
         applyPreset('зерновоз', presetBtn);
         updateRouteBar();
@@ -4622,9 +4733,10 @@
         return parts.join(' · ');
     }
     function updateStepSummaries() {
-        const el = document.getElementById('tc-step-summary');
-        if (!el) return;
-        el.textContent = stepSummaryText(calcStep);
+        for (let i = 1; i <= 4; i++) {
+            const el = document.getElementById('tc-step-sum-' + i);
+            if (el) el.textContent = stepSummaryText(i);
+        }
     }
     function arrangeDispatcherForm() {
         const card = document.querySelector('.tc-work > .card');
@@ -4642,32 +4754,47 @@
         const heading = card.querySelector('h2');
         if (heading) heading.hidden = true;
 
+        const strip = document.createElement('div');
+        strip.id = 'tc-step-strip';
+        strip.innerHTML = ''
+            + '<div class="tc-step-tabs" role="tablist" aria-label="Кроки розрахунку">'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-1" aria-controls="tc-step-panel-1" data-step="1"><span class="tc-step-tab-head"><i>1</i><b>Маршрут</b></span><span class="tc-step-sum" id="tc-step-sum-1"></span></button>'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-2" aria-controls="tc-step-panel-2" data-step="2"><span class="tc-step-tab-head"><i>2</i><b>Вантаж і тариф</b></span><span class="tc-step-sum" id="tc-step-sum-2"></span></button>'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-3" aria-controls="tc-step-panel-3" data-step="3"><span class="tc-step-tab-head"><i>3</i><b>Пальне</b></span><span class="tc-step-sum" id="tc-step-sum-3"></span></button>'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-4" aria-controls="tc-step-panel-4" data-step="4"><span class="tc-step-tab-head"><i>4</i><b>Додатково</b></span><span class="tc-step-sum" id="tc-step-sum-4"></span></button>'
+            + '</div>';
+        const sticky = document.getElementById('sticky-top');
+        if (sticky && sticky.parentNode) sticky.parentNode.insertBefore(strip, sticky.nextSibling);
+
         const stepper = document.createElement('div');
         stepper.id = 'tc-stepper';
         stepper.innerHTML = ''
-            + '<div class="tc-step-tabs" role="tablist" aria-label="Кроки розрахунку">'
-            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-1" aria-controls="tc-step-panel-1" data-step="1"><i>1</i><span>Маршрут</span></button>'
-            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-2" aria-controls="tc-step-panel-2" data-step="2"><i>2</i><span>Вантаж і тариф</span></button>'
-            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-3" aria-controls="tc-step-panel-3" data-step="3"><i>3</i><span>Пальне</span></button>'
-            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-4" aria-controls="tc-step-panel-4" data-step="4"><i>4</i><span>Додатково</span></button>'
-            + '</div>'
-            + '<p class="tc-step-kicker" id="tc-step-kicker">Крок 1 з 4</p>'
+            + '<div class="tc-step-head">'
             + '<div class="tc-step-title" id="tc-step-title">Маршрут</div>'
-            + '<p class="tc-step-summary" id="tc-step-summary"></p>'
+            + '<p class="tc-step-kicker" id="tc-step-kicker">Крок 1 з 4</p>'
+            + '</div>'
             + '<div class="tc-step-panel" id="tc-step-panel-1" role="tabpanel" aria-labelledby="tc-step-tab-1"></div>'
             + '<div class="tc-step-panel" id="tc-step-panel-2" role="tabpanel" aria-labelledby="tc-step-tab-2" hidden></div>'
             + '<div class="tc-step-panel" id="tc-step-panel-3" role="tabpanel" aria-labelledby="tc-step-tab-3" hidden></div>'
             + '<div class="tc-step-panel" id="tc-step-panel-4" role="tabpanel" aria-labelledby="tc-step-tab-4" hidden></div>'
             + '<div id="tc-step-nav">'
-            + '<button type="button" class="btn" id="tc-step-back">Назад</button>'
-            + '<button type="button" class="btn" id="tc-step-next">Далі</button>'
+            + '<button type="button" class="btn" id="tc-step-back">← Назад</button>'
+            + '<button type="button" class="btn" id="tc-step-next">Далі →</button>'
             + '</div>';
         card.appendChild(stepper);
         const panel = function (n) { return document.getElementById('tc-step-panel-' + n); };
         const take = function (n, node) { if (node && panel(n)) panel(n).appendChild(node); };
 
         take(1, rowOf('route-name'));
-        take(1, document.getElementById('saved-recent'));
+        const recentBlock = document.createElement('div');
+        recentBlock.id = 'tc-recent-block';
+        recentBlock.innerHTML = '<button type="button" class="tc-recent-toggle" id="tc-recent-toggle" aria-expanded="false" aria-controls="tc-recent-panel">Останні маршрути ▾</button><div id="tc-recent-panel" hidden></div>';
+        const recentPanel = recentBlock.querySelector('#tc-recent-panel');
+        const savedRecent = document.getElementById('saved-recent');
+        const recentRoutes = document.getElementById('recent-routes');
+        if (savedRecent && recentPanel) recentPanel.appendChild(savedRecent);
+        if (recentRoutes && recentPanel) recentPanel.appendChild(recentRoutes);
+        take(1, recentBlock);
         take(1, slot);
         take(1, document.getElementById('tc-demo-fields-note'));
         take(1, rowOf('podacha-dist'));
@@ -4682,7 +4809,6 @@
         take(2, presetLabel);
         take(2, card.querySelector('.preset-tiles'));
         take(2, document.getElementById('vehicle-norm-row'));
-        take(2, rowOf('client-name'));
         take(2, rowOf('return-mode'));
         take(2, rowOf('volume'));
         take(2, rowOf('norm-weight'));
@@ -4707,10 +4833,10 @@
         take(4, rowOf('extras-enable'));
         take(4, document.getElementById('extras-box'));
 
-        stepper.querySelectorAll('.tc-step-tab').forEach(function (tab) {
+        strip.querySelectorAll('.tc-step-tab').forEach(function (tab) {
             tab.addEventListener('click', function () { showCalcStep(tab.getAttribute('data-step')); });
         });
-        stepper.querySelector('.tc-step-tabs').addEventListener('keydown', function (event) {
+        strip.querySelector('.tc-step-tabs').addEventListener('keydown', function (event) {
             if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return;
             event.preventDefault();
             if (event.key === 'Home') showCalcStep(1, true);
@@ -4719,6 +4845,11 @@
         });
         document.getElementById('tc-step-back').addEventListener('click', function () { showCalcStep(calcStep - 1); });
         document.getElementById('tc-step-next').addEventListener('click', function () { showCalcStep(calcStep + 1); });
+        const recentToggle = document.getElementById('tc-recent-toggle');
+        if (recentToggle) recentToggle.addEventListener('click', function () {
+            setRecentOpen(recentToggle.getAttribute('aria-expanded') !== 'true');
+        });
+        setRecentOpen(recentPanelOpen());
         stepper.addEventListener('input', updateStepSummaries);
         stepper.addEventListener('change', updateStepSummaries);
         card.dataset.arranged = '1';
@@ -4726,6 +4857,21 @@
     }
 
     const RECENT_ROUTES_KEY = 'tc_recent_routes_v1';
+    const RECENT_OPEN_KEY = 'tc_recent_open';
+    function recentPanelOpen() {
+        try { return localStorage.getItem(RECENT_OPEN_KEY) === '1'; } catch (e) { return false; }
+    }
+    function setRecentOpen(open) {
+        const panel = document.getElementById('tc-recent-panel');
+        const btn = document.getElementById('tc-recent-toggle');
+        const on = !!open;
+        if (panel) panel.hidden = !on;
+        if (btn) {
+            btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+            btn.textContent = on ? 'Останні маршрути ▴' : 'Останні маршрути ▾';
+        }
+        try { localStorage.setItem(RECENT_OPEN_KEY, on ? '1' : '0'); } catch (e) {}
+    }
     function readRecentRoutes() {
         try { return JSON.parse(localStorage.getItem(RECENT_ROUTES_KEY) || '[]') || []; } catch (e) { return []; }
     }
@@ -4740,23 +4886,90 @@
         const inp = el.shadowRoot && el.shadowRoot.querySelector('input');
         if (inp) inp.value = value || '';
     }
-    function renderRecentRoutes() {
-        const box = document.getElementById('recent-routes');
+    function recentPlaceKey(from, to) {
+        return String(from || '').trim().toLowerCase() + '→' + String(to || '').trim().toLowerCase();
+    }
+    function mergeRecentChips(savedItems, localItems, limit) {
+        function chipTime(value) {
+            if (typeof value === 'number' && Number.isFinite(value)) return value;
+            const parsed = Date.parse(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+        const cap = limit > 0 ? limit : 8;
+        const rows = [];
+        (savedItems || []).forEach(function (item, index) {
+            const from = String(item && item.from || '').trim();
+            const to = String(item && item.to || '').trim();
+            if (!from || !to) return;
+            rows.push({
+                key: recentPlaceKey(from, to),
+                from: from,
+                to: to,
+                at: chipTime(item.at),
+                tie: index,
+                kind: 'saved',
+                id: item.id
+            });
+        });
+        (localItems || []).forEach(function (item, index) {
+            const from = String(item && item.from || '').trim();
+            const to = String(item && item.to || '').trim();
+            if (!from || !to) return;
+            rows.push({
+                key: recentPlaceKey(from, to),
+                from: from,
+                to: to,
+                at: chipTime(item.at),
+                tie: 1000 + index,
+                kind: 'local',
+                index: item && item.index != null ? item.index : index
+            });
+        });
+        rows.sort(function (a, b) {
+            if (b.at !== a.at) return b.at - a.at;
+            return a.tie - b.tie;
+        });
+        const seen = {};
+        const out = [];
+        rows.forEach(function (row) {
+            if (seen[row.key] || out.length >= cap) return;
+            seen[row.key] = true;
+            out.push(row);
+        });
+        return out;
+    }
+    function renderMergedRecent() {
+        const box = document.getElementById('saved-recent');
+        const other = document.getElementById('recent-routes');
+        if (other) { other.innerHTML = ''; other.hidden = true; }
         if (!box) return;
-        const list = readRecentRoutes();
-        if (!list.length) { box.innerHTML = ''; return; }
-        box.innerHTML = '<div class="preset-bar-label">Останні маршрути</div>' + list.map(function (r, i) {
-            const label = String(r.from || '') + ' → ' + String(r.to || '');
-            return '<button type="button" onclick="applyRecentRoute(' + i + ')">' + label.replace(/[&<>]/g, function (ch) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch]; }) + '</button>';
+        const local = readRecentRoutes();
+        const savedItems = savedCalculations.map(function (row) {
+            const fields = historyFields(row);
+            return { from: fields.from, to: fields.to, at: row.createdAt, id: row.id };
+        });
+        const localItems = local.map(function (item, index) {
+            return { from: item.from, to: item.to, at: item.at, index: index };
+        });
+        const chips = mergeRecentChips(savedItems, localItems, 8);
+        if (!chips.length) { box.innerHTML = ''; return; }
+        box.innerHTML = chips.map(function (chip) {
+            const label = escHtml(chip.from + ' → ' + chip.to);
+            if (chip.kind === 'saved') return '<button type="button" onclick="openSaved(\'' + escHtml(chip.id) + '\')">' + label + '</button>';
+            return '<button type="button" onclick="applyRecentRoute(' + chip.index + ')">' + label + '</button>';
         }).join('');
+    }
+    function renderRecentRoutes() {
+        renderMergedRecent();
     }
     function rememberRecentRoute() {
         const from = (document.getElementById('osm-from') || {}).value || '';
         const to = (document.getElementById('osm-to') || {}).value || '';
         if (!from.trim() || !to.trim()) return;
         const km = parseFloat((document.getElementById('dist') || {}).value) || 0;
-        let list = readRecentRoutes().filter(function (r) { return !(r.from === from && r.to === to); });
-        list.unshift({ from: from.trim(), to: to.trim(), km: km });
+        const key = recentPlaceKey(from, to);
+        let list = readRecentRoutes().filter(function (r) { return recentPlaceKey(r.from, r.to) !== key; });
+        list.unshift({ from: from.trim(), to: to.trim(), km: km, at: Date.now() });
         list = list.slice(0, 5);
         try { localStorage.setItem(RECENT_ROUTES_KEY, JSON.stringify(list)); } catch (e) {}
         renderRecentRoutes();
@@ -5223,6 +5436,7 @@
         const btn = document.getElementById('demo-calc-btn');
         btn.disabled = true;
         try { await calculate(); } finally { btn.disabled = false; }
+        revealInvalidStep();
     }
 
     const AUTH_RATE = { maxFails: 5, lockMs: 15 * 60 * 1000, key: 'tc_auth_fails' };
@@ -5698,6 +5912,9 @@
         if (nodes.poi && !(nodes.poi.closest && nodes.poi.closest('#tc-stepper'))) right.appendChild(studioTake(nodes.poi));
         right.appendChild(studioTake(saved));
         if (actions) right.appendChild(studioTake(actions));
+        const stepStrip = document.getElementById('tc-step-strip');
+        const stickyTop = document.getElementById('sticky-top');
+        if (stepStrip && stickyTop && stickyTop.parentNode) stickyTop.parentNode.insertBefore(stepStrip, stickyTop.nextSibling);
         if (nodes.dock && !document.getElementById('studio-sum')) {
             const sum = document.createElement('div');
             sum.id = 'studio-sum';
@@ -8349,7 +8566,7 @@
                 mh.dataset.dismissed = '';
                 mh.dataset.dismissKey = dismissKey;
             }
-            mh.innerHTML = '<div class="hint-text">⚠️ Підсвічено поля, без яких рахувати не можна: <b>' + missing.map(m => m[1]).join(', ') + '</b>. Норми компанії — у <button class="link-btn" onclick="openCabinet()">кабінеті</button>.</div><button type="button" class="hint-close" onclick="dismissHint(\'missing-hint\')" aria-label="Закрити" title="Закрити">×</button>';
+            mh.innerHTML = '<div class="hint-text">⚠️ Підсвічено поля, без яких рахувати не можна: <b>' + missingHintHtml(missing) + '</b>. Норми компанії — у <button class="link-btn" onclick="openCabinet()">кабінеті</button>.</div><button type="button" class="hint-close" onclick="dismissHint(\'missing-hint\')" aria-label="Закрити" title="Закрити">×</button>';
             showHintBanner(mh);
             markInvalidFields(missing);
             invalidateCalcResult();
@@ -8669,7 +8886,10 @@
         }
         if (!currentOrgId) { showToast('Не вдалося визначити компанію. Оновіть сторінку.', 3600); return; }
         const snapshot = Object.assign({}, lastCalcData);
-        const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces(), { clientName: clientNameValue() });
+        const keptClient = clientNameValue();
+        const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces());
+        if (keptClient) inputs.clientName = keptClient;
+        else if (!inputs.clientName) delete inputs.clientName;
         try {
             const { data, error } = await supabaseClient
                 .from('calculations')
@@ -9402,14 +9622,7 @@
         }
     }
     function renderSavedRecent() {
-        const box = document.getElementById('saved-recent');
-        if (!box) return;
-        const rows = savedCalculations.slice(0, 5);
-        if (!rows.length) { box.innerHTML = ''; return; }
-        box.innerHTML = '<div class="preset-bar-label">Останні маршрути</div>' + rows.map(function (row) {
-            const fields = historyFields(row);
-            return '<button type="button" onclick="openSaved(\'' + escHtml(row.id) + '\')">' + escHtml(historyRouteLabel(fields)) + '</button>';
-        }).join('');
+        renderMergedRecent();
     }
     function renderTemplateList() {
         const box = document.getElementById('template-list');
@@ -9892,7 +10105,8 @@
             if (!main || main.style.display === 'none') return;
             e.preventDefault();
             if (e.key === 'Enter') {
-                if (isDemo) runDemoCalc(); else calculate();
+                if (isDemo) runDemoCalc();
+                else Promise.resolve(calculate()).then(function () { revealInvalidStep(); });
             } else {
                 saveCalculation();
             }
@@ -10634,7 +10848,7 @@
         const hero = document.getElementById('res-profit-hero');
         if (hero) { hero.textContent = '28 940 грн'; hero.className = 'tc-profit-value is-up'; }
         const dock = document.getElementById('dispatcher-result');
-        if (dock) { dock.classList.add('is-up'); dock.classList.remove('is-down'); }
+        if (dock) { dock.classList.add('is-up'); dock.classList.remove('is-down'); dock.classList.remove('is-empty'); }
         const setTxt = function (id, value) { const el = document.getElementById(id); if (el) el.textContent = value; };
         setTxt('res-per-km', '83');
         setTxt('res-per-day', '19 293');
