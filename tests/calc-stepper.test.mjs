@@ -112,3 +112,56 @@ test('one recent-routes disclosure, hidden client field, compact empty result', 
     assert.match(demoFill, /getElementById\('client-name'\)/);
     assert.match(demoFill, /client\.value = ''/);
 });
+
+function grab(name) {
+    const match = html.match(new RegExp('function ' + name + '\\([^)]*\\) \\{\\n([\\s\\S]*?)\\n    \\}'));
+    assert.ok(match, name + ' is missing from index.html');
+    const args = match[0].slice(match[0].indexOf('(') + 1, match[0].indexOf(')'));
+    return new Function(...args.split(',').map((part) => part.trim()).filter(Boolean), match[1]);
+}
+
+test('recent route chips keep one chip per from-to pair', () => {
+    const recentPlaceKey = grab('recentPlaceKey');
+    globalThis.recentPlaceKey = recentPlaceKey;
+    const mergeRecentChips = grab('mergeRecentChips');
+    const saved = [
+        { from: 'Київ', to: 'Львів', at: '2026-10-02T08:00:00.000Z', id: 'saved-kyiv' },
+        { from: 'київ', to: ' львів ', at: '2026-09-01T08:00:00.000Z', id: 'saved-old' },
+        { from: 'Одеса', to: 'Київ', at: '2026-08-01T08:00:00.000Z', id: 'odesa' },
+        { from: 'Дніпро', to: 'Харків', at: '2026-10-09T08:00:00.000Z', id: 'dnipro' }
+    ];
+    const local = [
+        { from: 'Київ', to: 'Львів', at: '2026-10-10T08:00:00.000Z', index: 0 },
+        { from: '  КИЇВ ', to: 'ЛЬВІВ', at: '2026-07-01T08:00:00.000Z', index: 1 },
+        { from: 'Львів', to: 'Одеса', at: '2026-10-12T08:00:00.000Z', index: 2 },
+        { from: 'дніпро', to: 'харків', at: '2026-06-01T08:00:00.000Z', index: 4 }
+    ];
+    const chips = mergeRecentChips(saved, local, 8);
+    const keys = chips.map((chip) => recentPlaceKey(chip.from, chip.to));
+    assert.equal(new Set(keys).size, keys.length);
+    assert.equal(keys.filter((key) => key === 'київ→львів').length, 1);
+    assert.deepEqual(keys, ['львів→одеса', 'київ→львів', 'дніпро→харків', 'одеса→київ']);
+    assert.equal(chips[0].kind, 'local');
+    assert.equal(chips[0].index, 2);
+    assert.equal(chips[1].kind, 'local');
+    assert.equal(chips[1].index, 0);
+    assert.equal(chips[1].from, 'Київ');
+    assert.equal(chips[2].kind, 'saved');
+    assert.equal(chips[2].id, 'dnipro');
+    assert.equal(chips[3].id, 'odesa');
+    assert.equal(mergeRecentChips([{ from: '  ', to: 'Львів', id: 'blank' }], [], 8).length, 0);
+    const many = [];
+    for (let i = 0; i < 10; i++) {
+        many.push({ from: 'Місто ' + i, to: 'Склад', at: '2026-01-' + String(i + 1).padStart(2, '0') + 'T00:00:00.000Z', id: 's' + i });
+    }
+    const capped = mergeRecentChips(many, [], 8);
+    assert.equal(capped.length, 8);
+    assert.equal(capped[0].id, 's9');
+    assert.equal(mergeRecentChips(many, []).length, 8);
+    const paint = sliceBetween(html, 'function renderMergedRecent()', 'function renderRecentRoutes()');
+    assert.match(paint, /getElementById\('saved-recent'\)/);
+    assert.match(paint, /getElementById\('recent-routes'\)/);
+    assert.match(paint, /openSaved\(\\'' \+ escHtml\(chip\.id\)/);
+    assert.match(paint, /applyRecentRoute\(' \+ chip\.index \+ '\)/);
+    assert.equal((paint.match(/box\.innerHTML = chips/g) || []).length, 1);
+});

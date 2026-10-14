@@ -4886,23 +4886,90 @@
         const inp = el.shadowRoot && el.shadowRoot.querySelector('input');
         if (inp) inp.value = value || '';
     }
-    function renderRecentRoutes() {
-        const box = document.getElementById('recent-routes');
+    function recentPlaceKey(from, to) {
+        return String(from || '').trim().toLowerCase() + '→' + String(to || '').trim().toLowerCase();
+    }
+    function mergeRecentChips(savedItems, localItems, limit) {
+        function chipTime(value) {
+            if (typeof value === 'number' && Number.isFinite(value)) return value;
+            const parsed = Date.parse(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+        }
+        const cap = limit > 0 ? limit : 8;
+        const rows = [];
+        (savedItems || []).forEach(function (item, index) {
+            const from = String(item && item.from || '').trim();
+            const to = String(item && item.to || '').trim();
+            if (!from || !to) return;
+            rows.push({
+                key: recentPlaceKey(from, to),
+                from: from,
+                to: to,
+                at: chipTime(item.at),
+                tie: index,
+                kind: 'saved',
+                id: item.id
+            });
+        });
+        (localItems || []).forEach(function (item, index) {
+            const from = String(item && item.from || '').trim();
+            const to = String(item && item.to || '').trim();
+            if (!from || !to) return;
+            rows.push({
+                key: recentPlaceKey(from, to),
+                from: from,
+                to: to,
+                at: chipTime(item.at),
+                tie: 1000 + index,
+                kind: 'local',
+                index: item && item.index != null ? item.index : index
+            });
+        });
+        rows.sort(function (a, b) {
+            if (b.at !== a.at) return b.at - a.at;
+            return a.tie - b.tie;
+        });
+        const seen = {};
+        const out = [];
+        rows.forEach(function (row) {
+            if (seen[row.key] || out.length >= cap) return;
+            seen[row.key] = true;
+            out.push(row);
+        });
+        return out;
+    }
+    function renderMergedRecent() {
+        const box = document.getElementById('saved-recent');
+        const other = document.getElementById('recent-routes');
+        if (other) { other.innerHTML = ''; other.hidden = true; }
         if (!box) return;
-        const list = readRecentRoutes();
-        if (!list.length) { box.innerHTML = ''; return; }
-        box.innerHTML = list.map(function (r, i) {
-            const label = String(r.from || '') + ' → ' + String(r.to || '');
-            return '<button type="button" onclick="applyRecentRoute(' + i + ')">' + label.replace(/[&<>]/g, function (ch) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[ch]; }) + '</button>';
+        const local = readRecentRoutes();
+        const savedItems = savedCalculations.map(function (row) {
+            const fields = historyFields(row);
+            return { from: fields.from, to: fields.to, at: row.createdAt, id: row.id };
+        });
+        const localItems = local.map(function (item, index) {
+            return { from: item.from, to: item.to, at: item.at, index: index };
+        });
+        const chips = mergeRecentChips(savedItems, localItems, 8);
+        if (!chips.length) { box.innerHTML = ''; return; }
+        box.innerHTML = chips.map(function (chip) {
+            const label = escHtml(chip.from + ' → ' + chip.to);
+            if (chip.kind === 'saved') return '<button type="button" onclick="openSaved(\'' + escHtml(chip.id) + '\')">' + label + '</button>';
+            return '<button type="button" onclick="applyRecentRoute(' + chip.index + ')">' + label + '</button>';
         }).join('');
+    }
+    function renderRecentRoutes() {
+        renderMergedRecent();
     }
     function rememberRecentRoute() {
         const from = (document.getElementById('osm-from') || {}).value || '';
         const to = (document.getElementById('osm-to') || {}).value || '';
         if (!from.trim() || !to.trim()) return;
         const km = parseFloat((document.getElementById('dist') || {}).value) || 0;
-        let list = readRecentRoutes().filter(function (r) { return !(r.from === from && r.to === to); });
-        list.unshift({ from: from.trim(), to: to.trim(), km: km });
+        const key = recentPlaceKey(from, to);
+        let list = readRecentRoutes().filter(function (r) { return recentPlaceKey(r.from, r.to) !== key; });
+        list.unshift({ from: from.trim(), to: to.trim(), km: km, at: Date.now() });
         list = list.slice(0, 5);
         try { localStorage.setItem(RECENT_ROUTES_KEY, JSON.stringify(list)); } catch (e) {}
         renderRecentRoutes();
@@ -9555,14 +9622,7 @@
         }
     }
     function renderSavedRecent() {
-        const box = document.getElementById('saved-recent');
-        if (!box) return;
-        const rows = savedCalculations.slice(0, 5);
-        if (!rows.length) { box.innerHTML = ''; return; }
-        box.innerHTML = rows.map(function (row) {
-            const fields = historyFields(row);
-            return '<button type="button" onclick="openSaved(\'' + escHtml(row.id) + '\')">' + escHtml(historyRouteLabel(fields)) + '</button>';
-        }).join('');
+        renderMergedRecent();
     }
     function renderTemplateList() {
         const box = document.getElementById('template-list');
