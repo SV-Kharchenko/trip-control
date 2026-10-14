@@ -118,7 +118,8 @@ test('light and dark text pairs stay at least 4.5:1', () => {
         muted: token(light, 'muted'),
         accent: token(light, 'accent'),
         onAccent: token(light, 'on-accent'),
-        teal: token(light, 'teal')
+        teal: token(light, 'teal'),
+        warningText: token(light, 'warning-text')
     };
     const darkTokens = {
         bg: token(dark, 'bg'),
@@ -128,10 +129,12 @@ test('light and dark text pairs stay at least 4.5:1', () => {
         muted: token(dark, 'muted'),
         accent: token(dark, 'accent'),
         onAccent: token(dark, 'on-accent'),
-        teal: token(dark, 'teal')
+        teal: token(dark, 'teal'),
+        warningText: token(dark, 'warning-text')
     };
     assert.equal(lightTokens.muted, '#5A6B66');
     assert.equal(lightTokens.teal, '#1A6B65');
+    assert.equal(lightTokens.warningText, '#8A6420');
     assert.equal(light.includes('#6B7D78'), false);
     assert.equal(light.includes('#2F8F86'), false);
     assert.deepEqual(darkTokens, {
@@ -142,13 +145,15 @@ test('light and dark text pairs stay at least 4.5:1', () => {
         muted: '#8B93A3',
         accent: '#7C9CFF',
         onAccent: '#0B0E14',
-        teal: '#4FD1C5'
+        teal: '#4FD1C5',
+        warningText: '#E0B25A'
     });
     for (const tokens of [lightTokens, darkTokens]) {
         for (const bg of [tokens.bg, tokens.surface, tokens.input]) {
             assert.ok(contrast(tokens.text, bg) >= 4.5, tokens.text + ' on ' + bg);
             assert.ok(contrast(tokens.muted, bg) >= 4.5, tokens.muted + ' on ' + bg);
             assert.ok(contrast(tokens.teal, bg) >= 4.5, tokens.teal + ' on ' + bg);
+            assert.ok(contrast(tokens.warningText, bg) >= 4.5, tokens.warningText + ' on ' + bg);
         }
         assert.ok(contrast(tokens.onAccent, tokens.accent) >= 4.5);
     }
