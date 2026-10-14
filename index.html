@@ -3138,6 +3138,150 @@
             body.layout-studio .tc-view-switch button { padding: 0 8px; font-size: 11px; }
             body.layout-studio #demo-banner { flex-wrap: wrap; padding-left: 12px; }
         }
+
+        /* Етап 3: степер калькулятора. Лише покроковий режим. */
+        #tc-stepper { min-width: 0; }
+        .tc-step-tabs {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 4px;
+            margin: 0 0 14px;
+        }
+        .tc-step-tab {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 4px;
+            min-width: 0;
+            min-height: 44px;
+            padding: 6px 2px 8px;
+            border: none;
+            border-bottom: 2px solid transparent;
+            border-radius: 8px 8px 0 0;
+            background: transparent;
+            color: var(--muted);
+            font: 600 12px/1.15 Manrope, sans-serif;
+            text-align: center;
+            cursor: pointer;
+        }
+        .tc-step-tab i {
+            display: grid;
+            place-items: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            font-style: normal;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .tc-step-tab span {
+            display: block;
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: break-word;
+        }
+        .tc-step-tab[aria-selected="true"] {
+            color: var(--text);
+            border-bottom-color: var(--accent);
+        }
+        .tc-step-tab[aria-selected="true"] i {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--on-accent);
+        }
+        .tc-step-tab:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+        .tc-step-kicker {
+            margin: 0;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .tc-step-title {
+            margin: 2px 0 0;
+            color: var(--text);
+            font-size: 1.25rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .tc-step-summary {
+            margin: 4px 0 12px;
+            min-height: 1.2em;
+            color: var(--muted);
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+        .tc-step-panel { min-width: 0; }
+        .tc-step-panel[hidden] { display: none !important; }
+        #tc-step-panel-1 .poi-box { margin-top: 12px; }
+        #tc-step-panel-3 .tc-lower { margin: 0; }
+        #tc-step-panel-3 .tc-fuel-compact { grid-template-columns: 1fr; }
+        #tc-step-panel-3 .tc-lower > .card {
+            border: none;
+            box-shadow: none;
+            background: transparent;
+            padding: 0;
+            margin: 0;
+        }
+        #tc-step-panel-3 .tc-lower > .card > h2 { display: none; }
+        #tc-step-nav {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        body.layout-studio #tc-step-nav .btn {
+            flex: 0 1 auto;
+            min-width: 96px;
+            min-height: 44px;
+            padding: 10px 18px;
+            box-shadow: none;
+            transform: none;
+            filter: none;
+        }
+        body.layout-studio #tc-step-back {
+            margin-right: auto;
+            background: var(--input);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        body.layout-studio #tc-step-next {
+            margin-left: auto;
+            background: var(--accent);
+            color: var(--on-accent);
+            -webkit-text-fill-color: var(--on-accent);
+            border: none;
+        }
+        body.layout-studio #tc-step-back:hover,
+        body.layout-studio #tc-step-next:hover { filter: none; transform: none; }
+        #tc-step-back[hidden],
+        #tc-step-next[hidden] { display: none !important; }
+        body.layout-studio .tc-work > #onboard-banner {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin: 0 0 12px;
+            color: var(--text);
+        }
+        body.layout-studio .tc-work > #onboard-banner .btn {
+            flex: 0 1 auto;
+            min-width: 0;
+            min-height: 40px;
+            box-shadow: none;
+        }
+        @media (max-width: 360px) {
+            .tc-step-tab { font-size: 11px; padding: 4px 1px 6px; }
+            .tc-step-title { font-size: 1.05rem; }
+            body.layout-studio #tc-step-nav .btn { padding: 10px 12px; }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -3503,7 +3647,7 @@
                 <div id="saved-recent" class="tc-recent" aria-label="Останні маршрути"></div>
                 <div id="route-fields-slot"></div>
 
-                <div class="demo-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245,158,11,0.35); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; line-height: 1.5;">
+                <div id="tc-demo-fields-note" class="demo-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245,158,11,0.35); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; line-height: 1.5;">
                     <div style="font-weight: 600; color: var(--steel); margin-bottom: 4px;">🧪 Що доступно в демо</div>
                     Відстань, подачу та інші параметри вводьте вручну. Карта Google, підказки міст і пошук АЗС/кафе/СТО — після оплати. Експорт і надсилання теж у повному доступі. У демо можна зберегти до 3 розрахунків.
                 </div>
@@ -3734,7 +3878,7 @@
                 </div>
                 <div id="waypoints-list"></div>
                 <div style="display:flex; gap:6px; margin-bottom:6px;">
-                    <button type="button" class="preset-btn" style="flex:1;" onclick="addWaypointRow()">Проміжна зупинка</button>
+                    <button type="button" class="preset-btn" style="flex:1;" onclick="addWaypointRow()">+ Проміжна зупинка</button>
                     <button type="button" class="preset-btn" id="swap-ab-btn" style="flex:0 0 auto;" onclick="swapRouteEnds()">A ↔ B</button>
                 </div>
                 <button type="button" class="btn" id="route-calc-btn" style="width: 100%;" onclick="calculateGoogleRoute()">Розрахувати відстань</button>
@@ -4325,6 +4469,7 @@
         document.querySelectorAll('.form-row.tc-invalid').forEach(function (row) { row.classList.remove('tc-invalid'); });
         document.querySelectorAll('[aria-invalid="true"]').forEach(function (el) { el.removeAttribute('aria-invalid'); });
         let openMore = false;
+        let step = 0;
         missing.forEach(function (pair) {
             const input = document.getElementById(pair[0]);
             if (!input) return;
@@ -4332,11 +4477,17 @@
             const row = input.closest('.form-row');
             if (row) row.classList.add('tc-invalid');
             if (input.closest('details.tc-more')) openMore = true;
+            const panel = input.closest('.tc-step-panel');
+            if (panel && panel.id) {
+                const n = parseInt(panel.id.replace('tc-step-panel-', ''), 10);
+                if (n && (!step || n < step)) step = n;
+            }
         });
         if (openMore) {
             const more = document.querySelector('details.tc-more');
             if (more) more.open = true;
         }
+        if (step) showCalcStep(step);
     }
 
     function showToast(text, ms) {
@@ -4389,6 +4540,92 @@
         showToast('Підставлено демо-рейс');
     }
 
+    const CALC_STEP_TITLES = ['', 'Маршрут', 'Вантаж і тариф', 'Пальне', 'Додатково'];
+    let calcStep = 1;
+    function showCalcStep(n, focusTab) {
+        const next = Math.max(1, Math.min(4, parseInt(n, 10) || 1));
+        calcStep = next;
+        document.body.setAttribute('data-calc-step', String(calcStep));
+        for (let i = 1; i <= 4; i++) {
+            const panel = document.getElementById('tc-step-panel-' + i);
+            const tab = document.getElementById('tc-step-tab-' + i);
+            const on = i === calcStep;
+            if (panel) panel.hidden = !on;
+            if (tab) {
+                tab.setAttribute('aria-selected', on ? 'true' : 'false');
+                tab.tabIndex = on ? 0 : -1;
+            }
+        }
+        const kicker = document.getElementById('tc-step-kicker');
+        const title = document.getElementById('tc-step-title');
+        if (kicker) kicker.textContent = 'Крок ' + calcStep + ' з 4';
+        if (title) title.textContent = CALC_STEP_TITLES[calcStep];
+        const back = document.getElementById('tc-step-back');
+        const fwd = document.getElementById('tc-step-next');
+        if (back) back.hidden = calcStep === 1;
+        if (fwd) fwd.hidden = calcStep === 4;
+        updateStepSummaries();
+        const activeTab = document.getElementById('tc-step-tab-' + calcStep);
+        if (focusTab && activeTab) activeTab.focus();
+        else if (back && document.activeElement === back && back.hidden && fwd) fwd.focus();
+        else if (fwd && document.activeElement === fwd && fwd.hidden && back) back.focus();
+    }
+    function stepFieldText(id) {
+        const el = document.getElementById(id);
+        return el ? String(el.value || '').trim() : '';
+    }
+    function stepFieldNum(id) {
+        const n = parseFloat(stepFieldText(id));
+        return n > 0 ? n : 0;
+    }
+    function stepSummaryText(step) {
+        if (step === 1) {
+            const from = stepFieldText('osm-from');
+            const to = stepFieldText('osm-to');
+            const name = stepFieldText('route-name');
+            const route = (from && to) ? (from + ' → ' + to) : (name || 'Маршрут не вказано');
+            const km = stepFieldNum('dist');
+            return km ? (route + ' · ' + km + ' км') : route;
+        }
+        if (step === 2) {
+            const parts = [];
+            const vol = stepFieldNum('volume');
+            const cars = stepFieldNum('cars-count');
+            const rate = stepFieldNum('rate');
+            const unitEl = document.getElementById('rate-unit');
+            const unit = unitEl ? unitEl.textContent : 'грн/т';
+            if (vol) parts.push(vol + ' т');
+            if (cars) parts.push(cars + ' авто');
+            if (rate) parts.push(rate + ' ' + unit);
+            return parts.length ? parts.join(' · ') : 'Обсяг, авто і розцінка';
+        }
+        if (step === 3) {
+            const parts = [];
+            const price = stepFieldNum('fuel-price');
+            const season = document.getElementById('season-type');
+            const seasonText = season && season.options[season.selectedIndex]
+                ? season.options[season.selectedIndex].text.replace(/\s*\([^)]*\)\s*$/, '').trim()
+                : '';
+            const adblue = document.getElementById('adblue-enable');
+            if (price) parts.push(price + ' грн/л');
+            if (seasonText) parts.push(seasonText);
+            if (adblue) parts.push(adblue.value === 'on' ? 'AdBlue' : 'без AdBlue');
+            return parts.length ? parts.join(' · ') : 'Сезон і ціна пального';
+        }
+        const idle = stepFieldNum('idle-days');
+        const extras = document.getElementById('extras-enable');
+        const round = document.getElementById('round-trip-enable');
+        const parts = [];
+        parts.push(idle ? ('простій ' + idle + ' діб') : 'без простою');
+        parts.push(extras && extras.value === 'on' ? 'супутні витрати' : 'без супутніх');
+        if (round && round.value === 'on') parts.push('кругорейс');
+        return parts.join(' · ');
+    }
+    function updateStepSummaries() {
+        const el = document.getElementById('tc-step-summary');
+        if (!el) return;
+        el.textContent = stepSummaryText(calcStep);
+    }
     function arrangeDispatcherForm() {
         const card = document.querySelector('.tc-work > .card');
         const slot = document.getElementById('route-fields-slot');
@@ -4399,35 +4636,93 @@
             const el = document.getElementById(id);
             return el ? el.closest('.form-row') : null;
         };
-        ['podacha-dist', 'dist', 'volume', 'norm-weight', 'cars-count', 'days-per-trip', 'contract-currency', 'rate'].forEach(function (id) {
-            const row = rowOf(id);
-            if (row) card.appendChild(row);
-        });
-        const distRow = rowOf('dist');
-        const podachaInfo = document.getElementById('podacha-info');
-        if (podachaInfo && distRow) distRow.parentNode.insertBefore(podachaInfo, distRow);
-        const daysRow = rowOf('days-per-trip');
-        const tripInfo = document.getElementById('trip-volume-info');
-        if (tripInfo && daysRow) daysRow.parentNode.insertBefore(tripInfo, daysRow);
-        const rateRow = rowOf('rate');
-        const fx = document.getElementById('contract-fx-note');
-        if (fx && rateRow) rateRow.parentNode.insertBefore(fx, rateRow);
+        const work = card.parentElement;
+        const banner = document.getElementById('onboard-banner');
+        if (banner && work) work.insertBefore(banner, card);
+        const heading = card.querySelector('h2');
+        if (heading) heading.hidden = true;
 
-        const more = document.createElement('details');
-        more.className = 'tc-more';
-        more.innerHTML = '<summary>Ще параметри рейсу</summary>';
-        const host = document.createElement('div');
-        more.appendChild(host);
-        const take = function (node) { if (node) host.appendChild(node); };
-        ['return-mode', 'calc-type', 'road-quality', 'trailer-type', 'ref-fuel-rate', 'ref-hours', 'idle-days', 'idle-rate'].forEach(function (id) {
-            take(rowOf(id));
+        const stepper = document.createElement('div');
+        stepper.id = 'tc-stepper';
+        stepper.innerHTML = ''
+            + '<div class="tc-step-tabs" role="tablist" aria-label="Кроки розрахунку">'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-1" aria-controls="tc-step-panel-1" data-step="1"><i>1</i><span>Маршрут</span></button>'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-2" aria-controls="tc-step-panel-2" data-step="2"><i>2</i><span>Вантаж і тариф</span></button>'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-3" aria-controls="tc-step-panel-3" data-step="3"><i>3</i><span>Пальне</span></button>'
+            + '<button type="button" class="tc-step-tab" role="tab" id="tc-step-tab-4" aria-controls="tc-step-panel-4" data-step="4"><i>4</i><span>Додатково</span></button>'
+            + '</div>'
+            + '<p class="tc-step-kicker" id="tc-step-kicker">Крок 1 з 4</p>'
+            + '<div class="tc-step-title" id="tc-step-title">Маршрут</div>'
+            + '<p class="tc-step-summary" id="tc-step-summary"></p>'
+            + '<div class="tc-step-panel" id="tc-step-panel-1" role="tabpanel" aria-labelledby="tc-step-tab-1"></div>'
+            + '<div class="tc-step-panel" id="tc-step-panel-2" role="tabpanel" aria-labelledby="tc-step-tab-2" hidden></div>'
+            + '<div class="tc-step-panel" id="tc-step-panel-3" role="tabpanel" aria-labelledby="tc-step-tab-3" hidden></div>'
+            + '<div class="tc-step-panel" id="tc-step-panel-4" role="tabpanel" aria-labelledby="tc-step-tab-4" hidden></div>'
+            + '<div id="tc-step-nav">'
+            + '<button type="button" class="btn" id="tc-step-back">Назад</button>'
+            + '<button type="button" class="btn" id="tc-step-next">Далі</button>'
+            + '</div>';
+        card.appendChild(stepper);
+        const panel = function (n) { return document.getElementById('tc-step-panel-' + n); };
+        const take = function (n, node) { if (node && panel(n)) panel(n).appendChild(node); };
+
+        take(1, rowOf('route-name'));
+        take(1, document.getElementById('saved-recent'));
+        take(1, slot);
+        take(1, document.getElementById('tc-demo-fields-note'));
+        take(1, rowOf('podacha-dist'));
+        take(1, document.getElementById('podacha-info'));
+        take(1, rowOf('dist'));
+        take(1, document.querySelector('.poi-box'));
+
+        let presetLabel = null;
+        Array.prototype.forEach.call(card.children, function (child) {
+            if (!presetLabel && child.classList && child.classList.contains('preset-bar-label')) presetLabel = child;
         });
-        take(rowOf('round-trip-enable'));
-        take(document.getElementById('round-trip-box'));
-        take(rowOf('extras-enable'));
-        take(document.getElementById('extras-box'));
-        card.appendChild(more);
+        take(2, presetLabel);
+        take(2, card.querySelector('.preset-tiles'));
+        take(2, document.getElementById('vehicle-norm-row'));
+        take(2, rowOf('client-name'));
+        take(2, rowOf('return-mode'));
+        take(2, rowOf('volume'));
+        take(2, rowOf('norm-weight'));
+        take(2, rowOf('cars-count'));
+        take(2, document.getElementById('trip-volume-info'));
+        take(2, rowOf('days-per-trip'));
+        take(2, rowOf('contract-currency'));
+        take(2, document.getElementById('contract-fx-note'));
+        take(2, rowOf('rate'));
+        take(2, rowOf('trailer-type'));
+
+        take(3, document.querySelector('.tc-lower'));
+
+        take(4, rowOf('calc-type'));
+        take(4, rowOf('road-quality'));
+        take(4, rowOf('ref-fuel-rate'));
+        take(4, rowOf('ref-hours'));
+        take(4, rowOf('idle-days'));
+        take(4, rowOf('idle-rate'));
+        take(4, rowOf('round-trip-enable'));
+        take(4, document.getElementById('round-trip-box'));
+        take(4, rowOf('extras-enable'));
+        take(4, document.getElementById('extras-box'));
+
+        stepper.querySelectorAll('.tc-step-tab').forEach(function (tab) {
+            tab.addEventListener('click', function () { showCalcStep(tab.getAttribute('data-step')); });
+        });
+        stepper.querySelector('.tc-step-tabs').addEventListener('keydown', function (event) {
+            if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return;
+            event.preventDefault();
+            if (event.key === 'Home') showCalcStep(1, true);
+            else if (event.key === 'End') showCalcStep(4, true);
+            else showCalcStep(calcStep + (event.key === 'ArrowRight' ? 1 : -1), true);
+        });
+        document.getElementById('tc-step-back').addEventListener('click', function () { showCalcStep(calcStep - 1); });
+        document.getElementById('tc-step-next').addEventListener('click', function () { showCalcStep(calcStep + 1); });
+        stepper.addEventListener('input', updateStepSummaries);
+        stepper.addEventListener('change', updateStepSummaries);
         card.dataset.arranged = '1';
+        showCalcStep(1);
     }
 
     const RECENT_ROUTES_KEY = 'tc_recent_routes_v1';
@@ -4475,6 +4770,7 @@
             const dist = document.getElementById('dist');
             if (dist && !(parseFloat(dist.value) > 0)) dist.value = item.km;
         }
+        updateStepSummaries();
         calculateGoogleRoute();
     }
     function swapRouteEnds() {
@@ -5392,14 +5688,14 @@
             costs: document.querySelector('.tc-costs-visual')
         };
         if (nodes.work) left.appendChild(studioTake(nodes.work));
-        if (nodes.lower) left.appendChild(studioTake(nodes.lower));
+        if (nodes.lower && !(nodes.lower.closest && nodes.lower.closest('#tc-stepper'))) left.appendChild(studioTake(nodes.lower));
         if (nodes.dock) right.appendChild(studioTake(nodes.dock));
         if (nodes.map) right.appendChild(studioTake(nodes.map));
         if (nodes.alts) right.appendChild(studioTake(nodes.alts));
         if (nodes.route) right.appendChild(studioTake(nodes.route));
         if (nodes.costs) right.appendChild(studioTake(nodes.costs));
         const actions = document.querySelector('.actions-bar');
-        if (nodes.poi) right.appendChild(studioTake(nodes.poi));
+        if (nodes.poi && !(nodes.poi.closest && nodes.poi.closest('#tc-stepper'))) right.appendChild(studioTake(nodes.poi));
         right.appendChild(studioTake(saved));
         if (actions) right.appendChild(studioTake(actions));
         if (nodes.dock && !document.getElementById('studio-sum')) {
@@ -5590,6 +5886,7 @@
             document.getElementById('norm-weight').value = 24.0;
         }
         onTrailerChange();
+        updateStepSummaries();
     }
 
     function syncTrailerExtras() {
@@ -8031,6 +8328,7 @@
     }
 
     async function calculate() {
+        if (typeof updateStepSummaries === 'function') updateStepSummaries();
         if (!currentSessionToken) return; // Подвійний захист від запуску без токена
         refreshCabWarning();
         updateRouteBar();
@@ -9277,6 +9575,7 @@
         applySavedVehicles(Array.isArray(data.vehicles) ? data.vehicles : [], data.vehicleSplitMode);
         lastCalcData = {};
         lastExport = null;
+        showCalcStep(1);
         updateRouteBar();
         const anchor = document.getElementById('route-name');
         if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -10401,6 +10700,9 @@
             switchCabTab('docs');
         }
         if (new URLSearchParams(location.search).get('menu') === '1') openUserMenu();
+        const stepQ = Number(previewParams.get('step'));
+        if (stepQ >= 1 && stepQ <= 4) showCalcStep(stepQ);
+        refreshSetupChecklist();
     }
 
     // ЗАПУСК ПРОГРАМИ
