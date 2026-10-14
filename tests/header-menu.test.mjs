@@ -89,3 +89,15 @@ test('avatar menu closes from Escape and an outside click, and does not calculat
     assert.match(html, /body\.is-admin #admin-crm-btn \{ display: inline-flex; \}/);
     assert.match(html, /body\.is-admin #tc-user-menu #admin-crm-btn \{ display: flex; \}/);
 });
+
+test('a long menu email ellipsizes and is not repeated without a company', () => {
+    assert.match(html, /\.tc-menu-who \{ min-width: 0; \}/);
+    const clip = sliceBetween(html, '.tc-menu-name, .tc-menu-email {', '.tc-menu-demo');
+    assert.match(clip, /overflow: hidden;/);
+    assert.match(clip, /text-overflow: ellipsis;/);
+    assert.match(clip, /white-space: nowrap;/);
+    const sync = sliceBetween(html, 'const shownName = company || email', 'const teamBtn');
+    assert.match(sync, /nameEl\.title = shownName/);
+    assert.match(sync, /const showEmail = !!\(company && email\)/);
+    assert.match(sync, /emailEl\.title = email/);
+});

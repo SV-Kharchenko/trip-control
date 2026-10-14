@@ -3061,10 +3061,16 @@
             padding: 6px 8px 10px; margin-bottom: 6px;
             border-bottom: 1px solid var(--border-soft);
         }
+        .tc-menu-who { min-width: 0; }
         .tc-menu-name { font-weight: 700; color: var(--text); }
         .tc-menu-email, .tc-menu-company, .tc-menu-demo { font-size: 12px; color: var(--muted); }
+        .tc-menu-name, .tc-menu-email {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
         .tc-menu-demo { grid-column: 1 / -1; }
-        #tc-menu-demo[hidden], #tc-menu-company[hidden] { display: none !important; }
+        #tc-menu-demo[hidden], #tc-menu-company[hidden], #tc-menu-email[hidden] { display: none !important; }
         .tc-role-pill {
             grid-column: 2; justify-self: start;
             border: 1px solid var(--border); border-radius: 999px;
@@ -4568,14 +4574,25 @@
         if (avatar) avatar.textContent = initials;
         if (menuInitials) menuInitials.textContent = initials;
         const nameEl = document.getElementById('tc-menu-name');
-        const shownName = companyName || currentUserEmail || 'Акаунт';
-        if (nameEl) nameEl.textContent = shownName;
+        const email = currentUserEmail || '';
+        const company = companyName || '';
+        const shownName = company || email || 'Акаунт';
+        if (nameEl) {
+            nameEl.textContent = shownName;
+            nameEl.title = shownName;
+        }
         const emailEl = document.getElementById('tc-menu-email');
-        if (emailEl) emailEl.textContent = currentUserEmail || '';
+        if (emailEl) {
+            const showEmail = !!(company && email);
+            emailEl.textContent = showEmail ? email : '';
+            emailEl.hidden = !showEmail;
+            if (showEmail) emailEl.title = email;
+            else emailEl.removeAttribute('title');
+        }
         const coEl = document.getElementById('tc-menu-company');
         if (coEl) {
-            coEl.textContent = companyName || '';
-            coEl.hidden = !companyName || companyName === shownName;
+            coEl.textContent = company;
+            coEl.hidden = !company || company === shownName;
         }
         const teamBtn = document.getElementById('tc-menu-team');
         if (teamBtn) teamBtn.hidden = !(currentOrgRole === 'owner' && currentWorkMode === 'team' && uiView !== 'logist');
