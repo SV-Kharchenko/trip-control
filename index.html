@@ -2952,6 +2952,181 @@
             border: 1px solid var(--border) !important;
             box-shadow: none !important;
         }
+
+        /* Етап 2: шапка, лого, меню аватара */
+        .tc-logo-road { stroke: #0d2a28; }
+        .tc-logo-dash { stroke: #f4efe4; }
+        .tc-logo-bead { fill: #d8c3a0; }
+        .tc-logo-node { fill: #f4efe4; stroke: #0d2a28; }
+        .tc-logo-trip { fill: #0d2a28; }
+        .tc-logo-control { fill: #a8874f; }
+        [data-theme="dark"] .tc-logo-road { stroke: #f2ede4; }
+        [data-theme="dark"] .tc-logo-dash { stroke: #0a0a0a; }
+        [data-theme="dark"] .tc-logo-node { fill: #0a0a0a; stroke: #f2ede4; }
+        [data-theme="dark"] .tc-logo-trip { fill: #f2ede4; }
+        [data-theme="dark"] .tc-logo-control { fill: #d8c3a0; }
+        .tc-logo-svg { display: block; height: 32px; width: auto; }
+        .tc-logo-symbol { display: none; }
+        .tc-lockup--auth .tc-logo-svg { height: 52px; margin: 0 auto; }
+        .tc-brand-logo { text-decoration: none; color: inherit; }
+        body.layout-studio .tc-topbar {
+            display: flex;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 10px 12px;
+            overflow: visible;
+            margin-bottom: 0;
+        }
+        body.layout-studio .tc-brand,
+        body.layout-studio .tc-studio-nav,
+        body.layout-studio .tc-meta,
+        body.layout-studio .tc-head-end { order: 0; }
+        body.layout-studio .tc-brand {
+            flex: 0 0 auto;
+            width: auto;
+            max-width: none;
+            pointer-events: auto;
+        }
+        body.layout-studio .tc-studio-nav {
+            flex: 0 1 auto;
+            width: auto;
+            margin-right: 0;
+            min-width: 0;
+        }
+        body.layout-studio .tc-meta {
+            flex: 1 1 auto;
+            width: auto;
+            min-width: 0;
+            padding: 0;
+        }
+        body.layout-studio .tc-head-end {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 0 0 auto;
+            margin-left: auto;
+            min-width: 0;
+        }
+        body.layout-studio .tc-studio-nav button.on {
+            background: transparent;
+            color: var(--text);
+            box-shadow: inset 0 -2px 0 var(--accent);
+            border-radius: 0;
+        }
+        body.layout-studio .tc-role-badge { display: inline-flex; align-items: center; min-height: 28px; color: var(--text); }
+        body.layout-studio .tc-demo-badge {
+            color: var(--warning-text);
+            background: color-mix(in srgb, var(--warning) 16%, var(--surface));
+            border-color: var(--border);
+        }
+        .tc-icon-btn, .tc-avatar {
+            width: 40px; height: 40px; min-width: 40px; min-height: 40px;
+            border-radius: 999px; border: 1px solid var(--border);
+            background: var(--surface); color: var(--text);
+            display: grid; place-items: center; cursor: pointer;
+            font-family: Manrope, sans-serif; font-weight: 700; font-size: 12px; padding: 0;
+        }
+        .tc-icon-btn:hover, .tc-avatar:hover { border-color: var(--accent); }
+        .tc-theme-ico::before { content: "☀"; font-size: 16px; line-height: 1; }
+        [data-theme="dark"] .tc-theme-ico::before { content: "☾"; }
+        .tc-avatar { background: var(--accent); color: var(--on-accent); }
+        .tc-view-switch {
+            display: inline-flex; border: 1px solid var(--border); border-radius: 999px;
+            overflow: hidden; background: var(--input);
+        }
+        .tc-view-switch[hidden] { display: none !important; }
+        body:not(.org-owner) #tc-view-switch { display: none !important; }
+        .tc-view-switch button {
+            border: none; background: transparent; color: var(--muted);
+            font: 600 12px/1 Manrope, sans-serif; padding: 0 12px; min-height: 40px; cursor: pointer;
+        }
+        .tc-view-switch button.on { background: var(--accent); color: var(--on-accent); }
+        .tc-menu-wrap { position: relative; }
+        .tc-user-menu {
+            position: absolute; top: calc(100% + 8px); right: 0; z-index: 80;
+            width: min(320px, calc(100vw - 24px));
+            background: var(--surface); color: var(--text);
+            border: 1px solid var(--border); border-radius: 14px;
+            box-shadow: 0 16px 40px rgba(13, 42, 40, 0.16);
+            padding: 8px;
+        }
+        #tc-user-menu[hidden] { display: none !important; }
+        .tc-menu-id {
+            display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 4px 10px;
+            padding: 6px 8px 10px; margin-bottom: 6px;
+            border-bottom: 1px solid var(--border-soft);
+        }
+        .tc-menu-name { font-weight: 700; color: var(--text); }
+        .tc-menu-email, .tc-menu-company, .tc-menu-demo { font-size: 12px; color: var(--muted); }
+        .tc-menu-demo { grid-column: 1 / -1; }
+        #tc-menu-demo[hidden], #tc-menu-company[hidden] { display: none !important; }
+        .tc-role-pill {
+            grid-column: 2; justify-self: start;
+            border: 1px solid var(--border); border-radius: 999px;
+            padding: 2px 8px; font-size: 11px; font-weight: 700; color: var(--text);
+        }
+        #tc-user-menu .tc-menu-item {
+            display: flex; width: 100%; align-items: center; justify-content: space-between;
+            gap: 8px; min-height: 40px; padding: 8px 10px;
+            border: none; border-radius: 8px; background: transparent;
+            color: var(--text); font: 600 14px/1.2 Manrope, sans-serif;
+            text-align: left; cursor: pointer;
+        }
+        #tc-user-menu .tc-menu-item:hover,
+        #tc-user-menu .tc-menu-item:focus-visible {
+            background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+            outline: none;
+        }
+        #tc-user-menu .tc-menu-item.is-danger { color: var(--negative); }
+        #tc-user-menu .tc-menu-meta { color: var(--muted); font-weight: 600; font-size: 12px; }
+        #tc-user-menu #admin-crm-btn { display: none; }
+        body.is-admin #tc-user-menu #admin-crm-btn { display: flex; }
+        #tc-menu-team[hidden] { display: none !important; }
+        body:not(.org-owner) #tc-menu-team,
+        body.view-logist #tc-menu-team,
+        body:not(.team-mode) #tc-menu-team { display: none !important; }
+        body.view-logist #studio-nav-overview { display: none; }
+        .tc-menu-foot {
+            display: flex; gap: 6px; justify-content: center; align-items: center;
+            padding: 8px 8px 4px; margin-top: 4px;
+            border-top: 1px solid var(--border-soft);
+            font-size: 12px; color: var(--muted);
+        }
+        .tc-menu-foot a { color: var(--muted); text-decoration: none; }
+        .tc-menu-foot a:hover { color: var(--text); text-decoration: underline; }
+        body.layout-studio #demo-banner {
+            margin: 0 0 14px;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+            border-top: none;
+            border-bottom: 1px solid var(--border);
+            background: color-mix(in srgb, var(--warning) 14%, var(--surface));
+            color: var(--text);
+            padding: 6px 40px 6px 22px;
+            font-size: 0.75rem;
+            align-items: center;
+        }
+        body.layout-studio #demo-hint { display: none; }
+        @media (max-width: 900px) {
+            body.layout-studio .tc-topbar {
+                flex-wrap: wrap;
+                overflow: visible;
+                padding: 8px 12px;
+            }
+            body.layout-studio .tc-brand { flex: 0 0 auto !important; width: auto !important; }
+            body.layout-studio .tc-head-end { margin-left: auto; max-width: 100%; }
+            body.layout-studio .tc-meta,
+            body.layout-studio .tc-rates-strip { flex: 1 1 100%; width: 100%; max-width: 100%; }
+        }
+        @media (max-width: 720px) {
+            .tc-topbar .tc-logo-full { display: none; }
+            .tc-topbar .tc-logo-symbol { display: block; width: 32px; height: 32px; }
+            body.layout-studio .tc-studio-nav { flex: 1 1 100%; order: 3; }
+            body.layout-studio .tc-meta { order: 4; }
+            body.layout-studio .tc-view-switch button { padding: 0 8px; font-size: 11px; }
+            body.layout-studio #demo-banner { flex-wrap: wrap; padding-left: 12px; }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -2962,11 +3137,14 @@
 <div id="auth-screen">
     <div class="auth-card">
         <div class="tc-lockup tc-lockup--auth">
-            <picture>
-                <source srcset="assets/logo-compass-112.webp" type="image/webp">
-                <img class="tc-lockup__compass" src="assets/logo-compass-112.png" alt="" width="112" height="112">
-            </picture>
-            <h1 class="tc-lockup__wordmark">TRIP-CONTROL</h1>
+            <svg class="tc-logo-svg tc-logo-full" viewBox="0 0 330 64" role="img" aria-label="TRIP-CONTROL">
+                <path class="tc-logo-road" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="4.5" stroke-linecap="round"></path>
+                <path class="tc-logo-dash" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+                <circle class="tc-logo-bead" cx="13" cy="49" r="5.5"></circle>
+                <circle class="tc-logo-node" cx="51" cy="15" r="7" stroke-width="3.2"></circle>
+                <circle class="tc-logo-bead" cx="51" cy="15" r="2.4"></circle>
+                <text class="tc-logo-word" x="78" y="43" font-family="Manrope, Arial, sans-serif" font-size="27" font-weight="600" letter-spacing="5"><tspan class="tc-logo-trip">TRIP</tspan><tspan class="tc-logo-control">CONTROL</tspan></text>
+            </svg>
         </div>
         <p class="auth-tagline">Координуй маршрут. Керуй результатом.</p>
         <p class="auth-tagline-sub">Після реєстрації — демо: <b>5 розрахунків на добу</b>.</p>
@@ -3055,6 +3233,29 @@
 <div class="container" id="main-app">
     <div id="sticky-top">
         <div class="tc-topbar">
+            <a class="tc-brand tc-brand-logo" href="#calculator" onclick="setStudioView('calc'); return false;" aria-label="TRIP-CONTROL">
+                <svg class="tc-logo-svg tc-logo-full" viewBox="0 0 330 64" aria-hidden="true" focusable="false">
+                    <path class="tc-logo-road" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="4.5" stroke-linecap="round"></path>
+                    <path class="tc-logo-dash" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+                    <circle class="tc-logo-bead" cx="13" cy="49" r="5.5"></circle>
+                    <circle class="tc-logo-node" cx="51" cy="15" r="7" stroke-width="3.2"></circle>
+                    <circle class="tc-logo-bead" cx="51" cy="15" r="2.4"></circle>
+                    <text class="tc-logo-word" x="78" y="43" font-family="Manrope, Arial, sans-serif" font-size="27" font-weight="600" letter-spacing="5"><tspan class="tc-logo-trip">TRIP</tspan><tspan class="tc-logo-control">CONTROL</tspan></text>
+                </svg>
+                <svg class="tc-logo-svg tc-logo-symbol" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                    <path class="tc-logo-road" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="4.5" stroke-linecap="round"></path>
+                    <path class="tc-logo-dash" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+                    <circle class="tc-logo-bead" cx="13" cy="49" r="5.5"></circle>
+                    <circle class="tc-logo-node" cx="51" cy="15" r="7" stroke-width="3.2"></circle>
+                    <circle class="tc-logo-bead" cx="51" cy="15" r="2.4"></circle>
+                </svg>
+                <span class="tc-demo-badge">ДЕМО</span>
+            </a>
+            <nav class="tc-studio-nav" aria-label="Розділи">
+                <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
+                <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
+                <button type="button" id="studio-nav-company" onclick="openHeaderCompany()">Компанія</button>
+            </nav>
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
                     <div class="tc-rates-item tc-dp-item"><a href="https://index.minfin.com.ua/ua/markets/fuel/reg/" target="_blank" rel="noopener">ДП →</a></div>
@@ -3070,27 +3271,47 @@
                     </div>
                 </div>
             </div>
-            <div class="tc-brand">
-                <div class="tc-lockup tc-lockup--header" aria-label="TRIP-CONTROL">
-                    <picture>
-                    <source srcset="assets/logo-compass-112.webp" type="image/webp">
-                    <img class="tc-lockup__compass" src="assets/logo-compass-112.png" alt="" width="112" height="112">
-                </picture>
-                    <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
+            <div class="tc-head-end">
+                <button class="tc-icon-btn" type="button" title="Тема" aria-label="Змінити тему" onclick="cycleTheme()">
+                    <span class="tc-theme-ico" aria-hidden="true"></span>
+                    <span class="visually-hidden" id="theme-label">Світла</span>
+                </button>
+                <div class="tc-view-switch" id="tc-view-switch" role="group" aria-label="Вид" hidden>
+                    <button type="button" id="tc-view-director" aria-pressed="true" onclick="setUiView('director')">Директор</button>
+                    <button type="button" id="tc-view-logist" aria-pressed="false" onclick="setUiView('logist')">Логіст</button>
                 </div>
-                <h1 class="brand-title">TRIP-CONTROL</h1>
-                <span class="tc-demo-badge">ДЕМО</span>
-                <span class="tc-role-badge" id="tc-role-badge">Власник</span>
-            </div>
-            <div class="tc-actions">
-                <nav class="tc-studio-nav" aria-label="Розділи">
-                    <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
-                    <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
-                </nav>
-                <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Світла</span></button>
-                <button class="tc-action-btn" type="button" title="Особистий кабінет" onclick="openCabinet()">📂 <span class="tc-action-label">Кабінет</span></button>
-                <button class="tc-action-btn" type="button" id="admin-crm-btn" title="Клієнтська база" onclick="openAdminCrm()">🛡 <span class="tc-action-label">Клієнти</span></button>
-                <button class="tc-action-btn danger" type="button" title="Вийти" onclick="handleLogout()">⎋ <span class="tc-action-label">Вийти</span></button>
+                <div class="tc-menu-wrap">
+                    <button type="button" class="tc-avatar" id="tc-avatar-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="tc-user-menu" onclick="toggleUserMenu(event)">
+                        <span id="tc-avatar-initials">Д</span>
+                    </button>
+                    <div id="tc-user-menu" class="tc-user-menu" role="menu" hidden>
+                        <div class="tc-menu-id">
+                            <span class="tc-avatar tc-avatar--lg" id="tc-menu-initials" aria-hidden="true">Д</span>
+                            <div class="tc-menu-who">
+                                <div class="tc-menu-name" id="tc-menu-name">Акаунт</div>
+                                <div class="tc-menu-email" id="tc-menu-email"></div>
+                                <div class="tc-menu-company" id="tc-menu-company" hidden></div>
+                            </div>
+                            <span class="tc-role-pill" id="tc-menu-role">Директор</span>
+                            <div class="tc-menu-demo" id="tc-menu-demo" hidden>Демо: <b id="tc-menu-demo-used">—</b> з <b id="tc-menu-demo-limit">5</b></div>
+                        </div>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('cabinet')">Особистий кабінет</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('company')">Компанія і реквізити</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-team" hidden onclick="menuGo('team')"><span>Команда</span><span class="tc-menu-meta" id="tc-menu-seats">0/3</span></button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('fleet')">Автопарк</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Історія і шаблони</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('defaults')">Значення за замовчуванням</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('help')">Довідка і підтримка</button>
+                        <button type="button" role="menuitem" class="tc-menu-item is-danger" onclick="menuGo('logout')">Вийти</button>
+                        <div class="tc-menu-foot">
+                            <a href="/legal/offer.html" target="_blank" rel="noopener">Оферта</a>
+                            <span aria-hidden="true">·</span>
+                            <a href="/legal/privacy.html" target="_blank" rel="noopener">Конфіденційність</a>
+                        </div>
+                    </div>
+                </div>
+                <span class="tc-role-badge" id="tc-role-badge">Директор</span>
             </div>
         </div>
 
@@ -3843,6 +4064,7 @@
     let currentWorkMode = 'solo';
     let teamState = { members: [], invites: [], logists_see_all: false, active_owner_count: 1, seats: { logists: 0, pending: 0, used: 0, limit: 3 } };
     let companyName = '';
+    let currentUserEmail = '';
     let companyTax = 'фоп';
     let companySettings = {}; // company_settings.settings (операційні норми, без PII)
     let companyProfile = {};  // org_company_profiles (ЄДРПОУ, телефон тощо)
@@ -4291,16 +4513,194 @@
     }
 
     function roleLabel(role) {
-        return role === 'owner' ? 'Власник' : 'Логіст';
+        return role === 'owner' ? 'Директор' : 'Логіст';
     }
+
+    const UI_VIEW_KEY = 'tc_ui_view';
+    let uiView = 'director';
+    function loadUiView() {
+        try {
+            uiView = localStorage.getItem(UI_VIEW_KEY) === 'logist' ? 'logist' : 'director';
+        } catch (e) { uiView = 'director'; }
+    }
+    function viewIsLogist() {
+        return currentOrgRole === 'logist' || (currentOrgRole === 'owner' && uiView === 'logist');
+    }
+    function viewLabel() {
+        return viewIsLogist() ? 'Логіст' : 'Директор';
+    }
+    function headerInitials(name, email) {
+        const src = String(name || email || '').trim();
+        if (!src) return '•';
+        const parts = src.split(/[\s@._-]+/).filter(Boolean);
+        if (parts.length >= 2) return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+        return src.slice(0, 2).toUpperCase();
+    }
+    function syncHeaderChrome() {
+        const logistView = viewIsLogist();
+        document.body.classList.toggle('view-logist', logistView);
+        document.body.classList.toggle('view-director', !logistView);
+        const sw = document.getElementById('tc-view-switch');
+        if (sw) sw.hidden = currentOrgRole !== 'owner';
+        const dirBtn = document.getElementById('tc-view-director');
+        const logBtn = document.getElementById('tc-view-logist');
+        const directorOn = currentOrgRole === 'owner' && uiView !== 'logist';
+        if (dirBtn) {
+            dirBtn.setAttribute('aria-pressed', directorOn ? 'true' : 'false');
+            dirBtn.classList.toggle('on', directorOn);
+        }
+        if (logBtn) {
+            logBtn.setAttribute('aria-pressed', !directorOn && currentOrgRole === 'owner' ? 'true' : 'false');
+            logBtn.classList.toggle('on', currentOrgRole === 'owner' && uiView === 'logist');
+        }
+        const label = viewLabel();
+        const badge = document.getElementById('tc-role-badge');
+        if (badge) badge.textContent = label;
+        const menuRole = document.getElementById('tc-menu-role');
+        if (menuRole) menuRole.textContent = label;
+        const initials = headerInitials(companyName, currentUserEmail);
+        const avatar = document.getElementById('tc-avatar-initials');
+        const menuInitials = document.getElementById('tc-menu-initials');
+        if (avatar) avatar.textContent = initials;
+        if (menuInitials) menuInitials.textContent = initials;
+        const nameEl = document.getElementById('tc-menu-name');
+        const shownName = companyName || currentUserEmail || 'Акаунт';
+        if (nameEl) nameEl.textContent = shownName;
+        const emailEl = document.getElementById('tc-menu-email');
+        if (emailEl) emailEl.textContent = currentUserEmail || '';
+        const coEl = document.getElementById('tc-menu-company');
+        if (coEl) {
+            coEl.textContent = companyName || '';
+            coEl.hidden = !companyName || companyName === shownName;
+        }
+        const teamBtn = document.getElementById('tc-menu-team');
+        if (teamBtn) teamBtn.hidden = !(currentOrgRole === 'owner' && currentWorkMode === 'team' && uiView !== 'logist');
+        const seats = (teamState && teamState.seats) || { used: 0, limit: 3 };
+        const seatEl = document.getElementById('tc-menu-seats');
+        if (seatEl) seatEl.textContent = (seats.used || 0) + '/' + (seats.limit || 3);
+        const demoRow = document.getElementById('tc-menu-demo');
+        if (demoRow) demoRow.hidden = !document.body.classList.contains('demo-mode');
+        const used = document.getElementById('demo-used');
+        const limit = document.getElementById('demo-limit');
+        const menuUsed = document.getElementById('tc-menu-demo-used');
+        const menuLimit = document.getElementById('tc-menu-demo-limit');
+        if (menuUsed && used) menuUsed.textContent = used.textContent;
+        if (menuLimit && limit) menuLimit.textContent = limit.textContent;
+        if (logistView && document.body.getAttribute('data-studio-view') === 'overview') setStudioView('calc');
+    }
+    function setUiView(view) {
+        if (currentOrgRole !== 'owner') return;
+        uiView = view === 'logist' ? 'logist' : 'director';
+        try { localStorage.setItem(UI_VIEW_KEY, uiView); } catch (e) {}
+        syncHeaderChrome();
+    }
+    function menuItems() {
+        return Array.from(document.querySelectorAll('#tc-user-menu [role="menuitem"]')).filter(function (el) {
+            return !el.hidden && el.offsetParent !== null;
+        });
+    }
+    function closeUserMenu() {
+        const menu = document.getElementById('tc-user-menu');
+        const btn = document.getElementById('tc-avatar-btn');
+        if (menu) menu.hidden = true;
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+    function openUserMenu() {
+        syncHeaderChrome();
+        const menu = document.getElementById('tc-user-menu');
+        const btn = document.getElementById('tc-avatar-btn');
+        if (!menu || !btn) return;
+        menu.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        const first = menuItems()[0];
+        if (first) first.focus();
+    }
+    function toggleUserMenu(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('tc-user-menu');
+        if (!menu) return;
+        if (menu.hidden) openUserMenu();
+        else closeUserMenu();
+    }
+    function menuGo(action) {
+        closeUserMenu();
+        if (action === 'cabinet') openCabinet();
+        else if (action === 'company') openHeaderCompany();
+        else if (action === 'team') {
+            openCabinet();
+            switchCabTab('team');
+        } else if (action === 'fleet') {
+            openCabinet();
+            switchCabTab('docs');
+        } else if (action === 'history') {
+            const cab = document.getElementById('cabinet-screen');
+            if (cab && cab.style.display === 'block') {
+                cab.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+            setStudioView('calc');
+            const sec = document.getElementById('saved-section');
+            if (sec) sec.scrollIntoView({ block: 'start' });
+        } else if (action === 'defaults') {
+            openCabinet();
+            switchCabTab('s0');
+        } else if (action === 'clients') openAdminCrm();
+        else if (action === 'help') window.location.href = 'mailto:support@trip-control.com';
+        else if (action === 'logout') handleLogout();
+    }
+    function openHeaderCompany() {
+        openCabinet();
+        switchCabTab('company');
+        syncCompanyNav(true);
+    }
+    function syncCompanyNav(on) {
+        const co = document.getElementById('studio-nav-company');
+        if (co) co.classList.toggle('on', !!on);
+        if (!on) return;
+        const calcBtn = document.getElementById('studio-nav-calc');
+        const overBtn = document.getElementById('studio-nav-overview');
+        if (calcBtn) calcBtn.classList.remove('on');
+        if (overBtn) overBtn.classList.remove('on');
+    }
+    document.addEventListener('click', function (event) {
+        const menu = document.getElementById('tc-user-menu');
+        if (!menu || menu.hidden) return;
+        if (menu.contains(event.target)) return;
+        closeUserMenu();
+    });
+    document.addEventListener('keydown', function (event) {
+        const menu = document.getElementById('tc-user-menu');
+        if (!menu || menu.hidden) return;
+        const items = menuItems();
+        const index = items.indexOf(document.activeElement);
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeUserMenu();
+            const btn = document.getElementById('tc-avatar-btn');
+            if (btn) btn.focus();
+        } else if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            const next = items[(index + 1) % items.length];
+            if (next) next.focus();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            const prev = items[(index - 1 + items.length) % items.length];
+            if (prev) prev.focus();
+        } else if (event.key === 'Home') {
+            event.preventDefault();
+            if (items[0]) items[0].focus();
+        } else if (event.key === 'End') {
+            event.preventDefault();
+            if (items.length) items[items.length - 1].focus();
+        }
+    });
 
     function applyTeamModeUi() {
         const isTeam = currentWorkMode === 'team';
         document.body.classList.toggle('team-mode', isTeam);
         document.body.classList.toggle('org-owner', currentOrgRole === 'owner');
         document.body.classList.toggle('org-logist', currentOrgRole === 'logist');
-        const badge = document.getElementById('tc-role-badge');
-        if (badge) badge.textContent = roleLabel(currentOrgRole);
+        syncHeaderChrome();
         if (document.body.classList.contains('layout-studio') && document.body.getAttribute('data-studio-view') === 'overview') {
             renderStudioOverview();
         }
@@ -4354,6 +4754,7 @@
         currentSessionToken = session.access_token;
 
         currentUserId = session.user.id;
+        currentUserEmail = session.user.email || '';
 
         const inviteToken = new URLSearchParams(location.search).get('team_invite');
         let inviteNotice = '';
@@ -4472,6 +4873,7 @@
     function updateDemoCounter(used, limit) {
         if (used !== undefined && used !== null) document.getElementById('demo-used').innerText = used;
         if (limit !== undefined && limit !== null) document.getElementById('demo-limit').innerText = limit;
+        syncHeaderChrome();
     }
 
     function setDemoHint(text, isWarning) {
@@ -4836,7 +5238,8 @@
         body.setAttribute('data-theme', next);
         body.classList.add('layout-studio');
         mountStudioDom();
-        if (body.getAttribute('data-studio-view') !== 'overview') {
+        const companyOn = document.getElementById('studio-nav-company');
+        if (!(companyOn && companyOn.classList.contains('on')) && body.getAttribute('data-studio-view') !== 'overview') {
             const calcBtn = document.getElementById('studio-nav-calc');
             const overBtn = document.getElementById('studio-nav-overview');
             if (calcBtn) calcBtn.classList.add('on');
@@ -4868,6 +5271,7 @@
         const overBtn = document.getElementById('studio-nav-overview');
         if (calcBtn) calcBtn.classList.toggle('on', !overview);
         if (overBtn) overBtn.classList.toggle('on', overview);
+        syncCompanyNav(false);
         if (overview) renderStudioOverview();
     }
     function isLightTheme() {
@@ -6118,13 +6522,13 @@
         if (currentWorkMode === 'team') {
             html += '<div class="cab-panel" data-panel="team"><div class="cab-card">' +
                 '<div class="cab-card-head"><h3>Команда</h3><span class="cab-autosave" id="team-status">Окремі логіни без спільного пароля</span></div>' +
-                '<div class="tc-team-summary"><span>Активні логісти й чинні запрошення займають місця. Власник — окремо.</span><span class="tc-seat-count" id="team-seat-count">0 з 3 логістів</span></div>' +
+                '<div class="tc-team-summary"><span>Активні логісти й чинні запрошення займають місця. Директор — окремо.</span><span class="tc-seat-count" id="team-seat-count">0 з 3 логістів</span></div>' +
                 (currentOrgRole === 'owner'
                     ? '<div class="tc-team-toolbar">' +
                         '<div class="cab-field"><label for="team-invite-email">Email</label><input type="email" id="team-invite-email" placeholder="logist@example.com"></div>' +
                         '<button type="button" class="btn" id="team-invite-btn" onclick="inviteTeamMember()" style="flex:0 0 auto;min-width:150px;">Запросити логіста</button>' +
                         '</div>'
-                    : '<p style="color:var(--text-muted);margin:0 0 12px;">Керування складом команди доступне власнику.</p>') +
+                    : '<p style="color:var(--text-muted);margin:0 0 12px;">Керування складом команди доступне директору.</p>') +
                 (currentOrgRole === 'owner'
                     ? '<label style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;"><input type="checkbox" id="team-see-all" onchange="saveTeamVisibility()"> Логісти бачать розрахунки колег</label>'
                     : '') +
@@ -6758,6 +7162,8 @@
     function closeCabinet() {
         document.getElementById('cabinet-screen').style.display = 'none';
         document.body.style.overflow = '';
+        const view = document.body.getAttribute('data-studio-view') === 'overview' ? 'overview' : 'calc';
+        setStudioView(view);
     }
 
     function resetCabinet() {
@@ -9940,15 +10346,19 @@
         ];
         renderVehicleNormSelect();
         currentUserId = 'preview-owner';
+        currentUserEmail = 'owner@trip-control.test';
+        companyName = 'Агросвіт';
         currentOrgRole = 'owner';
         teamState.members = [
             { id: 'preview-owner', email: 'owner@trip-control.test', member_status: 'active' },
             { id: 'preview-logist', email: 'logist@trip-control.test', member_status: 'active' }
         ];
-        if (new URLSearchParams(location.search).get('team') === '1') {
-            currentWorkMode = 'team';
-            document.body.classList.add('team-mode');
-            populateAuthorFilter();
+        teamState.seats = { logists: 2, pending: 0, used: 2, limit: 3 };
+        const previewParams = new URLSearchParams(location.search);
+        if (previewParams.get('team') === '1') currentWorkMode = 'team';
+        applyTeamModeUi();
+        if (previewParams.get('view') === 'logist' || previewParams.get('view') === 'director') {
+            setUiView(previewParams.get('view'));
         }
         renderSavedTable();
         updateRouteBar();
@@ -9966,10 +10376,12 @@
             openCabinet();
             switchCabTab('docs');
         }
+        if (new URLSearchParams(location.search).get('menu') === '1') openUserMenu();
     }
 
     // ЗАПУСК ПРОГРАМИ
     window.onload = function() {
+        loadUiView();
         arrangeDispatcherForm();
         renderRecentRoutes();
         refreshSetupChecklist();
