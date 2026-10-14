@@ -12,17 +12,18 @@
     <meta property="og:title" content="TRIP-CONTROL — розрахунок прибутковості автоперевезень">
     <meta property="og:description" content="Калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
     <meta property="og:url" content="https://trip-control.com/">
-    <meta property="og:image" content="https://trip-control.com/assets/logo-compass-512.png">
+    <meta property="og:image" content="https://trip-control.com/assets/brand/icon-512.png">
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="TRIP-CONTROL — розрахунок прибутковості автоперевезень">
     <meta name="twitter:description" content="Калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
-    <meta name="twitter:image" content="https://trip-control.com/assets/logo-compass-512.png">
+    <meta name="twitter:image" content="https://trip-control.com/assets/brand/icon-512.png">
+    <meta name="theme-color" content="#F4EFE4">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
 <style>
         :root, [data-theme="night"] {
@@ -32,8 +33,10 @@
             --danger: #f87171; --input-bg: rgba(8,12,20,0.88); --steel: #7dd3fc;
             --amber: #38bdf8; --panel: rgba(16,22,34,0.82); --glass: blur(14px);
             --kpi-glow: rgba(52,211,153,0.35);
-            --font-ui: 'IBM Plex Sans', sans-serif;
-            --font-display: 'Syne', sans-serif;
+            --brand-black: #0A0A0A; --brand-cream: #F0ECE3; --brand-beige: #D6C29E;
+            --font-ui: 'Manrope', sans-serif;
+            --font-display: 'Manrope', sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, monospace;
         }
         [data-theme="amber"] {
             --bg-color: #0c0e12; --card-bg: rgba(20,24,31,0.88); --border-color: #2a3140;
@@ -52,12 +55,42 @@
             --kpi-glow: rgba(34,211,238,0.3);
         }
         [data-theme="light"] {
-            --bg-color: #eef2f7; --card-bg: rgba(255,255,255,0.82); --border-color: #c9d4e3;
-            --text-main: #12151c; --text-muted: #5c6578; --accent: #0284c7;
-            --accent-hover: #0369a1; --success: #059669; --warning: #d97706;
-            --danger: #dc2626; --input-bg: rgba(248,250,252,0.95); --steel: #0369a1;
-            --amber: #0284c7; --panel: rgba(255,255,255,0.82); --glass: blur(12px);
-            --kpi-glow: rgba(2,132,199,0.2);
+            --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE;
+            --text: #0D2A28; --muted: #6B7D78; --tab-muted: #5F716C;
+            --border: #D9D1BD; --border-soft: #E3DCCB;
+            --accent: #0D2A29; --on-accent: #F4EFE5; --gold: #B08A4C;
+            --positive: #1F6F4D; --negative: #C2453F; --negative-on-dark: #FF8A8A;
+            --teal: #2F8F86; --chart-neutral: #CDBF9F; --muted-on-dark: #A9BCB7;
+            --radius-card: 14px; --radius-control: 10px;
+            --bg-color: var(--bg); --card-bg: var(--surface); --border-color: var(--border);
+            --text-main: var(--text); --text-muted: var(--muted);
+            --accent-hover: #081c1b; --success: var(--positive); --warning: var(--gold);
+            --danger: var(--negative); --input-bg: var(--input); --steel: var(--teal);
+            --amber: var(--gold); --panel: var(--surface); --glass: blur(0px);
+            --kpi-glow: rgba(13,42,41,0.12);
+            --font-ui: 'Manrope', sans-serif;
+            --font-display: 'Manrope', sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+            color-scheme: light;
+        }
+        [data-theme="dark"] {
+            --bg: #0E1117; --surface: #161B24; --input: #11151C;
+            --text: #E8EAF0; --muted: #8B93A3; --tab-muted: #9AA2B2;
+            --border: #2E3646; --border-soft: #262D3A;
+            --accent: #7C9CFF; --on-accent: #0B0E14; --gold: #E0B25A;
+            --positive: #3DDC97; --negative: #FF6B6B; --negative-on-dark: #FF8A8A;
+            --teal: #4FD1C5; --chart-neutral: #6B7486; --muted-on-dark: #9AA6C4;
+            --radius-card: 14px; --radius-control: 10px;
+            --bg-color: var(--bg); --card-bg: var(--surface); --border-color: var(--border);
+            --text-main: var(--text); --text-muted: var(--muted);
+            --accent-hover: #9BB0FF; --success: var(--positive); --warning: var(--gold);
+            --danger: var(--negative); --input-bg: var(--input); --steel: var(--teal);
+            --amber: var(--gold); --panel: var(--surface); --glass: blur(12px);
+            --kpi-glow: rgba(124,156,255,0.28);
+            --font-ui: 'Manrope', sans-serif;
+            --font-display: 'Manrope', sans-serif;
+            --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+            color-scheme: dark;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-ui); }
         [hidden] { display: none !important; }
@@ -77,15 +110,29 @@
             background-attachment: fixed, fixed;
             background-repeat: no-repeat;
         }
-        [data-theme="light"] body {
-            background-color: #eef2f7;
-            background-image:
-                linear-gradient(165deg, rgba(248,250,252,0.94), rgba(241,245,249,0.92) 48%, rgba(248,250,252,0.96)),
-                url('assets/bg-network.jpg');
-            background-size: auto, cover;
-            background-position: center, center;
-            background-attachment: fixed, fixed;
-            background-blend-mode: normal, luminosity;
+        body[data-theme="light"],
+        body[data-theme="dark"] {
+            background-color: var(--bg);
+            background-image: none;
+            background-attachment: scroll;
+        }
+        body[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+        body[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+        body[data-theme="light"] select,
+        body[data-theme="dark"] select,
+        body[data-theme="light"] .btn,
+        body[data-theme="dark"] .btn {
+            border-radius: var(--radius-control);
+        }
+        body[data-theme="light"] input[type="number"],
+        body[data-theme="dark"] input[type="number"],
+        body[data-theme="light"] .kpi-value,
+        body[data-theme="dark"] .kpi-value,
+        body[data-theme="light"] .tc-rates-item b,
+        body[data-theme="dark"] .tc-rates-item b,
+        body[data-theme="light"] .tc-profit-value,
+        body[data-theme="dark"] .tc-profit-value {
+            font-family: var(--font-mono);
         }
         h1, h2, .brand-title { font-family: var(--font-display); }
         .container { max-width: 1520px; margin: 0 auto; display: none; }
@@ -770,12 +817,10 @@
                 url('assets/bg-network.jpg') center / cover no-repeat,
                 #050a0f;
         }
-        [data-theme="light"] #cabinet-screen {
-            background:
-                linear-gradient(160deg, rgba(248,250,252,0.95), rgba(241,245,249,0.93)),
-                url('assets/bg-network.jpg') center / cover no-repeat,
-                #eef2f7;
-            background-blend-mode: normal, luminosity;
+        [data-theme="light"] #cabinet-screen,
+        [data-theme="dark"] #cabinet-screen {
+            background: var(--bg);
+            background-image: none;
         }
         #cabinet-screen .cab-wrap {
             position: relative; max-width: 1040px; margin: 0 auto;
@@ -897,11 +942,10 @@
             backdrop-filter: blur(6px);
             overflow: auto; padding: 24px 12px 48px;
         }
-        [data-theme="light"] #admin-screen {
-            background:
-                linear-gradient(160deg, rgba(248,250,252,0.95), rgba(241,245,249,0.93)),
-                url('assets/bg-network.jpg') center / cover no-repeat;
-            background-blend-mode: normal, luminosity;
+        [data-theme="light"] #admin-screen,
+        [data-theme="dark"] #admin-screen {
+            background: var(--bg);
+            background-image: none;
         }
         #admin-screen .adm-wrap {
             max-width: 960px; margin: 0 auto;
@@ -1763,6 +1807,68 @@
             -webkit-text-fill-color: #0B2629;
             background: #FFFDF8;
             border-color: #DDD2BC;
+        }
+        body.layout-studio[data-theme="light"] .tc-topbar,
+        body.layout-studio[data-theme="dark"] .tc-topbar {
+            background: var(--surface);
+            border: none;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+        body.layout-studio[data-theme="light"] .tc-lockup--header .tc-lockup__wordmark,
+        body.layout-studio[data-theme="dark"] .tc-lockup--header .tc-lockup__wordmark,
+        body.layout-studio[data-theme="light"] .tc-action-btn,
+        body.layout-studio[data-theme="dark"] .tc-action-btn {
+            color: var(--text);
+            -webkit-text-fill-color: var(--text);
+            background: var(--surface);
+            border-color: var(--border);
+        }
+        body.layout-studio[data-theme="light"] .card,
+        body.layout-studio[data-theme="dark"] .card,
+        body.layout-studio[data-theme="light"] .tc-profit-hero,
+        body.layout-studio[data-theme="dark"] .tc-profit-hero,
+        body.layout-studio[data-theme="light"] .tc-result-dock,
+        body.layout-studio[data-theme="dark"] .tc-result-dock {
+            background: var(--surface);
+            border-color: var(--border-soft);
+            border-radius: var(--radius-card);
+        }
+        body.layout-studio[data-theme="light"] #studio-columns,
+        body.layout-studio[data-theme="dark"] #studio-columns {
+            grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+        }
+        body.layout-studio[data-theme="light"] #studio-right,
+        body.layout-studio[data-theme="dark"] #studio-right {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(240px, 330px);
+            gap: 16px;
+            align-items: stretch;
+        }
+        body.layout-studio[data-theme="light"] #studio-right > .tc-result-dock,
+        body.layout-studio[data-theme="dark"] #studio-right > .tc-result-dock {
+            grid-column: 1; grid-row: 1; align-self: stretch;
+        }
+        body.layout-studio[data-theme="light"] #studio-right > .tc-map-frame,
+        body.layout-studio[data-theme="dark"] #studio-right > .tc-map-frame {
+            grid-column: 2; grid-row: 1; height: auto; min-height: 260px; max-height: none; width: 100%;
+        }
+        body.layout-studio[data-theme="light"] #studio-right > :not(.tc-result-dock):not(.tc-map-frame),
+        body.layout-studio[data-theme="dark"] #studio-right > :not(.tc-result-dock):not(.tc-map-frame) {
+            grid-column: 1 / -1;
+        }
+        body.layout-studio[data-theme="light"] .tc-map-btn,
+        body.layout-studio[data-theme="light"] .tc-map-legend,
+        body.layout-studio[data-theme="light"] .tc-map-badge,
+        body.layout-studio[data-theme="light"] .tc-map-alt,
+        body.layout-studio[data-theme="dark"] .tc-map-btn,
+        body.layout-studio[data-theme="dark"] .tc-map-legend,
+        body.layout-studio[data-theme="dark"] .tc-map-badge,
+        body.layout-studio[data-theme="dark"] .tc-map-alt {
+            color: var(--text);
+            -webkit-text-fill-color: var(--text);
+            background: var(--surface);
+            border-color: var(--border);
         }
         body.layout-studio .tc-map-btn,
         body.layout-studio .tc-map-legend,
@@ -2734,7 +2840,7 @@
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
 </head>
-<body data-theme="ocean">
+<body class="layout-studio" data-theme="light">
 
 <!-- Екран авторизації -->
 <div id="auth-screen">
@@ -2865,7 +2971,7 @@
                     <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                     <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
                 </nav>
-                <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Океан</span></button>
+                <button class="tc-action-btn" type="button" title="Тема" onclick="cycleTheme()">🎨 <span class="tc-action-label" id="theme-label">Світла</span></button>
                 <button class="tc-action-btn" type="button" title="Особистий кабінет" onclick="openCabinet()">📂 <span class="tc-action-label">Кабінет</span></button>
                 <button class="tc-action-btn" type="button" id="admin-crm-btn" title="Клієнтська база" onclick="openAdminCrm()">🛡 <span class="tc-action-label">Клієнти</span></button>
                 <button class="tc-action-btn danger" type="button" title="Вийти" onclick="handleLogout()">⎋ <span class="tc-action-label">Вийти</span></button>
@@ -4601,24 +4707,20 @@
     // ==========================================
     // ЛОГІКА КАЛЬКУЛЯТОРА
     // ==========================================
-    const THEME_ORDER = ['ocean', 'control', 'paper'];
-    const THEME_LABELS = { ocean: 'Океан', control: 'Темна', paper: 'Світла' };
+    const THEME_ORDER = ['light', 'dark'];
+    const THEME_LABELS = { light: 'Світла', dark: 'Темна' };
     function normalizeTheme(t) {
-        if (t === 'night' || t === 'amber' || t === 'light' || t === 'dark') return 'ocean';
-        return THEME_ORDER.includes(t) ? t : 'ocean';
+        if (t === 'control') t = 'dark';
+        else if (t === 'ocean' || t === 'paper' || t === 'night' || t === 'amber') t = 'light';
+        return THEME_ORDER.indexOf(t) >= 0 ? t : 'light';
     }
     function applyTheme(next) {
         next = normalizeTheme(next);
         const body = document.body;
         body.setAttribute('data-theme', next);
-        body.classList.toggle('layout-studio', next !== 'ocean');
-        if (next === 'ocean') {
-            body.removeAttribute('data-studio-view');
-            restoreStudioDom();
-        } else {
-            mountStudioDom();
-        }
-        if (next === 'ocean' || body.getAttribute('data-studio-view') !== 'overview') {
+        body.classList.add('layout-studio');
+        mountStudioDom();
+        if (body.getAttribute('data-studio-view') !== 'overview') {
             const calcBtn = document.getElementById('studio-nav-calc');
             const overBtn = document.getElementById('studio-nav-overview');
             if (calcBtn) calcBtn.classList.add('on');
@@ -4627,8 +4729,10 @@
         try { localStorage.setItem('tc_theme', next); } catch (e) {}
         const lab = document.getElementById('theme-label');
         if (lab) lab.textContent = THEME_LABELS[next];
+        const themeMeta = document.querySelector('meta[name="theme-color"]');
+        if (themeMeta) themeMeta.setAttribute('content', next === 'dark' ? '#0E1117' : '#F4EFE4');
         applyMapTheme();
-        if (next !== 'ocean' && body.getAttribute('data-studio-view') === 'overview') renderStudioOverview();
+        if (body.getAttribute('data-studio-view') === 'overview') renderStudioOverview();
     }
     function cycleTheme() {
         const cur = normalizeTheme(document.body.getAttribute('data-theme'));
@@ -4636,8 +4740,8 @@
         applyTheme(THEME_ORDER[(i + 1) % THEME_ORDER.length]);
     }
     function restoreTheme() {
-        let t = 'ocean';
-        try { t = localStorage.getItem('tc_theme') || 'ocean'; } catch (e) {}
+        let t = 'light';
+        try { t = localStorage.getItem('tc_theme') || 'light'; } catch (e) {}
         applyTheme(t);
     }
     function setStudioView(view) {
@@ -4651,20 +4755,20 @@
         if (overview) renderStudioOverview();
     }
     function isLightTheme() {
-        return document.body.getAttribute('data-theme') === 'paper';
+        return document.body.getAttribute('data-theme') === 'light';
     }
     function applyMapTheme() {
         if (!map || typeof google === 'undefined' || !google.maps) return;
         const theme = document.body.getAttribute('data-theme');
-        if (theme === 'paper') {
-            map.setOptions({ styles: TC_MAP_PAPER_STYLES, backgroundColor: '#F4EEE1' });
-        } else if (theme === 'control') {
-            map.setOptions({ styles: TC_MAP_CONTROL_STYLES, backgroundColor: '#05211f' });
+        if (theme === 'light' || theme === 'paper') {
+            map.setOptions({ styles: TC_MAP_PAPER_STYLES, backgroundColor: '#F4EFE4' });
+        } else if (theme === 'dark' || theme === 'control') {
+            map.setOptions({ styles: TC_MAP_CONTROL_STYLES, backgroundColor: '#0E1117' });
         } else {
             map.setOptions({ styles: TC_MAP_DARK_STYLES, backgroundColor: '#0b1018' });
         }
-        const strokeMain = theme === 'paper' ? '#0D3337' : (theme === 'control' ? '#c9a66b' : '#7dd3fc');
-        const strokeBack = theme === 'paper' ? '#8D6A3F' : (theme === 'control' ? '#4f9b97' : '#f59e0b');
+        const strokeMain = (theme === 'light' || theme === 'paper') ? '#0D2A29' : ((theme === 'dark' || theme === 'control') ? '#7C9CFF' : '#7dd3fc');
+        const strokeBack = (theme === 'light' || theme === 'paper') ? '#B08A4C' : ((theme === 'dark' || theme === 'control') ? '#E0B25A' : '#f59e0b');
         if (typeof directionsRenderer !== 'undefined' && directionsRenderer) {
             directionsRenderer.setOptions({ polylineOptions: { strokeColor: strokeMain, strokeWeight: 5, strokeOpacity: 0.95 } });
         }
@@ -4783,6 +4887,8 @@
         const left = wrap.querySelector('#studio-left');
         const right = wrap.querySelector('#studio-right');
         const theme = document.body.getAttribute('data-theme');
+        const paperStudio = theme === 'paper';
+        const controlStudio = theme === 'control' || theme === 'light' || theme === 'dark';
         const nodes = {
             work: document.querySelector('.tc-work'),
             lower: document.querySelector('.tc-lower'),
@@ -4793,21 +4899,21 @@
             route: document.querySelector('.tc-route-bar'),
             costs: document.querySelector('.tc-costs-visual')
         };
-        if (theme === 'paper' && nodes.map) left.appendChild(studioTake(nodes.map));
-        if (theme === 'paper' && nodes.alts) left.appendChild(studioTake(nodes.alts));
+        if (paperStudio && nodes.map) left.appendChild(studioTake(nodes.map));
+        if (paperStudio && nodes.alts) left.appendChild(studioTake(nodes.alts));
         if (nodes.work) left.appendChild(studioTake(nodes.work));
         if (nodes.lower) left.appendChild(studioTake(nodes.lower));
-        if (nodes.poi && theme !== 'control') left.appendChild(studioTake(nodes.poi));
+        if (nodes.poi && !controlStudio) left.appendChild(studioTake(nodes.poi));
         if (nodes.dock) right.appendChild(studioTake(nodes.dock));
-        if (theme !== 'paper' && nodes.map) right.appendChild(studioTake(nodes.map));
-        if (theme !== 'paper' && nodes.alts) right.appendChild(studioTake(nodes.alts));
+        if (!paperStudio && nodes.map) right.appendChild(studioTake(nodes.map));
+        if (!paperStudio && nodes.alts) right.appendChild(studioTake(nodes.alts));
         if (nodes.route) right.appendChild(studioTake(nodes.route));
         if (nodes.costs) right.appendChild(studioTake(nodes.costs));
-        if (theme === 'paper') {
+        if (paperStudio) {
             dressPaperSections();
             left.appendChild(studioTake(saved));
         }
-        if (theme === 'control') {
+        if (controlStudio) {
             const actions = document.querySelector('.actions-bar');
             if (nodes.poi) right.appendChild(studioTake(nodes.poi));
             right.appendChild(studioTake(saved));
@@ -7497,10 +7603,10 @@
     function renderChart(fuel, driver, maintenance, overhead, taxes, extras) {
         extras = extras || 0;
             const theme = document.body.getAttribute('data-theme');
-        const palette = theme === 'paper'
-            ? ['#0D3337', '#4F9B97', '#BCA276', '#6A7673', '#8D6A3F', '#E3D6BC']
-            : theme === 'control'
-                ? ['#c9a66b', '#4f9b97', '#7fa29e', '#c5b48f', '#8d6a3f', '#245457']
+        const palette = (theme === 'light' || theme === 'paper')
+            ? ['#0D2A29', '#2F8F86', '#B08A4C', '#6B7D78', '#C2453F', '#CDBF9F']
+            : (theme === 'dark' || theme === 'control')
+                ? ['#7C9CFF', '#4FD1C5', '#E0B25A', '#8B93A3', '#FF6B6B', '#6B7486']
                 : ['#7dd3fc', '#34d399', '#f59e0b', '#60a5fa', '#f87171', '#fbbf24'];
         const items = [
             { name: 'Пальне+AdBlue', val: fuel, color: palette[0] },
