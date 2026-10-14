@@ -1229,7 +1229,45 @@
         }
         #cabinet-screen .tc-fleet-card.is-soon { border-color: var(--warning); }
         #cabinet-screen .tc-fleet-card.is-overdue { border-color: var(--danger); }
-        #cabinet-screen .tc-fleet-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+        #cabinet-screen .tc-fleet-tools {
+            display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 4px;
+        }
+        #cabinet-screen .tc-fleet-tools[hidden] { display: none; }
+        #cabinet-screen .tc-fleet-tools button {
+            background: none; border: none; padding: 4px 0; cursor: pointer;
+            color: var(--accent); font: inherit; font-size: 0.75rem; font-weight: 700;
+            text-decoration: underline; text-underline-offset: 2px;
+        }
+        #cabinet-screen .tc-fleet-head { display: block; }
+        #cabinet-screen .tc-fleet-toggle {
+            width: 100%; display: flex; align-items: center; gap: 8px;
+            min-height: 40px; padding: 2px 0; border: none; background: transparent;
+            color: var(--text); font-family: inherit; font-size: 0.84rem;
+            text-align: left; cursor: pointer;
+        }
+        #cabinet-screen .tc-fleet-toggle:focus-visible {
+            outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px;
+        }
+        #cabinet-screen .tc-fleet-plate {
+            flex: 0 1 auto; min-width: 0; font-weight: 800; letter-spacing: 0.04em;
+            text-transform: uppercase; color: var(--text); white-space: nowrap;
+        }
+        #cabinet-screen .tc-fleet-make {
+            flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; font-weight: 600; color: var(--text);
+        }
+        #cabinet-screen .tc-fleet-make.is-empty { color: var(--muted); font-weight: 500; }
+        #cabinet-screen .tc-fleet-status {
+            margin-left: auto; flex: none; white-space: nowrap;
+            font-size: 0.72rem; font-weight: 700; color: var(--positive);
+        }
+        #cabinet-screen .tc-fleet-status.is-overdue { color: var(--negative); }
+        #cabinet-screen .tc-fleet-status.is-soon { color: var(--gold); }
+        #cabinet-screen .tc-fleet-chevron {
+            flex: none; width: 1.1rem; text-align: center; color: var(--muted); font-size: 0.9rem;
+        }
+        #cabinet-screen .tc-fleet-body { display: grid; gap: 8px; }
+        #cabinet-screen .tc-fleet-body[hidden] { display: none; }
         #cabinet-screen .tc-fleet-docs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         #cabinet-screen .tc-fleet-docs label { display: grid; gap: 4px; min-width: 0; font-size: 0.72rem; }
         #cabinet-screen .tc-fleet-docs input { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; text-align: left; }
@@ -1318,6 +1356,8 @@
             #cabinet-screen .tc-report-actions { display: grid; }
             #cabinet-screen .tc-report-actions .btn { width: 100%; }
             #cabinet-screen .tc-fleet-docs { grid-template-columns: 1fr; }
+            #cabinet-screen .tc-fleet-toggle { gap: 6px; font-size: 0.78rem; }
+            #cabinet-screen .tc-fleet-status { font-size: 0.66rem; }
             #cabinet-screen .tc-fleet-add { display: grid; }
             #cabinet-screen .tc-fleet-add .btn { width: 100%; }
             #cabinet-screen .tc-member-row { grid-template-columns: 1fr; }
@@ -6071,6 +6111,9 @@
             '<input type="text" id="fleet-make" maxlength="80" placeholder="Марка і модель, необов’язково">' +
             '<input type="text" id="fleet-label" maxlength="40" placeholder="Держ. номер, напр. AA1234BB">' +
             '<button type="button" class="btn" onclick="addFleetVehicle()">Додати авто</button></div>' +
+            '<div class="tc-fleet-tools" id="fleet-tools" hidden>' +
+            '<button type="button" onclick="setAllFleetCardsOpen(true)">Розгорнути всі</button>' +
+            '<button type="button" onclick="setAllFleetCardsOpen(false)">Згорнути всі</button></div>' +
             '<div id="fleet-list"></div></div></div>';
         if (currentWorkMode === 'team') {
             html += '<div class="cab-panel" data-panel="team"><div class="cab-card">' +
@@ -6280,11 +6323,66 @@
             adblue_on: null, adblue_consumption: null, trailer_plate: null, trailer_type: null, payload_t: null
         };
     }
+    const FLEET_OPEN_KEY = 'tc_fleet_card_open';
+    function readFleetOpenMap() {
+        try {
+            const raw = JSON.parse(localStorage.getItem(FLEET_OPEN_KEY) || '{}');
+            return raw && typeof raw === 'object' ? raw : {};
+        } catch (e) {
+            return {};
+        }
+    }
+    function writeFleetOpenMap(map) {
+        try { localStorage.setItem(FLEET_OPEN_KEY, JSON.stringify(map)); } catch (e) {}
+    }
+    function fleetCardOpen(id) {
+        return readFleetOpenMap()[id] === true;
+    }
+    function setFleetCardOpen(id, open) {
+        const map = readFleetOpenMap();
+        map[id] = !!open;
+        writeFleetOpenMap(map);
+    }
+    function forgetFleetCardOpen(id) {
+        const map = readFleetOpenMap();
+        delete map[id];
+        writeFleetOpenMap(map);
+    }
+    function fleetCardStatus(overdue, soon) {
+        if (overdue > 0) return { text: '⚠ ' + overdue + ' прострочено', tone: 'overdue' };
+        if (soon > 0) return { text: 'скоро: ' + soon, tone: 'soon' };
+        return { text: '✓', tone: 'ok' };
+    }
+    function applyFleetCardOpen(card, open) {
+        const body = card.querySelector('.tc-fleet-body');
+        const button = card.querySelector('.tc-fleet-toggle');
+        const chevron = card.querySelector('.tc-fleet-chevron');
+        if (body) body.hidden = !open;
+        if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (chevron) chevron.textContent = open ? '▴' : '▾';
+    }
+    function toggleFleetCard(id) {
+        const card = document.getElementById('fleet-card-' + id);
+        if (!card) return;
+        const open = card.querySelector('.tc-fleet-toggle').getAttribute('aria-expanded') !== 'true';
+        applyFleetCardOpen(card, open);
+        setFleetCardOpen(id, open);
+    }
+    function setAllFleetCardsOpen(open) {
+        const map = readFleetOpenMap();
+        document.querySelectorAll('#fleet-list .tc-fleet-card').forEach(function (card) {
+            const id = card.getAttribute('data-id');
+            applyFleetCardOpen(card, open);
+            if (id) map[id] = !!open;
+        });
+        writeFleetOpenMap(map);
+    }
     function renderFleetDocs() {
         renderVehicleNormSelect();
         syncFleetWarnControl();
         const list = document.getElementById('fleet-list');
         const summary = document.getElementById('fleet-summary');
+        const tools = document.getElementById('fleet-tools');
         if (!list) return;
         const today = fleetToday();
         const warn = fleetWarnValue();
@@ -6293,10 +6391,12 @@
         let soon = 0;
         const cards = fleetVehicles.map(function (vehicle) {
             let tone = '';
+            let cardOverdue = 0;
+            let cardSoon = 0;
             const fields = FLEET_DOCS.map(function (doc) {
                 const state = fleetDocState(vehicle[doc[0]], today, warn);
-                if (state === 'overdue') { overdue += 1; tone = 'overdue'; }
-                else if (state === 'soon') { soon += 1; if (tone !== 'overdue') tone = 'soon'; }
+                if (state === 'overdue') { overdue += 1; cardOverdue += 1; tone = 'overdue'; }
+                else if (state === 'soon') { soon += 1; cardSoon += 1; if (tone !== 'overdue') tone = 'soon'; }
                 const value = vehicle[doc[0]] ? String(vehicle[doc[0]]).slice(0, 10) : '';
                 return '<label class="tc-doc-' + state + '">' + teamEsc(doc[1]) +
                     '<input type="date" data-col="' + doc[0] + '" value="' + teamEsc(value) + '"' + (owner ? '' : ' disabled') + '>' +
@@ -6307,12 +6407,22 @@
                 ? '<div class="tc-fleet-actions"><button type="button" onclick="saveFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">Зберегти</button>' +
                     '<button type="button" class="is-danger" onclick="removeFleetVehicle(\'' + teamEsc(vehicle.id) + '\')">' + removeLabel + '</button></div>'
                 : '';
-            return '<article class="tc-fleet-card' + (tone ? ' is-' + tone : '') + '" id="fleet-card-' + teamEsc(vehicle.id) + '">' +
-                '<div class="tc-fleet-head"><b>' + teamEsc(vehicle.label) + '</b></div>' +
+            const status = fleetCardStatus(cardOverdue, cardSoon);
+            const open = fleetCardOpen(vehicle.id);
+            const make = String(vehicle.make_model || '').trim();
+            const bodyId = 'fleet-body-' + teamEsc(vehicle.id);
+            return '<article class="tc-fleet-card' + (tone ? ' is-' + tone : '') + '" id="fleet-card-' + teamEsc(vehicle.id) + '" data-id="' + teamEsc(vehicle.id) + '">' +
+                '<div class="tc-fleet-head"><button type="button" class="tc-fleet-toggle" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="' + bodyId + '" onclick="toggleFleetCard(\'' + teamEsc(vehicle.id) + '\')">' +
+                '<span class="tc-fleet-plate">' + teamEsc(vehicle.label) + '</span>' +
+                '<span class="tc-fleet-make' + (make ? '' : ' is-empty') + '">' + teamEsc(make || 'без марки') + '</span>' +
+                '<span class="tc-fleet-status is-' + status.tone + '">' + teamEsc(status.text) + '</span>' +
+                '<span class="tc-fleet-chevron" aria-hidden="true">' + (open ? '▴' : '▾') + '</span></button></div>' +
+                '<div class="tc-fleet-body" id="' + bodyId + '"' + (open ? '' : ' hidden') + '>' +
                 fleetNormMarkup(vehicle, owner) +
-                '<div class="tc-fleet-docs">' + fields + '</div>' + actions + '</article>';
+                '<div class="tc-fleet-docs">' + fields + '</div>' + actions + '</div></article>';
         }).join('');
         if (summary) summary.textContent = fleetVehicles.length ? ('Прострочено: ' + overdue + ' · скоро: ' + soon) : '';
+        if (tools) tools.hidden = !fleetVehicles.length;
         list.innerHTML = cards || '<p class="tc-fleet-note">Авто ще немає. Додай номер, якщо хочеш стежити за документами.</p>';
     }
     async function loadFleetVehicles() {
@@ -6357,11 +6467,13 @@
             return;
         }
         if (uiPreview) {
-            fleetVehicles.push(Object.assign({ id: 'preview-fleet-' + Date.now(), label: label, make_model: make || null }, emptyFleetDates(), emptyFleetNorms(), { make_model: make || null }));
+            const added = Object.assign({ id: 'preview-fleet-' + Date.now(), label: label, make_model: make || null }, emptyFleetDates(), emptyFleetNorms(), { make_model: make || null });
+            fleetVehicles.push(added);
             fleetVehicles.sort(function (a, b) { return String(a.label).localeCompare(String(b.label), 'uk'); });
             fleetDeleteId = null;
             if (input) input.value = '';
             if (makeInput) makeInput.value = '';
+            setFleetCardOpen(added.id, true);
             renderFleetDocs();
             showToast('Авто додано');
             return;
@@ -6380,6 +6492,7 @@
             fleetDeleteId = null;
             if (input) input.value = '';
             if (makeInput) makeInput.value = '';
+            setFleetCardOpen(inserted.data.id, true);
             renderFleetDocs();
             showToast('Авто додано');
         } catch (e) {
@@ -6409,6 +6522,7 @@
         if (!row) return;
         if (uiPreview || String(id).indexOf('preview-fleet-') === 0) {
             Object.assign(row, patch);
+            setFleetCardOpen(id, true);
             renderFleetDocs();
             reapplySelectedVehicleNorms();
             showToast('Збережено');
@@ -6423,6 +6537,7 @@
             if (error) throw error;
             const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
             if (index >= 0) fleetVehicles[index] = data;
+            setFleetCardOpen(id, true);
             renderFleetDocs();
             reapplySelectedVehicleNorms();
             showToast('Збережено');
@@ -6434,6 +6549,7 @@
                     if (datesOnly.error) throw datesOnly.error;
                     const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
                     if (index >= 0) fleetVehicles[index] = Object.assign({}, fleetVehicles[index], datesOnly.data);
+                    setFleetCardOpen(id, true);
                     renderFleetDocs();
                     showToast('Дати збережено. Норми з’являться після оновлення бази.');
                     return;
@@ -6455,6 +6571,7 @@
         fleetDeleteId = null;
         if (uiPreview || String(id).indexOf('preview-fleet-') === 0) {
             fleetVehicles = fleetVehicles.filter(function (item) { return item.id !== id; });
+            forgetFleetCardOpen(id);
             renderFleetDocs();
             showToast('Авто прибрано');
             return;
@@ -6463,6 +6580,7 @@
             const { error } = await supabaseClient.from('fleet_vehicles').delete().eq('id', id);
             if (error) throw error;
             fleetVehicles = fleetVehicles.filter(function (item) { return item.id !== id; });
+            forgetFleetCardOpen(id);
             renderFleetDocs();
             showToast('Авто прибрано');
         } catch (e) {
@@ -9843,6 +9961,10 @@
             if (document.body.classList.contains('layout-studio')) {
                 syncStudioSums({ grossIncome: 184250, detailedRows: [{ val: 155310 }] });
             }
+        }
+        if (new URLSearchParams(location.search).get('cab') === 'docs') {
+            openCabinet();
+            switchCabTab('docs');
         }
     }
 
