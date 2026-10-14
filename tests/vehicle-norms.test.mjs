@@ -176,6 +176,8 @@ test('two trucks keep their own norms and the rounded money sums to the total', 
     assert.equal(result.netProfit, -65910);
     assert.equal(result.fuelAndAdblueTotal, 94900);
     assert.equal(result.taxesTotal, Math.round(result.grossIncome * 0.06));
+    const amortRow = result.detailedRows.find((row) => String(row.name).includes('Амортизація'));
+    assert.equal(result.ebitda - result.taxesTotal - amortRow.val, result.netProfit);
     assert.deepEqual(splitTonnageShares(100, [1, 1, 1]), [33.333, 33.333, 33.334]);
     assert.deepEqual(splitTonnageShares(126, [22, 18]), [69.3, 56.7]);
     assert.deepEqual(clientSplit(100, [1, 1, 1]), splitTonnageShares(100, [1, 1, 1]));
@@ -202,11 +204,30 @@ test('two trucks pay six percent of the summed income once', () => {
     assert.equal(result.taxesTotal, 1);
     assert.equal(result.taxesTotal, Math.round(result.grossIncome * 0.06));
     assert.notEqual(result.taxesTotal, left.taxesTotal + right.taxesTotal);
-    assert.equal(result.netProfit, left.netProfit + right.netProfit - 1);
+    const amortRow = result.detailedRows.find((row) => String(row.name).includes('Амортизація'));
+    assert.equal(result.ebitda - result.taxesTotal - amortRow.val, result.netProfit);
     assert.equal(result.vehicleBreakdown[0].profit + result.vehicleBreakdown[1].profit, result.netProfit);
     assert.equal(result.vehicleBreakdown[0].costs + result.vehicleBreakdown[1].costs, otherCosts(result.detailedRows));
     assert.equal(result.detailedRows.find((row) => String(row.name).includes('Податки')).val, 1);
     assert.equal(calculateTrip(fixtures[0].payload).fuelAndAdblueTotal, fixtures[0].expect.fuelAndAdblueTotal);
+});
+
+test('two trucks round margin and EBITDA once so the cascade equals profit', () => {
+    const base = { ...fixtures[0].payload, rate: 1, volume: 2 };
+    const result = sumVehicleTrips(base, [
+        { label: 'A', tonnage: 1 },
+        { label: 'B', tonnage: 1 }
+    ]);
+    const left = calculateTrip({ ...base, carsCount: 1, volume: 1 });
+    const right = calculateTrip({ ...base, carsCount: 1, volume: 1 });
+    const amort = result.detailedRows.find((row) => String(row.name).includes('Амортизація')).val;
+    assert.equal(result.ebitda - result.taxesTotal - amort, result.netProfit);
+    assert.notEqual(result.ebitda, left.ebitda + right.ebitda);
+    assert.notEqual(result.marginalIncome, left.marginalIncome + right.marginalIncome);
+    assert.notEqual(result.netProfit, left.netProfit + right.netProfit);
+    assert.equal(result.vehicleBreakdown[0].profit, left.netProfit);
+    assert.equal(result.vehicleBreakdown[1].profit, result.netProfit - left.netProfit);
+    assert.equal(result.vehicleBreakdown[0].profit + result.vehicleBreakdown[1].profit, result.netProfit);
 });
 
 test('rapid vehicle switches keep the KPIs of the last state', () => {
