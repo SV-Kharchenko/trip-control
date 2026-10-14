@@ -128,14 +128,18 @@ test('history export uses the filtered period, not the visible page, and adds no
 
 test('a route title fills empty origin and destination, and a filter miss is not an empty archive', () => {
     const historyPlacesFromName = extractFunction('historyPlacesFromName', ['name']);
-    const historyEmptyMessage = extractFunction('historyEmptyMessage', ['savedCount', 'shownCount']);
+    const historyEmptyMessage = extractFunction('historyEmptyMessage', ['savedCount', 'shownCount', 'authorFiltered']);
     assert.deepEqual(historyPlacesFromName('Київ — Львів'), { from: 'Київ', to: 'Львів' });
     assert.deepEqual(historyPlacesFromName('Умань - Ізмаїл'), { from: 'Умань', to: 'Ізмаїл' });
+    assert.deepEqual(historyPlacesFromName('Київ → Львів, зерно'), { from: 'Київ', to: 'Львів' });
     assert.deepEqual(historyPlacesFromName('Маршрут 1'), { from: '', to: '' });
     assert.equal(historyEmptyMessage(0, 0), 'Немає збережених розрахунків.');
+    assert.equal(historyEmptyMessage(0, 0, true), 'Немає збережених розрахунків.');
     assert.equal(historyEmptyMessage(4, 0), 'Нічого не знайдено за фільтром.');
-    assert.equal(historyEmptyMessage(4, 2), '');
-    assert.match(html, /historyEmptyMessage\(savedCalculations\.length, rows\.length\)/);
+    assert.equal(historyEmptyMessage(4, 0, true), 'У цього учасника ще немає збережених розрахунків.');
+    assert.equal(historyEmptyMessage(4, 2, true), '');
+    assert.match(html, /historyEmptyMessage\(savedCalculations\.length, rows\.length, authorFiltered\)/);
+    assert.match(html, /currentWorkMode === 'team' && !!\(authorSelect && authorSelect\.value\)/);
     assert.match(html, /perKm: perKm === null \? null : Math\.round\(perKm\)/);
     assert.equal(html.includes('Math.round(perKm * 100)'), false);
     assert.equal(Math.round(-1500.4 / 540), -3);

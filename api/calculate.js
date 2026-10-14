@@ -10,7 +10,15 @@ const DEMO_DAILY_LIMIT = 5;
 
 // Чистий розрахунок рейсу. Арифметика та сама, що віддає POST /api/calculate.
 // Авторизація, демо-ліміт і поле demo лишаються в handler.
+// Публічний результат округлюється як і раніше. Незаокруглені маржа, EBITDA
+// й амортизація лишаються лише для суми кількох авто.
 export function calculateTrip(body) {
+    const computed = computeTrip(body);
+    if (!computed || computed.status) return computed;
+    return computed.public;
+}
+
+function computeTrip(body) {
     body = body || {};
 
     // 1. Вхідні параметри
@@ -304,35 +312,42 @@ export function calculateTrip(body) {
         : '💧 AdBlue: не використовується';
 
     return {
-        contractCurrency,
-        fxRate,
-        grossIncome: Math.round(grossIncome),
-        netIncome: Math.round(netIncome),
-        marginalIncome: Math.round(marginalIncome),
-        marginPerTon: actualVolume > 0 ? Math.round(marginalIncome / actualVolume) : 0,
-        ebitda: Math.round(ebitda),
-        ebitdaPerTon: actualVolume > 0 ? Math.round(ebitda / actualVolume) : 0,
-        netProfit: Math.round(netProfit),
-        profitabilityPct,
-        breakevenMarginPerTon,
-        breakevenEbitdaPerTon,
-        breakevenFullPerTon,
-        breakevenGapPerTon,
-        breakevenExVatPerTon,
-        rateExVatPerTon,
-        fuelAndAdblueTotal: Math.round(fuelTotal + adblueTotal),
-        driverTotal: Math.round(driverTotal),
-        toTotal: Math.round(maintenanceTotal),
-        extrasTotal: Math.round(extrasTotal),
-        overheadTotal: Math.round(overheadTotal),
-        taxesTotal: Math.round(taxesTotal),
-        detailedRows,
+        public: {
+            contractCurrency,
+            fxRate,
+            grossIncome: Math.round(grossIncome),
+            netIncome: Math.round(netIncome),
+            marginalIncome: Math.round(marginalIncome),
+            marginPerTon: actualVolume > 0 ? Math.round(marginalIncome / actualVolume) : 0,
+            ebitda: Math.round(ebitda),
+            ebitdaPerTon: actualVolume > 0 ? Math.round(ebitda / actualVolume) : 0,
+            netProfit: Math.round(netProfit),
+            profitabilityPct,
+            breakevenMarginPerTon,
+            breakevenEbitdaPerTon,
+            breakevenFullPerTon,
+            breakevenGapPerTon,
+            breakevenExVatPerTon,
+            rateExVatPerTon,
+            fuelAndAdblueTotal: Math.round(fuelTotal + adblueTotal),
+            driverTotal: Math.round(driverTotal),
+            toTotal: Math.round(maintenanceTotal),
+            extrasTotal: Math.round(extrasTotal),
+            overheadTotal: Math.round(overheadTotal),
+            taxesTotal: Math.round(taxesTotal),
+            detailedRows,
 
-        tripVolumeText,
-        rtInfoText,
-        podachaText,
-        fuelSummaryText,
-        adblueSummaryText
+            tripVolumeText,
+            rtInfoText,
+            podachaText,
+            fuelSummaryText,
+            adblueSummaryText
+        },
+        raw: {
+            marginalIncome,
+            ebitda,
+            postEbitdaTotal
+        }
     };
 }
 
@@ -418,13 +433,20 @@ function weightedVehicleRate(parts, key) {
     return Math.round(acc / weight);
 }
 
-// Кожне авто — окремий calculateTrip. Гроші вже округлені, тому сума рядків дорівнює підсумку.
+// Кожне авто — окремий розрахунок. Одне авто лишає округлення calculateTrip.
+// Для двох і більше маржа, EBITDA й амортизація сумуються з незаокруглених
+// часток і округлюються один раз, тож EBITDA − податок − амортизація = прибуток.
+// Останній рядок розбивки підганяється під цей підсумок.
 // Порожній список сюди не приходить: рейс без авто лишає calculateTrip без змін.
 export function sumVehicleTrips(base, assignments) {
     if (!Array.isArray(assignments) || !assignments.length) return null;
     const parts = assignments.map(function (assignment) {
         const payload = vehicleSlicePayload(base, assignment);
-        return { assignment: assignment, payload: payload, result: calculateTrip(payload) };
+        const computed = computeTrip(payload);
+        if (computed && computed.status) {
+            return { assignment: assignment, payload: payload, result: computed, raw: null };
+        }
+        return { assignment: assignment, payload: payload, result: computed.public, raw: computed.raw };
     });
     const failed = parts.find(function (part) { return part.result && part.result.status; });
     if (failed) return failed.result;
@@ -460,15 +482,34 @@ export function sumVehicleTrips(base, assignments) {
         });
     });
     combined.detailedRows = rowOrder.map(function (name) { return { name: name, val: rowValues[name] }; });
-    let fleetTaxDelta = 0;
-    if (parts.length >= 2 && String(base && base.calcType) === 'фоп') {
-        const onceTax = Math.round(combined.grossIncome * 0.06);
-        fleetTaxDelta = onceTax - combined.taxesTotal;
-        combined.taxesTotal = onceTax;
-        combined.netProfit -= fleetTaxDelta;
+    let breakdownProfitAdjust = 0;
+    let breakdownCostAdjust = 0;
+    if (parts.length >= 2) {
+        const rawMargin = parts.reduce(function (sum, part) { return sum + part.raw.marginalIncome; }, 0);
+        const rawEbitda = parts.reduce(function (sum, part) { return sum + part.raw.ebitda; }, 0);
+        const rawAmort = parts.reduce(function (sum, part) { return sum + part.raw.postEbitdaTotal; }, 0);
+        combined.marginalIncome = Math.round(rawMargin);
+        combined.ebitda = Math.round(rawEbitda);
+        const amort = Math.round(rawAmort);
+        const summedAmort = vehicleRowValue(combined, 'Амортизація');
         combined.detailedRows.forEach(function (row) {
-            if (String(row.name).indexOf('Податки') !== -1) row.val = onceTax;
+            if (String(row.name).indexOf('Амортизація') !== -1) row.val = amort;
         });
+        combined.marginPerTon = assigned > 0 ? Math.round(combined.marginalIncome / assigned) : 0;
+        combined.ebitdaPerTon = assigned > 0 ? Math.round(combined.ebitda / assigned) : 0;
+        const summedNet = combined.netProfit;
+        let fleetTaxDelta = 0;
+        if (String(base && base.calcType) === 'фоп') {
+            const onceTax = Math.round(combined.grossIncome * 0.06);
+            fleetTaxDelta = onceTax - combined.taxesTotal;
+            combined.taxesTotal = onceTax;
+            combined.detailedRows.forEach(function (row) {
+                if (String(row.name).indexOf('Податки') !== -1) row.val = onceTax;
+            });
+        }
+        combined.netProfit = combined.ebitda - combined.taxesTotal - amort;
+        breakdownProfitAdjust = combined.netProfit - summedNet;
+        breakdownCostAdjust = (amort - summedAmort) + fleetTaxDelta;
     }
     combined.profitabilityPct = combined.netIncome > 0 ? (combined.netProfit / combined.netIncome) * 100 : 0;
 
@@ -497,11 +538,12 @@ export function sumVehicleTrips(base, assignments) {
     combined.vehicleBreakdown = parts.map(function (part, index) {
         const fuel = vehicleRowValue(part.result, 'Пальне');
         const adblueCost = vehicleRowValue(part.result, 'AdBlue');
-        const taxAdjust = index === parts.length - 1 ? fleetTaxDelta : 0;
+        const costAdjust = index === parts.length - 1 ? breakdownCostAdjust : 0;
+        const profitAdjust = index === parts.length - 1 ? breakdownProfitAdjust : 0;
         const costs = (part.result.detailedRows || []).reduce(function (sum, row) {
             if (String(row.name).indexOf('Пальне') !== -1 || String(row.name).indexOf('AdBlue') !== -1) return sum;
             return sum + row.val;
-        }, 0) + taxAdjust;
+        }, 0) + costAdjust;
         return {
             id: part.assignment.id || null,
             label: part.assignment.label || 'Авто',
@@ -509,7 +551,7 @@ export function sumVehicleTrips(base, assignments) {
             fuel: fuel,
             adblue: adblueCost,
             costs: costs,
-            profit: part.result.netProfit - taxAdjust
+            profit: part.result.netProfit + profitAdjust
         };
     });
     return combined;

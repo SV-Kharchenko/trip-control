@@ -1453,6 +1453,18 @@
             font: inherit; font-size: 0.75rem;
         }
         #auth-screen input, #auth-screen select { text-align: left; }
+        #auth-form input:not([type="checkbox"]):not([type="radio"]):-webkit-autofill,
+        #auth-form input:not([type="checkbox"]):not([type="radio"]):-webkit-autofill:hover,
+        #auth-form input:not([type="checkbox"]):not([type="radio"]):-webkit-autofill:focus,
+        #auth-recovery-form input:-webkit-autofill,
+        #auth-recovery-form input:-webkit-autofill:hover,
+        #auth-recovery-form input:-webkit-autofill:focus {
+            -webkit-text-fill-color: var(--text-main);
+            caret-color: var(--text-main);
+            -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset;
+            box-shadow: 0 0 0 1000px var(--input-bg) inset;
+            transition: background-color 9999s ease-out 0s;
+        }
         #auth-form, #auth-recovery-form { margin: 0; }
         #auth-recovery-form .form-row { margin-bottom: 10px; }
         #auth-back-btn { margin-top: 0; }
@@ -8010,13 +8022,14 @@
         const parts = text.split(/\s*(?:—|–|→|->)\s*|\s+-\s+/);
         if (parts.length < 2) return { from: '', to: '' };
         const from = parts[0].trim();
-        const to = parts.slice(1).join(' - ').trim();
+        const to = parts.slice(1).join(' - ').split(',')[0].trim();
         if (!from || !to) return { from: '', to: '' };
         return { from: from, to: to };
     }
-    function historyEmptyMessage(savedCount, shownCount) {
+    function historyEmptyMessage(savedCount, shownCount, authorFiltered) {
         if (shownCount > 0) return '';
         if (!(Number(savedCount) > 0)) return 'Немає збережених розрахунків.';
+        if (authorFiltered) return 'У цього учасника ще немає збережених розрахунків.';
         return 'Нічого не знайдено за фільтром.';
     }
     function historyFields(row) {
@@ -8471,7 +8484,9 @@
         if (pager) pager.hidden = rows.length <= HISTORY_PAGE_SIZE;
         if (pageLabel) pageLabel.textContent = (historyPage + 1) + ' / ' + pages;
         if (!slice.length) {
-            const message = historyEmptyMessage(savedCalculations.length, rows.length);
+            const authorSelect = document.getElementById('saved-author-filter');
+            const authorFiltered = currentWorkMode === 'team' && !!(authorSelect && authorSelect.value);
+            const message = historyEmptyMessage(savedCalculations.length, rows.length, authorFiltered);
             tbody.innerHTML = '<tr><td colspan="' + columns + '" style="text-align: center; color: var(--text-muted);">' + message + '</td></tr>';
             if (cards) cards.innerHTML = '<p class="tc-history-meta">' + message + '</p>';
             return;

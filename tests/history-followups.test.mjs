@@ -47,6 +47,16 @@ test('signup hint stays off Ocean and does not promise a weekly report', () => {
     assert.deepEqual(unscopedHint, []);
     assert.match(html, /body\.layout-studio\[data-theme="control"\] #auth-form\[data-mode="signup"\] \.auth-email-hint/);
     assert.match(html, /body\.layout-studio\[data-theme="paper"\] #auth-form\[data-mode="signup"\] \.auth-email-hint[\s\S]*display: block;/);
+    const autofill = html.slice(html.indexOf('#auth-form input:not([type="checkbox"])'), html.indexOf('#auth-form, #auth-recovery-form'));
+    assert.match(autofill, /#auth-form input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):-webkit-autofill/);
+    assert.match(autofill, /#auth-recovery-form input:-webkit-autofill:focus/);
+    assert.match(autofill, /-webkit-text-fill-color: var\(--text-main\)/);
+    assert.match(autofill, /caret-color: var\(--text-main\)/);
+    assert.match(autofill, /-webkit-box-shadow: 0 0 0 1000px var\(--input-bg\) inset/);
+    assert.match(autofill, /box-shadow: 0 0 0 1000px var\(--input-bg\) inset/);
+    assert.match(autofill, /transition: background-color 9999s ease-out 0s/);
+    assert.equal(autofill.includes('ocean'), false);
+    assert.equal(autofill.includes('border'), false);
 });
 
 test('history page, client search, template confirm and atomic use count are wired', () => {
