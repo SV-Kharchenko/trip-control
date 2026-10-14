@@ -45,4 +45,7 @@ test('fleet cards collapse by default and keep the form in the page', () => {
     assert.match(html, /#cabinet-screen \.tc-fleet-plate[\s\S]*text-transform: uppercase/);
     assert.match(html, /#cabinet-screen \.tc-fleet-make\.is-empty \{ color: var\(--muted\)/);
     assert.match(html, /#cabinet-screen \.tc-fleet-status\.is-overdue \{ color: var\(--negative\)/);
+    assert.match(html, /#cabinet-screen \.tc-fleet-status\.is-soon \{ color: var\(--warning-text\)/);
+    assert.match(html, /#cabinet-screen \.tc-doc-soon,\s*#cabinet-screen \.tc-doc-soon small \{ color: var\(--warning-text\)/);
+    assert.match(html, /#cabinet-screen \.tc-fleet-card\.is-soon \{ border-color: var\(--warning\)/);
 });
