@@ -22,6 +22,9 @@ function extractFunction(name, params) {
 test('stage 4 keeps a dark result card, cascade and expense table on the existing totals', () => {
     assert.match(html, /#dispatcher-result:not\(\.is-empty\)/);
     assert.match(html, /background: #0D2A29/);
+    assert.match(html, /#dispatcher-result:not\(\.is-empty\) \.tc-profit-hero,[\s\S]*background: transparent;/);
+    assert.match(html, /grid-column: 1 \/ -1;\s*grid-row: 1;\s*align-self: start;\s*top: auto;/);
+    assert.match(html, /#tc-cascade \.donut-legend-row \.nums \{[\s\S]*display: inline-flex;[\s\S]*gap: 8px;/);
     assert.match(html, /id="tc-cascade"/);
     assert.match(html, /Від доходу до прибутку/);
     assert.match(html, /id="tc-cost-table"/);

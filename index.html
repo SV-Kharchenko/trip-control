@@ -3368,6 +3368,14 @@
         }
         body.layout-studio[data-theme="light"] #studio-sum,
         body.layout-studio[data-theme="dark"] #studio-sum { display: none !important; }
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-hero,
+        body.layout-studio #dispatcher-result:not(.is-empty) .tc-kpi,
+        body.layout-studio #dispatcher-result:not(.is-empty) .kpi-chip {
+            background: transparent;
+            border-color: transparent;
+            box-shadow: none;
+            color: var(--tc-result-fg);
+        }
         body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-hero {
             display: flex;
             flex-wrap: wrap;
@@ -3458,6 +3466,8 @@
             grid-column: 1 / -1;
             grid-row: 1;
             align-self: start;
+            top: auto;
+            z-index: auto;
         }
         body.layout-studio[data-theme="light"] #studio-right > .tc-map-frame,
         body.layout-studio[data-theme="dark"] #studio-right > .tc-map-frame {
@@ -3534,7 +3544,10 @@
             align-items: baseline;
             gap: 6px;
         }
-        body.layout-studio #tc-cascade .donut-legend-row .nums { display: inline; }
+        body.layout-studio #tc-cascade .donut-legend-row .nums {
+            display: inline-flex;
+            gap: 8px;
+        }
         body.layout-studio #tc-cascade .donut-legend-row .pct,
         body.layout-studio #tc-cascade .donut-legend-row .sum {
             font-family: 'JetBrains Mono', ui-monospace, monospace;
