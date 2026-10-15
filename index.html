@@ -2340,69 +2340,6 @@
         body.layout-studio[data-studio-view="overview"] .poi-box,
         body.layout-studio[data-studio-view="overview"] #saved-section,
         body.layout-studio[data-studio-view="overview"] .actions-bar { display: none !important; }
-        .tc-overview-lead {
-            color: var(--text-muted);
-            font-size: 13px;
-            margin: 0 0 16px;
-            max-width: 720px;
-            line-height: 1.45;
-        }
-        .tc-overview-kpis {
-            display: grid;
-            grid-template-columns: 1.4fr repeat(3, 1fr);
-            gap: 14px;
-            margin-bottom: 14px;
-        }
-        .tc-overview-kpi {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 16px 18px;
-        }
-        .tc-overview-kpi .l { font-size: 12.5px; color: var(--text-muted); }
-        .tc-overview-kpi .v {
-            font-family: 'JetBrains Mono', ui-monospace, monospace;
-            font-size: 30px;
-            font-weight: 600;
-            letter-spacing: -0.04em;
-            margin-top: 6px;
-            line-height: 1.1;
-        }
-        .tc-overview-kpi .s { margin-top: 6px; font-size: 12px; color: var(--text-muted); }
-        body.layout-studio .tc-overview-kpi.main {
-            background: linear-gradient(160deg, #0D3337, #06262A);
-            color: #F3DFB5;
-            border-color: #8D6A3F;
-        }
-        body.layout-studio .tc-overview-kpi.main .l,
-        body.layout-studio .tc-overview-kpi.main .s { color: #CBBF9F; }
-        body.layout-studio .tc-overview-kpi.main .v { font-size: 40px; color: #8FE0B5; }
-        .tc-overview-grid { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 14px; }
-        .tc-overview-grid .card { padding: 16px 18px; }
-        .tc-overview-head {
-            display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-        }
-        .tc-author-card { margin-top: 14px; padding: 16px 18px; }
-        .tc-author-table-wrap { overflow-x: auto; }
-        .tc-author-table { min-width: 520px; }
-        .tc-author-table td:first-child { max-width: 320px; overflow-wrap: anywhere; }
-        .tc-author-table td:not(:first-child),
-        .tc-author-table th:not(:first-child) { text-align: right; }
-        .tc-month-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
-        .tc-month-row span { width: 72px; color: var(--text-muted); font-size: 12px; }
-        .tc-month-track { flex: 1; height: 10px; background: var(--input-bg); border-radius: 6px; overflow: hidden; }
-        .tc-month-track i { display: block; height: 100%; background: #8D6A3F; border-radius: 6px; }
-        .tc-month-row b { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; min-width: 64px; text-align: right; }
-        .tc-loss-row {
-            display: grid;
-            grid-template-columns: 1fr auto auto;
-            gap: 12px;
-            padding: 9px 0;
-            border-top: 1px solid var(--border-color);
-            align-items: baseline;
-        }
-        .tc-loss-row b { color: var(--danger); font-family: 'JetBrains Mono', ui-monospace, monospace; }
-        .tc-loss-row small { color: var(--text-muted); }
         @media (max-width: 900px) {
             body.layout-studio #main-app {
                 grid-template-columns: 1fr !important;
@@ -2558,9 +2495,6 @@
             body.layout-studio gmp-place-autocomplete { min-height: 44px !important; }
             body.layout-studio details.tc-more summary { min-height: 44px; display: flex; align-items: center; }
             body.layout-studio #tc-toast { bottom: 150px; }
-            body.layout-studio .tc-overview-kpis,
-            body.layout-studio .tc-overview-grid { grid-template-columns: 1fr; }
-            .tc-overview-head { align-items: flex-start; }
             body.layout-studio[data-studio-view="overview"] #main-app { padding-bottom: 28px; }
         }
         @media (max-width: 400px) {
@@ -2881,7 +2815,6 @@
             body.layout-studio .tc-costs-visual th:nth-child(4),
             body.layout-studio .tc-costs-visual td:nth-child(4) { width: 16%; }
         }
-        body.layout-studio .tc-month-track i.is-neg { background: var(--danger); }
         body.layout-studio[data-studio-view="overview"] #missing-hint,
         body.layout-studio[data-studio-view="overview"] #onboard-banner,
         body.layout-studio[data-studio-view="overview"] #cab-warning { display: none !important; }
@@ -3809,6 +3742,132 @@
         #map .gm-style .gm-ui-hover-effect > span { background-color: var(--muted, var(--text-muted)) !important; }
         .tc-poi-tip { color: var(--text, var(--text-main)); font-family: Manrope, sans-serif; font-size: 0.85rem; line-height: 1.4; }
         .tc-poi-tip span { color: var(--muted, var(--text-muted)); }
+        /* Етап 6a: сторінка «Огляд» */
+        #studio-overview { --ov-pos: var(--positive, var(--success)); --ov-neg: var(--negative, var(--danger)); }
+        .tc-ov-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; margin: 4px 0 18px; }
+        .tc-ov-kicker { margin: 0 0 4px; color: var(--muted, var(--text-muted)); font-size: 13px; }
+        #studio-overview .tc-ov-title { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; color: var(--text, var(--text-main)); }
+        .tc-ov-period {
+            display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px;
+            background: var(--surface, var(--card-bg)); border: 1px solid var(--border-soft, var(--border-color));
+        }
+        .tc-ov-period button {
+            min-height: 40px; padding: 0 16px; border: none; border-radius: 9px; cursor: pointer;
+            background: transparent; color: var(--muted, var(--text-muted)); font: 600 14px Manrope, sans-serif;
+        }
+        .tc-ov-period button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent, #fff); }
+        .tc-ov-period button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        #studio-overview .tc-ov-card {
+            background: var(--surface, var(--card-bg)); border: 1px solid var(--border-soft, var(--border-color));
+            border-radius: 14px; padding: 18px 20px; margin: 0; min-width: 0; box-shadow: none;
+        }
+        .tc-ov-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+        #studio-overview .tc-ov-card-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--text, var(--text-main)); }
+        .tc-ov-card-head h3 small { margin-left: 8px; font-weight: 500; color: var(--muted, var(--text-muted)); font-size: 12px; }
+        .tc-ov-unit { color: var(--muted, var(--text-muted)); font-size: 12px; }
+        .tc-ov-unit.is-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; color: var(--text, var(--text-main)); font-weight: 600; }
+        .tc-ov-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+        .tc-ov-kpi .l { color: var(--muted, var(--text-muted)); font-size: 12.5px; }
+        .tc-ov-kpi .v {
+            margin-top: 8px; font: 600 28px/1.1 'JetBrains Mono', ui-monospace, monospace; letter-spacing: -0.03em;
+            color: var(--text, var(--text-main)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .tc-ov-kpi .v.is-up { color: var(--ov-pos); }
+        .tc-ov-kpi .v.is-down { color: var(--ov-neg); }
+        .tc-ov-kpi .d { margin-top: 8px; font-size: 12px; color: var(--muted, var(--text-muted)); }
+        .tc-ov-kpi .d.is-up { color: var(--ov-pos); }
+        .tc-ov-kpi .d.is-down { color: var(--ov-neg); }
+        .tc-ov-row { display: grid; gap: 18px; margin-bottom: 18px; align-items: start; }
+        .tc-ov-row-a { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); }
+        .tc-ov-row-b { grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr); }
+        .tc-ov-stack { display: grid; gap: 18px; min-width: 0; }
+        .tc-ov-bars { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; }
+        .tc-ov-bar { display: flex; flex-direction: column; align-items: stretch; min-width: 0; }
+        .tc-ov-bar-plot {
+            height: 180px; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch;
+            border-bottom: 1px solid var(--border, var(--border-color));
+        }
+        .tc-ov-bar-val { text-align: center; margin-bottom: 6px; font: 500 11px 'JetBrains Mono', ui-monospace, monospace; color: var(--muted, var(--text-muted)); white-space: nowrap; }
+        .tc-ov-bar.is-neg .tc-ov-bar-val { color: var(--ov-neg); }
+        .tc-ov-bar i { display: block; border-radius: 4px 4px 0 0; background: var(--teal, var(--steel)); }
+        .tc-ov-bar.is-neg i { background: var(--ov-neg); }
+        .tc-ov-bar.is-now i { background: var(--gold, var(--amber)); }
+        .tc-ov-bar-wk { margin-top: 8px; text-align: center; font: 500 11px 'JetBrains Mono', ui-monospace, monospace; color: var(--muted, var(--text-muted)); white-space: nowrap; }
+        .tc-ov-fleet-bar { display: flex; height: 10px; border-radius: 999px; overflow: hidden; gap: 2px; background: var(--border-soft, var(--border-color)); }
+        .tc-ov-fleet-bar i { display: block; min-width: 0; }
+        .tc-ov-fleet-bar .ok { background: var(--ov-pos); }
+        .tc-ov-fleet-bar .soon { background: var(--gold, var(--amber)); }
+        .tc-ov-fleet-bar .overdue { background: var(--ov-neg); }
+        .tc-ov-fleet-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 4px; }
+        .tc-ov-fleet-stats b { display: block; font: 600 26px/1.1 'JetBrains Mono', ui-monospace, monospace; }
+        .tc-ov-fleet-stats span { color: var(--muted, var(--text-muted)); font-size: 12px; }
+        .tc-ov-fleet-stats .ok b { color: var(--ov-pos); }
+        .tc-ov-fleet-stats .soon b { color: var(--gold, var(--amber)); }
+        .tc-ov-fleet-stats .overdue b { color: var(--ov-neg); }
+        .tc-ov-sub { margin: 14px 0 4px; padding-top: 12px; border-top: 1px solid var(--border-soft, var(--border-color)); color: var(--muted, var(--text-muted)); font-size: 12px; }
+        .tc-ov-list-row {
+            display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+            padding: 9px 0; border-bottom: 1px solid var(--border-soft, var(--border-color)); font-size: 13px; color: var(--text, var(--text-main));
+        }
+        .tc-ov-list-row:last-child { border-bottom: none; }
+        .tc-ov-list-row > span:first-child { min-width: 0; overflow-wrap: break-word; }
+        .tc-ov-list-row b { flex: none; font: 600 12px 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; }
+        .tc-ov-list-row b.soon { color: var(--warning-text, var(--amber)); }
+        .tc-ov-list-row b.overdue, .tc-ov-list-row b.is-down { color: var(--ov-neg); }
+        .tc-ov-note { margin: 0; color: var(--muted, var(--text-muted)); font-size: 13px; line-height: 1.45; }
+        .tc-ov-note + .btn, .tc-ov-empty .btn { margin-top: 12px; width: auto; min-height: 40px; padding: 0 16px; }
+        .tc-ov-table-wrap { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+        .tc-ov-table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text, var(--text-main)); }
+        .tc-ov-table th {
+            text-align: left; font-weight: 500; font-size: 12px; color: var(--muted, var(--text-muted));
+            padding: 0 8px 10px; border-bottom: 1px solid var(--border-soft, var(--border-color)); white-space: nowrap;
+        }
+        .tc-ov-table td { padding: 11px 8px; border-bottom: 1px solid var(--border-soft, var(--border-color)); vertical-align: middle; }
+        .tc-ov-table th:first-child, .tc-ov-table td:first-child { padding-left: 0; }
+        .tc-ov-table th:last-child, .tc-ov-table td:last-child { padding-right: 0; }
+        .tc-ov-table .num { text-align: right; font-family: 'JetBrains Mono', ui-monospace, monospace; white-space: nowrap; }
+        .tc-ov-table .is-up { color: var(--ov-pos); }
+        .tc-ov-table .is-down { color: var(--ov-neg); }
+        .tc-ov-table .muted { color: var(--muted, var(--text-muted)); overflow-wrap: anywhere; }
+        .tc-ov-table small { display: block; color: var(--muted, var(--text-muted)); font-size: 11px; }
+        .tc-ov-logists { min-width: 360px; }
+        .tc-ov-saved { min-width: 640px; }
+        .tc-ov-saved tbody tr { cursor: pointer; }
+        .tc-ov-saved td { padding-top: 4px; padding-bottom: 4px; }
+        .tc-ov-saved tbody tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+        .tc-ov-open {
+            display: inline-flex; align-items: center; min-height: 40px;
+            padding: 0; border: none; background: none; cursor: pointer; text-align: left;
+            font: 700 13px Manrope, sans-serif; color: var(--text, var(--text-main));
+        }
+        .tc-ov-open:hover { text-decoration: underline; }
+        .tc-ov-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+        .tc-ov-badge {
+            display: inline-block; padding: 2px 7px; border-radius: 6px; font: 600 12px 'JetBrains Mono', ui-monospace, monospace;
+            background: color-mix(in srgb, var(--ov-pos) 14%, transparent); color: var(--ov-pos);
+        }
+        .tc-ov-badge.is-down { background: color-mix(in srgb, var(--ov-neg) 14%, transparent); color: var(--ov-neg); }
+        .tc-ov-empty { text-align: left; }
+        .tc-ov-empty h3 { margin: 0 0 6px; font-size: 16px; color: var(--text, var(--text-main)); }
+        @media (max-width: 1180px) {
+            .tc-ov-kpi .v { font-size: 22px; }
+        }
+        @media (max-width: 900px) {
+            #studio-overview .tc-ov-title { font-size: 24px; }
+            .tc-ov-period { width: 100%; }
+            .tc-ov-period button { flex: 1 1 0; padding: 0 8px; }
+            .tc-ov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+            .tc-ov-kpis > :last-child { grid-column: 1 / -1; }
+            #studio-overview .tc-ov-card { padding: 14px 14px; }
+            .tc-ov-row-a, .tc-ov-row-b { grid-template-columns: minmax(0, 1fr); }
+            .tc-ov-bars { gap: 4px; }
+            .tc-ov-bar-plot { height: 150px; }
+            .tc-ov-bar-val, .tc-ov-bar-wk { font-size: 9.5px; }
+            .tc-ov-bar-wk { white-space: normal; line-height: 1.25; }
+            .tc-ov-list-row { flex-wrap: wrap; }
+            .tc-ov-list-row b { white-space: normal; text-align: right; margin-left: auto; }
+            .tc-ov-fleet-stats b { font-size: 22px; }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -4660,25 +4719,50 @@
     </div>
 
     <section id="studio-overview" aria-label="Огляд">
-        <h2>Огляд</h2>
-        <div class="tc-overview-head">
-            <p class="tc-overview-lead" id="overview-lead">Зведення по збережених розрахунках компанії: кількість, середня маржа, грн/км і збиткові рейси.</p>
-            <span class="tc-overview-seats" id="overview-team-seats" hidden></span>
-        </div>
-        <div class="tc-overview-kpis" id="overview-kpis"></div>
-        <div class="tc-overview-grid">
-            <div class="card">
-                <h3>Маржа по місяцях</h3>
-                <div id="overview-months"></div>
+        <div class="tc-ov-head">
+            <div>
+                <p class="tc-ov-kicker" id="overview-kicker">Кабінет директора</p>
+                <h2 class="tc-ov-title">Огляд компанії</h2>
             </div>
-            <div class="card">
-                <h3>Збиткові рейси</h3>
-                <div id="overview-losses"></div>
+            <div class="tc-ov-period" role="group" aria-label="Період">
+                <button type="button" data-period="week" aria-pressed="false" onclick="setOverviewPeriod('week')">Тиждень</button>
+                <button type="button" data-period="month" aria-pressed="true" onclick="setOverviewPeriod('month')">Місяць</button>
+                <button type="button" data-period="quarter" aria-pressed="false" onclick="setOverviewPeriod('quarter')">Квартал</button>
             </div>
         </div>
-        <div class="card tc-author-card" id="overview-authors-card">
-            <h3>Результати за авторами</h3>
-            <div class="tc-author-table-wrap" id="overview-authors"></div>
+        <div class="card tc-ov-card tc-ov-empty" id="overview-empty" hidden>
+            <h3>Ще немає збережених розрахунків</h3>
+            <p class="tc-ov-note">Порахуйте рейс у калькуляторі й натисніть «Зберегти» — тут з’являться рейси, дохід, прибуток по тижнях, логісти й простої.</p>
+            <button type="button" class="btn" onclick="setStudioView('calc')">До калькулятора</button>
+        </div>
+        <div id="overview-body">
+            <div class="tc-ov-kpis" id="overview-kpis"></div>
+            <div class="tc-ov-row tc-ov-row-a">
+                <div class="card tc-ov-card">
+                    <div class="tc-ov-card-head"><h3>Чистий прибуток по тижнях</h3><span class="tc-ov-unit">тис. грн</span></div>
+                    <div id="overview-weeks"></div>
+                </div>
+                <div class="tc-ov-stack">
+                    <div class="card tc-ov-card">
+                        <div class="tc-ov-card-head"><h3>Автопарк зараз</h3><span class="tc-ov-unit is-mono" id="overview-fleet-count"></span></div>
+                        <div id="overview-fleet"></div>
+                    </div>
+                    <div class="card tc-ov-card">
+                        <div class="tc-ov-card-head"><h3>Простої</h3><span class="tc-ov-unit" id="overview-idle-period"></span></div>
+                        <div id="overview-idle"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="tc-ov-row tc-ov-row-b">
+                <div class="card tc-ov-card" id="overview-authors-card">
+                    <div class="tc-ov-card-head"><h3>Логісти</h3><span class="tc-overview-seats" id="overview-team-seats" hidden></span></div>
+                    <div class="tc-ov-table-wrap" id="overview-authors"></div>
+                </div>
+                <div class="card tc-ov-card">
+                    <div class="tc-ov-card-head"><h3>Збережені розрахунки<small id="overview-saved-count"></small></h3></div>
+                    <div class="tc-ov-table-wrap" id="overview-saved"></div>
+                </div>
+            </div>
         </div>
     </section>
 </div>
@@ -7919,6 +8003,7 @@
         if (summary) summary.textContent = fleetVehicles.length ? ('Прострочено: ' + overdue + ' · скоро: ' + soon) : '';
         if (tools) tools.hidden = !fleetVehicles.length;
         list.innerHTML = cards || '<p class="tc-fleet-note">Авто ще немає. Додай номер, якщо хочеш стежити за документами.</p>';
+        if (document.body.getAttribute('data-studio-view') === 'overview') renderStudioOverview();
     }
     async function loadFleetVehicles() {
         if (uiPreview || !currentOrgId) return;
@@ -9549,125 +9634,315 @@
         return km > 0 ? km : 0;
     }
 
-    function renderOverviewAuthors(rows) {
-        const lead = document.getElementById('overview-lead');
-        const seatsEl = document.getElementById('overview-team-seats');
-        const card = document.getElementById('overview-authors-card');
-        const target = document.getElementById('overview-authors');
-        if (!lead || !seatsEl || !card || !target) return;
-
-        const isTeam = currentWorkMode === 'team';
-        card.hidden = !isTeam;
-        seatsEl.hidden = !isTeam;
-        if (!isTeam) {
-            lead.textContent = 'Особиста статистика збережених розрахунків: кількість, середня маржа, грн/км і збиткові рейси.';
-            return;
+    const OVERVIEW_PERIOD_KEY = 'tc_overview_period';
+    const OVERVIEW_PERIODS = { week: 'тижня', month: 'місяця', quarter: 'кварталу' };
+    const OVERVIEW_PERIOD_NAMES = { week: 'за тиждень', month: 'за місяць', quarter: 'за квартал' };
+    function overviewPeriod() {
+        try {
+            const saved = localStorage.getItem(OVERVIEW_PERIOD_KEY);
+            if (saved && OVERVIEW_PERIODS[saved]) return saved;
+        } catch (e) {}
+        return 'month';
+    }
+    function setOverviewPeriod(period) {
+        if (!OVERVIEW_PERIODS[period]) return;
+        try { localStorage.setItem(OVERVIEW_PERIOD_KEY, period); } catch (e) {}
+        renderStudioOverview();
+    }
+    function overviewNow() {
+        return uiPreview ? new Date('2026-10-12T12:00:00') : new Date();
+    }
+    // Календарні періоди за місцевим часом: тиждень з понеділка, місяць, квартал.
+    function overviewPeriodStart(period, date) {
+        const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        if (period === 'week') {
+            d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+            return d;
         }
-
-        const seats = teamState.seats || { used: 0, limit: 3 };
-        seatsEl.textContent = seats.used + ' з ' + seats.limit + ' логістів';
-        lead.textContent = currentOrgRole === 'owner'
-            ? 'Зведення по компанії та результати кожного автора збережених розрахунків.'
-            : 'Ваші результати у команді: кількість рейсів, середня маржа та збиткові рейси.';
-
-        const members = currentOrgRole === 'owner'
-            ? (teamState.members || []).slice()
-            : (teamState.members || []).filter(member => member.id === currentUserId);
-        const knownIds = new Set(members.map(member => member.id));
-        if (currentOrgRole === 'owner') {
-            rows.forEach(row => {
-                if (row.userId && !knownIds.has(row.userId)) {
-                    members.push({ id: row.userId, email: savedAuthorLabel(row.userId), member_status: 'active' });
-                    knownIds.add(row.userId);
+        if (period === 'quarter') return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
+        return new Date(d.getFullYear(), d.getMonth(), 1);
+    }
+    function overviewPrevStart(period, start) {
+        if (period === 'week') return new Date(start.getFullYear(), start.getMonth(), start.getDate() - 7);
+        if (period === 'quarter') return new Date(start.getFullYear(), start.getMonth() - 3, 1);
+        return new Date(start.getFullYear(), start.getMonth() - 1, 1);
+    }
+    function overviewRowDate(row) {
+        const d = row && row.createdAt ? new Date(row.createdAt) : null;
+        return d && !isNaN(d.getTime()) ? d : null;
+    }
+    function overviewRowsBetween(rows, from, to) {
+        return rows.filter(function (row) {
+            const d = overviewRowDate(row);
+            return !!d && d >= from && (!to || d < to);
+        });
+    }
+    function overviewStats(rows) {
+        const sum = function (key) {
+            return rows.reduce(function (acc, row) {
+                const n = Number(row[key]);
+                return Number.isFinite(n) ? acc + n : acc;
+            }, 0);
+        };
+        const pcts = rows.map(function (row) { return Number(row.profitabilityPct); }).filter(Number.isFinite);
+        return {
+            trips: rows.length,
+            income: sum('grossIncome'),
+            ebitda: sum('ebitda'),
+            profit: sum('netProfit'),
+            margin: pcts.length ? pcts.reduce(function (a, n) { return a + n; }, 0) / pcts.length : null
+        };
+    }
+    function ovNum(n, digits) {
+        return Number(n).toLocaleString('uk-UA', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    }
+    function ovSigned(text, d) {
+        return (d > 0 ? '+' : d < 0 ? '−' : '') + text;
+    }
+    // Від мільйона — «N,NN млн», від 10 тисяч — «N тис», менші суми — повністю.
+    function ovShort(n) {
+        const v = Number(n) || 0;
+        const a = Math.abs(v);
+        if (a >= 1e6) return ovNum(v / 1e6, 2) + ' млн';
+        if (a >= 1e4) return ovNum(Math.round(v / 1e3), 0) + ' тис';
+        return numPlain(v);
+    }
+    function ovPct(n) {
+        return ovNum(n, 1) + '%';
+    }
+    function overviewDelta(cur, prev, kind, period) {
+        if (prev === null || prev === undefined || cur === null || cur === undefined) return { text: '—', tone: '' };
+        let d;
+        let text;
+        if (kind === 'count') {
+            d = cur - prev;
+            text = ovSigned(String(Math.abs(d)), d) + ' до мин. ' + OVERVIEW_PERIODS[period];
+        } else if (kind === 'pct') {
+            d = Math.round((cur - prev) * 10) / 10;
+            text = ovSigned(ovNum(Math.abs(d), 1), d) + ' п.п.';
+        } else {
+            if (prev === 0) return { text: '—', tone: '' };
+            d = Math.round((cur - prev) / Math.abs(prev) * 100);
+            text = ovSigned(Math.abs(d) + '%', d);
+        }
+        return { text: text, tone: d > 0 ? 'is-up' : d < 0 ? 'is-down' : '' };
+    }
+    function overviewIsoWeek(date) {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const day = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - day);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+    }
+    function overviewWeeks(rows, now) {
+        const thisWeek = overviewPeriodStart('week', now);
+        const weeks = [];
+        for (let i = 7; i >= 0; i--) {
+            const start = new Date(thisWeek.getFullYear(), thisWeek.getMonth(), thisWeek.getDate() - i * 7);
+            const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+            const list = overviewRowsBetween(rows, start, end);
+            weeks.push({ week: overviewIsoWeek(start), profit: overviewStats(list).profit, trips: list.length, current: i === 0 });
+        }
+        return weeks;
+    }
+    function renderOverviewWeeks(weeks) {
+        const max = Math.max.apply(null, weeks.map(function (w) { return Math.abs(w.profit); }).concat([1]));
+        const label = function (w) {
+            const k = w.profit / 1000;
+            return ovNum(k, w.profit !== 0 && Math.abs(k) < 10 ? 1 : 0);
+        };
+        const summary = weeks.map(function (w) { return 'тиж. ' + w.week + ': ' + label(w) + ' тис. грн'; }).join('; ');
+        return '<div class="tc-ov-bars" role="img" aria-label="' + escHtml('Чистий прибуток по тижнях — ' + summary) + '">' +
+            weeks.map(function (w) {
+                const h = w.profit === 0 ? 0 : Math.max(3, Math.round(Math.abs(w.profit) / max * 140));
+                const tone = w.profit < 0 ? 'neg' : (w.current ? 'now' : 'pos');
+                return '<div class="tc-ov-bar is-' + tone + '" title="' + escHtml('Тиждень ' + w.week + ': ' + w.trips + ' рейс(ів), ' + formatMoney(w.profit)) + '">' +
+                    '<div class="tc-ov-bar-plot"><span class="tc-ov-bar-val">' + label(w) + '</span><i style="height:' + h + 'px"></i></div>' +
+                    '<span class="tc-ov-bar-wk">тиж. ' + w.week + '</span></div>';
+            }).join('') + '</div>';
+    }
+    // Та сама логіка документів, що на вкладці «Автопарк» (fleetDocState / fleetWarnValue / fleetToday).
+    function overviewFleet() {
+        const today = fleetToday();
+        const warn = fleetWarnValue();
+        const counts = { ok: 0, soon: 0, overdue: 0 };
+        const issues = [];
+        (fleetVehicles || []).forEach(function (vehicle) {
+            let worst = 'ok';
+            let nearest = null;
+            FLEET_DOCS.forEach(function (doc) {
+                const state = fleetDocState(vehicle[doc[0]], today, warn);
+                if (state !== 'overdue' && state !== 'soon') return;
+                if (state === 'overdue') worst = 'overdue';
+                else if (worst !== 'overdue') worst = 'soon';
+                const days = fleetDaysLeft(vehicle[doc[0]], today);
+                if (!nearest || days < nearest.days) {
+                    nearest = { days: days, doc: doc[1], state: state, note: fleetDocNote(vehicle[doc[0]], today, warn) };
                 }
             });
-        }
-        if (!members.length && currentUserId) {
-            members.push({ id: currentUserId, email: 'Ви', member_status: 'active' });
-        }
-
-        const authorRows = members.map(member => {
-            const memberRows = rows.filter(row => row.userId === member.id);
-            const margins = memberRows.map(row => Number(row.profitabilityPct)).filter(Number.isFinite);
-            const average = margins.length
-                ? margins.reduce((sum, value) => sum + value, 0) / margins.length
-                : null;
-            const losses = memberRows.filter(row => Number(row.netProfit) < 0).length;
-            const state = member.member_status === 'disabled' ? ' · відключений' : '';
-            return '<tr><td><b>' + teamEsc(member.email || member.id) + '</b><small>' +
-                teamEsc(state) + '</small></td><td>' + memberRows.length + '</td><td>' +
-                (average === null ? '—' : average.toFixed(1) + '%') + '</td><td>' + losses + '</td></tr>';
-        }).join('');
-
-        target.innerHTML = '<table class="tc-author-table"><thead><tr><th>Автор</th><th>Рейси</th>' +
-            '<th>Середня маржа</th><th>Збиткові</th></tr></thead><tbody>' +
-            authorRows + '</tbody></table>';
+            counts[worst] += 1;
+            if (nearest) issues.push(Object.assign({ vehicle: vehicle }, nearest));
+        });
+        issues.sort(function (a, b) { return a.days - b.days; });
+        return { count: (fleetVehicles || []).length, counts: counts, issues: issues.slice(0, 3) };
     }
-
-    function renderStudioOverview() {
-        const kpis = document.getElementById('overview-kpis');
-        const months = document.getElementById('overview-months');
-        const losses = document.getElementById('overview-losses');
-        if (!kpis || !months || !losses) return;
-        const rows = savedCalculations || [];
-        renderOverviewAuthors(rows);
-        if (!rows.length) {
-            kpis.innerHTML = '<div class="tc-overview-kpi main"><div class="l">Збережені розрахунки</div><div class="v">0</div><div class="s">Ще немає збережених рейсів</div></div>';
-            months.innerHTML = '<p class="tc-overview-lead">Після збереження розрахунків тут з’явиться середня маржа по місяцях.</p>';
-            losses.innerHTML = '<p class="tc-overview-lead">Збиткових рейсів немає.</p>';
+    function renderOverviewFleet() {
+        const box = document.getElementById('overview-fleet');
+        const countEl = document.getElementById('overview-fleet-count');
+        if (!box) return;
+        const fleet = overviewFleet();
+        if (countEl) countEl.textContent = fleet.count ? fleet.count + ' авто' : '';
+        if (!fleet.count) {
+            box.innerHTML = '<p class="tc-ov-note">Авто ще не додано. Додайте номери на вкладці «Автопарк», щоб бачити, у яких авто спливають документи.</p>' +
+                '<button type="button" class="btn" onclick="menuGo(\'fleet\')">Відкрити «Автопарк»</button>';
             return;
         }
-        const margins = rows.map(c => Number(c.profitabilityPct)).filter(n => !isNaN(n));
-        const avgMargin = margins.length ? margins.reduce((s, n) => s + n, 0) / margins.length : null;
-        const perKm = rows.map(c => {
-            const km = savedTripKm(c);
-            const profit = Number(c.netProfit);
-            if (!(km > 0) || isNaN(profit)) return null;
-            return profit / km;
-        }).filter(n => n !== null);
-        const avgKm = perKm.length ? perKm.reduce((s, n) => s + n, 0) / perKm.length : null;
-        const lossRows = rows.filter(c => Number(c.netProfit) < 0);
-        const dates = rows.map(c => c.createdAt ? new Date(c.createdAt) : null).filter(d => d && !isNaN(d.getTime()));
-        const fmtDate = d => d.toLocaleDateString('uk-UA');
-        const span = dates.length
-            ? (fmtDate(new Date(Math.min.apply(null, dates))) + ' — ' + fmtDate(new Date(Math.max.apply(null, dates))))
-            : 'дати з’являться після збереження';
+        const seg = function (key) { return fleet.counts[key] ? '<i class="' + key + '" style="flex:' + fleet.counts[key] + '"></i>' : ''; };
+        const stat = function (key, text) { return '<div class="' + key + '"><b>' + fleet.counts[key] + '</b><span>' + text + '</span></div>'; };
+        const issues = fleet.issues.length
+            ? fleet.issues.map(function (item) {
+                const make = String(item.vehicle.make_model || '').trim();
+                return '<div class="tc-ov-list-row"><span>' + teamEsc(item.vehicle.label) + (make ? ' · ' + teamEsc(make) : '') + '</span>' +
+                    '<b class="' + item.state + '">' + teamEsc(item.doc + ' · ' + item.note) + '</b></div>';
+            }).join('')
+            : '<p class="tc-ov-note">Усі документи в нормі.</p>';
+        box.innerHTML = '<div class="tc-ov-fleet-bar" role="img" aria-label="' + escHtml('Документи: в нормі ' + fleet.counts.ok + ', скоро ' + fleet.counts.soon + ', прострочено ' + fleet.counts.overdue) + '">' +
+            seg('ok') + seg('soon') + seg('overdue') + '</div>' +
+            '<div class="tc-ov-fleet-stats">' + stat('ok', 'документи в нормі') + stat('soon', 'скоро спливають') + stat('overdue', 'прострочено') + '</div>' +
+            '<p class="tc-ov-sub">Найближчі документи</p>' + issues;
+    }
+    function renderOverviewIdle(rows, period) {
+        const box = document.getElementById('overview-idle');
+        const periodEl = document.getElementById('overview-idle-period');
+        if (!box) return;
+        if (periodEl) periodEl.textContent = OVERVIEW_PERIOD_NAMES[period];
+        const idle = rows.map(function (row) {
+            const days = Number(row.inputs && row.inputs.idleDays);
+            return { row: row, days: days };
+        }).filter(function (item) { return Number.isFinite(item.days) && item.days > 0; })
+            .sort(function (a, b) { return b.days - a.days; });
+        const losses = rows.filter(function (row) { return Number(row.netProfit) < 0; }).length;
+        const list = idle.length
+            ? idle.slice(0, 5).map(function (item) {
+                return '<div class="tc-ov-list-row"><span>' + escHtml(item.row.routeName || item.row.name || 'Рейс') + '</span>' +
+                    '<b class="soon">' + escHtml(ovNum(item.days, Number.isInteger(item.days) ? 0 : 1) + ' ' + ukDaysLabel(item.days)) + '</b></div>';
+            }).join('')
+            : '<p class="tc-ov-note">Рейсів із простоєм немає.</p>';
+        box.innerHTML = list + '<div class="tc-ov-list-row"><span>Збиткові рейси</span><b class="' + (losses ? 'is-down' : '') + '">' + losses + '</b></div>';
+    }
+    // Таблиця «Логісти» — колишня таблиця за авторами: owner бачить усіх, інакше — лише себе; без команди — «Ви».
+    function renderOverviewAuthors(rows) {
+        const seatsEl = document.getElementById('overview-team-seats');
+        const target = document.getElementById('overview-authors');
+        if (!seatsEl || !target) return;
+        const isTeam = currentWorkMode === 'team';
+        seatsEl.hidden = !isTeam;
+        let members;
+        if (!isTeam) {
+            members = [{ id: currentUserId, email: 'Ви', member_status: 'active', all: true }];
+        } else {
+            const seats = teamState.seats || { used: 0, limit: 3 };
+            seatsEl.textContent = seats.used + ' з ' + seats.limit + ' логістів';
+            members = currentOrgRole === 'owner'
+                ? (teamState.members || []).slice()
+                : (teamState.members || []).filter(function (member) { return member.id === currentUserId; });
+            const knownIds = new Set(members.map(function (member) { return member.id; }));
+            if (currentOrgRole === 'owner') {
+                rows.forEach(function (row) {
+                    if (row.userId && !knownIds.has(row.userId)) {
+                        members.push({ id: row.userId, email: savedAuthorLabel(row.userId), member_status: 'active' });
+                        knownIds.add(row.userId);
+                    }
+                });
+            }
+            if (!members.length && currentUserId) members.push({ id: currentUserId, email: 'Ви', member_status: 'active' });
+        }
+        const body = members.map(function (member) {
+            const memberRows = member.all ? rows : rows.filter(function (row) { return row.userId === member.id; });
+            const stats = overviewStats(memberRows);
+            const state = member.member_status === 'disabled' ? '<small>відключений</small>' : '';
+            const tone = stats.margin === null ? '' : (stats.margin < 0 ? ' is-down' : ' is-up');
+            return '<tr><td>' + teamEsc(member.email || member.id) + state + '</td>' +
+                '<td class="num">' + stats.trips + '</td>' +
+                '<td class="num">' + escHtml(ovShort(stats.income)) + '</td>' +
+                '<td class="num' + tone + '">' + (stats.margin === null ? '—' : escHtml(ovPct(stats.margin))) + '</td></tr>';
+        }).join('');
+        target.innerHTML = '<table class="tc-ov-table tc-ov-logists"><thead><tr><th>Логіст</th><th class="num">Рейсів</th>' +
+            '<th class="num">Дохід</th><th class="num">Рент.</th></tr></thead><tbody>' + body + '</tbody></table>';
+    }
+    function openOverviewSaved(id) {
+        setStudioView('calc');
+        openSaved(id);
+        window.scrollTo(0, 0);
+    }
+    function renderOverviewSaved(rows) {
+        const target = document.getElementById('overview-saved');
+        const countEl = document.getElementById('overview-saved-count');
+        if (!target) return;
+        if (countEl) countEl.textContent = rows.length + ' шт';
+        const latest = rows.slice().sort(function (a, b) {
+            const da = overviewRowDate(a);
+            const db = overviewRowDate(b);
+            return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+        }).slice(0, 10);
+        const body = latest.map(function (row) {
+            const volume = Number(row.inputs && row.inputs.volume != null ? row.inputs.volume : row.volume);
+            const pct = Number(row.profitabilityPct);
+            const profit = Number(row.netProfit);
+            const id = escHtml(row.id);
+            return '<tr onclick="openOverviewSaved(\'' + id + '\')">' +
+                '<td><button type="button" class="tc-ov-open" onclick="event.stopPropagation(); openOverviewSaved(\'' + id + '\')">' + escHtml(row.routeName || row.name || 'Рейс') + '</button></td>' +
+                '<td class="muted">' + teamEsc(savedAuthorLabel(row.userId)) + '</td>' +
+                '<td class="num">' + (Number.isFinite(volume) && volume > 0 ? escHtml(ovNum(volume, Number.isInteger(volume) ? 0 : 1)) + ' т' : '—') + '</td>' +
+                '<td class="num">' + (Number.isFinite(Number(row.grossIncome)) ? escHtml(numPlain(row.grossIncome)) : '—') + '</td>' +
+                '<td class="num' + (profit < 0 ? ' is-down' : '') + '">' + (Number.isFinite(profit) ? escHtml(numPlain(profit)) : '—') + '</td>' +
+                '<td class="num">' + (Number.isFinite(pct) ? '<span class="tc-ov-badge' + (pct < 0 ? ' is-down' : '') + '">' + escHtml(ovPct(pct)) + '</span>' : '—') + '</td></tr>';
+        }).join('');
+        target.innerHTML = '<table class="tc-ov-table tc-ov-saved"><thead><tr><th>Маршрут</th><th>Автор</th><th class="num">Обсяг</th>' +
+            '<th class="num">Дохід</th><th class="num">Прибуток</th><th class="num">Рент.</th></tr></thead><tbody>' + body + '</tbody></table>';
+    }
+    function renderOverviewKpis(cur, prev, period) {
+        const kpis = document.getElementById('overview-kpis');
+        if (!kpis) return;
+        const card = function (label, value, valueTone, delta) {
+            return '<div class="card tc-ov-card tc-ov-kpi"><div class="l">' + label + '</div>' +
+                '<div class="v' + (valueTone ? ' ' + valueTone : '') + '">' + escHtml(value) + '</div>' +
+                '<div class="d' + (delta.tone ? ' ' + delta.tone : '') + '">' + escHtml(delta.text) + '</div></div>';
+        };
+        const p = prev.trips ? prev : null;
         kpis.innerHTML =
-            '<div class="tc-overview-kpi main"><div class="l">Збережені розрахунки</div><div class="v">' + rows.length + '</div><div class="s">' + escHtml(span) + '</div></div>' +
-            '<div class="tc-overview-kpi"><div class="l">Середня маржа</div><div class="v">' + (avgMargin === null ? '—' : avgMargin.toFixed(1) + '%') + '</div><div class="s">рентабельність</div></div>' +
-            '<div class="tc-overview-kpi"><div class="l">грн/км</div><div class="v">' + (avgKm === null ? '—' : numPlain(avgKm)) + '</div><div class="s">' + (avgKm === null ? 'у старих збереженнях немає кілометражу' : 'середнє по рейсах з відстанню') + '</div></div>' +
-            '<div class="tc-overview-kpi"><div class="l">Збиткові</div><div class="v">' + lossRows.length + '</div><div class="s">чистий прибуток нижче нуля</div></div>';
-        const byMonth = {};
-        rows.forEach(c => {
-            if (!c.createdAt || isNaN(Number(c.profitabilityPct))) return;
-            const d = new Date(c.createdAt);
-            if (isNaN(d.getTime())) return;
-            const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-            if (!byMonth[key]) byMonth[key] = [];
-            byMonth[key].push(Number(c.profitabilityPct));
+            card('Рейсів', String(cur.trips), '', overviewDelta(cur.trips, p && p.trips, 'count', period)) +
+            card('Дохід', ovShort(cur.income), '', overviewDelta(cur.income, p && p.income, 'money', period)) +
+            card('EBITDA', ovShort(cur.ebitda), cur.ebitda < 0 ? 'is-down' : '', overviewDelta(cur.ebitda, p && p.ebitda, 'money', period)) +
+            card('Чистий прибуток', ovShort(cur.profit), cur.profit > 0 ? 'is-up' : (cur.profit < 0 ? 'is-down' : ''), overviewDelta(cur.profit, p && p.profit, 'money', period)) +
+            card('Сер. рентабельність', cur.margin === null ? '—' : ovPct(cur.margin), cur.margin !== null && cur.margin < 0 ? 'is-down' : '', overviewDelta(cur.margin, p && p.margin, 'pct', period));
+    }
+    function renderStudioOverview() {
+        const empty = document.getElementById('overview-empty');
+        const body = document.getElementById('overview-body');
+        if (!empty || !body) return;
+        const kicker = document.getElementById('overview-kicker');
+        if (kicker) kicker.textContent = companyName ? companyName + ' · кабінет директора' : 'Кабінет директора';
+        const period = overviewPeriod();
+        document.querySelectorAll('#studio-overview .tc-ov-period button').forEach(function (btn) {
+            btn.setAttribute('aria-pressed', btn.getAttribute('data-period') === period ? 'true' : 'false');
         });
-        const keys = Object.keys(byMonth).sort();
-        if (!keys.length) {
-            months.innerHTML = '<p class="tc-overview-lead">Немає дат у збережених розрахунках.</p>';
-        } else {
-            const avgs = keys.map(k => byMonth[k].reduce((s, n) => s + n, 0) / byMonth[k].length);
-            const max = Math.max.apply(null, avgs.map(n => Math.abs(n)).concat([1]));
-            const scale = document.body.classList.contains('layout-studio') ? 100 : max;
-            months.innerHTML = keys.map((k, i) => {
-                const w = Math.max(4, Math.min(100, Math.round(Math.abs(avgs[i]) / scale * 100)));
-                const label = k.slice(5) + '.' + k.slice(0, 4);
-                const neg = avgs[i] < 0 ? ' class="is-neg"' : '';
-                return '<div class="tc-month-row"><span>' + label + '</span><div class="tc-month-track"><i' + neg + ' style="width:' + w + '%"></i></div><b>' + avgs[i].toFixed(1) + '%</b></div>';
-            }).join('');
-        }
-        if (!lossRows.length) {
-            losses.innerHTML = '<p class="tc-overview-lead">Збиткових рейсів немає.</p>';
-        } else {
-            losses.innerHTML = lossRows.slice(0, 8).map(c => {
-                const when = c.createdAt ? fmtDate(new Date(c.createdAt)) : '—';
-                return '<div class="tc-loss-row"><div>' + escHtml(c.routeName || 'Рейс') + '<br><small>' + escHtml(when) + '</small></div><b>' + escHtml(formatMoney(c.netProfit)) + '</b><small>' + (isNaN(Number(c.profitabilityPct)) ? '' : Number(c.profitabilityPct).toFixed(1) + '%') + '</small></div>';
-            }).join('');
-        }
+        const rows = savedCalculations || [];
+        empty.hidden = rows.length > 0;
+        body.hidden = rows.length === 0;
+        if (!rows.length) return;
+        const now = overviewNow();
+        const start = overviewPeriodStart(period, now);
+        const prevStart = overviewPrevStart(period, start);
+        const current = overviewRowsBetween(rows, start, null);
+        const previous = overviewRowsBetween(rows, prevStart, start);
+        renderOverviewKpis(overviewStats(current), overviewStats(previous), period);
+        const weeks = document.getElementById('overview-weeks');
+        if (weeks) weeks.innerHTML = renderOverviewWeeks(overviewWeeks(rows, now));
+        renderOverviewFleet();
+        renderOverviewIdle(current, period);
+        renderOverviewAuthors(current);
+        renderOverviewSaved(rows);
     }
 
     const TRIP_STATUSES = [
