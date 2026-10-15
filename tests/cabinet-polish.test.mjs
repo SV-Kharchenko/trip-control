@@ -54,3 +54,17 @@ test('history tools and the migrate box are styled by classes', () => {
     assert.match(html, /\.tc-history-tools \{\n\s+display: grid; grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);/);
     assert.match(html, /\.tc-history-num\.is-neg \{ color: var\(--negative\);/);
 });
+
+test('deficit badge, cascade per-ton note and history sums show the typographic minus', () => {
+    assert.match(html, /beGapEl\.innerText = displayMinus\(`Дефіцит \$\{beShown\(gap\)\} \$\{beUnit\}`\);/);
+    assert.match(html, /tc-cascade-note">на 1 т: ' \+ displayMinus\(numPlain\(row\.perTon\)\)/);
+    const table = sliceBetween(html, 'const moneyCell = function (value) {', 'function shiftHistoryPage(');
+    assert.match(table, /'—' : displayMinus\(formatMoney\(value\)\)/);
+    assert.match(table, /'—' : displayMinus\(formatHistoryNum\(fields\.perKm, 0\)\)\) \+ '<\/td>'/);
+    assert.match(table, /прибуток ' \+ \(fields\.profit == null \? '—' : displayMinus\(formatMoney\(fields\.profit\)\)\)/);
+    const fact = sliceBetween(html, 'function factCell(row, fields)', 'function syncFactAlertControl()');
+    assert.match(fact, /displayMinus\(formatMoney\(actual\.profit\)\)/);
+    // форматери й експорт лишаються з ASCII-дефісом
+    assert.equal(sliceBetween(html, 'function formatHistoryNum(value, digits)', 'function formatHistoryDate(').includes('displayMinus'), false);
+    assert.equal(sliceBetween(html, 'async function exportExcel()', 'function ').includes('displayMinus'), false);
+});

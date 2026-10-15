@@ -5164,7 +5164,7 @@
         host.innerHTML = rows.map(function (row) {
             const note = (row.perTon === null || row.perTon === undefined || row.perTon === '')
                 ? ''
-                : '<span class="tc-cascade-note">на 1 т: ' + numPlain(row.perTon) + ' грн</span>';
+                : '<span class="tc-cascade-note">на 1 т: ' + displayMinus(numPlain(row.perTon)) + ' грн</span>';
             return '<div class="tc-cascade-row is-' + row.tone + '"><span>' + row.key + '</span><span class="tc-cascade-num">' + formatMoney(row.amount) + note + '</span></div>';
         }).join('');
     }
@@ -9250,7 +9250,7 @@
                 beGapEl.innerText = `Запас +${beShown(gap)} ${beUnit}`;
                 beGapEl.className = 'kpi-sub tc-gap-pill is-up';
             } else {
-                beGapEl.innerText = `Дефіцит ${beShown(gap)} ${beUnit}`;
+                beGapEl.innerText = displayMinus(`Дефіцит ${beShown(gap)} ${beUnit}`);
                 beGapEl.className = 'kpi-sub tc-gap-pill is-down';
             }
             let tip = `Розцінка (${beUnit}), при якій чистий прибуток = 0. При розцінці ${beShown(result.breakevenEbitdaPerTon)} EBITDA = 0, при ${beShown(result.breakevenMarginPerTon)} маржа = 0.`;
@@ -10410,7 +10410,7 @@
         const cls = alert ? ' class="tc-fact-alert"' : (actual.profit < 0 ? ' class="tc-history-num is-neg"' : '');
         const deltaText = delta === null ? '' : (delta > 0 ? '+' : '') + formatMoney(delta);
         const pctText = pct === null ? '' : ' · ' + (pct > 0 ? '+' : '') + formatHistoryNum(pct, 0) + '%';
-        return '<td' + cls + '>' + formatMoney(actual.profit) + '<br><small>' + deltaText + pctText + '</small></td>';
+        return '<td' + cls + '>' + displayMinus(formatMoney(actual.profit)) + '<br><small>' + displayMinus(deltaText + pctText) + '</small></td>';
     }
     function syncFactAlertControl() {
         const input = document.getElementById('fact-alert-pct');
@@ -10628,7 +10628,7 @@
         }
         const moneyCell = function (value) {
             const neg = ' class="tc-history-num' + (Number(value) < 0 ? ' is-neg' : '') + '"';
-            return '<td' + neg + '>' + (value === null || value === undefined ? '—' : formatMoney(value)) + '</td>';
+            return '<td' + neg + '>' + (value === null || value === undefined ? '—' : displayMinus(formatMoney(value))) + '</td>';
         };
         tbody.innerHTML = slice.map(function (row) {
             const fields = historyFields(row);
@@ -10648,7 +10648,7 @@
                 moneyCell(fields.revenue) +
                 moneyCell(fields.profit) +
                 factCell(row, fields) +
-                '<td' + perKmClass + '>' + (fields.perKm === null ? '—' : formatHistoryNum(fields.perKm, 0)) + '</td>' +
+                '<td' + perKmClass + '>' + (fields.perKm === null ? '—' : displayMinus(formatHistoryNum(fields.perKm, 0))) + '</td>' +
                 '<td><span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span></td>' +
                 '<td>' + historyActions(row) + '</td>' +
                 '</tr>';
@@ -10666,10 +10666,10 @@
                 formatHistoryDays(fields.days) +
                 (fields.client ? ' · ' + escHtml(fields.client) : '') + '</div>' +
                 '<div class="tc-history-meta">Ставка ' + escHtml(fields.rate == null || fields.rate === '' ? '—' : fields.rate) + ' ' + escHtml(unit) +
-                ' · дохід ' + (fields.revenue == null ? '—' : formatMoney(fields.revenue)) +
-                ' · прибуток ' + (fields.profit == null ? '—' : formatMoney(fields.profit)) +
-                ' · факт ' + (tripActuals[row.id] ? formatMoney(tripActuals[row.id].profit) : '—') +
-                ' · ' + (fields.perKm === null ? '—' : formatHistoryNum(fields.perKm, 0)) + ' грн/км</div>' +
+                ' · дохід ' + (fields.revenue == null ? '—' : displayMinus(formatMoney(fields.revenue))) +
+                ' · прибуток ' + (fields.profit == null ? '—' : displayMinus(formatMoney(fields.profit))) +
+                ' · факт ' + (tripActuals[row.id] ? displayMinus(formatMoney(tripActuals[row.id].profit)) : '—') +
+                ' · ' + (fields.perKm === null ? '—' : displayMinus(formatHistoryNum(fields.perKm, 0))) + ' грн/км</div>' +
                 historyActions(row) + '</article>';
         }).join('');
     }
