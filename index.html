@@ -840,6 +840,8 @@
             border-radius: 20px; padding: 0;
             box-shadow: 0 24px 60px rgba(13, 42, 41, 0.12);
             overflow: hidden;
+            /* clip, not hidden: hidden makes .cab-wrap the sticky scroller, so .cab-actions never stuck */
+            overflow: clip;
             color: var(--text);
         }
         #cabinet-screen .cab-head {
@@ -2807,10 +2809,19 @@
         @media (max-width: 900px) {
             body.layout-studio .tc-map-frame > .tc-map-alts {
                 position: static !important;
+                box-sizing: border-box;
                 width: 100% !important;
                 max-height: none;
                 flex-direction: row;
-                overflow-x: auto;
+                flex-wrap: wrap;
+                overflow: visible;
+                padding: 8px 12px;
+                margin: 0;
+            }
+            body.layout-studio .tc-map-frame > .tc-map-alts .tc-map-alt {
+                flex: 1 1 140px;
+                min-width: 0;
+                max-width: 100%;
             }
         }
         body.layout-studio[data-theme="control"] #studio-right > #map-route-alts { grid-column: 1 / -1; grid-row: 2; }
