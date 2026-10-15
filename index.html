@@ -3960,6 +3960,172 @@
             .tc-ov-list-row b { white-space: normal; text-align: right; margin-left: auto; }
             .tc-ov-fleet-stats b { font-size: 22px; }
         }
+        /* Етап 7: мобільна версія 360–768px. На десктопі панель розділів — display: contents, бургер і док-перемикач сховані. */
+        .tc-nav-panel { display: contents; }
+        .tc-burger,
+        .tc-dock-toggle,
+        .tc-dock-cascade { display: none; }
+        .tc-burger-ico {
+            position: relative; display: block; width: 18px; height: 2px; border-radius: 2px;
+            background: currentColor; box-shadow: 0 -6px 0 currentColor, 0 6px 0 currentColor;
+        }
+        .tc-burger[aria-expanded="true"] .tc-burger-ico { background: transparent; box-shadow: none; }
+        .tc-burger[aria-expanded="true"] .tc-burger-ico::before,
+        .tc-burger[aria-expanded="true"] .tc-burger-ico::after {
+            content: ''; position: absolute; left: 0; top: 0; width: 18px; height: 2px; border-radius: 2px;
+            background: currentColor; transform: rotate(45deg);
+        }
+        .tc-burger[aria-expanded="true"] .tc-burger-ico::after { transform: rotate(-45deg); }
+        @media (max-width: 900px) {
+            /* Док результату: згорнутий — прибуток + грн/км + стрілка; розгорнутий — уся картка з каскадом. */
+            /* Док над картою й контентом (пізніше правило скидало z-index у auto), але під шапкою з меню (#sticky-top: 40). */
+            body.layout-studio #dispatcher-result { z-index: 35 !important; }
+            body.layout-studio #dispatcher-result:not(.is-empty) .tc-dock-toggle {
+                display: grid; place-items: center;
+                position: absolute; top: 4px; right: 6px; z-index: 2;
+                width: 44px; height: 44px; min-height: 44px; padding: 0;
+                border: none; border-radius: 10px; background: transparent;
+                color: var(--tc-result-fg, var(--text)); cursor: pointer;
+            }
+            body.layout-studio .tc-dock-toggle span::before { content: '▴'; font-size: 18px; line-height: 1; }
+            body.layout-studio #dispatcher-result.is-open .tc-dock-toggle span::before { content: '▾'; }
+            body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-hero { padding-right: 48px !important; cursor: pointer; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-profit-hero {
+                display: flex !important; flex-wrap: nowrap !important; align-items: center; gap: 16px;
+            }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-profit-main { flex: 0 0 auto; width: auto; }
+            body.layout-studio #dispatcher-result:not(.is-open) :is(.tc-profit-kicker, .tc-profit-value, .tc-unit-row b, .tc-unit-row span) { white-space: nowrap; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-unit-row > div:first-child { flex: none; width: auto; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-unit-row {
+                display: flex !important; margin-top: 0; padding-bottom: 0;
+            }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-unit-row > div:not(:first-child),
+            body.layout-studio #dispatcher-result:not(.is-open) #kpi-breakeven-chip { display: none !important; }
+            body.layout-studio #dispatcher-result.is-open {
+                max-height: calc(100dvh - 24px) !important;
+                overflow-y: auto !important;
+                overscroll-behavior: contain;
+            }
+            body.layout-studio #dispatcher-result.is-open:not(.is-empty) .tc-dock-cascade {
+                display: block; margin-top: 10px; padding-top: 4px;
+                border-top: 1px solid color-mix(in srgb, var(--tc-result-muted, var(--muted)) 40%, transparent);
+            }
+            body.layout-studio .tc-dock-cascade .tc-cascade-row {
+                color: var(--tc-result-fg, var(--text));
+                border-bottom-color: color-mix(in srgb, var(--tc-result-muted, var(--muted)) 25%, transparent);
+            }
+            body.layout-studio .tc-dock-cascade .tc-cascade-row.is-muted,
+            body.layout-studio .tc-dock-cascade .tc-cascade-note { color: var(--tc-result-muted, var(--muted)); }
+            body.layout-studio .tc-dock-cascade .tc-cascade-row.is-profit .tc-cascade-num { color: var(--tc-result-up, var(--positive)); }
+            body.layout-studio .tc-dock-cascade .tc-cascade-row.is-loss .tc-cascade-num { color: var(--tc-result-down, var(--negative)); }
+            /* Відступ знизу = висота згорнутого доку (--tc-dock-h ставить syncDockHeight). */
+            body.layout-studio #main-app {
+                padding-bottom: calc(var(--tc-dock-h, 96px) + 24px + env(safe-area-inset-bottom));
+            }
+            /* Карта: висота ≈55vh; варіанти маршруту над картою, оверлей з кнопками — поверх самої карти. */
+            body.layout-studio .tc-map-frame {
+                --tc-map-h: clamp(280px, 55vh, 560px);
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-rows: auto var(--tc-map-h);
+            }
+            body.layout-studio .tc-map-frame > .tc-map-alts { grid-row: 1; grid-column: 1; }
+            body.layout-studio .tc-map-frame > #map,
+            body.layout-studio .tc-map-frame > .lock-ph,
+            body.layout-studio .tc-map-frame > .tc-map-overlay {
+                grid-row: 2; grid-column: 1;
+                position: relative !important; inset: auto !important;
+                height: auto !important; min-height: 0 !important; flex: none;
+            }
+            body.layout-studio .tc-map-frame.tc-map-expanded { grid-template-rows: auto minmax(0, 1fr); }
+            body.layout-studio .poi-checks { flex-wrap: wrap; }
+        }
+        @media (max-width: 768px) {
+            /* Шапка: символ лого + аватар + бургер; таби, курси й перемикач виду — у панелі бургера. */
+            body.layout-studio .tc-topbar {
+                position: relative; flex-wrap: nowrap; overflow: visible;
+                gap: 8px; padding: 8px 12px; min-height: 56px;
+            }
+            .tc-topbar .tc-logo-full { display: none; }
+            .tc-topbar .tc-logo-symbol { display: block; width: 36px; height: 36px; }
+            body.layout-studio .tc-topbar .tc-brand {
+                flex: 0 1 auto !important; width: auto !important; min-width: 0; min-height: 44px;
+                display: flex; align-items: center; gap: 8px;
+            }
+            body.layout-studio .tc-head-end { margin-left: auto; flex: 0 0 auto; gap: 8px; }
+            body.layout-studio .tc-burger { display: grid; }
+            body.layout-studio .tc-nav-panel {
+                display: none;
+                position: absolute; top: calc(100% + 6px); left: 12px; right: 12px; z-index: 85;
+                gap: 10px; padding: 10px;
+                background: var(--surface); color: var(--text);
+                border: 1px solid var(--border); border-radius: 14px;
+                box-shadow: 0 16px 40px rgba(13, 42, 40, 0.16);
+                max-height: calc(100dvh - 90px); overflow-y: auto;
+            }
+            body.layout-studio .tc-nav-panel.is-open { display: grid; }
+            body.layout-studio .tc-nav-panel .tc-studio-nav {
+                display: grid; gap: 4px; order: 0; width: auto; flex: none; margin: 0;
+            }
+            body.layout-studio .tc-nav-panel .tc-studio-nav button {
+                display: flex; align-items: center; justify-content: flex-start;
+                width: 100%; min-height: 44px; padding: 0 12px; border-radius: 10px;
+                font-size: 15px; text-align: left;
+            }
+            body.layout-studio .tc-nav-panel .tc-studio-nav button.on {
+                background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+                box-shadow: inset 3px 0 0 var(--accent);
+            }
+            body.layout-studio .tc-nav-panel .tc-meta { order: 0; width: auto; flex: none; padding: 0; }
+            body.layout-studio .tc-nav-panel .tc-rates-strip {
+                display: flex; flex-wrap: wrap; overflow: visible; width: 100%; max-width: 100%;
+            }
+            body.layout-studio .tc-nav-panel .tc-rates-item { flex: 1 1 auto; position: static; min-height: 40px; display: flex; align-items: center; }
+            body.layout-studio .tc-nav-panel .tc-rates-item a { display: inline-flex; align-items: center; min-height: 40px; }
+            body.layout-studio .tc-nav-panel .tc-view-switch { display: flex; width: 100%; }
+            body.layout-studio .tc-nav-panel .tc-view-switch button { flex: 1 1 0; min-height: 44px; font-size: 14px; }
+            /* Меню аватара кріпиться до шапки, бо праворуч від аватара тепер бургер. */
+            body.layout-studio .tc-menu-wrap { position: static; }
+            body.layout-studio .tc-user-menu { top: calc(100% + 6px); left: auto; right: 12px; width: min(320px, calc(100vw - 24px)); }
+            body.layout-studio .tc-menu-foot a { display: inline-flex; align-items: center; min-height: 40px; }
+            /* Степер: вертикальний, назви кроків не обрізаються. */
+            #tc-step-strip { overflow: visible; }
+            .tc-step-tabs {
+                display: grid; grid-template-columns: minmax(0, 1fr);
+                width: auto; min-width: 0; gap: 2px; border-bottom: none;
+            }
+            .tc-step-tab {
+                flex: none; max-width: none; min-height: 48px;
+                flex-direction: row; align-items: center; justify-content: space-between; gap: 12px;
+                padding: 6px 12px; border-bottom: none; border-left: 2px solid transparent; border-radius: 0 10px 10px 0;
+            }
+            .tc-step-tab[aria-selected="true"] {
+                border-left-color: var(--accent);
+                background: color-mix(in srgb, var(--accent) 8%, transparent);
+            }
+            .tc-step-tab-head { flex: 0 0 auto; }
+            .tc-step-tab b { overflow: visible; text-overflow: clip; }
+            .tc-step-sum { flex: 1 1 auto; min-width: 0; text-align: right; }
+            /* Тап-зони ≥40px і шрифт полів 16px, щоб iOS не збільшував сторінку. */
+            body.layout-studio :is(button, .btn, select, summary, [role="tab"], input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"])) { min-height: 40px; }
+            body.layout-studio button { min-width: 40px; }
+            body.layout-studio :is(input, select, textarea) { font-size: 16px !important; }
+            body.layout-studio input:is([type="checkbox"], [type="radio"]) { width: 20px; height: 20px; flex: none; }
+            body.layout-studio label:has(> input:is([type="checkbox"], [type="radio"])) {
+                display: inline-flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer;
+            }
+            body.layout-studio #cabinet-screen .tc-team-check { display: flex; min-height: 44px; }
+            body.layout-studio #cabinet-screen .tc-team-check input { width: 22px; height: 22px; }
+            body.layout-studio .link-btn { display: inline-flex; align-items: center; min-height: 40px; }
+            body.layout-studio .hint-close { min-width: 40px; min-height: 40px; }
+            body.layout-studio .tc-info { width: 40px; height: 40px; }
+            body.layout-studio #cabinet-screen .cab-close { width: 40px; height: 40px; }
+            body.layout-studio .tc-template-list .tc-recent button + button { min-width: 44px; }
+            /* Кабінет: форми в одну колонку, вкладки скролляться. */
+            body.layout-studio #cabinet-screen .cab-grid,
+            body.layout-studio #cabinet-screen .tc-fleet-docs { grid-template-columns: minmax(0, 1fr); }
+            body.layout-studio #cabinet-screen .cab-tabs { overflow-x: auto; overscroll-behavior-x: contain; }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -4084,6 +4250,7 @@
                 </svg>
                 <span class="tc-demo-badge">ДЕМО</span>
             </a>
+            <div class="tc-nav-panel" id="tc-nav-panel">
             <nav class="tc-studio-nav" aria-label="Розділи">
                 <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
@@ -4102,6 +4269,7 @@
                         <b id="conv-res">0 грн</b>
                     </div>
                 </div>
+            </div>
             </div>
             <div class="tc-head-end">
                 <button class="tc-icon-btn" type="button" title="Тема" aria-label="Змінити тему" onclick="cycleTheme()">
@@ -4143,6 +4311,7 @@
                         </div>
                     </div>
                 </div>
+                <button type="button" class="tc-icon-btn tc-burger" id="tc-burger-btn" aria-label="Розділи" aria-expanded="false" aria-controls="tc-nav-panel" onclick="toggleNavPanel(event)"><span class="tc-burger-ico" aria-hidden="true"></span></button>
             </div>
         </div>
 
@@ -4173,6 +4342,7 @@
 
     <aside class="tc-result-dock is-empty" id="dispatcher-result">
         <p id="tc-result-empty">Заповніть маршрут і тариф</p>
+        <button type="button" class="tc-dock-toggle" id="tc-dock-toggle" aria-expanded="false" aria-controls="tc-dock-cascade" aria-label="Показати повний результат" onclick="toggleResultDock()"><span aria-hidden="true"></span></button>
         <div class="tc-profit-hero">
             <div class="tc-profit-main">
                 <div class="tc-profit-kicker">Чистий прибуток</div>
@@ -4192,6 +4362,7 @@
                 <div class="kpi-sub tc-gap-pill" id="res-breakeven-gap"></div>
             </div>
         </div>
+        <div class="tc-dock-cascade" id="tc-dock-cascade" aria-label="Від доходу до прибутку"></div>
         <div class="tc-kpi kpi-strip">
             <div class="kpi-chip">
                 <div class="kpi-spark" id="spark-income"></div>
@@ -5159,6 +5330,8 @@
         if (!host) return;
         if (!rows.length) {
             host.innerHTML = '<p class="tc-cascade-empty">Після розрахунку тут буде шлях від доходу до прибутку</p>';
+            const dockEmpty = document.getElementById('tc-dock-cascade');
+            if (dockEmpty) dockEmpty.innerHTML = '';
             return;
         }
         host.innerHTML = rows.map(function (row) {
@@ -5167,6 +5340,8 @@
                 : '<span class="tc-cascade-note">на 1 т: ' + displayMinus(numPlain(row.perTon)) + ' грн</span>';
             return '<div class="tc-cascade-row is-' + row.tone + '"><span>' + row.key + '</span><span class="tc-cascade-num">' + formatMoney(row.amount) + note + '</span></div>';
         }).join('');
+        const dockCascade = document.getElementById('tc-dock-cascade');
+        if (dockCascade) dockCascade.innerHTML = host.innerHTML;
     }
 
     function paintProfitHero(result) {
@@ -5827,6 +6002,7 @@
         if (btn) btn.setAttribute('aria-expanded', 'false');
     }
     function openUserMenu() {
+        if (typeof toggleNavPanel === 'function') toggleNavPanel(null, false);
         syncHeaderChrome();
         const menu = document.getElementById('tc-user-menu');
         const btn = document.getElementById('tc-avatar-btn');
@@ -5875,6 +6051,103 @@
         switchCabTab('company');
         syncCompanyNav(true);
     }
+    // Етап 7: на ≤768px таби й курси ховаються в бургер, а перемикач «Директор/Логіст» переїжджає в його панель.
+    const MOBILE_HEADER_QUERY = '(max-width: 768px)';
+    function navPanelIsOpen() {
+        const panel = document.getElementById('tc-nav-panel');
+        return !!(panel && panel.classList.contains('is-open'));
+    }
+    function toggleNavPanel(event, force) {
+        if (event) event.stopPropagation();
+        const panel = document.getElementById('tc-nav-panel');
+        const btn = document.getElementById('tc-burger-btn');
+        if (!panel || !btn) return;
+        const open = typeof force === 'boolean' ? force : !panel.classList.contains('is-open');
+        if (open) closeUserMenu();
+        panel.classList.toggle('is-open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            const current = panel.querySelector('.tc-studio-nav button.on') || panel.querySelector('.tc-studio-nav button');
+            if (current) current.focus();
+        }
+    }
+    function placeViewSwitch() {
+        const sw = document.getElementById('tc-view-switch');
+        const panel = document.getElementById('tc-nav-panel');
+        const end = document.querySelector('.tc-head-end');
+        const wrap = end && end.querySelector('.tc-menu-wrap');
+        if (!sw || !panel || !wrap) return;
+        const mobile = window.matchMedia && window.matchMedia(MOBILE_HEADER_QUERY).matches;
+        if (mobile && sw.parentNode !== panel) panel.appendChild(sw);
+        else if (!mobile && sw.parentNode !== end) end.insertBefore(sw, wrap);
+        if (!mobile) toggleNavPanel(null, false);
+    }
+    if (window.matchMedia) {
+        const headerQuery = window.matchMedia(MOBILE_HEADER_QUERY);
+        if (headerQuery.addEventListener) headerQuery.addEventListener('change', placeViewSwitch);
+        else if (headerQuery.addListener) headerQuery.addListener(placeViewSwitch);
+    }
+    document.addEventListener('DOMContentLoaded', placeViewSwitch);
+    document.addEventListener('click', function (event) {
+        if (!navPanelIsOpen()) return;
+        const panel = document.getElementById('tc-nav-panel');
+        const btn = document.getElementById('tc-burger-btn');
+        if (btn && (event.target === btn || btn.contains(event.target))) return;
+        // Вибір розділу закриває панель; інші кліки всередині (курси, конвертер) — ні.
+        if (panel.contains(event.target) && !event.target.closest('.tc-studio-nav button')) return;
+        toggleNavPanel(null, false);
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape' || !navPanelIsOpen()) return;
+        event.preventDefault();
+        toggleNavPanel(null, false);
+        const btn = document.getElementById('tc-burger-btn');
+        if (btn) btn.focus();
+    });
+
+    // Етап 7: на мобільному картка результату — док знизу. Згорнутий: прибуток і грн/км; тап розгортає каскад.
+    const MOBILE_DOCK_QUERY = '(max-width: 900px)';
+    function toggleResultDock(force) {
+        const dock = document.getElementById('dispatcher-result');
+        const btn = document.getElementById('tc-dock-toggle');
+        if (!dock || !btn) return;
+        const open = typeof force === 'boolean' ? force : !dock.classList.contains('is-open');
+        dock.classList.toggle('is-open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('aria-label', open ? 'Згорнути результат' : 'Показати повний результат');
+        syncDockHeight();
+    }
+    // Нижній відступ сторінки = висота згорнутого доку, щоб він не перекривав кнопки й останні поля.
+    function syncDockHeight() {
+        const dock = document.getElementById('dispatcher-result');
+        if (!dock) return;
+        const mobile = window.matchMedia && window.matchMedia(MOBILE_DOCK_QUERY).matches;
+        if (!mobile) {
+            document.documentElement.style.removeProperty('--tc-dock-h');
+            return;
+        }
+        if (dock.classList.contains('is-open')) return;
+        const h = dock.getBoundingClientRect().height;
+        if (h > 0) document.documentElement.style.setProperty('--tc-dock-h', Math.ceil(h) + 'px');
+    }
+    document.addEventListener('DOMContentLoaded', function () {
+        const dock = document.getElementById('dispatcher-result');
+        if (!dock) return;
+        if (window.ResizeObserver) new ResizeObserver(syncDockHeight).observe(dock);
+        window.addEventListener('resize', syncDockHeight);
+        dock.addEventListener('click', function (event) {
+            if (!(window.matchMedia && window.matchMedia(MOBILE_DOCK_QUERY).matches)) return;
+            if (dock.classList.contains('is-open') || event.target.closest('#tc-dock-toggle')) return;
+            if (event.target.closest('.tc-profit-hero')) toggleResultDock(true);
+        });
+        syncDockHeight();
+    });
+    document.addEventListener('keydown', function (event) {
+        const dock = document.getElementById('dispatcher-result');
+        if (event.key !== 'Escape' || !dock || !dock.classList.contains('is-open')) return;
+        toggleResultDock(false);
+    });
+
     function syncCompanyNav(on) {
         if (!on) return;
         const calcBtn = document.getElementById('studio-nav-calc');
