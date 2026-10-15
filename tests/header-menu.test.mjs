@@ -59,6 +59,15 @@ test('header keeps live rates and moves actions into the avatar menu', () => {
     assert.equal(auth.includes('logo-compass'), false);
 });
 
+test('nothing looks up the removed header Company button', () => {
+    assert.equal(html.includes('studio-nav-company'), false);
+    const sync = sliceBetween(html, 'function syncCompanyNav(on)', "document.addEventListener('click'");
+    assert.match(sync, /calcBtn\.classList\.remove\('on'\)/);
+    assert.match(sync, /overBtn\.classList\.remove\('on'\)/);
+    const theme = sliceBetween(html, 'function applyTheme(next)', "localStorage.setItem('tc_theme', next)");
+    assert.match(theme, /if \(body\.getAttribute\('data-studio-view'\) !== 'overview'\) \{/);
+});
+
 test('view switch is display-only and does not rewrite the org role', () => {
     const fn = sliceBetween(html, 'function setUiView(view)', 'function menuItems()');
     assert.match(html, /const UI_VIEW_KEY = 'tc_ui_view'/);

@@ -952,8 +952,13 @@
             -webkit-text-fill-color: var(--on-accent); border-color: transparent;
         }
         #cabinet-screen .cab-field.cab-req > label::after {
-            content: ' *'; color: #1aa56e;
+            content: ' *'; color: var(--negative); font-weight: 700;
         }
+        #cabinet-screen .cab-company-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+        #cabinet-screen .cab-company-sub { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
+        #cabinet-screen .cab-company-grid input,
+        #cabinet-screen .cab-company-grid select,
+        #cabinet-screen .tc-mode-row select { min-height: 40px; border-radius: 10px; }
         #cabinet-screen .cab-foot {
             margin-top: 14px; padding: 0 18px; text-align: center;
             font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.03em;
@@ -1064,7 +1069,7 @@
         .tc-saved-tools label { font-size: 0.72rem; }
         .tc-saved-tools select { width: min(260px, 100%); }
         .tc-history-toggle {
-            display: flex; align-items: center; gap: 8px; width: 100%;
+            display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
             margin: 0 0 12px; padding: 0; border: none; background: none; cursor: pointer;
             color: var(--text); font: 700 1.15rem/1.3 Manrope, sans-serif; text-align: left;
         }
@@ -1076,26 +1081,68 @@
         .tc-history-toggle:not([aria-expanded="true"]) .tc-history-chev { transform: rotate(-90deg); }
         .tc-history-export { display: flex; justify-content: flex-end; margin-top: 12px; }
         .tc-history-export .btn { width: auto; flex: none; }
+        .tc-migrate-box {
+            margin: 0 0 12px; padding: 10px 12px;
+            background: var(--surface); border: 1px solid var(--border-soft); border-radius: 10px;
+            color: var(--muted); font-size: 0.82rem; line-height: 1.45;
+        }
+        .tc-migrate-box b { color: var(--text); }
+        .tc-migrate-box .link-btn { min-height: 40px; }
         .tc-history-tools {
-            display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px;
+            display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 8px; align-items: center; margin: 0 0 12px;
         }
         .tc-history-tools input,
         .tc-history-tools select {
-            width: auto; flex: 1 1 140px; text-align: left; min-width: 0;
+            width: 100%; min-width: 0; min-height: 40px; text-align: left;
+            border-radius: 10px;
         }
-        .tc-history-tools .tc-history-search { flex: 2 1 200px; }
-        .tc-history-tools label.team-feature { flex: 1 1 160px; display: none !important; }
-        body.team-mode .tc-history-tools label.team-feature { display: flex !important; gap: 6px; align-items: center; }
+        .tc-history-tools .tc-history-search { grid-column: 1 / -1; }
+        .tc-history-tools label.team-feature { grid-column: span 2; display: none !important; }
+        body.team-mode .tc-history-tools label.team-feature { display: flex !important; gap: 6px; align-items: center; color: var(--muted); font-size: 0.8rem; }
+        body.team-mode .tc-history-tools label.team-feature select { flex: 1 1 auto; }
         #fact-alert-label {
-            display: inline-flex; flex: 0 0 auto; gap: 6px; align-items: center; font-size: 0.75rem;
+            display: inline-flex; grid-column: span 2; gap: 6px; align-items: center;
+            color: var(--muted); font-size: 0.8rem;
         }
         #fact-alert-label[hidden] { display: none; }
         #fact-alert-label input { width: 4.2rem; flex: none; }
-        .tc-template-box { margin: 0 0 12px; }
-        .tc-template-head, .tc-template-form {
-            display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;
+        #fact-alert-label button { min-height: 40px; }
+        .tc-template-box {
+            margin: 0 0 12px; padding: 12px 14px;
+            background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px;
         }
-        .tc-template-form input[type="text"] { flex: 1 1 180px; width: auto; text-align: left; }
+        .tc-template-head, .tc-template-form {
+            display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px;
+        }
+        .tc-template-head { justify-content: space-between; }
+        .tc-template-title {
+            margin: 0; color: var(--text); font: 700 0.95rem/1.3 Manrope, sans-serif;
+            letter-spacing: 0; text-transform: none;
+        }
+        .tc-template-head .btn { flex: none; width: auto; min-height: 40px; }
+        .tc-template-form .btn { flex: none; width: auto; min-height: 40px; }
+        .tc-template-form input[type="text"] { flex: 1 1 180px; width: auto; min-height: 40px; text-align: left; border-radius: 10px; }
+        .tc-template-form label { min-height: 40px; }
+        .tc-template-list .tc-recent {
+            display: inline-flex; gap: 0; margin: 0; max-width: 100%;
+            border: 1px solid var(--border); border-radius: 999px; background: var(--input); overflow: hidden;
+        }
+        .tc-template-list .tc-recent button {
+            min-height: 40px; padding: 0 14px; margin: 0;
+            border: none; border-radius: 0; background: transparent;
+            color: var(--text); font: 600 13px/1.2 Manrope, sans-serif;
+            min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .tc-template-list .tc-recent button + button {
+            flex: none; padding: 0 12px; border-left: 1px solid var(--border-soft); color: var(--muted);
+        }
+        .tc-template-list .tc-recent button:hover { color: var(--text); background: var(--surface); }
+        @media (max-width: 900px) {
+            .tc-history-tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .tc-history-tools label.team-feature,
+            #fact-alert-label { grid-column: 1 / -1; }
+        }
         .tc-template-form label { display: inline-flex; gap: 6px; align-items: center; font-size: 0.75rem; }
         #vehicle-split { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
         #vehicle-split .preset-btn.is-on { border-color: var(--accent); color: var(--accent); }
@@ -1195,7 +1242,8 @@
         .tc-status.is-proposed { color: var(--accent); border-color: var(--accent); }
         .tc-status.is-accepted, .tc-status.is-done { color: var(--success); border-color: var(--success); }
         .tc-status.is-rejected { color: var(--danger); border-color: var(--danger); }
-        .tc-history-num.is-neg { color: var(--danger); font-weight: 700; }
+        .tc-history-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+        .tc-history-num.is-neg { color: var(--negative); font-weight: 700; }
         .tc-fact-alert, .tc-fact-alert small { color: var(--warning); font-weight: 700; }
         #fact-editor {
             display: grid; gap: 8px; margin: 0 0 12px; padding: 10px;
@@ -1208,14 +1256,15 @@
         #fact-editor .tc-history-actions { margin-top: 2px; }
         .tc-history-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
         .tc-history-actions button {
-            background: none; border: 1px solid var(--border-color); color: var(--text-main);
-            border-radius: 6px; padding: 3px 6px; cursor: pointer; font-size: 0.68rem; font-family: var(--font-ui);
+            background: none; border: 1px solid var(--border); color: var(--text);
+            border-radius: 10px; min-height: 40px; padding: 6px 10px; cursor: pointer; font-size: 0.72rem; font-family: var(--font-ui);
         }
-        .tc-history-actions button.is-danger { color: var(--danger); border-color: var(--danger); }
-        .tc-history-actions select { width: auto; min-width: 0; font-size: 0.68rem; padding: 3px 6px; text-align: left; }
+        .tc-history-actions button.is-danger { color: var(--negative); border-color: var(--negative); }
+        .tc-history-actions select { width: auto; min-width: 0; min-height: 40px; font-size: 0.72rem; padding: 6px 8px; text-align: left; border-radius: 10px; }
         #saved-table { font-size: 0.75rem; }
-        #saved-table th, #saved-table td { white-space: nowrap; vertical-align: top; }
+        #saved-table th, #saved-table td { white-space: nowrap; vertical-align: middle; height: 40px; }
         #saved-table td.tc-history-route { white-space: normal; min-width: 140px; }
+        #saved-table .tc-history-actions { flex-wrap: nowrap; }
         .tc-history-cards { display: none; }
         .tc-history-card {
             border: 1px solid var(--border-color); border-radius: 10px; padding: 10px;
@@ -1227,26 +1276,26 @@
             #saved-section .comparison-table { display: none; }
             .tc-history-cards { display: grid; gap: 8px; }
         }
-        #cabinet-screen .tc-mode-box {
-            display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end;
-            margin-top: 14px; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px;
-            background: color-mix(in srgb, var(--input-bg) 88%, transparent);
+        #cabinet-screen .tc-mode-row {
+            display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; align-items: center;
         }
-        #cabinet-screen .tc-mode-box p { margin: 4px 0 0; color: var(--text-muted); font-size: 0.7rem; line-height: 1.4; }
-        #cabinet-screen .tc-report-box {
-            display: grid; gap: 8px; margin-top: 14px; padding: 12px;
-            border: 1px solid var(--border-color); border-radius: 10px;
-            background: color-mix(in srgb, var(--input-bg) 88%, transparent);
+        #cabinet-screen .tc-mode-row .cab-note { margin: 2px 0 0; }
+        #cabinet-screen #cab-mode-btn,
+        #cabinet-screen .tc-report-actions .btn,
+        #cabinet-screen .tc-team-toolbar .btn {
+            flex: none; width: auto; min-width: 150px; min-height: 40px;
         }
+        #cabinet-screen .tc-report-box { display: grid; gap: 10px; }
+        #cabinet-screen .tc-report-box .cab-card-head { margin-bottom: 0; }
         #cabinet-screen .tc-report-box[hidden] { display: none; }
         #cabinet-screen .tc-report-box p,
         #cabinet-screen .tc-report-box pre {
-            margin: 0; color: var(--text-muted); font-size: 0.72rem; line-height: 1.45;
+            margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.45;
             white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-ui);
         }
         #cabinet-screen .tc-report-box pre {
-            max-height: 240px; overflow: auto; padding: 8px;
-            border: 1px solid var(--border-color); border-radius: 8px; background: var(--input-bg);
+            max-height: 240px; overflow: auto; padding: 10px;
+            border: 1px solid var(--border-soft); border-radius: 10px; background: var(--input);
         }
         #cabinet-screen .tc-report-box pre[hidden] { display: none; }
         #cabinet-screen .tc-report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1326,9 +1375,17 @@
             display: flex; align-items: end; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
         }
         #cabinet-screen .tc-team-toolbar .cab-field { flex: 1 1 180px; }
+        #cabinet-screen .tc-team-toolbar input { min-height: 40px; border-radius: 10px; }
+        #cabinet-screen .tc-team-head h3 { display: inline-flex; align-items: center; gap: 8px; }
+        #cabinet-screen .tc-team-badge {
+            display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px;
+            border: 1px solid var(--border); border-radius: 999px; background: var(--input);
+            color: var(--text); font: 600 12px/1 'JetBrains Mono', ui-monospace, monospace;
+        }
+        #cabinet-screen .cab-muted { color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
         #cabinet-screen .tc-team-summary {
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
-            margin: 0 0 12px; color: var(--text-muted); font-size: 0.75rem;
+            margin: 0 0 12px; color: var(--muted); font-size: 0.82rem;
         }
         #cabinet-screen .tc-seat-count,
         .tc-overview-seats {
@@ -1336,36 +1393,61 @@
             border-radius: 999px; padding: 4px 9px; background: var(--input-bg);
             color: var(--text-main); font-size: 0.72rem; font-weight: 700;
         }
+        #cabinet-screen .tc-seat-count { border-color: var(--border); background: var(--input); color: var(--text); }
+        #cabinet-screen .tc-team-check {
+            display: flex; gap: 8px; align-items: center; min-height: 40px; margin: 0 0 12px;
+            color: var(--text); font-size: 0.86rem; cursor: pointer;
+        }
+        #cabinet-screen .tc-team-check input { width: 18px; height: 18px; flex: none; }
         #cabinet-screen .tc-solo-invite {
-            margin-top: 12px; padding: 12px; border: 1px solid var(--border-color);
-            border-radius: 10px; background: var(--input-bg);
+            margin-top: 14px; padding: 12px; border: 1px solid var(--border-soft);
+            border-radius: 10px; background: var(--input);
         }
         #cabinet-screen .tc-solo-invite p {
-            margin: 0 0 10px; color: var(--text-muted); font-size: 0.72rem; line-height: 1.4;
+            margin: 0 0 10px; color: var(--muted); font-size: 0.82rem; line-height: 1.4;
         }
         #cabinet-screen .tc-team-list { display: grid; gap: 8px; }
         #cabinet-screen .tc-member-row {
-            display: grid; grid-template-columns: minmax(0, 1.5fr) 120px 110px auto;
-            gap: 8px; align-items: center; padding: 10px;
-            border: 1px solid var(--border-color); border-radius: 10px; background: var(--input-bg);
+            display: grid; grid-template-columns: minmax(0, 1.6fr) 140px 190px auto;
+            gap: 10px; align-items: center; padding: 10px 12px;
+            border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface);
+            color: var(--text);
         }
-        #cabinet-screen .tc-member-row small { color: var(--text-muted); }
+        #cabinet-screen .tc-member-who {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0;
+        }
+        #cabinet-screen .tc-member-who b { color: var(--text); font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+        #cabinet-screen .tc-member-who small { flex-basis: 100%; color: var(--muted); font-size: 0.76rem; }
+        #cabinet-screen .tc-member-row small { color: var(--muted); }
+        #cabinet-screen .tc-member-role select { width: 100%; min-height: 40px; border-radius: 10px; }
+        #cabinet-screen .tc-role-badge,
+        #cabinet-screen .tc-state-chip {
+            display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px;
+            border: 1px solid var(--border); border-radius: 999px;
+            font-size: 0.72rem; font-weight: 700; white-space: nowrap; color: var(--muted);
+        }
+        #cabinet-screen .tc-role-badge.is-owner { color: var(--gold); border-color: var(--gold); }
+        #cabinet-screen .tc-state-chip.is-on { color: var(--positive); border-color: var(--positive); }
+        #cabinet-screen .tc-state-chip.is-off { color: var(--negative); border-color: var(--negative); }
+        #cabinet-screen .tc-state-chip.is-wait { color: var(--warning-text); border-color: var(--gold); }
         #cabinet-screen .tc-member-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-        #cabinet-screen .tc-member-actions button {
-            padding: 5px 8px; border: 1px solid var(--border-color); border-radius: 7px;
-            background: transparent; color: var(--text-main); cursor: pointer; font-size: 0.7rem;
+        #cabinet-screen .tc-member-actions button,
+        #cabinet-screen .tc-invite-link button {
+            min-height: 40px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 10px;
+            background: var(--input); color: var(--text); cursor: pointer; font-size: 0.8rem; font-family: inherit;
         }
         #cabinet-screen .tc-member-actions button:disabled {
-            opacity: 0.5; cursor: not-allowed; color: var(--text-muted); border-color: var(--border-color);
+            opacity: 0.5; cursor: not-allowed; color: var(--muted); border-color: var(--border);
         }
-        #cabinet-screen .tc-member-actions button.bad { color: var(--danger); border-color: var(--danger); }
+        #cabinet-screen .tc-member-actions button.bad { color: var(--negative); border-color: var(--negative); }
         #cabinet-screen .tc-member-row.is-disabled { opacity: 0.62; }
         #cabinet-screen .tc-invite-row { border-style: dashed; }
         #cabinet-screen .tc-invite-link {
-            display: flex; gap: 6px; align-items: center; margin-top: 7px;
+            display: flex; gap: 6px; align-items: center; margin-top: 7px; flex-basis: 100%; min-width: 0;
         }
         #cabinet-screen .tc-invite-link input {
-            min-width: 0; width: 100%; font-size: 0.68rem; padding: 6px 8px;
+            flex: 1 1 auto; min-width: 0; width: 100%; min-height: 40px; font-size: 0.72rem; padding: 6px 8px; border-radius: 10px;
+            text-align: left;
         }
         #cabinet-screen input:disabled,
         #cabinet-screen select:disabled { opacity: 0.65; cursor: not-allowed; }
@@ -1381,6 +1463,14 @@
         .auth-legal input[type="checkbox"] { margin-top: 2px; }
         .tc-footer a { color: var(--text-muted); text-decoration: underline; }
         #cab-message { font-size: 0.85rem; margin: 8px 18px 0; min-height: 1.2em; }
+        @media (max-width: 900px) {
+            #cabinet-screen .cab-grid.cab-company-grid { grid-template-columns: 1fr; }
+            #cabinet-screen .tc-member-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+            #cabinet-screen .tc-member-who,
+            #cabinet-screen .tc-member-actions { grid-column: 1 / -1; }
+            #cabinet-screen .tc-member-actions { justify-content: flex-start; }
+            #cabinet-screen .tc-invite-row .tc-member-role { display: none; }
+        }
         @media (max-width: 800px) {
             #cabinet-screen .cab-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             #cabinet-screen .cab-actions-note { display: none; }
@@ -1389,7 +1479,9 @@
             #cabinet-screen .cab-grid { grid-template-columns: 1fr; }
             #cabinet-screen .cab-overhead-sum { flex-direction: column; align-items: flex-start; }
             .auth-mode-grid { grid-template-columns: 1fr; }
-            #cabinet-screen .tc-mode-box { grid-template-columns: 1fr; }
+            #cabinet-screen .tc-mode-row { grid-template-columns: 1fr; }
+            #cabinet-screen #cab-mode-btn,
+            #cabinet-screen .tc-team-toolbar .btn { width: 100%; }
             #cabinet-screen .tc-report-actions { display: grid; }
             #cabinet-screen .tc-report-actions .btn { width: 100%; }
             #cabinet-screen .tc-fleet-docs { grid-template-columns: 1fr; }
@@ -4606,7 +4698,7 @@
             <span class="tc-history-chev" aria-hidden="true">▾</span>
         </button>
         <div id="history-panel" hidden>
-        <div id="migrate-box" style="display:none; background: rgba(59,130,246,0.10); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.8rem;"></div>
+        <div id="migrate-box" class="tc-migrate-box" style="display:none;"></div>
         <div class="tc-history-tools">
             <input type="search" id="history-search" class="tc-history-search" placeholder="Пошук: маршрут, клієнт, місто" oninput="historyPage=0;renderSavedTable()">
             <input type="date" id="history-from" aria-label="Дата від" onchange="historyPage=0;renderSavedTable()">
@@ -4644,7 +4736,7 @@
         </div>
         <div class="tc-template-box">
             <div class="tc-template-head">
-                <b>Шаблони маршрутів</b>
+                <h3 class="tc-template-title">Шаблони маршрутів</h3>
                 <button type="button" class="btn" onclick="toggleTemplateComposer()">⭐ Зберегти як шаблон</button>
             </div>
             <div id="template-composer" class="tc-template-form" hidden>
@@ -5029,6 +5121,11 @@
         }
     }
 
+    // Лише для показу: дефіс перед цифрою → типографський мінус (U+2212). Поля вводу, payload і експорт не чіпаємо.
+    function displayMinus(text) {
+        return String(text).replace(/-(?=\d)/g, '−');
+    }
+
     function numPlain(n) {
         return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n));
     }
@@ -5111,7 +5208,7 @@
             return;
         }
         const profit = Number(result.netProfit) || 0;
-        hero.textContent = formatMoney(profit);
+        hero.textContent = displayMinus(formatMoney(profit));
         hero.className = 'tc-profit-value ' + (profit > 0 ? 'is-up' : profit < 0 ? 'is-down' : '');
         if (dock) {
             dock.classList.remove('is-empty');
@@ -5123,10 +5220,10 @@
         const km = dist + podacha;
         const days = parseFloat(document.getElementById('days-per-trip').value) || 0;
         const tons = parseFloat(document.getElementById('volume').value) || 0;
-        if (perKm) perKm.textContent = km > 0 ? numPlain(profit / km) : '—';
-        if (perDay) perDay.textContent = days > 0 ? numPlain(profit / days) : '—';
-        if (perTon) perTon.textContent = tons > 0 ? numPlain(profit / tons) : '—';
-        if (margin) margin.textContent = (Number(result.profitabilityPct) || 0).toFixed(1) + '%';
+        if (perKm) perKm.textContent = km > 0 ? displayMinus(numPlain(profit / km)) : '—';
+        if (perDay) perDay.textContent = days > 0 ? displayMinus(numPlain(profit / days)) : '—';
+        if (perTon) perTon.textContent = tons > 0 ? displayMinus(numPlain(profit / tons)) : '—';
+        if (margin) margin.textContent = displayMinus((Number(result.profitabilityPct) || 0).toFixed(1) + '%');
         if (document.body.classList.contains('layout-studio')) syncStudioSums(result);
         paintCascade(result);
     }
@@ -5779,8 +5876,6 @@
         syncCompanyNav(true);
     }
     function syncCompanyNav(on) {
-        const co = document.getElementById('studio-nav-company');
-        if (co) co.classList.toggle('on', !!on);
         if (!on) return;
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
@@ -6367,8 +6462,7 @@
         body.setAttribute('data-theme', next);
         body.classList.add('layout-studio');
         mountStudioDom();
-        const companyOn = document.getElementById('studio-nav-company');
-        if (!(companyOn && companyOn.classList.contains('on')) && body.getAttribute('data-studio-view') !== 'overview') {
+        if (body.getAttribute('data-studio-view') !== 'overview') {
             const calcBtn = document.getElementById('studio-nav-calc');
             const overBtn = document.getElementById('studio-nav-overview');
             if (calcBtn) calcBtn.classList.add('on');
@@ -7615,48 +7709,48 @@
         }
         const byKey = Object.fromEntries(COMPANY_PROFILE_FIELDS.map(f => [f.key, f]));
         html += '<div class="cab-panel active" data-panel="company"><div class="cab-card">' +
-            '<div class="cab-card-head"><h3><span style="color:#1aa56e;margin-right:6px;">●</span>Налаштування компанії</h3>' +
-            '<span class="cab-autosave">✓ Зміни зберігаються кнопкою нижче</span></div>' +
-            '<p style="font-size:0.72rem;color:var(--text-muted);margin:-4px 0 12px;">Обов’язкові: назва компанії та система оподаткування. Інше — за бажанням.</p>' +
-            '<div class="cab-grid">' +
+            '<div class="cab-card-head cab-company-head"><h3>Налаштування компанії</h3>' +
+            '<p class="cab-company-sub">Обов’язкові поля: назва компанії та система оподаткування. Інше — за бажанням.</p></div>' +
+            '<div class="cab-grid cab-company-grid">' +
             '<div class="cab-field cab-req"><label for="cab-name">Назва компанії</label><div class="cab-input"><input type="text" id="cab-name" maxlength="100" required></div></div>' +
             profileFieldHtml(byKey.coEdrpou) +
-            profileFieldHtml(byKey.coOwnership) +
             profileFieldHtml(byKey.coCountry) +
             profileFieldHtml(byKey.coCity) +
-            '<div class="cab-field cab-req"><label for="cab-tax">Система оподаткування</label><div class="cab-input"><select id="cab-tax">' +
-            '<option value="безготівковий">Безготівковий (з ПДВ)</option><option value="фоп">ФОП (3 група: 5% + ВЗ 1%)</option><option value="готівка">Готівка</option>' +
-            '</select></div></div>' +
             profileFieldHtml(byKey.coAddress) +
-            profileFieldHtml(byKey.coZip) +
-            profileFieldHtml(byKey.coTimezone) +
             profileFieldHtml(byKey.coPhone) +
             profileFieldHtml(byKey.coWebsite) +
             profileFieldHtml(byKey.coReportEmail) +
+            '<div class="cab-field cab-req"><label for="cab-tax">Система оподаткування</label><div class="cab-input"><select id="cab-tax">' +
+            '<option value="безготівковий">Безготівковий (з ПДВ)</option><option value="фоп">ФОП (3 група: 5% + ВЗ 1%)</option><option value="готівка">Готівка</option>' +
+            '</select></div></div>' +
+            profileFieldHtml(byKey.coOwnership) +
+            profileFieldHtml(byKey.coZip) +
+            profileFieldHtml(byKey.coTimezone) +
             profileFieldHtml(byKey.coLang) +
-            '</div>' +
-            '<div id="weekly-report-box" class="tc-report-box">' +
-            '<div><b>Тижневий звіт</b>' +
-            '<p>За попередній тиждень (понеділок–неділя, Київ). Якщо «Пошта для звітів» заповнена — лист іде туди, інакше на пошту реєстрації. Цифри зі збереженої історії, калькулятор рейси не перераховує.</p></div>' +
-            '<div class="tc-report-actions">' +
-            '<button type="button" class="btn" id="weekly-report-preview-btn" onclick="previewWeeklyReport()">Переглянути</button>' +
-            '<button type="button" class="btn btn-success" id="weekly-report-send-btn" onclick="sendWeeklyReport()">Надіслати зараз</button>' +
-            '</div>' +
-            '<pre id="weekly-report-preview" hidden></pre>' +
-            '</div>' +
-            '<div class="tc-mode-box">' +
-            '<div><label for="cab-work-mode">Режим роботи</label>' +
+            '</div></div>' +
+            '<div class="cab-card tc-mode-box">' +
+            '<div class="cab-card-head"><h3>Режим роботи</h3></div>' +
+            '<div class="tc-mode-row"><div class="cab-field"><label for="cab-work-mode">Хто працює з калькулятором</label>' +
             '<select id="cab-work-mode" onchange="resetWorkModeConfirmation()"><option value="solo">Сам</option><option value="team">Є логісти / диспетчери</option></select>' +
-            '<p>Режим керує командними розділами. Дані при перемиканні не видаляються.</p></div>' +
-            '<button type="button" class="btn" id="cab-mode-btn" onclick="saveWorkMode()" style="min-width:150px;">Змінити режим</button>' +
+            '<p class="cab-note">Режим керує командними розділами. Дані при перемиканні не видаляються.</p></div>' +
+            '<button type="button" class="btn" id="cab-mode-btn" onclick="saveWorkMode()">Змінити режим</button>' +
             '</div>' +
             (currentWorkMode === 'solo' && currentOrgRole === 'owner'
                 ? '<div class="tc-solo-invite"><p>Можна одразу ввімкнути командний режим і запросити логіста. Кабінет залишиться відкритим на вкладці «Команда».</p>' +
                     '<div class="tc-team-toolbar"><div class="cab-field"><label for="solo-team-email">Email логіста</label>' +
                     '<input type="email" id="solo-team-email" placeholder="logist@example.com"></div>' +
                     '<button type="button" class="btn" id="solo-team-invite-btn" onclick="enableTeamAndInvite()">Увімкнути й запросити</button></div>' +
-                    '<small id="solo-team-status" style="color:var(--text-muted);"></small></div>'
+                    '<small id="solo-team-status" class="cab-muted"></small></div>'
                 : '') +
+            '</div>' +
+            '<div id="weekly-report-box" class="cab-card tc-report-box">' +
+            '<div class="cab-card-head"><h3>Тижневий звіт</h3></div>' +
+            '<p>За попередній тиждень (понеділок–неділя, Київ). Якщо «Пошта для звітів» заповнена — лист іде туди, інакше на пошту реєстрації. Цифри зі збереженої історії, калькулятор рейси не перераховує.</p>' +
+            '<div class="tc-report-actions">' +
+            '<button type="button" class="btn" id="weekly-report-preview-btn" onclick="previewWeeklyReport()">Переглянути</button>' +
+            '<button type="button" class="btn btn-success" id="weekly-report-send-btn" onclick="sendWeeklyReport()">Надіслати зараз</button>' +
+            '</div>' +
+            '<pre id="weekly-report-preview" hidden></pre>' +
             '</div></div>';
 
         const costCards = [
@@ -7691,18 +7785,18 @@
             '<div id="fleet-list"></div></div></div>';
         if (currentWorkMode === 'team') {
             html += '<div class="cab-panel" data-panel="team"><div class="cab-card">' +
-                '<div class="cab-card-head"><h3>Команда</h3><span class="cab-autosave" id="team-status">Окремі логіни без спільного пароля</span></div>' +
+                '<div class="cab-card-head tc-team-head"><h3>Команда <span class="tc-team-badge" id="team-seat-badge" title="Місця логістів">0/3</span></h3><span class="cab-muted" id="team-status">Окремі логіни без спільного пароля</span></div>' +
                 '<div class="tc-team-summary"><span>Активні логісти й чинні запрошення займають місця. Директор — окремо.</span><span class="tc-seat-count" id="team-seat-count">0 з 3 логістів</span></div>' +
                 (currentOrgRole === 'owner'
                     ? '<div class="tc-team-toolbar">' +
                         '<div class="cab-field"><label for="team-invite-email">Email</label><input type="email" id="team-invite-email" placeholder="logist@example.com"></div>' +
-                        '<button type="button" class="btn" id="team-invite-btn" onclick="inviteTeamMember()" style="flex:0 0 auto;min-width:150px;">Запросити логіста</button>' +
+                        '<button type="button" class="btn" id="team-invite-btn" onclick="inviteTeamMember()">Запросити логіста</button>' +
                         '</div>'
-                    : '<p style="color:var(--text-muted);margin:0 0 12px;">Керування складом команди доступне директору.</p>') +
+                    : '<p class="cab-note">Керування складом команди доступне директору.</p>') +
                 (currentOrgRole === 'owner'
-                    ? '<label style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;"><input type="checkbox" id="team-see-all" onchange="saveTeamVisibility()"> Логісти бачать розрахунки колег</label>'
+                    ? '<label class="tc-team-check"><input type="checkbox" id="team-see-all" onchange="saveTeamVisibility()"> Логісти бачать розрахунки колег</label>'
                     : '') +
-                '<div class="tc-team-list" id="team-members-list"><div style="color:var(--text-muted);">Завантаження…</div></div>' +
+                '<div class="tc-team-list" id="team-members-list"><div class="cab-muted">Завантаження…</div></div>' +
                 '</div></div>';
         }
         box.innerHTML = html;
@@ -8394,7 +8488,7 @@
                         '<option value="' + role + '"' + (member.org_role === role ? ' selected' : '') +
                         (role === 'logist' && isLastActiveOwner ? ' disabled' : '') + '>' + roleLabel(role) + '</option>'
                     ).join('') + '</select>'
-                : '<span>' + teamEsc(roleLabel(member.org_role)) + '</span>';
+                : '';
             const canDisable = canManage
                 && !isSelf
                 && !disabled
@@ -8413,34 +8507,38 @@
                     : '<button type="button" onclick="enableTeamMember(\'' + teamEsc(member.id) + '\', this)">Увімкнути</button>')
                 : '';
             return '<div class="tc-member-row' + (disabled ? ' is-disabled' : '') + '">' +
-                '<div><b>' + teamEsc(member.email || member.id) + '</b><br><small>Останній вхід: ' +
+                '<div class="tc-member-who"><b>' + teamEsc(member.email || member.id) + '</b>' +
+                '<span class="tc-role-badge is-' + (member.org_role === 'owner' ? 'owner' : 'logist') + '">' + teamEsc(roleLabel(member.org_role)) + '</span>' +
+                '<small>Останній вхід: ' +
                 teamEsc(member.last_sign_in_at ? new Date(member.last_sign_in_at).toLocaleString('uk-UA') : 'ще не входив') +
                 '</small></div>' +
-                '<div>' + roleControl + '</div>' +
-                '<div><span class="badge ' + (disabled ? 'badge-danger' : 'badge-success') + '">' +
+                '<div class="tc-member-role">' + roleControl + '</div>' +
+                '<div><span class="tc-state-chip ' + (disabled ? 'is-off' : 'is-on') + '">' +
                 (disabled ? 'відключений' : 'активний') + '</span></div>' +
                 '<div class="tc-member-actions">' + (disabled ? enableControl : disableControl) + '</div></div>';
         });
         const inviteRows = (teamState.invites || []).map(invite => {
             const expired = new Date(invite.expires_at).getTime() <= Date.now();
-            return '<div class="tc-member-row tc-invite-row"><div><b>' + teamEsc(invite.email) +
-                '</b><br><small>' + teamEsc(inviteTimeLeft(invite.expires_at)) + '</small>' +
+            return '<div class="tc-member-row tc-invite-row"><div class="tc-member-who"><b>' + teamEsc(invite.email) +
+                '</b><span class="tc-role-badge is-' + (invite.org_role === 'owner' ? 'owner' : 'logist') + '">' + teamEsc(roleLabel(invite.org_role)) + '</span>' +
+                '<small>' + teamEsc(inviteTimeLeft(invite.expires_at)) + '</small>' +
                 '<div class="tc-invite-link"><input readonly aria-label="Посилання запрошення для ' +
                 teamEsc(invite.email) + '" id="team-invite-link-' + teamEsc(invite.id) + '" value="' +
                 teamEsc(invite.invite_url || '') + '"><button type="button" onclick="copyTeamInvite(\'' +
-                teamEsc(invite.id) + '\')">Копіювати</button></div></div><div>' +
-                teamEsc(roleLabel(invite.org_role)) + '</div><div><span class="badge ' +
-                (expired ? 'badge-danger' : 'badge-warning') + '">' + (expired ? 'прострочено' : 'очікує') +
+                teamEsc(invite.id) + '\')">Копіювати</button></div></div><div class="tc-member-role"></div><div><span class="tc-state-chip ' +
+                (expired ? 'is-off' : 'is-wait') + '">' + (expired ? 'запрошення прострочено' : 'запрошення очікує') +
                 '</span></div><div class="tc-member-actions"><button type="button" onclick="resendTeamInvite(\'' +
                 teamEsc(invite.id) + '\')">Надіслати ще раз</button><button type="button" class="bad" onclick="revokeTeamInvite(\'' +
                 teamEsc(invite.id) + '\', this)">Скасувати</button></div></div>';
         });
-        list.innerHTML = rows.concat(inviteRows).join('') || '<div style="color:var(--text-muted);">У команді поки нікого немає.</div>';
+        list.innerHTML = rows.concat(inviteRows).join('') || '<div class="cab-muted">У команді поки нікого немає.</div>';
         const visibility = document.getElementById('team-see-all');
         if (visibility) visibility.checked = teamState.logists_see_all === true;
         const seats = teamState.seats || { used: 0, limit: 3 };
         const seatCount = document.getElementById('team-seat-count');
         if (seatCount) seatCount.textContent = seats.used + ' з ' + seats.limit + ' логістів';
+        const seatBadge = document.getElementById('team-seat-badge');
+        if (seatBadge) seatBadge.textContent = seats.used + '/' + seats.limit;
         const inviteButton = document.getElementById('team-invite-btn');
         if (inviteButton) {
             inviteButton.disabled = seats.used >= seats.limit;
@@ -9105,13 +9203,13 @@
             ? result.assignedTonnage
             : (parseFloat(payload.volume) > 0 ? parseFloat(payload.volume) : 1);
         ['res-income','res-margin','res-ebitda','res-profit','res-breakeven-full'].forEach(function(id){ var el=document.getElementById(id); if(el){ el.classList.remove('tc-flash'); void el.offsetWidth; el.classList.add('tc-flash'); } });
-        document.getElementById('res-income').innerText = formatMoney(result.grossIncome);
+        document.getElementById('res-income').innerText = displayMinus(formatMoney(result.grossIncome));
         document.getElementById('res-income-net').innerText = `Чистий: ${formatMoney(result.netIncome)}${fxSuffix(result.netIncome)}`;
-        document.getElementById('res-margin').innerText = formatMoney(result.marginalIncome);
+        document.getElementById('res-margin').innerText = displayMinus(formatMoney(result.marginalIncome));
         document.getElementById('res-margin-ton').innerText = `на 1 т: ${result.marginPerTon} грн${fxSuffix(result.marginPerTon)}`;
-        document.getElementById('res-ebitda').innerText = formatMoney(result.ebitda);
+        document.getElementById('res-ebitda').innerText = displayMinus(formatMoney(result.ebitda));
         document.getElementById('res-ebitda-ton').innerText = `на 1 т: ${result.ebitdaPerTon} грн${fxSuffix(result.ebitdaPerTon)}`;
-        document.getElementById('res-profit').innerText = formatMoney(result.netProfit);
+        document.getElementById('res-profit').innerText = displayMinus(formatMoney(result.netProfit));
         const profitFx = document.getElementById('res-profit-fx');
         if (profitFx) profitFx.textContent = fxSuffix(result.netProfit);
         paintProfitHero(result);
@@ -9122,7 +9220,7 @@
         document.getElementById('podacha-info').innerText = result.podachaText || '';
         document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
         const badge = document.getElementById('res-badge');
-        badge.innerText = result.profitabilityPct.toFixed(1) + '%';
+        badge.innerText = displayMinus(result.profitabilityPct.toFixed(1) + '%');
         badge.className = 'badge ' + (result.profitabilityPct >= 15 ? 'badge-success' : result.profitabilityPct >= 5 ? 'badge-warning' : 'badge-danger');
         const fmtBE = v => Math.round(v).toLocaleString('uk-UA');
         const beUnit = contractCurrency === 'UAH' ? 'грн/т' : contractCurrency + '/т';
@@ -9703,12 +9801,12 @@
     function ovShort(n) {
         const v = Number(n) || 0;
         const a = Math.abs(v);
-        if (a >= 1e6) return ovNum(v / 1e6, 2) + ' млн';
-        if (a >= 1e4) return ovNum(Math.round(v / 1e3), 0) + ' тис';
-        return numPlain(v);
+        if (a >= 1e6) return displayMinus(ovNum(v / 1e6, 2) + ' млн');
+        if (a >= 1e4) return displayMinus(ovNum(Math.round(v / 1e3), 0) + ' тис');
+        return displayMinus(numPlain(v));
     }
     function ovPct(n) {
-        return ovNum(n, 1) + '%';
+        return displayMinus(ovNum(n, 1) + '%');
     }
     function overviewDelta(cur, prev, kind, period) {
         if (prev === null || prev === undefined || cur === null || cur === undefined) return { text: '—', tone: '' };
@@ -9749,7 +9847,7 @@
         const max = Math.max.apply(null, weeks.map(function (w) { return Math.abs(w.profit); }).concat([1]));
         const label = function (w) {
             const k = w.profit / 1000;
-            return ovNum(k, w.profit !== 0 && Math.abs(k) < 10 ? 1 : 0);
+            return displayMinus(ovNum(k, w.profit !== 0 && Math.abs(k) < 10 ? 1 : 0));
         };
         const summary = weeks.map(function (w) { return 'тиж. ' + w.week + ': ' + label(w) + ' тис. грн'; }).join('; ');
         return '<div class="tc-ov-bars" role="img" aria-label="' + escHtml('Чистий прибуток по тижнях — ' + summary) + '">' +
@@ -9894,8 +9992,8 @@
                 '<td><button type="button" class="tc-ov-open" onclick="event.stopPropagation(); openOverviewSaved(\'' + id + '\')">' + escHtml(row.routeName || row.name || 'Рейс') + '</button></td>' +
                 '<td class="muted">' + teamEsc(savedAuthorLabel(row.userId)) + '</td>' +
                 '<td class="num">' + (Number.isFinite(volume) && volume > 0 ? escHtml(ovNum(volume, Number.isInteger(volume) ? 0 : 1)) + ' т' : '—') + '</td>' +
-                '<td class="num">' + (Number.isFinite(Number(row.grossIncome)) ? escHtml(numPlain(row.grossIncome)) : '—') + '</td>' +
-                '<td class="num' + (profit < 0 ? ' is-down' : '') + '">' + (Number.isFinite(profit) ? escHtml(numPlain(profit)) : '—') + '</td>' +
+                '<td class="num">' + (Number.isFinite(Number(row.grossIncome)) ? escHtml(displayMinus(numPlain(row.grossIncome))) : '—') + '</td>' +
+                '<td class="num' + (profit < 0 ? ' is-down' : '') + '">' + (Number.isFinite(profit) ? escHtml(displayMinus(numPlain(profit))) : '—') + '</td>' +
                 '<td class="num">' + (Number.isFinite(pct) ? '<span class="tc-ov-badge' + (pct < 0 ? ' is-down' : '') + '">' + escHtml(ovPct(pct)) + '</span>' : '—') + '</td></tr>';
         }).join('');
         target.innerHTML = '<table class="tc-ov-table tc-ov-saved"><thead><tr><th>Маршрут</th><th>Автор</th><th class="num">Обсяг</th>' +
@@ -10529,13 +10627,13 @@
             return;
         }
         const moneyCell = function (value) {
-            const neg = Number(value) < 0 ? ' class="tc-history-num is-neg"' : '';
+            const neg = ' class="tc-history-num' + (Number(value) < 0 ? ' is-neg' : '') + '"';
             return '<td' + neg + '>' + (value === null || value === undefined ? '—' : formatMoney(value)) + '</td>';
         };
         tbody.innerHTML = slice.map(function (row) {
             const fields = historyFields(row);
             const unit = fields.currency && fields.currency !== 'UAH' ? fields.currency : 'грн';
-            const perKmClass = fields.perKm !== null && fields.perKm < 0 ? ' class="tc-history-num is-neg"' : '';
+            const perKmClass = ' class="tc-history-num' + (fields.perKm !== null && fields.perKm < 0 ? ' is-neg' : '') + '"';
             return '<tr>' +
                 '<td>' + escHtml(formatHistoryDate(fields.date)) + '</td>' +
                 '<td class="team-feature">' + escHtml(savedAuthorLabel(row.userId)) + '</td>' +

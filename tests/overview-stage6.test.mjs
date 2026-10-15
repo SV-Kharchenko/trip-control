@@ -16,6 +16,7 @@ function sliceBetween(source, start, end) {
 const overviewCode = sliceBetween(html, "const OVERVIEW_PERIOD_KEY = 'tc_overview_period';", 'const TRIP_STATUSES = [');
 const fleetCode = sliceBetween(html, 'const FLEET_DOCS = [', 'function fleetWriteError(');
 const daysCode = sliceBetween(html, 'function ukDaysLabel(value)', 'function formatHistoryDays(');
+const minusCode = sliceBetween(html, 'function displayMinus(text)', 'function numPlain(n)');
 
 function makeDom() {
     const nodes = {};
@@ -63,7 +64,7 @@ function runOverview(state) {
         menuGo: function () {}
     }, state);
     ctx.teamEsc = ctx.escHtml;
-    vm.runInNewContext(daysCode + fleetCode + overviewCode + '\nrenderStudioOverview();\nglobalThis.__api = { setOverviewPeriod: setOverviewPeriod, ovShort: ovShort, overviewIsoWeek: overviewIsoWeek };', ctx);
+    vm.runInNewContext(minusCode + daysCode + fleetCode + overviewCode + '\nrenderStudioOverview();\nglobalThis.__api = { setOverviewPeriod: setOverviewPeriod, ovShort: ovShort, overviewIsoWeek: overviewIsoWeek };', ctx);
     return { nodes: dom.nodes, store: dom.store, api: ctx.__api, ctx: ctx };
 }
 
@@ -126,7 +127,7 @@ test('the overview counts the chosen period against the previous one from saved 
     const saved = out.nodes['overview-saved'].innerHTML;
     assert.equal((saved.match(/<tr onclick="openOverviewSaved/g) || []).length, 3);
     assert.ok(saved.indexOf("openOverviewSaved('b')") < saved.indexOf("openOverviewSaved('c')"));
-    assert.match(saved, /tc-ov-badge is-down">-40,1%/);
+    assert.match(saved, /tc-ov-badge is-down">−40,1%/);
     assert.equal(saved.includes('removeSaved'), false);
     assert.equal(out.nodes['overview-saved-count'].textContent, '3 шт');
 });
@@ -161,4 +162,33 @@ test('the overview markup has the mockup layout without mockup numbers', () => {
     assert.match(sliceBetween(html, 'function showUiPreview()', 'renderKpiSparklines({ sample: true })'), /uiPreview = true;/);
     assert.match(html, /body\.view-logist #studio-nav-overview \{ display: none; \}/);
     assert.match(html, /if \(logistView && document\.body\.getAttribute\('data-studio-view'\) === 'overview'\) setStudioView\('calc'\);/);
+});
+
+test('negative overview numbers use the typographic minus sign', () => {
+    const rows = [
+        row('a', '2026-10-05T09:00:00', { grossIncome: 840000, ebitda: -80000, netProfit: -53456, profitabilityPct: -6.4 }, { volume: 60 })
+    ];
+    const out = runOverview({ savedCalculations: rows });
+    const kpis = out.nodes['overview-kpis'].innerHTML;
+    assert.match(kpis, /class="v is-down">−80 тис</);
+    assert.match(kpis, /class="v is-down">−53 тис</);
+    assert.match(kpis, /−6,4%/);
+    assert.equal(/>-\d/.test(kpis), false);
+    const saved = out.nodes['overview-saved'].innerHTML;
+    assert.match(saved, /−53\s456/);
+    assert.equal(/>-\d/.test(saved), false);
+    assert.equal(out.api.ovShort(-712400), '−712 тис');
+    assert.equal(out.api.ovShort(-500), '−500');
+});
+
+test('the result card shows the minus sign while money formatting stays plain', () => {
+    const helper = sliceBetween(html, 'function displayMinus(text)', 'function numPlain(n)');
+    const displayMinus = new Function(helper + '; return displayMinus;')();
+    assert.equal(displayMinus('-6 687 грн'), '−6 687 грн');
+    assert.equal(displayMinus('6 687 грн'), '6 687 грн');
+    assert.equal(displayMinus('—'), '—');
+    const paint = sliceBetween(html, 'function paintProfitHero(result)', 'function syncStudioSums(result)');
+    assert.match(paint, /hero\.textContent = displayMinus\(formatMoney\(profit\)\)/);
+    assert.match(paint, /perKm\.textContent = km > 0 \? displayMinus\(numPlain\(profit \/ km\)\)/);
+    assert.equal(sliceBetween(html, 'function formatMoney(amount)', 'function contractFx()').includes('displayMinus'), false);
 });
