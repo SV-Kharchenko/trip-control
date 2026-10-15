@@ -822,74 +822,87 @@
             background: var(--bg);
             background-image: none;
         }
+        #cabinet-screen,
+        #cabinet-screen button,
+        #cabinet-screen label,
+        #cabinet-screen p,
+        #cabinet-screen h3,
+        #cabinet-screen select {
+            font-family: Manrope, sans-serif;
+        }
+        #cabinet-screen input[type="number"] {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+        }
         #cabinet-screen .cab-wrap {
             position: relative; max-width: 1040px; margin: 0 auto;
-            background: color-mix(in srgb, var(--card-bg) 92%, transparent);
-            border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--border-color));
-            border-radius: 18px; padding: 0 0 18px;
-            box-shadow: 0 28px 70px rgba(0,0,0,0.35);
-            overflow: hidden; backdrop-filter: blur(12px);
-            color: var(--text-main);
-        }
-        #cabinet-screen .cab-wrap::before {
-            content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px;
-            background: linear-gradient(90deg, transparent, #b8975a, transparent);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px; padding: 0;
+            box-shadow: 0 24px 60px rgba(13, 42, 41, 0.12);
+            overflow: hidden;
+            /* clip, not hidden: hidden makes .cab-wrap the sticky scroller, so .cab-actions never stuck */
+            overflow: clip;
+            color: var(--text);
         }
         #cabinet-screen .cab-head {
-            display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-            gap: 10px; padding: 22px 22px 14px; text-align: center;
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; padding: 18px 22px 6px; text-align: left;
         }
         #cabinet-screen .cab-brand {
-            grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 8px;
+            display: flex; flex-direction: row; align-items: center; gap: 10px; min-width: 0;
         }
+        #cabinet-screen .tc-cab-mark { height: 28px; width: 36px; flex: none; }
         #cabinet-screen .cab-brand .cab-sub {
-            font-size: 0.68rem; letter-spacing: 0.08em; text-transform: none; color: var(--text-muted);
+            font-size: 1.15rem; font-weight: 700; letter-spacing: 0; color: var(--text);
         }
         #cabinet-screen .cab-close {
-            grid-column: 3; justify-self: end; width: 36px; height: 36px; border-radius: 10px;
-            border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-muted);
+            width: 36px; height: 36px; border-radius: 999px; flex: none;
+            border: 1px solid var(--border); background: var(--surface); color: var(--muted);
             cursor: pointer; display: grid; place-items: center; font-size: 1.1rem;
         }
-        #cabinet-screen .cab-close:hover { color: var(--amber); border-color: var(--amber); }
-        #cabinet-screen .cab-intro {
-            padding: 0 22px 12px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; text-align: center;
-        }
+        #cabinet-screen .cab-close:hover { color: var(--text); border-color: var(--text); }
         #cabinet-screen .cab-tabs {
-            display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;
-            padding: 0 18px 14px; margin: 0;
-            border-bottom: none;
+            display: flex; flex-wrap: nowrap; gap: 22px; overflow-x: auto;
+            padding: 8px 22px 0; margin: 0;
+            border-bottom: 1px solid var(--border);
         }
         #cabinet-screen .cab-tab {
-            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-            min-height: 72px; padding: 10px 6px; cursor: pointer;
-            background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 12px;
-            color: var(--text-muted); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
-            text-transform: uppercase; font-family: var(--font-ui);
-            transition: border-color 0.18s, color 0.18s, box-shadow 0.18s, background 0.18s;
-        }
-        #cabinet-screen .cab-tab .cab-tab-ico {
-            width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 0.95rem;
-            background: color-mix(in srgb, var(--steel) 12%, transparent);
-            border: 1px solid color-mix(in srgb, var(--steel) 22%, var(--border-color));
+            flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+            min-height: 44px; padding: 10px 0; cursor: pointer;
+            background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0;
+            color: var(--muted); font-size: 0.95rem; font-weight: 600; letter-spacing: 0;
+            text-transform: none; font-family: Manrope, sans-serif;
         }
         #cabinet-screen .cab-tab.active {
-            color: var(--success); border-color: var(--success);
-            background: color-mix(in srgb, var(--success) 14%, var(--input-bg));
-            box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 30%, transparent);
-        }
-        #cabinet-screen .cab-tab.active .cab-tab-ico {
-            background: color-mix(in srgb, var(--success) 18%, transparent);
-            border-color: color-mix(in srgb, var(--success) 40%, transparent); color: var(--success);
-        }
-        [data-theme="light"] #cabinet-screen .cab-tab.active {
-            color: #047857; border-color: #059669;
-            background: color-mix(in srgb, #059669 10%, var(--input-bg));
+            color: var(--text); border-bottom-color: var(--text);
+            background: none; box-shadow: none;
         }
         #cabinet-screen .cab-panel { display: none; padding: 14px 18px 0; }
         #cabinet-screen .cab-panel.active { display: block; }
         #cabinet-screen .cab-card {
-            background: transparent; border: 1px solid var(--border-color); border-radius: 14px;
-            padding: 14px; margin-bottom: 0;
+            background: var(--surface); border: 1px solid var(--border-soft); border-radius: 16px;
+            padding: 16px 18px 14px; margin-bottom: 14px;
+        }
+        #cabinet-screen .cab-card-title {
+            display: flex; align-items: center; gap: 8px; margin: 0;
+        }
+        #cabinet-screen .cab-num {
+            width: 22px; height: 22px; border-radius: 50%; flex: none;
+            display: grid; place-items: center;
+            background: var(--accent); color: var(--on-accent);
+            font-size: 12px; font-weight: 700;
+        }
+        #cabinet-screen .cab-note {
+            margin: 4px 0 12px; color: var(--muted); font-size: 0.82rem; line-height: 1.4;
+        }
+        #cabinet-screen .cab-overhead-sum {
+            display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+            margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border);
+            color: var(--text); font-size: 0.92rem;
+        }
+        #cabinet-screen .cab-overhead-sum b {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-weight: 700; text-align: right;
         }
         #cabinet-screen .cab-card-head {
             display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -920,10 +933,23 @@
         #cabinet-screen .cab-field input[type=number] { text-align: right; }
         #cabinet-screen .cab-unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; min-width: 2.5em; }
         #cabinet-screen .cab-actions {
-            display: flex; justify-content: center; gap: 10px; padding: 16px 18px 0;
+            position: sticky; bottom: 0; z-index: 2;
+            display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+            padding: 12px 18px; margin-top: 8px;
+            background: var(--surface); border-top: 1px solid var(--border);
         }
-        #cabinet-screen .cab-save {
-            flex: none; min-width: 220px; width: auto;
+        #cabinet-screen .cab-actions-note {
+            margin-right: auto; color: var(--muted); font-size: 0.82rem;
+        }
+        #cabinet-screen .cab-cancel,
+        #cabinet-screen .cab-save { flex: none; width: auto; min-width: 0; }
+        #cabinet-screen .cab-cancel {
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+        }
+        #cabinet-screen .cab-save,
+        #cabinet-screen .cab-save:hover {
+            background: var(--accent); color: var(--on-accent);
+            -webkit-text-fill-color: var(--on-accent); border-color: transparent;
         }
         #cabinet-screen .cab-field.cab-req > label::after {
             content: ' *'; color: #1aa56e;
@@ -1037,6 +1063,19 @@
         body.team-mode .tc-saved-tools { display: flex; }
         .tc-saved-tools label { font-size: 0.72rem; }
         .tc-saved-tools select { width: min(260px, 100%); }
+        .tc-history-toggle {
+            display: flex; align-items: center; gap: 8px; width: 100%;
+            margin: 0 0 12px; padding: 0; border: none; background: none; cursor: pointer;
+            color: var(--text); font: 700 1.15rem/1.3 Manrope, sans-serif; text-align: left;
+        }
+        .tc-history-count {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 0.85rem; font-weight: 600; color: var(--muted);
+        }
+        .tc-history-chev { color: var(--muted); transition: transform 0.15s ease; }
+        .tc-history-toggle:not([aria-expanded="true"]) .tc-history-chev { transform: rotate(-90deg); }
+        .tc-history-export { display: flex; justify-content: flex-end; margin-top: 12px; }
+        .tc-history-export .btn { width: auto; flex: none; }
         .tc-history-tools {
             display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px;
         }
@@ -1343,14 +1382,12 @@
         .tc-footer a { color: var(--text-muted); text-decoration: underline; }
         #cab-message { font-size: 0.85rem; margin: 8px 18px 0; min-height: 1.2em; }
         @media (max-width: 800px) {
-            #cabinet-screen .cab-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             #cabinet-screen .cab-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            #cabinet-screen .cab-actions-note { display: none; }
         }
         @media (max-width: 520px) {
-            #cabinet-screen .cab-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             #cabinet-screen .cab-grid { grid-template-columns: 1fr; }
-            #cabinet-screen .cab-head { grid-template-columns: 1fr auto; }
-            #cabinet-screen .cab-brand { grid-column: 1; align-items: flex-start; text-align: left; }
+            #cabinet-screen .cab-overhead-sum { flex-direction: column; align-items: flex-start; }
             .auth-mode-grid { grid-template-columns: 1fr; }
             #cabinet-screen .tc-mode-box { grid-template-columns: 1fr; }
             #cabinet-screen .tc-report-actions { display: grid; }
@@ -2291,6 +2328,7 @@
             border: 1px dashed #DDD2BC;
         }
         body.layout-studio #studio-overview { grid-column: 1 / -1; }
+        body.layout-studio[data-studio-view="overview"] #tc-step-strip { display: none !important; }
         body.layout-studio[data-studio-view="overview"] #studio-overview { display: block; }
         body.layout-studio[data-studio-view="overview"] #studio-columns { display: none !important; }
         body.layout-studio[data-studio-view="overview"] .tc-work,
@@ -2415,10 +2453,43 @@
             body.layout-studio #studio-right,
             body.layout-studio[data-theme="control"] #studio-right,
             body.layout-studio[data-theme="paper"] #studio-right { display: contents !important; }
-            body.layout-studio .tc-map-frame { order: 1; height: 200px !important; min-height: 180px !important; max-height: 220px !important; }
-            body.layout-studio .tc-map-alts { display: none !important; }
+            body.layout-studio .tc-map-frame {
+                order: 1;
+                display: flex;
+                flex-direction: column;
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible;
+            }
+            body.layout-studio .tc-map-frame #map,
+            body.layout-studio .tc-map-frame .lock-ph {
+                order: 2;
+                height: 200px !important;
+                min-height: 180px;
+                flex: 0 0 200px;
+            }
+            body.layout-studio .tc-map-alts {
+                position: static !important;
+                order: 0;
+                width: 100% !important;
+                max-width: 100%;
+                max-height: none;
+                margin: 0 0 8px;
+                flex-direction: row;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                z-index: 2;
+            }
+            body.layout-studio .tc-map-alts.visible { display: flex !important; }
+            body.layout-studio .tc-map-alt { flex: 0 0 auto; max-width: 220px; }
+            body.layout-studio .tc-map-overlay {
+                top: auto;
+                bottom: 0;
+                height: 200px;
+            }
             body.layout-studio .tc-work { order: 2; }
-            body.layout-studio .tc-route-bar { order: 3; }
+            body.layout-studio .tc-route-bar { display: none !important; }
             body.layout-studio .tc-lower { order: 4; }
             body.layout-studio .tc-costs-visual { order: 5; }
             body.layout-studio .poi-box { order: 6; }
@@ -2712,17 +2783,47 @@
             font-size: 14px;
             font-weight: 600;
         }
-        body.layout-studio .tc-map-alts {
-            position: static;
-            left: auto;
-            top: auto;
-            width: 100%;
-            max-height: none;
-            flex-direction: row;
-            flex-wrap: wrap;
-            z-index: 1;
+        body.layout-studio .tc-map-frame > .tc-map-alts {
+            position: absolute;
+            left: 10px;
+            top: 10px;
+            z-index: 6;
+            width: min(220px, calc(100% - 64px));
+            max-height: calc(100% - 70px);
+            flex-direction: column;
+            flex-wrap: nowrap;
+            overflow: auto;
         }
-        body.layout-studio .tc-map-alt { flex: 1 1 140px; }
+        body.layout-studio .tc-map-alt {
+            flex: none;
+            background: var(--surface);
+            color: var(--text);
+            border-color: var(--border);
+        }
+        body.layout-studio .tc-map-alt span { color: var(--muted); }
+        body.layout-studio .tc-map-alt.active {
+            border-color: var(--accent);
+            box-shadow: inset 3px 0 0 var(--accent);
+        }
+        body.layout-studio .tc-route-bar { display: none !important; }
+        @media (max-width: 900px) {
+            body.layout-studio .tc-map-frame > .tc-map-alts {
+                position: static !important;
+                box-sizing: border-box;
+                width: 100% !important;
+                max-height: none;
+                flex-direction: row;
+                flex-wrap: wrap;
+                overflow: visible;
+                padding: 8px 12px;
+                margin: 0;
+            }
+            body.layout-studio .tc-map-frame > .tc-map-alts .tc-map-alt {
+                flex: 1 1 140px;
+                min-width: 0;
+                max-width: 100%;
+            }
+        }
         body.layout-studio[data-theme="control"] #studio-right > #map-route-alts { grid-column: 1 / -1; grid-row: 2; }
         body.layout-studio[data-theme="control"] #studio-right > .tc-route-bar { grid-row: 3; }
         body.layout-studio[data-theme="control"] #studio-right > .tc-costs-visual { grid-row: 4; }
@@ -3760,7 +3861,6 @@
             <nav class="tc-studio-nav" aria-label="Розділи">
                 <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
-                <button type="button" id="studio-nav-company" onclick="openHeaderCompany()">Компанія</button>
             </nav>
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
@@ -4358,7 +4458,12 @@
     </div>
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
-        <h2><span class="tc-sec-ico" aria-hidden="true">◫</span>Історія рейсів</h2>
+        <button type="button" class="tc-history-toggle" id="history-toggle" aria-expanded="false" aria-controls="history-panel" onclick="toggleHistory()">
+            <span>Історія рейсів</span>
+            <span class="tc-history-count" id="history-count"></span>
+            <span class="tc-history-chev" aria-hidden="true">▾</span>
+        </button>
+        <div id="history-panel" hidden>
         <div id="migrate-box" style="display:none; background: rgba(59,130,246,0.10); border: 1px solid var(--accent); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.8rem;"></div>
         <div class="tc-history-tools">
             <input type="search" id="history-search" class="tc-history-search" placeholder="Пошук: маршрут, клієнт, місто" oninput="historyPage=0;renderSavedTable()">
@@ -4394,9 +4499,6 @@
                     <option value="">Усі учасники</option>
                 </select>
             </label>
-            <button type="button" class="btn full-only" onclick="exportHistory('csv')">Експорт CSV</button>
-            <button type="button" class="btn full-only" onclick="exportHistory('xlsx')">Експорт Excel</button>
-            <span class="demo-only tc-history-meta">Експорт історії — після оплати.</span>
         </div>
         <div class="tc-template-box">
             <div class="tc-template-head">
@@ -4458,6 +4560,11 @@
             <span id="history-page-label"></span>
             <button type="button" class="btn" onclick="shiftHistoryPage(1)">Далі</button>
         </div>
+        <div class="tc-history-export">
+            <button type="button" class="btn full-only" onclick="exportHistory('xlsx')">Експорт Excel</button>
+            <span class="demo-only tc-history-meta">Експорт історії — після оплати.</span>
+        </div>
+        </div>
     </div>
 
     <div class="actions-bar" id="tc-result-actions" aria-label="Дії з розрахунком">
@@ -4497,24 +4604,24 @@
     <div class="cab-wrap">
         <div class="cab-head">
             <div class="cab-brand">
-                <div class="tc-lockup tc-lockup--cab" aria-label="TRIP-CONTROL">
-                    <picture>
-                    <source srcset="assets/logo-compass-112.webp" type="image/webp">
-                    <img class="tc-lockup__compass" src="assets/logo-compass-112.png" alt="" width="112" height="112">
-                </picture>
-                    <span class="tc-lockup__wordmark">TRIP-CONTROL</span>
-                </div>
+                <svg class="tc-logo-svg tc-cab-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+                    <path class="tc-logo-road" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="4.5" stroke-linecap="round"></path>
+                    <path class="tc-logo-dash" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+                    <circle class="tc-logo-bead" cx="13" cy="49" r="5.5"></circle>
+                    <circle class="tc-logo-node" cx="51" cy="15" r="7" stroke-width="3.2"></circle>
+                    <circle class="tc-logo-bead" cx="51" cy="15" r="2.4"></circle>
+                </svg>
                 <div class="cab-sub">Особистий кабінет</div>
             </div>
             <button type="button" class="cab-close" title="Закрити" onclick="closeCabinet()" aria-label="Закрити">✕</button>
         </div>
-        <div class="cab-intro">Постійні параметри компанії. Підставляються в калькулятор при вході; для рейсу можна змінити на місці. Порожнє поле = 0.</div>
         <div id="cabinet-fields"></div>
         <div id="cab-message"></div>
         <div class="cab-actions">
-            <button class="btn btn-success cab-save" id="cab-save-btn" onclick="saveCabinet()">💾 Зберегти зміни</button>
+            <span class="cab-actions-note">Зміни застосуються до нових розрахунків</span>
+            <button type="button" class="btn cab-cancel" onclick="closeCabinet()">Скасувати</button>
+            <button class="btn btn-success cab-save" id="cab-save-btn" onclick="saveCabinet()">Зберегти</button>
         </div>
-        <div class="cab-foot">Дані захищено. Зберігаються в профілі організації</div>
     </div>
 </div>
 
@@ -5487,11 +5594,12 @@
                 document.body.style.overflow = '';
             }
             setStudioView('calc');
+            setHistoryOpen(true);
             const sec = document.getElementById('saved-section');
             if (sec) sec.scrollIntoView({ block: 'start' });
         } else if (action === 'defaults') {
             openCabinet();
-            switchCabTab('s0');
+            switchCabTab('costs');
         } else if (action === 'clients') openAdminCrm();
         else if (action === 'help') window.location.href = 'mailto:support@trip-control.com';
         else if (action === 'logout') handleLogout();
@@ -6165,11 +6273,7 @@
             if (left) left.appendChild(el);
             else card.appendChild(el);
         };
-        if (route) {
-            park(route.querySelector('.tc-map-frame'));
-            const alts = document.getElementById('map-route-alts');
-            if (alts && route.contains(alts)) park(alts);
-        }
+        if (route) park(route.querySelector('.tc-map-frame'));
         const more = card.querySelector('details.tc-more');
         const putBack = function (node) {
             if (!node) return;
@@ -6223,8 +6327,6 @@
         if (nodes.lower && !(nodes.lower.closest && nodes.lower.closest('#tc-stepper'))) left.appendChild(studioTake(nodes.lower));
         if (nodes.dock) right.appendChild(studioTake(nodes.dock));
         if (nodes.map) right.appendChild(studioTake(nodes.map));
-        if (nodes.alts) right.appendChild(studioTake(nodes.alts));
-        if (nodes.route) right.appendChild(studioTake(nodes.route));
         if (nodes.costs) right.appendChild(studioTake(nodes.costs));
         const actions = document.querySelector('.actions-bar');
         if (nodes.poi && !(nodes.poi.closest && nodes.poi.closest('#tc-stepper'))) right.appendChild(studioTake(nodes.poi));
@@ -7270,21 +7372,50 @@
     }
 
     function switchCabTab(id) {
-        document.querySelectorAll('#cabinet-screen .cab-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+        document.querySelectorAll('#cabinet-screen .cab-tab').forEach(t => {
+            const on = t.dataset.tab === id;
+            t.classList.toggle('active', on);
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
         document.querySelectorAll('#cabinet-screen .cab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === id));
+        if (id === 'costs') refreshCabOverheadSum();
+    }
+    function refreshCabOverheadSum() {
+        const box = document.getElementById('cab-overhead-sum');
+        if (!box) return;
+        const keys = ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin'];
+        let sum = 0;
+        keys.forEach(function (key) {
+            const el = document.getElementById('cab-' + key);
+            const n = el ? parseFloat(el.value) : NaN;
+            if (n > 0) sum += n;
+        });
+        const fleetEl = document.getElementById('cab-totalFleet');
+        const fleet = fleetEl ? parseFloat(fleetEl.value) : NaN;
+        const money = new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 2 }).format(sum);
+        const each = fleet > 0
+            ? new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(sum / fleet))
+            : '—';
+        const label = box.querySelector('span');
+        const value = box.querySelector('b');
+        if (label) label.textContent = 'Разом накладних на рік';
+        if (value) value.textContent = money + ' грн · ≈' + each + ' грн/авто';
     }
 
     function buildCabinet() {
         const box = document.getElementById('cabinet-fields');
         if (box.dataset.built) return;
         const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        const tabs = [{ id: 'company', title: 'Компанія', ico: '🏢' }]
-            .concat(CAB_SECTIONS.map((sec, i) => ({ id: 's' + i, title: sec.tab || sec.title, ico: sec.ico || '◆' })));
-        tabs.push({ id: 'docs', title: 'Документи', ico: '📋' });
-        if (currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда', ico: '👥' });
-        let html = '<div class="cab-tabs">' + tabs.map((t, i) =>
-            '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' +
-            '<span class="cab-tab-ico" aria-hidden="true">' + t.ico + '</span>' + esc(t.title) + '</button>'
+        const tabs = [
+            { id: 'company', title: 'Компанія' },
+            { id: 'costs', title: 'Витратна частина' },
+            { id: 'fuel', title: 'Пальне' },
+            { id: 'docs', title: 'Автопарк' }
+        ];
+        if (currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
+        let html = '<div class="cab-tabs" role="tablist">' + tabs.map((t, i) =>
+            '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" role="tab" aria-selected="' + (i === 0 ? 'true' : 'false') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' +
+            esc(t.title) + '</button>'
         ).join('') + '</div>';
 
         function fieldHtml(f) {
@@ -7357,13 +7488,25 @@
                 : '') +
             '</div></div>';
 
-        CAB_SECTIONS.forEach((sec, i) => {
-            html += '<div class="cab-panel" data-panel="s' + i + '"><div class="cab-card">' +
-                '<div class="cab-card-head"><h3>' + esc(sec.title) + '</h3></div>' +
-                '<div class="cab-grid">' + sec.fields.map(fieldHtml).join('') + '</div></div></div>';
-        });
+        const costCards = [
+            { n: '1', title: 'Витрати автопарку', note: 'Річні накладні — розподіляються на рейс пропорційно до кількості авто.', sec: CAB_SECTIONS[0], sum: true },
+            { n: '2', title: 'Зарплата', note: 'Оплата водія за рейс. «Відсоток від фрахту» показує поле %.', sec: CAB_SECTIONS[2] },
+            { n: '3', title: 'ТО', note: 'Технічне обслуговування та шини.', sec: CAB_SECTIONS[3] }
+        ];
+        html += '<div class="cab-panel" data-panel="costs">' +
+            '<p class="cab-note">Постійні витрати компанії. Підставляються в кожен розрахунок автоматично.</p>' +
+            costCards.map(function (card) {
+                return '<div class="cab-card"><div class="cab-card-head"><h3 class="cab-card-title"><span class="cab-num">' + card.n + '</span>' + esc(card.title) + '</h3></div>' +
+                    '<p class="cab-note">' + esc(card.note) + '</p>' +
+                    '<div class="cab-grid">' + card.sec.fields.map(fieldHtml).join('') + '</div>' +
+                    (card.sum ? '<div class="cab-overhead-sum" id="cab-overhead-sum"><span>Разом накладних на рік</span><b></b></div>' : '') +
+                    '</div>';
+            }).join('') + '</div>';
+        html += '<div class="cab-panel" data-panel="fuel"><div class="cab-card">' +
+            '<div class="cab-card-head"><h3>' + esc(CAB_SECTIONS[1].title) + '</h3></div>' +
+            '<div class="cab-grid">' + CAB_SECTIONS[1].fields.map(fieldHtml).join('') + '</div></div></div>';
         html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
-            '<div class="cab-card-head"><h3>Документи автопарку</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
+            '<div class="cab-card-head"><h3>Автопарк</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
             '<p class="tc-fleet-note">Якщо ці дані заповнені і в розрахунку обране це авто або кілька, вони впливають на розрахунок. Якщо поле порожнє або авто не обране — розрахунок іде із загального шаблону кабінету. Марка, держномер, рік і номер причепа на суму не впливають. Кілька авто: тоннаж ділиться між ними, пальне і AdBlue рахуються окремо за нормою кожного, сума по авто дорівнює підсумку. Дати документів калькулятор не читає.</p>' +
             '<label id="fleet-warn-label" for="fleet-warn-days">Попереджати за, днів ' +
             '<input type="number" id="fleet-warn-days" min="1" max="180" step="1" value="30" onchange="saveFleetWarnDays()"></label>' +
@@ -7394,6 +7537,11 @@
         box.innerHTML = html;
         box.dataset.built = '1';
         ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
+        ['cab-totalFleet', 'cab-amort', 'cab-admin', 'cab-otherOperating', 'cab-otherExpenses', 'cab-repair', 'cab-fin'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', refreshCabOverheadSum);
+        });
+        refreshCabOverheadSum();
     }
 
     const FLEET_DOCS = [
@@ -8000,7 +8148,7 @@
         const saveBtn = document.getElementById('cab-save-btn');
         if (saveBtn) {
             saveBtn.hidden = currentOrgRole === 'logist';
-            saveBtn.textContent = '💾 Зберегти зміни';
+            saveBtn.textContent = 'Зберегти';
         }
         if (currentWorkMode === 'team') {
             loadTeamState({ silent: true }).then(renderTeamPanel).catch(error => {
@@ -8009,6 +8157,7 @@
             });
         }
         updateCabVisibility();
+        refreshCabOverheadSum();
         renderFleetDocs();
         document.getElementById('cab-message').innerText = '';
         document.getElementById('cabinet-screen').style.display = 'block';
@@ -9961,11 +10110,41 @@
                 '</span>';
         }).join('');
     }
+    const HISTORY_OPEN_KEY = 'tc_history_open';
+    function historyIsOpen() {
+        try { return localStorage.getItem(HISTORY_OPEN_KEY) === '1'; } catch (e) { return false; }
+    }
+    function setHistoryOpen(open) {
+        const panel = document.getElementById('history-panel');
+        const btn = document.getElementById('history-toggle');
+        if (!panel || !btn) return;
+        panel.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        try { localStorage.setItem(HISTORY_OPEN_KEY, open ? '1' : '0'); } catch (e) {}
+    }
+    function toggleHistory() {
+        const btn = document.getElementById('history-toggle');
+        setHistoryOpen(!(btn && btn.getAttribute('aria-expanded') === 'true'));
+    }
+    function paintPreviewRouteAlts() {
+        const box = document.getElementById('map-route-alts');
+        if (!box || !uiPreview) return;
+        box.classList.add('visible');
+        box.innerHTML = [
+            ['E50/M12', '798 км · ~9 год'],
+            ['E95/M05', '812 км · ~9 год']
+        ].map(function (row, i) {
+            return '<button type="button" class="tc-map-alt' + (i === 0 ? ' active' : '') + '" onclick="selectRouteAlternative(' + i + ')">' +
+                '<b>' + row[0] + '</b><span>' + row[1] + '</span></button>';
+        }).join('');
+    }
     function renderSavedTable() {
         renderStudioOverview();
         renderSavedRecent();
         renderTemplateList();
         syncFactAlertControl();
+        const countEl = document.getElementById('history-count');
+        if (countEl) countEl.textContent = String(savedCalculations.length);
         const tbody = document.getElementById('saved-tbody');
         const cards = document.getElementById('history-cards');
         const pager = document.getElementById('history-pager');
@@ -11248,14 +11427,25 @@
                 syncStudioSums({ grossIncome: 184250, detailedRows: [{ val: 155310 }] });
             }
         }
-        if (new URLSearchParams(location.search).get('cab') === 'docs') {
+        companySettings = Object.assign({}, STARTER_SETTINGS, {
+            totalFleet: 68,
+            amort: 40139408,
+            admin: 17871289,
+            otherOperating: 1815936,
+            otherExpenses: 14799407,
+            repair: 16124943,
+            fin: 4308097.69
+        });
+        const cabQ = new URLSearchParams(location.search).get('cab');
+        if (cabQ === 'docs' || cabQ === 'costs' || cabQ === 'company' || cabQ === 'fuel' || cabQ === 'team') {
             openCabinet();
-            switchCabTab('docs');
+            switchCabTab(cabQ);
         }
         if (new URLSearchParams(location.search).get('menu') === '1') openUserMenu();
         const stepQ = Number(previewParams.get('step'));
         if (stepQ >= 1 && stepQ <= 4) showCalcStep(stepQ);
         if (typeof renderChart === 'function') renderChart(42000, 28000, 6500, 12000, 8500, 3200);
+        paintPreviewRouteAlts();
         refreshSetupChecklist();
     }
 
@@ -11268,6 +11458,7 @@
         syncDockStick();
         window.addEventListener('resize', syncDockStick);
         restoreTheme();
+        setHistoryOpen(historyIsOpen());
         // Збережені розрахунки підтягуються в checkUserAccess(), коли вже відомо, хто користувач
         fetchNBURates();
         renderKpiSparklines();

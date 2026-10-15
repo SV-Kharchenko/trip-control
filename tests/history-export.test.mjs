@@ -117,8 +117,9 @@ test('history export uses the filtered period, not the visible page, and adds no
     assert.match(body, /historyExportRecords\(\)/);
     assert.match(html, /function historyExportRecords\(\) \{\s*return filteredHistory\(\)/);
     assert.equal(body.includes('HISTORY_PAGE_SIZE'), false);
-    assert.match(html, /onclick="exportHistory\('csv'\)"/);
+    assert.equal(html.includes("exportHistory('csv')"), false);
     assert.match(html, /onclick="exportHistory\('xlsx'\)"/);
+    assert.match(html, /class="tc-history-export"/);
     assert.match(html, /Експорт історії — після оплати/);
     assert.equal(/api[_-]?key|1[CС]|onec/i.test(body), false);
     assert.match(body, /loadExcelJS\(\)/);

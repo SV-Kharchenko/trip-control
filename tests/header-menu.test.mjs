@@ -24,7 +24,8 @@ test('header keeps live rates and moves actions into the avatar menu', () => {
     const top = sliceBetween(html, 'class="tc-topbar"', 'id="demo-banner"');
     assert.match(top, /id="studio-nav-calc"/);
     assert.match(top, /id="studio-nav-overview"/);
-    assert.match(top, /id="studio-nav-company"/);
+    assert.equal(top.includes('id="studio-nav-company"'), false);
+    assert.equal(top.includes('>Компанія<'), false);
     assert.match(top, /id="rate-usd"/);
     assert.match(top, /id="rate-eur"/);
     assert.match(top, /id="conv-amount"/);
@@ -78,7 +79,9 @@ test('avatar menu closes from Escape and an outside click, and does not calculat
     assert.match(menu, /mailto:support@trip-control.com/);
     assert.match(menu, /switchCabTab\('company'\)|openHeaderCompany\(\)/);
     assert.match(menu, /switchCabTab\('docs'\)/);
-    assert.match(menu, /switchCabTab\('s0'\)/);
+    assert.match(menu, /switchCabTab\('costs'\)/);
+    assert.match(menu, /setHistoryOpen\(true\)/);
+    assert.equal(menu.includes("switchCabTab('s0')"), false);
     assert.match(menu, /openAdminCrm\(\)/);
     assert.match(menu, /handleLogout\(\)/);
     assert.match(html, /event\.key === 'Escape'/);
