@@ -37,7 +37,7 @@ test('trip length uses Ukrainian day plurals', () => {
     assert.equal(ukDaysLabel('2'), 'доби');
 });
 
-test('signup hint stays off Ocean and does not promise a weekly report', () => {
+test('signup hint has no old-theme rules and does not promise a weekly report', () => {
     assert.match(html, /Сюди надсилатимемо службові листи\./);
     assert.equal(html.includes('тижневий звіт'), false);
     const unscopedHint = html.split('\n').filter((line) =>
@@ -45,8 +45,8 @@ test('signup hint stays off Ocean and does not promise a weekly report', () => {
         !line.includes('body.layout-studio')
     );
     assert.deepEqual(unscopedHint, []);
-    assert.match(html, /body\.layout-studio\[data-theme="control"\] #auth-form\[data-mode="signup"\] \.auth-email-hint/);
-    assert.match(html, /body\.layout-studio\[data-theme="paper"\] #auth-form\[data-mode="signup"\] \.auth-email-hint[\s\S]*display: block;/);
+    assert.equal(/\[data-theme="(control|paper|ocean)"\][^{]*\.auth-email-hint/.test(html), false);
+    assert.match(html, /body\[data-theme="light"\] \.auth-email-hint,/);
     const autofill = html.slice(html.indexOf('#auth-form input:not([type="checkbox"])'), html.indexOf('#auth-form, #auth-recovery-form'));
     assert.match(autofill, /#auth-form input:not\(\[type="checkbox"\]\):not\(\[type="radio"\]\):-webkit-autofill/);
     assert.match(autofill, /#auth-recovery-form input:-webkit-autofill:focus/);
@@ -70,7 +70,7 @@ test('history page, client search, template confirm and atomic use count are wir
     assert.equal(html.includes('alert('), false);
 });
 
-test('studio rates wrap at 360px without touching the ocean strip', () => {
+test('studio rates wrap at 360px', () => {
     assert.match(html, /@media \(max-width: 400px\) \{[\s\S]*body\.layout-studio \.tc-rates-strip \{[\s\S]*flex-wrap: wrap;/);
     assert.match(html, /\.tc-rates-strip \{\s*display: inline-flex; align-items: center; flex-wrap: nowrap;/);
 });

@@ -280,8 +280,7 @@ test('company mode keeps a vehicle choice out of the calculation', () => {
     const calc = html.slice(html.indexOf('async function calculate()'), html.indexOf('function clearCalcVisuals()'));
     assert.match(calc, /if \(fleetChoiceActive\(\)\)/);
     const pickerCss = html.slice(html.indexOf('.tc-vehicle-label {'), html.indexOf('#vehicle-tons .tc-vehicle-pick'));
-    assert.equal(pickerCss.includes('ocean'), false);
-    assert.equal(pickerCss.includes('[data-theme="ocean"]'), false);
+    assert.equal(/data-theme="(ocean|control|paper)"/.test(pickerCss), false);
 });
 
 test('the fleet card explains the split and the calc_vehicles migration stays unapplied in its own file', () => {
@@ -298,8 +297,7 @@ test('the fleet card explains the split and the calc_vehicles migration stays un
     assert.match(html, /calc_vehicles/);
     assert.equal(html.includes('norm_weight'), false);
     const css = html.slice(html.indexOf('#vehicle-split {'), html.indexOf('#vehicle-breakdown tr.is-total'));
-    assert.equal(css.includes('ocean'), false);
-    assert.equal(css.includes('[data-theme="ocean"]'), false);
+    assert.equal(/data-theme="(ocean|control|paper)"/.test(css), false);
     assert.equal(oldMigration.includes('fuel_load'), false);
     assert.equal(migration.includes('norm_weight'), false);
     assert.match(migration, /ADD COLUMN IF NOT EXISTS payload_t/);
