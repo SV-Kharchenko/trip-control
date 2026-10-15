@@ -157,7 +157,12 @@ test('light and dark text pairs stay at least 4.5:1', () => {
         }
         assert.ok(contrast(tokens.onAccent, tokens.accent) >= 4.5);
     }
-    assert.match(html, /\[data-theme="ocean"\]/);
+    // етап 8: стилі старих тем прибрано, лишилась тільки міграція збереженого значення
+    assert.equal(/\[data-theme="(ocean|control|paper)"\]/.test(html), false);
+    assert.equal(/ocean|paper/i.test(html.replace(sourceOf('normalizeTheme'), '')), false);
+    assert.match(html, /const TC_MAP_LIGHT_STYLES = \[/);
+    assert.match(html, /const TC_MAP_DARK_STYLES = \[/);
+    assert.equal(html.includes('undressPaperSections'), false);
     assert.match(html, /body\[data-theme="light"\] \.auth-card \{[\s\S]*background: var\(--surface\)/);
     assert.match(html, /body\[data-theme="light"\] \.auth-tabs button\.on \{[\s\S]*background: var\(--accent\);[\s\S]*color: var\(--on-accent\)/);
     assert.match(html, /\.preset-tile\.active \{[\s\S]*color: var\(--on-accent\)/);
