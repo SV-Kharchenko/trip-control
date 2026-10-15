@@ -30,7 +30,7 @@ test('the calculator form is a 4-step stepper without a show-all mode', () => {
     assert.match(arrange, /aria-expanded="false"/);
     assert.match(arrange, /aria-controls="tc-recent-panel"/);
     assert.equal(arrange.includes("rowOf('client-name')"), false);
-    assert.match(arrange, /take\(1, document\.querySelector\('\.poi-box'\)\)/);
+    assert.equal(arrange.includes('.poi-box'), false);
     assert.match(arrange, /take\(2, document\.getElementById\('vehicle-norm-row'\)\)/);
     assert.match(arrange, /take\(3, document\.querySelector\('\.tc-lower'\)\)/);
     assert.match(arrange, /work\.insertBefore\(banner, card\)/);
