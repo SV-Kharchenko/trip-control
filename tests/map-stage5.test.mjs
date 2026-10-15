@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import vm from 'node:vm';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
@@ -60,4 +61,23 @@ test('map shows the route label, a theme legend and the OSM layer panel', () => 
     const marker = sliceBetween(html, 'function addPoiMarker', 'function isUiPreviewHostAllowed');
     assert.equal(marker.includes('#1e293b'), false);
     assert.match(marker, /tcMapDotIcon\(26/);
+});
+
+test('a new main route drops the old backhaul line, its stops and the legend', () => {
+    const build = sliceBetween(html, 'function onRouteResult(', 'function runAttempt(');
+    const clearAt = build.indexOf('clearBackhaulRoute();');
+    assert.ok(clearAt !== -1 && clearAt < build.indexOf('applyMainRoute('));
+    assert.equal(sliceBetween(html, 'function selectRouteAlternative(', 'function applyMainRoute(').includes('clearBackhaulRoute'), false);
+
+    const ctx = { backhaulRouteView: { routes: [{ legs: [] }] }, painted: 0, cleared: [] };
+    ctx.directionsRendererBackhaul = { set: function (key, value) { ctx.cleared.push([key, value]); } };
+    ctx.paintRouteOverlays = function () { ctx.painted += 1; };
+    vm.runInNewContext(sliceBetween(html, 'function clearBackhaulRoute()', 'function shortPlace(') + '\nclearBackhaulRoute();', ctx);
+    assert.equal(ctx.backhaulRouteView, null);
+    assert.deepEqual(ctx.cleared, [['directions', null]]);
+    assert.equal(ctx.painted, 1);
+
+    const paint = sliceBetween(html, 'function paintRouteOverlays()', 'function clearBackhaulRoute()');
+    assert.match(paint, /legend\.hidden = !backRoute/);
+    assert.match(html, /\.tc-map-poi-panel \.btn \{ min-height: 40px; \}/);
 });

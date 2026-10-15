@@ -3759,6 +3759,7 @@
         .tc-map-poi-panel .poi-checks { display: flex; flex-wrap: wrap; gap: 0 14px; margin-bottom: 8px; }
         body.layout-studio .tc-map-poi-panel .poi-checks label { min-height: 40px; cursor: pointer; color: var(--text, var(--text-main)); }
         .tc-map-poi-panel #poi-results { max-height: 180px; overflow-y: auto; }
+        .tc-map-poi-panel .btn { min-height: 40px; }
         /* Поза потоком оверлею: колонка кнопок справа не виштовхує плашку; bottom лишає місце лого Google. */
         .tc-map-overlay > .tc-map-foot {
             position: absolute; left: 12px; bottom: 30px;
@@ -10804,6 +10805,14 @@
         updateMapRouteLabel();
     }
 
+    // Новий основний маршрут скидає старий зворотний: лінію, точки C/D і легенду.
+    // Зворотний малюється знову лише після calculateBackhaulRoute().
+    function clearBackhaulRoute() {
+        backhaulRouteView = null;
+        if (directionsRendererBackhaul) directionsRendererBackhaul.set('directions', null);
+        paintRouteOverlays();
+    }
+
     function shortPlace(text) {
         return String(text || '').split(',')[0].trim();
     }
@@ -11072,6 +11081,7 @@
                 routeAttemptTimer = null;
                 try {
                     lastDirectionsResponse = response;
+                    clearBackhaulRoute();
                     applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
                     routeBuilt = true;
                     setRouteBusy(false);
