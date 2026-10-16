@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -592,6 +593,9 @@ export default async function handler(req, res) {
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (authError || !user) {
             return res.status(401).json({ error: 'Недійсний токен.' });
+        }
+        if (userIsBlocked(user)) {
+            return res.status(403).json(USER_BLOCKED_ERROR);
         }
         const { data: profile } = await supabase
             .from('profiles')

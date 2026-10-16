@@ -48,7 +48,7 @@ test('stage 4 keeps a dark result card, cascade and expense table on the existin
     assert.match(paint, /dock\.classList\.add\('is-empty'\)/);
     assert.match(paint, /dock\.classList\.remove\('is-empty'\)/);
 
-    const rows = extractFunction('cascadeRows', ['result']);
+    const rows = extractFunction('cascadeRows', ['result', 'opts']);
     const sample = rows({
         grossIncome: 184250,
         netIncome: 156612,

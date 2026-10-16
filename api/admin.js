@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { BLOCK_BAN_DURATION, userAccessStatus, userIsBlocked } from '../lib/account-block.js';
 
 /**
  * Admin CRM API — лише platform admin (profiles.role = 'admin').
@@ -7,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
  * GET  /api/admin — список клієнтів (org + профіль + PII + email)
  * POST /api/admin — { action, ... }
  *   set_approved: { user_id, approved: bool }
+ *   set_user_status: { user_id, status: 'full'|'demo'|'blocked' } — блок одного юзера (бан у Auth), не всієї org
  *   set_org_status: { org_id, status: 'active'|'blocked' }
  */
 const supabase = createClient(
@@ -66,7 +68,8 @@ export default async function handler(req, res) {
                 supabase.auth.admin.listUsers({ perPage: 200 })
             ]);
             const emailById = {};
-            (usersRes.data?.users || []).forEach(u => { emailById[u.id] = u.email || ''; });
+            const authById = {};
+            (usersRes.data?.users || []).forEach(u => { emailById[u.id] = u.email || ''; authById[u.id] = u; });
             const cpByOrg = {};
             (cps || []).forEach(r => { cpByOrg[r.org_id] = r; });
             const profilesByOrg = {};
@@ -76,6 +79,8 @@ export default async function handler(req, res) {
                     id: p.id,
                     email: emailById[p.id] || '',
                     is_approved: !!p.is_approved,
+                    blocked: userIsBlocked(authById[p.id]),
+                    status: userAccessStatus(authById[p.id], p),
                     role: p.role
                 });
             });
@@ -116,6 +121,44 @@ export default async function handler(req, res) {
                 if (error) throw error;
                 await audit(admin.user.id, approved ? 'approve_user' : 'revoke_user', 'profiles', userId, target.org_id, { approved });
                 return res.status(200).json({ ok: true, user_id: userId, approved });
+            }
+
+            if (action === 'set_user_status') {
+                const userId = body.user_id;
+                const status = body.status;
+                if (!userId) return res.status(400).json({ error: 'user_id required' });
+                if (!['full', 'demo', 'blocked'].includes(status)) {
+                    return res.status(400).json({ error: 'Невідомий статус.' });
+                }
+                const { data: target } = await supabase
+                    .from('profiles')
+                    .select('id, org_id, role, is_approved')
+                    .eq('id', userId)
+                    .single();
+                if (!target) return res.status(404).json({ error: 'Профіль не знайдено' });
+                if (target.role === 'admin') return res.status(400).json({ error: 'Статус адміністратора не змінюється.' });
+                const { data: authData, error: authReadError } = await supabase.auth.admin.getUserById(userId);
+                if (authReadError) throw authReadError;
+                const previous = userAccessStatus(authData && authData.user, target);
+                if (status === 'blocked') {
+                    const { error: banError } = await supabase.auth.admin.updateUserById(userId, { ban_duration: BLOCK_BAN_DURATION });
+                    if (banError) throw banError;
+                } else {
+                    if (previous === 'blocked') {
+                        const { error: unbanError } = await supabase.auth.admin.updateUserById(userId, { ban_duration: 'none' });
+                        if (unbanError) throw unbanError;
+                    }
+                    const approved = status === 'full';
+                    if (!!target.is_approved !== approved) {
+                        const { error } = await supabase
+                            .from('profiles')
+                            .update({ is_approved: approved })
+                            .eq('id', userId);
+                        if (error) throw error;
+                    }
+                }
+                await audit(admin.user.id, 'set_user_status', 'profiles', userId, target.org_id, { status, previous });
+                return res.status(200).json({ ok: true, user_id: userId, status, previous });
             }
 
             if (action === 'set_org_status') {

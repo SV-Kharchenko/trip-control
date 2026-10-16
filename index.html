@@ -939,6 +939,15 @@
         }
         #admin-screen .adm-actions button.ok { border-color: var(--success); color: var(--success); }
         #admin-screen .adm-actions button.bad { border-color: var(--danger); color: var(--danger); }
+        #admin-screen .adm-user { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 6px; }
+        #admin-screen .adm-user-email { overflow-wrap: anywhere; }
+        #admin-screen .adm-status {
+            min-height: 36px; padding: 4px 8px; font-size: 0.8rem; border-radius: 8px;
+            border: 1px solid var(--border-color); background: var(--input-bg); color: var(--text-main);
+        }
+        #admin-screen .adm-status-full { border-color: var(--success); }
+        #admin-screen .adm-status-demo { border-color: var(--warning); }
+        #admin-screen .adm-status-blocked { border-color: var(--danger); color: var(--danger); }
         #admin-screen .adm-msg { font-size: 0.8rem; margin: 8px 0; color: var(--warning); min-height: 1.2em; }
         #admin-screen .adm-badge {
             display: inline-block; font-size: 0.68rem; padding: 2px 6px; border-radius: 999px;
@@ -947,16 +956,19 @@
         #admin-screen .adm-badge.on { color: var(--success); border-color: var(--success); }
         #admin-screen .adm-badge.off { color: var(--warning); border-color: var(--warning); }
         #admin-screen .adm-badge.blocked { color: var(--danger); border-color: var(--danger); }
+        /* Вхід | Реєстрація — один перемикач (segmented control), не дві кнопки */
         .auth-tabs {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 14px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0 0 16px; padding: 3px;
+            border: 1px solid var(--border-color); border-radius: 11px; background: var(--input-bg);
         }
         .auth-tabs button {
-            border: 1px solid var(--border-color); background: transparent; color: var(--text-muted);
-            border-radius: 8px; padding: 8px 10px; cursor: pointer; font-weight: 700; font-size: 0.82rem;
+            border: 1px solid transparent; background: transparent; color: var(--text-muted);
+            border-radius: 8px; padding: 8px 10px; min-height: 40px; cursor: pointer; font-weight: 700; font-size: 0.86rem;
+            transition: background 0.15s, color 0.15s;
         }
         .auth-tabs button.on {
-            color: var(--text-main); border-color: var(--success);
-            background: color-mix(in srgb, var(--success) 12%, transparent);
+            color: var(--on-accent); background: var(--accent); border-color: var(--accent);
+            -webkit-text-fill-color: var(--on-accent);
         }
         .auth-mode-title {
             margin: 2px 0 8px; color: var(--text-muted); font-size: 0.74rem; text-align: left; font-weight: 700;
@@ -1588,10 +1600,20 @@
         #auth-recovery-form .form-row { margin-bottom: 10px; }
         #auth-back-btn { margin-top: 0; }
         #auth-login-btn { border-radius: 12px; min-height: 46px; letter-spacing: 0.04em; }
-        #auth-signup-btn {
-            background: rgba(8,14,20,0.7) !important; color: var(--text-main) !important;
-            border: 1px solid rgba(45,138,138,0.55) !important; box-shadow: none !important;
+        #auth-login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .tc-pass { position: relative; }
+        .tc-pass input { width: 100%; padding-right: 48px !important; }
+        .tc-pass-eye {
+            position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+            width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center;
+            border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer;
         }
+        .tc-pass-eye:hover, .tc-pass-eye:focus-visible { color: var(--text-main); }
+        .tc-pass-eye svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+        .tc-pass-eye[aria-pressed="true"] .tc-pass-slash { display: none; }
+        .auth-pass-match { min-height: 1.2em; margin: 6px 2px 0; font-size: 0.78rem; font-weight: 600; text-align: left; }
+        .auth-pass-match.is-ok { color: var(--positive); }
+        .auth-pass-match.is-bad { color: var(--negative); }
         .tc-footer { margin-top: 16px; font-size: 0.68rem; color: var(--text-muted); letter-spacing: 0.04em; }
 
         .tc-demo-badge {
@@ -1742,7 +1764,7 @@
             text-align: right; font-variant-numeric: tabular-nums;
         }
         #tc-toast {
-            position: fixed; bottom: 18px; left: 50%; z-index: 90;
+            position: fixed; bottom: 18px; left: 50%; z-index: 13000; /* над кабінетом (3000) і адмінкою (12000) */
             transform: translateX(-50%) translateY(8px);
             background: var(--card-bg); color: var(--text-main);
             border: 1px solid var(--success); border-radius: 10px;
@@ -1751,6 +1773,62 @@
             opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s;
         }
         #tc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #tc-toast.is-ok { border-color: var(--positive); color: var(--text); }
+        #tc-toast.is-error { border-color: var(--negative); color: var(--negative); }
+        /* Модальне вікно (Довідка і підтримка) */
+        body.tc-modal-open { overflow: hidden; }
+        .tc-modal {
+            position: fixed; inset: 0; z-index: 12500; display: flex; align-items: center; justify-content: center;
+            padding: 16px; background: rgba(8, 12, 16, 0.55);
+        }
+        .tc-modal-card {
+            width: min(100%, 420px); max-height: calc(100vh - 32px); overflow-y: auto;
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+            border-radius: var(--radius-card); padding: 18px 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+            text-align: left;
+        }
+        .tc-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+        .tc-modal-head h2 { margin: 0; font-size: 1.1rem; color: var(--text); }
+        .tc-modal-close {
+            width: 40px; height: 40px; flex: none; border: 1px solid var(--border); border-radius: 10px;
+            background: transparent; color: var(--text); font-size: 1rem; cursor: pointer;
+        }
+        .tc-modal-close:hover, .tc-modal-close:focus-visible { border-color: var(--accent); }
+        .tc-modal-lead { margin: 0 0 14px; color: var(--muted); font-size: 0.86rem; line-height: 1.45; }
+        .tc-help-rows { display: grid; gap: 10px; margin-bottom: 16px; }
+        .tc-help-row {
+            display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 10px;
+            background: var(--input);
+        }
+        .tc-help-label { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+        .tc-help-value { color: var(--text); font-weight: 700; font-size: 1rem; text-decoration: none; overflow-wrap: anywhere; }
+        .tc-help-value:hover { text-decoration: underline; }
+        .tc-help-sub { font-size: 0.78rem; color: var(--muted); }
+        .tc-help-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .tc-help-link {
+            display: inline-flex; align-items: center; justify-content: center; min-width: 0; min-height: 44px; margin: 0;
+            padding: 0 10px; border-radius: var(--radius-control); border: 1px solid var(--accent);
+            background: var(--accent); color: var(--on-accent); -webkit-text-fill-color: var(--on-accent);
+            font-weight: 700; font-size: 0.9rem; text-decoration: none; white-space: nowrap;
+        }
+        .tc-help-link:hover, .tc-help-link:focus-visible { filter: brightness(1.08); }
+        @media (max-width: 480px) {
+            .tc-modal { align-items: flex-end; padding: 0; }
+            .tc-modal-card { width: 100%; border-radius: 16px 16px 0 0; max-height: 88vh; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+            .tc-help-links { grid-template-columns: 1fr; }
+        }
+        .auth-blocked-help { margin-top: 10px; font-size: 0.86rem; line-height: 1.5; color: var(--text-main); }
+        .auth-blocked-help a { color: inherit; font-weight: 700; }
+        .auth-blocked-help .auth-forgot { margin: 10px auto 0; text-align: center; font-size: 0.82rem; border: 0; background: none; cursor: pointer; text-decoration: underline; }
+        /* Адмінка на вузькому екрані: рядки таблиці — картки, щоб селект статусу не обрізався */
+        @media (max-width: 600px) {
+            #admin-screen .adm-table thead { display: none; }
+            #admin-screen .adm-table, #admin-screen .adm-table tbody, #admin-screen .adm-table tr, #admin-screen .adm-table td { display: block; width: 100%; }
+            #admin-screen .adm-table tr { padding: 10px 0; border-bottom: 1px solid var(--border-color); }
+            #admin-screen .adm-table td { padding: 4px 0; border: 0; }
+            #admin-screen .adm-user { display: grid; grid-template-columns: 1fr; gap: 4px; }
+            #admin-screen .adm-status { width: 100%; }
+        }
         .rp-meta.is-ready { color: var(--success); }
         .rp-meta.is-wait { color: var(--text-muted); font-weight: 600; }
         @media (max-width: 1100px) {
@@ -2483,7 +2561,7 @@
         }
         body[data-theme="light"] .auth-tabs button {
             color: var(--muted);
-            border-color: var(--border);
+            border-color: transparent;
             background: transparent;
         }
         body[data-theme="light"] .auth-tabs button.on {
@@ -2514,7 +2592,6 @@
             box-shadow: none;
             filter: none;
         }
-        body[data-theme="light"] #auth-signup-btn,
         body[data-theme="light"] #auth-back-btn {
             background: var(--surface) !important;
             color: var(--text) !important;
@@ -3129,6 +3206,8 @@
             margin-bottom: 8px;
         }
         .tc-cost-head h2 { margin: 0; }
+        .tc-cost-note { display: block; margin-top: 2px; font-size: 0.72rem; font-weight: 500; color: var(--muted); }
+        #cost-breakdown tr.tc-vat-row td { color: var(--muted); }
         #donut-total {
             margin-left: auto;
             font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -3593,8 +3672,8 @@
         <p class="auth-tagline-sub">Після реєстрації — демо: <b>5 розрахунків на добу</b>.</p>
         <div class="auth-divider"></div>
         <div class="auth-tabs" role="tablist" aria-label="Вхід або реєстрація">
-            <button type="button" id="auth-tab-login" class="on" role="tab" aria-selected="true" onclick="setAuthTab('login')">Увійти</button>
-            <button type="button" id="auth-tab-signup" role="tab" aria-selected="false" onclick="setAuthTab('signup')">Створити акаунт</button>
+            <button type="button" id="auth-tab-login" class="on" role="tab" aria-selected="true" aria-controls="auth-form" onclick="setAuthTab('login')">Вхід</button>
+            <button type="button" id="auth-tab-signup" role="tab" aria-selected="false" aria-controls="auth-form" onclick="setAuthTab('signup')">Реєстрація</button>
         </div>
 
         <form id="auth-form" data-mode="login" novalidate onsubmit="return onAuthSubmit(event)">
@@ -3605,7 +3684,18 @@
             </div>
             <div class="form-row two-cols" id="auth-password-row" style="margin-bottom: 8px; grid-template-columns: 1fr;">
                 <label class="visually-hidden" for="auth-password">Пароль</label>
-                <input type="password" id="auth-password" name="password" placeholder="Пароль (мін. 8, літера + цифра)" autocomplete="current-password" required>
+                <div class="tc-pass">
+                    <input type="password" id="auth-password" name="password" placeholder="Пароль (мін. 8, літера + цифра)" autocomplete="current-password" required oninput="syncPasswordMatch()">
+                    <button type="button" class="tc-pass-eye" aria-label="Показати пароль" aria-pressed="false" onclick="togglePasswordVisibility('auth-password', this)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="tc-pass-slash" d="M4 4l16 16"/></svg></button>
+                </div>
+            </div>
+            <div class="form-row two-cols" id="auth-password2-row" style="margin-bottom: 8px; grid-template-columns: 1fr;" hidden>
+                <label class="visually-hidden" for="auth-password2">Повторіть пароль</label>
+                <div class="tc-pass">
+                    <input type="password" id="auth-password2" name="password-confirm" placeholder="Повторіть пароль" autocomplete="new-password" oninput="syncPasswordMatch()">
+                    <button type="button" class="tc-pass-eye" aria-label="Показати пароль" aria-pressed="false" onclick="togglePasswordVisibility('auth-password2', this)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="tc-pass-slash" d="M4 4l16 16"/></svg></button>
+                </div>
+                <p class="auth-pass-match" id="auth-pass-match" aria-live="polite"></p>
             </div>
             <button type="button" class="auth-forgot" id="auth-forgot-btn" onclick="enterResetMode()">Забули пароль?</button>
             <div id="signup-extra">
@@ -3649,8 +3739,7 @@
                     </label>
                 </div>
             </div>
-            <button type="submit" id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;">🧭 Увійти</button>
-            <button type="button" id="auth-signup-btn" class="btn" style="width: 100%;" hidden onclick="setAuthTab('signup')">Створити акаунт</button>
+            <button type="submit" id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;">Увійти</button>
             <button type="button" id="auth-back-btn" class="btn" style="width: 100%;" hidden onclick="exitResetMode()">Назад до входу</button>
         </form>
 
@@ -3658,11 +3747,17 @@
             <p class="auth-tagline" style="margin-bottom: 12px;">Задайте новий пароль для цього акаунта.</p>
             <div class="form-row two-cols" style="margin-bottom: 10px; grid-template-columns: 1fr;">
                 <label class="visually-hidden" for="auth-new-password">Новий пароль</label>
-                <input type="password" id="auth-new-password" name="new-password" placeholder="Новий пароль (мін. 8, літера + цифра)" autocomplete="new-password" required>
+                <div class="tc-pass">
+                    <input type="password" id="auth-new-password" name="new-password" placeholder="Новий пароль (мін. 8, літера + цифра)" autocomplete="new-password" required>
+                    <button type="button" class="tc-pass-eye" aria-label="Показати пароль" aria-pressed="false" onclick="togglePasswordVisibility('auth-new-password', this)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="tc-pass-slash" d="M4 4l16 16"/></svg></button>
+                </div>
             </div>
             <div class="form-row two-cols" style="margin-bottom: 14px; grid-template-columns: 1fr;">
                 <label class="visually-hidden" for="auth-new-password-2">Повторіть новий пароль</label>
-                <input type="password" id="auth-new-password-2" name="new-password-confirm" placeholder="Повторіть новий пароль" autocomplete="new-password" required>
+                <div class="tc-pass">
+                    <input type="password" id="auth-new-password-2" name="new-password-confirm" placeholder="Повторіть новий пароль" autocomplete="new-password" required>
+                    <button type="button" class="tc-pass-eye" aria-label="Показати пароль" aria-pressed="false" onclick="togglePasswordVisibility('auth-new-password-2', this)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="tc-pass-slash" d="M4 4l16 16"/></svg></button>
+                </div>
             </div>
             <button type="submit" class="btn btn-success" style="width: 100%;">Зберегти пароль</button>
         </form>
@@ -4534,16 +4629,56 @@
     </div>
 </div>
 
+<div id="tc-help-modal" class="tc-modal" hidden onclick="if (event.target === this) closeHelpModal()">
+    <div class="tc-modal-card" role="dialog" aria-modal="true" aria-labelledby="tc-help-title">
+        <div class="tc-modal-head">
+            <h2 id="tc-help-title">Довідка і підтримка</h2>
+            <button type="button" class="tc-modal-close" aria-label="Закрити" onclick="closeHelpModal()">✕</button>
+        </div>
+        <p class="tc-modal-lead">Напишіть або зателефонуйте — допоможемо з розрахунком, доступом чи оплатою.</p>
+        <div class="tc-help-rows">
+            <div class="tc-help-row">
+                <span class="tc-help-label">Email</span>
+                <a class="tc-help-value" href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a>
+            </div>
+            <div class="tc-help-row">
+                <span class="tc-help-label">Телефон</span>
+                <a class="tc-help-value" href="tel:+380966888252">+380 96 688 82 52</a>
+                <span class="tc-help-sub">Viber · Telegram · WhatsApp</span>
+            </div>
+        </div>
+        <div class="tc-help-links">
+            <a class="tc-help-link" href="viber://chat?number=%2B380966888252">Viber</a>
+            <a class="tc-help-link" href="https://t.me/+380966888252" target="_blank" rel="noopener">Telegram</a>
+            <a class="tc-help-link" href="https://wa.me/380966888252" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
+    </div>
+</div>
+<div id="tc-toast" role="status" aria-live="polite"></div>
+
 <script>
     // Ініціалізація Supabase на клієнті
     const SUPABASE_URL = 'https://qkfqjorzsxcajcneohoy.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_-W_XaLQFhKyDvQY_-5xHBw_tK25Pjw9';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let recoveryMode = false;
-    supabaseClient.auth.onAuthStateChange(function (event) {
-        if (event !== 'PASSWORD_RECOVERY') return;
-        recoveryMode = true;
-        if (typeof showRecoveryForm === 'function') showRecoveryForm();
+    supabaseClient.auth.onAuthStateChange(function (event, session) {
+        if (event === 'PASSWORD_RECOVERY') {
+            recoveryMode = true;
+            if (typeof showRecoveryForm === 'function') showRecoveryForm();
+            return;
+        }
+        // Вихід або інший акаунт (напр. вхід в іншій вкладці): прибираємо дані попереднього юзера
+        // з пам'яті й UI і перечитуємо дані поточного. Supabase не можна викликати прямо з цього колбеку.
+        const nextUserId = session && session.user ? session.user.id : null;
+        if (event === 'SIGNED_OUT') {
+            if (currentUserId) resetUserScopedState();
+            return;
+        }
+        if (nextUserId && currentUserId && nextUserId !== currentUserId) {
+            resetUserScopedState();
+            setTimeout(function () { checkUserAccess(); }, 0);
+        }
     });
 
     let currentSessionToken = null;
@@ -4572,6 +4707,25 @@
     let tripActuals = {};
     let factEditorId = null;
     const HISTORY_PAGE_SIZE = 50;
+    function resetUserScopedState() {
+        currentUserId = null;
+        currentSessionToken = null;
+        savedCalculations = [];
+        routeTemplates = [];
+        tripActuals = {};
+        historyPage = 0;
+        historyDeleteId = null;
+        templateDeleteId = null;
+        factEditorId = null;
+        const recent = document.getElementById('saved-recent');
+        if (recent) recent.innerHTML = '';
+        const other = document.getElementById('recent-routes');
+        if (other) { other.innerHTML = ''; other.hidden = true; }
+        const tbody = document.getElementById('saved-tbody');
+        if (tbody) tbody.innerHTML = '';
+        const templates = document.getElementById('template-list');
+        if (templates) templates.innerHTML = '';
+    }
     let calcRequestId = 0; // захист від застарілих відповідей при швидкому вводі
     let vehicleCalcTimer = null;
     function calcResultIsFresh(requestId, latestId) {
@@ -4748,15 +4902,24 @@
         return new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n));
     }
 
-    function cascadeRows(result) {
+    // Безготівковий (з ПДВ): ПДВ = дохід − дохід/1.2 = grossIncome − netIncome. Лише довідково:
+    // він уже виключений з чистого доходу, тож прибуток, маржа, EBITDA і беззбитковість від нього не змінюються.
+    let lastCalcVatMode = false;
+    function vatAmountOf(result) {
+        if (!result) return 0;
+        return Math.max(0, (Number(result.grossIncome) || 0) - (Number(result.netIncome) || 0));
+    }
+    function cascadeRows(result, opts) {
         if (!result) return [];
         const gross = Number(result.grossIncome) || 0;
         const net = Number(result.netIncome) || 0;
         const margin = Number(result.marginalIncome) || 0;
         const ebitda = Number(result.ebitda) || 0;
         const profit = Number(result.netProfit) || 0;
+        const vat = opts && opts.vat ? [{ key: '− ПДВ (довідково)', amount: vatAmountOf(result), tone: 'muted' }] : [];
         return [
-            { key: 'Дохід', amount: gross, tone: 'plain' },
+            { key: 'Дохід', amount: gross, tone: 'plain' }
+        ].concat(vat, [
             { key: 'Чистий дохід', amount: net, tone: 'plain' },
             { key: '− Змінні витрати', amount: net - margin, tone: 'muted' },
             { key: 'Маржинальний дохід', amount: margin, tone: 'strong', perTon: result.marginPerTon },
@@ -4764,14 +4927,14 @@
             { key: 'EBITDA', amount: ebitda, tone: 'strong', perTon: result.ebitdaPerTon },
             { key: '− Амортизація, податки', amount: ebitda - profit, tone: 'muted' },
             { key: 'Чистий прибуток', amount: profit, tone: profit < 0 ? 'loss' : 'profit' }
-        ];
+        ]);
     }
 
     function paintCascade(result) {
         const host = document.getElementById('tc-cascade-rows');
         const card = document.getElementById('tc-cascade');
         const table = document.getElementById('tc-cost-table');
-        const rows = cascadeRows(result);
+        const rows = cascadeRows(result, { vat: lastCalcVatMode });
         if (card) card.classList.toggle('is-empty', !rows.length);
         if (table) table.classList.toggle('is-empty', !rows.length);
         if (!host) return;
@@ -4913,17 +5076,29 @@
         }).join(', ');
     }
 
-    function showToast(text, ms) {
+    // Один спільний toast. tone: 'ok' (зелена рамка) або 'error' (червона); без tone — як раніше.
+    function showToast(text, ms, tone) {
         let toast = document.getElementById('tc-toast');
         if (!toast) {
             toast = document.createElement('div');
             toast.id = 'tc-toast';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
             document.body.appendChild(toast);
         }
         toast.textContent = text;
+        toast.classList.toggle('is-ok', tone === 'ok');
+        toast.classList.toggle('is-error', tone === 'error');
         toast.classList.add('show');
         clearTimeout(toast._hide);
         toast._hide = setTimeout(function () { toast.classList.remove('show'); }, typeof ms === 'number' ? ms : 2200);
+    }
+    function notifySaved() {
+        showToast('✓ Збережено', 2500, 'ok');
+    }
+    function notifySaveError(reason) {
+        const text = String(reason || '').trim() || 'невідома помилка';
+        showToast('Помилка збереження: ' + text, 4000, 'error');
     }
     function dbErrorText(e) {
         return [e && e.message, e && e.details].filter(Boolean).join(' ') || String(e || '');
@@ -5185,8 +5360,20 @@
         }
         try { localStorage.setItem(RECENT_OPEN_KEY, on ? '1' : '0'); } catch (e) {}
     }
+    // Список свій у кожного акаунта: tc_recent_routes_v1:<user_id>. Старий спільний ключ видаляємо, не мігруємо.
+    function recentRoutesKey() {
+        return currentUserId ? RECENT_ROUTES_KEY + ':' + currentUserId : null;
+    }
+    function dropLegacyRecentRoutes() {
+        try { localStorage.removeItem(RECENT_ROUTES_KEY); } catch (e) {}
+    }
     function readRecentRoutes() {
-        try { return JSON.parse(localStorage.getItem(RECENT_ROUTES_KEY) || '[]') || []; } catch (e) { return []; }
+        const key = recentRoutesKey();
+        if (!key) return [];
+        try {
+            const list = JSON.parse(localStorage.getItem(key) || '[]');
+            return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
     }
     function setPlaceText(wrapId, hiddenId, value) {
         const hidden = document.getElementById(hiddenId);
@@ -5284,7 +5471,9 @@
         let list = readRecentRoutes().filter(function (r) { return recentPlaceKey(r.from, r.to) !== key; });
         list.unshift({ from: from.trim(), to: to.trim(), km: km, at: Date.now() });
         list = list.slice(0, 5);
-        try { localStorage.setItem(RECENT_ROUTES_KEY, JSON.stringify(list)); } catch (e) {}
+        const storeKey = recentRoutesKey();
+        if (!storeKey) return;
+        try { localStorage.setItem(storeKey, JSON.stringify(list)); } catch (e) {}
         renderRecentRoutes();
     }
     function applyRecentRoute(index) {
@@ -5490,9 +5679,43 @@
             openCabinet();
             switchCabTab('costs');
         } else if (action === 'clients') openAdminCrm();
-        else if (action === 'help') window.location.href = 'mailto:support@trip-control.com';
+        else if (action === 'help') openHelpModal();
         else if (action === 'logout') handleLogout();
     }
+    let helpReturnFocus = null;
+    function openHelpModal() {
+        const modal = document.getElementById('tc-help-modal');
+        if (!modal) return;
+        helpReturnFocus = document.activeElement;
+        modal.hidden = false;
+        document.body.classList.add('tc-modal-open');
+        const close = modal.querySelector('.tc-modal-close');
+        if (close) close.focus();
+    }
+    function closeHelpModal() {
+        const modal = document.getElementById('tc-help-modal');
+        if (!modal || modal.hidden) return;
+        modal.hidden = true;
+        document.body.classList.remove('tc-modal-open');
+        const back = helpReturnFocus || document.getElementById('tc-avatar-btn');
+        helpReturnFocus = null;
+        if (back && typeof back.focus === 'function') back.focus();
+    }
+    document.addEventListener('keydown', function (event) {
+        const modal = document.getElementById('tc-help-modal');
+        if (!modal || modal.hidden) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeHelpModal();
+        } else if (event.key === 'Tab') {
+            const items = Array.from(modal.querySelectorAll('a[href], button'));
+            if (!items.length) return;
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+    });
     function openHeaderCompany() {
         openCabinet();
         switchCabTab('company');
@@ -5694,6 +5917,10 @@
             return;
         }
 
+        if (authUserBlocked(session.user)) {
+            showAccountBlocked();
+            return;
+        }
         currentSessionToken = session.access_token;
 
         currentUserId = session.user.id;
@@ -5994,8 +6221,8 @@
         document.getElementById('signup-extra').style.display = 'none';
         document.getElementById('auth-legal-box').classList.remove('show');
         document.getElementById('auth-password-row').hidden = true;
+        setConfirmPasswordVisible(false);
         document.getElementById('auth-forgot-btn').hidden = true;
-        document.getElementById('auth-signup-btn').hidden = true;
         document.getElementById('auth-back-btn').hidden = false;
         document.getElementById('auth-login-btn').textContent = 'Надіслати лист';
         document.getElementById('auth-message').innerText = 'Вкажіть email — надішлемо посилання для нового пароля.';
@@ -6016,8 +6243,8 @@
         document.getElementById('auth-password').setAttribute('autocomplete', 'new-password');
         document.getElementById('auth-forgot-btn').hidden = true;
         document.getElementById('auth-legal-box').classList.add('show');
-        document.getElementById('auth-signup-btn').hidden = true;
         document.getElementById('auth-back-btn').hidden = true;
+        setConfirmPasswordVisible(true);
         loginBtn.hidden = false;
         loginBtn.type = 'submit';
         loginBtn.onclick = null;
@@ -6033,14 +6260,62 @@
         document.getElementById('auth-legal-box').classList.remove('show');
         document.getElementById('auth-password-row').hidden = false;
         document.getElementById('auth-forgot-btn').hidden = false;
-        document.getElementById('auth-signup-btn').hidden = true;
         document.getElementById('auth-back-btn').hidden = true;
+        setConfirmPasswordVisible(false);
         document.getElementById('auth-password').setAttribute('autocomplete', 'current-password');
         loginBtn.hidden = false;
         loginBtn.type = 'submit';
         loginBtn.onclick = null;
-        loginBtn.innerHTML = '🧭 Увійти';
+        loginBtn.textContent = 'Увійти';
         document.getElementById('auth-message').innerText = '';
+    }
+    function setConfirmPasswordVisible(show) {
+        const row = document.getElementById('auth-password2-row');
+        const input = document.getElementById('auth-password2');
+        if (row) row.hidden = !show;
+        if (input) {
+            input.required = !!show;
+            if (!show) input.value = '';
+        }
+        syncPasswordMatch();
+    }
+    // Реєстрація: «Створити акаунт» доступна лише коли обидва паролі однакові.
+    function syncPasswordMatch() {
+        const form = document.getElementById('auth-form');
+        const btn = document.getElementById('auth-login-btn');
+        const note = document.getElementById('auth-pass-match');
+        if (!form || !btn || !note) return true;
+        if (form.dataset.mode !== 'signup') {
+            btn.disabled = false;
+            note.textContent = '';
+            note.className = 'auth-pass-match';
+            return true;
+        }
+        const a = document.getElementById('auth-password').value;
+        const b = document.getElementById('auth-password2').value;
+        const ok = a !== '' && a === b;
+        if (!b) {
+            note.textContent = '';
+            note.className = 'auth-pass-match';
+        } else if (ok) {
+            note.textContent = '✓ Паролі збігаються';
+            note.className = 'auth-pass-match is-ok';
+        } else {
+            note.textContent = 'Паролі не збігаються';
+            note.className = 'auth-pass-match is-bad';
+        }
+        btn.disabled = !ok;
+        return ok;
+    }
+    function togglePasswordVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        if (btn) {
+            btn.setAttribute('aria-pressed', show ? 'true' : 'false');
+            btn.setAttribute('aria-label', show ? 'Сховати пароль' : 'Показати пароль');
+        }
     }
     function onAuthSubmit(e) {
         if (e && e.preventDefault) e.preventDefault();
@@ -6096,6 +6371,54 @@
         return false;
     }
 
+    // Блок конкретного акаунта адміном (бан у Supabase Auth): повідомлення з контактами підтримки.
+    function isBannedAuthError(error) {
+        const text = String((error && (error.message || error.code || error.error_code)) || '').toLowerCase();
+        return /user banned|user_banned|is banned/.test(text);
+    }
+    function authUserBlocked(user) {
+        const until = user && user.banned_until;
+        const at = until ? Date.parse(until) : NaN;
+        return Number.isFinite(at) && at > Date.now();
+    }
+    function accountBlockedHtml() {
+        return '⛔ <b>Акаунт заблоковано, зверніться в підтримку.</b>' +
+            '<div class="auth-blocked-help">' +
+            'Email: <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a><br>' +
+            'Телефон: <a href="tel:+380966888252">+380 96 688 82 52</a> (Viber · Telegram · WhatsApp)<br>' +
+            '<button type="button" class="auth-forgot" onclick="openHelpModal()">Усі контакти підтримки</button>' +
+            '</div>';
+    }
+    function showAccountBlocked() {
+        currentSessionToken = null;
+        const authScreen = document.getElementById('auth-screen');
+        const mainApp = document.getElementById('main-app');
+        if (authScreen) authScreen.style.display = 'flex';
+        if (mainApp) mainApp.style.display = 'none';
+        const form = document.getElementById('auth-form');
+        if (form) form.hidden = true;
+        const recovery = document.getElementById('auth-recovery-form');
+        if (recovery) recovery.hidden = true;
+        setAuthTabsVisible(false);
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) logoutBtn.style.display = 'block';
+        const msg = document.getElementById('auth-message');
+        if (msg) msg.innerHTML = accountBlockedHtml();
+    }
+
+    // Сповіщення власнику в Telegram шле сервер; тут лише «постукати». Відповідь не чекаємо — реєстрація не залежить від неї.
+    function notifyOwnerAboutSignup(userId) {
+        if (!userId) return;
+        try {
+            fetch('/api/signup-notify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId }),
+                keepalive: true
+            }).catch(function () {});
+        } catch (e) {}
+    }
+
     async function handleAuth(type) {
         const authMsg = document.getElementById('auth-message');
         const email = document.getElementById('auth-email').value.trim();
@@ -6114,7 +6437,9 @@
             const locked = authRateLocked();
             if (locked) { authMsg.innerText = locked; return; }
             const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-            if (error) {
+            if (error && isBannedAuthError(error)) {
+                authMsg.innerHTML = accountBlockedHtml();
+            } else if (error) {
                 authRateFail();
                 authMsg.innerText = translateAuthError(error);
             } else {
@@ -6124,6 +6449,7 @@
         } else {
             const weak = passwordStrongEnough(password);
             if (weak) { authMsg.innerText = weak; return; }
+            if (!syncPasswordMatch()) { authMsg.innerText = 'Паролі не збігаються.'; return; }
             const company = document.getElementById('auth-company').value.trim();
             const taxMode = document.getElementById('auth-tax').value;
             const ownership = document.getElementById('auth-ownership').value;
@@ -6150,6 +6476,7 @@
                     }
                 }
             });
+            if (!error && data && data.user) notifyOwnerAboutSignup(data.user.id);
             if (error) authMsg.innerText = translateAuthError(error);
             else if (data && data.user && !data.session) {
                 authMsg.innerText = '✅ Акаунт створено. Підтвердіть email за посиланням у листі, потім увійдіть.';
@@ -6162,6 +6489,7 @@
 
     async function handleLogout() {
         await supabaseClient.auth.signOut();
+        resetUserScopedState();
         location.reload();
     }
 
@@ -6543,6 +6871,17 @@
         }
         return shares;
     }
+    const FLEET_TRAILER_TYPES = ['зерновоз', 'рефрижератор', 'тент', 'цистерна'];
+    // У кабінеті немає окремого поля «тип причепа компанії»; якщо колись з’явиться settings.trailerType — береться він,
+    // інакше зерновоз (стартовий шаблон і типове значення калькулятора). Те саме робить міграція для старих авто.
+    function fleetDefaultTrailer() {
+        const fromSettings = companySettings && companySettings.trailerType;
+        return FLEET_TRAILER_TYPES.indexOf(fromSettings) >= 0 ? fromSettings : 'зерновоз';
+    }
+    function fleetTrailerOf(vehicle) {
+        const value = vehicle && vehicle.trailer_type;
+        return FLEET_TRAILER_TYPES.indexOf(value) >= 0 ? value : fleetDefaultTrailer();
+    }
     function vehicleResolvedNorms(vehicle) {
         const item = vehicle && typeof vehicle === 'object' ? vehicle : {};
         const resolved = {};
@@ -6554,16 +6893,16 @@
             ? true
             : ((item.adblue_on === false || item.adblue_on === 'off' || item.adblue_on === 'false') ? false : null);
         const rate = vehicleNormNumber(item.adblue_consumption, 0.05, 30);
+        // «Немає» → AdBlue для авто 0. «Є» (і старе порожнє значення) → AdBlue рахується;
+        // без власної витрати береться норма калькулятора.
         if (on === false) {
             resolved.useAdblue = false;
             resolved.adblueConsumption = 0;
-        } else if (on === true || rate !== null) {
+        } else {
             resolved.useAdblue = true;
             if (rate !== null) resolved.adblueConsumption = rate;
         }
-        if (['зерновоз', 'рефрижератор', 'тент', 'цистерна'].indexOf(item.trailer_type) >= 0) {
-            resolved.trailerType = item.trailer_type;
-        }
+        resolved.trailerType = fleetTrailerOf(item);
         const payload = vehicleNormNumber(item.payload_t, 0.1, 80);
         if (payload !== null) resolved.payloadTons = payload;
         return resolved;
@@ -7604,12 +7943,14 @@
                 '<input type="number" data-norm="' + key + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + teamEsc(shown) + '"' + off + '>' +
                 '</label>';
         };
-        const trailer = ['', 'зерновоз', 'рефрижератор', 'тент', 'цистерна'].map(function (item) {
-            const selected = vehicle.trailer_type === item ? ' selected' : '';
-            return '<option value="' + item + '"' + selected + '>' + (item || 'Як у компанії') + '</option>';
+        // Лише реальні варіанти: порожній (старий) тип причепа показуємо як тип компанії, порожній AdBlue — як «Є».
+        const trailerValue = fleetTrailerOf(vehicle);
+        const trailer = FLEET_TRAILER_TYPES.map(function (item) {
+            const selected = trailerValue === item ? ' selected' : '';
+            return '<option value="' + item + '"' + selected + '>' + item.charAt(0).toUpperCase() + item.slice(1) + '</option>';
         }).join('');
-        const adblue = vehicle.adblue_on === true ? 'on' : (vehicle.adblue_on === false ? 'off' : '');
-        const adblueOptions = [['', 'Як у компанії'], ['on', 'Є'], ['off', 'Немає']].map(function (item) {
+        const adblue = vehicle.adblue_on === false ? 'off' : 'on';
+        const adblueOptions = [['on', 'Є'], ['off', 'Немає']].map(function (item) {
             return '<option value="' + item[0] + '"' + (adblue === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
         }).join('');
         return '<div class="tc-fleet-docs">' +
@@ -7622,7 +7963,7 @@
             '<label>AdBlue<select data-norm="adblue_on"' + off + '>' + adblueOptions + '</select></label>' +
             num('adblue_consumption', 'Витрата AdBlue, л/100 км', 0.05, 30, '0.05', vehicle.adblue_consumption) +
             text('trailer_plate', 'Держ. номер причепа', 40, vehicle.trailer_plate) +
-            '<label>Тип причепа<select data-norm="trailer_type"' + off + '>' + trailer + '</select></label>' +
+            '<label>Тип причепа<select data-norm="trailer_type" required' + off + '>' + trailer + '</select></label>' +
             '</div>';
     }
     function readFleetNorms(id) {
@@ -7665,7 +8006,7 @@
         const adblueValue = adblue ? adblue.value : '';
         if (adblueValue === 'on') norms.adblue_on = true;
         else if (adblueValue === 'off') norms.adblue_on = false;
-        else if (adblueValue) return { ok: false, error: 'AdBlue: є, немає або як у компанії.' };
+        else return { ok: false, error: 'AdBlue: оберіть «Є» або «Немає».' };
         const adblueRaw = textOf('adblue_consumption');
         if (adblueRaw) {
             const n = vehicleNormNumber(adblueRaw, 0.05, 30);
@@ -7677,10 +8018,10 @@
         norms.trailer_plate = trailerPlate || null;
         const trailer = card.querySelector('[data-norm="trailer_type"]');
         const trailerValue = trailer ? trailer.value : '';
-        if (trailerValue && ['зерновоз', 'рефрижератор', 'тент', 'цистерна'].indexOf(trailerValue) < 0) {
-            return { ok: false, error: 'Невідомий тип причепа.' };
+        if (FLEET_TRAILER_TYPES.indexOf(trailerValue) < 0) {
+            return { ok: false, error: 'Оберіть тип причепа.' };
         }
-        norms.trailer_type = trailerValue || null;
+        norms.trailer_type = trailerValue;
         return { ok: true, norms: norms };
     }
     function emptyFleetNorms() {
@@ -7880,7 +8221,7 @@
         if (currentOrgRole !== 'owner') return;
         const parsed = readFleetNorms(id);
         if (!parsed.ok) {
-            showToast(parsed.error);
+            notifySaveError(parsed.error);
             return;
         }
         const dates = readFleetDates(id);
@@ -7892,7 +8233,7 @@
             setFleetCardOpen(id, true);
             renderFleetDocs();
             reapplySelectedVehicleNorms();
-            showToast('Збережено');
+            notifySaved();
             return;
         }
         try {
@@ -7907,7 +8248,7 @@
             setFleetCardOpen(id, true);
             renderFleetDocs();
             reapplySelectedVehicleNorms();
-            showToast('Збережено');
+            notifySaved();
         } catch (e) {
             const message = String((e && (e.message || e.details)) || e);
             if (/column|schema cache/i.test(message)) {
@@ -7921,11 +8262,11 @@
                     showToast('Дати збережено. Норми з’являться після оновлення бази.');
                     return;
                 } catch (inner) {
-                    showToast(fleetWriteError(inner));
+                    notifySaveError(fleetWriteError(inner));
                     return;
                 }
             }
-            showToast(fleetWriteError(e));
+            notifySaveError(fleetWriteError(e));
         }
     }
     async function removeFleetVehicle(id) {
@@ -8546,25 +8887,26 @@
                         p.country ? escAdm(p.country) : ''
                     ].filter(Boolean).join('<br>') || '—';
                     const users = (c.users || []).map(u => {
-                        const badge = u.is_approved
-                            ? '<span class="adm-badge on">approved</span>'
-                            : '<span class="adm-badge off">demo</span>';
-                        const role = u.role === 'admin' ? ' · admin' : '';
-                        return '<div>' + escAdm(u.email || u.id) + ' ' + badge + role + '</div>';
+                        const email = escAdm(u.email || u.id);
+                        if (u.role === 'admin') {
+                            return '<div class="adm-user"><span class="adm-user-email">' + email + '</span> <span class="adm-badge on">admin</span></div>';
+                        }
+                        // Один селект статусу на юзера: повний доступ / демо / заблоковано (блок саме цього юзера, не org)
+                        const status = adminUserStatus(u);
+                        const options = ADMIN_USER_STATUSES.map(function (item) {
+                            return '<option value="' + item[0] + '"' + (status === item[0] ? ' selected' : '') + '>' + item[1] + '</option>';
+                        }).join('');
+                        return '<div class="adm-user"><span class="adm-user-email">' + email + '</span>' +
+                            '<select class="adm-status adm-status-' + status + '" aria-label="Статус ' + email + '" data-user="' + escAdm(u.id) + '" data-prev="' + status + '"' +
+                            ' onchange="adminSetUserStatus(this)">' + options + '</select></div>';
                     }).join('') || '—';
-                    const userBtns = (c.users || []).map(u => {
-                        if (u.role === 'admin') return '';
-                        return u.is_approved
-                            ? '<button type="button" class="bad" onclick="adminSetApproved(\'' + u.id + '\', false)">Зняти доступ</button>'
-                            : '<button type="button" class="ok" onclick="adminSetApproved(\'' + u.id + '\', true)">Схвалити</button>';
-                    }).join('');
                     const orgBtn = c.status === 'blocked'
                         ? '<button type="button" class="ok" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'active\')">Розблокувати</button>'
                         : '<button type="button" class="bad" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'blocked\')">Блок org</button>';
                     html += '<tr><td><b>' + escAdm(c.name || '—') + '</b><br>' + st +
                         (c.tax ? '<br><span class="adm-badge">' + escAdm(c.tax) + '</span>' : '') +
                         '</td><td>' + contacts + '</td><td>' + users + '</td><td><div class="adm-actions">' +
-                        userBtns + orgBtn + '</div></td></tr>';
+                        orgBtn + '</div></td></tr>';
                 });
                 html += '</tbody></table>';
                 box.innerHTML = html;
@@ -8575,7 +8917,8 @@
             } else {
                 let ah = '<table class="adm-table"><thead><tr><th>Час</th><th>Дія</th><th>Entity</th><th>Org</th></tr></thead><tbody>';
                 audit.forEach(a => {
-                    ah += '<tr><td>' + escAdm(a.at) + '</td><td>' + escAdm(a.action) +
+                    const auditStatus = a.detail && a.detail.status ? ' → ' + (ADMIN_USER_STATUS_LABEL[a.detail.status] || a.detail.status) : '';
+                    ah += '<tr><td>' + escAdm(a.at) + '</td><td>' + escAdm(a.action) + escAdm(auditStatus) +
                         '</td><td>' + escAdm(a.entity) + (a.entity_id ? ' · ' + escAdm(String(a.entity_id).slice(0, 8)) : '') +
                         '</td><td>' + escAdm(a.org_id ? String(a.org_id).slice(0, 8) : '—') + '</td></tr>';
                 });
@@ -8589,16 +8932,34 @@
         }
     }
 
-    async function adminSetApproved(userId, approved) {
-        const msg = document.getElementById('adm-msg');
+    const ADMIN_USER_STATUSES = [['full', 'Повний доступ'], ['demo', 'Демо'], ['blocked', 'Заблоковано']];
+    const ADMIN_USER_STATUS_LABEL = { full: 'Повний доступ', demo: 'Демо', blocked: 'Заблоковано' };
+    function adminUserStatus(u) {
+        if (u && (u.status === 'full' || u.status === 'demo' || u.status === 'blocked')) return u.status;
+        if (u && u.blocked) return 'blocked';
+        return u && u.is_approved ? 'full' : 'demo';
+    }
+    async function adminSetUserStatus(select) {
+        const userId = select.getAttribute('data-user');
+        const prev = select.getAttribute('data-prev');
+        const next = select.value;
+        if (!userId || next === prev) return;
+        const row = select.closest('.adm-user');
+        const emailEl = row ? row.querySelector('.adm-user-email') : null;
+        const email = emailEl ? emailEl.textContent : '';
+        if (next === 'blocked' && !window.confirm('Заблокувати ' + (email || 'цього користувача') + '?\n\nВін не зможе увійти й рахувати, доки ви не зміните статус. Інші користувачі компанії не зачіпаються.')) {
+            select.value = prev;
+            return;
+        }
+        select.disabled = true;
         try {
-            await adminApi('POST', { action: 'set_approved', user_id: userId, approved: !!approved });
-            msg.textContent = approved ? 'Користувача схвалено.' : 'Доступ знято (демо).';
-            msg.style.color = 'var(--success)';
+            await adminApi('POST', { action: 'set_user_status', user_id: userId, status: next });
+            showToast('✓ Статус: ' + ADMIN_USER_STATUS_LABEL[next] + (email ? ' — ' + email : ''), 2600, 'ok');
             await loadAdminCrm();
         } catch (e) {
-            msg.textContent = e.message || String(e);
-            msg.style.color = 'var(--danger)';
+            select.value = prev;
+            select.disabled = false;
+            showToast('Не вдалося змінити статус: ' + (e.message || e), 4000, 'error');
         }
     }
 
@@ -8617,7 +8978,11 @@
 
     async function saveCabinet() {
         const msg = document.getElementById('cab-message');
-        const setMsg = (t, bad) => { msg.innerText = t; msg.style.color = bad ? 'var(--danger)' : 'var(--success)'; };
+        const setMsg = (t, bad, quiet) => {
+            msg.innerText = t;
+            msg.style.color = bad ? 'var(--danger)' : 'var(--success)';
+            if (bad && !quiet) notifySaveError(t);
+        };
         if (currentOrgRole === 'logist') {
             setMsg('Логіст може переглядати норми, але змінює їх власник.', true);
             return;
@@ -8669,8 +9034,10 @@
             applySettingsToForm();
             calculate();
             setMsg('✅ Збережено. Значення підставлено в калькулятор.');
+            notifySaved();
         } catch (e) {
-            setMsg('Не вдалося зберегти: ' + (e.message || e), true);
+            setMsg('Не вдалося зберегти: ' + (e.message || e), true, true);
+            notifySaveError(e && e.message ? e.message : e);
         } finally {
             btn.disabled = false;
         }
@@ -8891,6 +9258,7 @@
     }
     function applyCalcResult(result, payload, routeName, requestId) {
         if (requestId != null && !calcResultIsFresh(requestId, calcRequestId)) return;
+        lastCalcVatMode = !!(payload && payload.calcType === 'безготівковий');
         const trailerType = payload.trailerType;
         const safeVolume = result.assignedTonnage > 0
             ? result.assignedTonnage
@@ -8954,8 +9322,18 @@
             beChip.title = tip;
         }
         const tbody = document.getElementById('cost-breakdown');
-        let totalCostsSum = (result.detailedRows || []).reduce((sum, r) => sum + r.val, 0);
-        tbody.innerHTML = (result.detailedRows || []).map(r => `
+        // Рядок податків у режимі ПДВ — довідковий: сума ПДВ, без частки, не входить у суму витрат.
+        const isVatRow = r => lastCalcVatMode && /Податки/.test(String(r.name));
+        const vatAmount = vatAmountOf(result);
+        let totalCostsSum = (result.detailedRows || []).reduce((sum, r) => sum + (isVatRow(r) ? 0 : r.val), 0);
+        tbody.innerHTML = (result.detailedRows || []).map(r => isVatRow(r) ? `
+            <tr class="tc-vat-row">
+                <td>${r.name}<span class="tc-cost-note">ПДВ, довідково — вже виключено з чистого доходу</span></td>
+                <td>${formatMoney(vatAmount)}${fxSuffix(vatAmount)}</td>
+                <td>${Math.round(vatAmount / safeVolume)} грн${fxSuffix(vatAmount / safeVolume)}</td>
+                <td>—</td>
+            </tr>
+        ` : `
             <tr>
                 <td>${r.name}</td>
                 <td>${formatMoney(r.val)}${fxSuffix(r.val)}</td>
@@ -9042,6 +9420,10 @@
                 let errInfo = null;
                 try { errInfo = await response.json(); } catch (e) {}
                 if (myRequestId !== calcRequestId) return;
+                if (response.status === 403 && errInfo && errInfo.code === 'USER_BLOCKED') {
+                    showAccountBlocked();
+                    return;
+                }
                 if (response.status === 429 && errInfo && errInfo.code === 'DEMO_LIMIT') {
                     updateDemoCounter(errInfo.used, errInfo.limit);
                     setDemoHint('🚫 ' + errInfo.error, true);
@@ -11767,6 +12149,7 @@
 
     // ЗАПУСК ПРОГРАМИ
     window.onload = function() {
+        dropLegacyRecentRoutes();
         loadUiView();
         arrangeDispatcherForm();
         renderRecentRoutes();

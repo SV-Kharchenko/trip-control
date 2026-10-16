@@ -32,6 +32,10 @@ const vehicleNormNumber = extractFunction('vehicleNormNumber', ['value', 'min', 
 const clientSplit = extractFunction('splitTonnageShares', ['totalTons', 'weights']);
 const vehicleResolvedNorms = extractFunction('vehicleResolvedNorms', ['vehicle']);
 globalThis.vehicleNormNumber = vehicleNormNumber;
+globalThis.FLEET_TRAILER_TYPES = ['зерновоз', 'рефрижератор', 'тент', 'цистерна'];
+globalThis.companySettings = {};
+globalThis.fleetDefaultTrailer = extractFunction('fleetDefaultTrailer', []);
+globalThis.fleetTrailerOf = extractFunction('fleetTrailerOf', ['vehicle']);
 
 function moneyOf(result, needle) {
     return (result.detailedRows || [])
@@ -104,8 +108,9 @@ test('one truck with its own consumption replaces the company fuel and stays one
     assert.equal(resolved.fuelEmpty, 24);
     assert.equal(resolved.make_model, undefined);
     assert.equal(resolved.label, undefined);
+    // Без «Як у компанії»: порожній AdBlue = «Є» (витрата — норма калькулятора), невідомий причіп = тип компанії.
     const blank = vehicleResolvedNorms({ fuel_load: 0, fuel_empty: 90, trailer_type: 'фургон', payload_t: 0 });
-    assert.deepEqual(blank, {});
+    assert.deepEqual(blank, { useAdblue: true, trailerType: 'зерновоз' });
     const company = sumVehicleTrips(base, [{ label: 'Без норми', tonnage: 126 }]);
     const companyAlone = calculateTrip({ ...base, carsCount: 1, volume: 126 });
     assert.equal(company.netProfit, companyAlone.netProfit);
