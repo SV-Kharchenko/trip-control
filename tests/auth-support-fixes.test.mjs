@@ -223,11 +223,14 @@ test('11: admins set one status per user and a blocked user is stopped everywher
 
     const admin = read('api/admin.js');
     assert.match(admin, /action === 'set_user_status'/);
-    assert.match(admin, /ban_duration: BLOCK_BAN_DURATION/);
-    assert.match(admin, /ban_duration: 'none'/);
-    assert.match(admin, /target\.role === 'admin'/);
-    assert.match(admin, /audit\(admin\.user\.id, 'set_user_status'/);
+    assert.match(admin, /setUserStatus\(supabase, \{/);
+    assert.match(admin, /actor: admin\.user\.id,/);
     assert.match(admin, /action === 'set_org_status'/);
+    const shared = read('lib/user-status.js');
+    assert.match(shared, /ban_duration: BLOCK_BAN_DURATION/);
+    assert.match(shared, /ban_duration: 'none'/);
+    assert.match(shared, /target\.role === 'admin'/);
+    assert.match(shared, /'set_user_status', 'profiles'/);
     for (const file of ['api/calculate.js', 'api/poi.js', 'api/team.js']) {
         assert.match(read(file), /userIsBlocked\(user\)/, file);
     }

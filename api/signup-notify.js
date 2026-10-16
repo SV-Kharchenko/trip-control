@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { isUuid, sendTelegram, shouldNotifySignup, signupMessage } from '../lib/signup-notify.js';
+import { isUuid, sendTelegram, shouldNotifySignup, signupMessage, statusKeyboard } from '../lib/signup-notify.js';
 
 /**
  * POST /api/signup-notify { user_id }
@@ -41,7 +41,8 @@ export default async function handler(req, res) {
             org = profile && profile.organizations;
         } catch (e) {}
 
-        await sendTelegram(signupMessage(user, org), { fetch, env: process.env });
+        // Кнопки статусу обробляє api/telegram-webhook.js.
+        await sendTelegram(signupMessage(user, org), { fetch, env: process.env, replyMarkup: statusKeyboard(user.id) });
         return res.status(200).json({ ok: true });
     } catch (e) {
         console.warn('signup notify failed', e && (e.code || e.message));

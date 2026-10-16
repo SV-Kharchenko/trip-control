@@ -8917,7 +8917,8 @@
             } else {
                 let ah = '<table class="adm-table"><thead><tr><th>Час</th><th>Дія</th><th>Entity</th><th>Org</th></tr></thead><tbody>';
                 audit.forEach(a => {
-                    const auditStatus = a.detail && a.detail.status ? ' → ' + (ADMIN_USER_STATUS_LABEL[a.detail.status] || a.detail.status) : '';
+                    const auditStatus = (a.detail && a.detail.status ? ' → ' + (ADMIN_USER_STATUS_LABEL[a.detail.status] || a.detail.status) : '') +
+                        (a.detail && a.detail.source === 'telegram' ? ' · Telegram' : '');
                     ah += '<tr><td>' + escAdm(a.at) + '</td><td>' + escAdm(a.action) + escAdm(auditStatus) +
                         '</td><td>' + escAdm(a.entity) + (a.entity_id ? ' · ' + escAdm(String(a.entity_id).slice(0, 8)) : '') +
                         '</td><td>' + escAdm(a.org_id ? String(a.org_id).slice(0, 8) : '—') + '</td></tr>';
