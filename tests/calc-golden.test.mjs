@@ -16,7 +16,10 @@ test('golden trips keep the current calculation', () => {
     assert.equal(names.includes('Львів — Одеса'), true);
     assert.equal(names.includes('Одеса — Київ'), true);
     for (const scenario of fixtures) {
-        assert.deepEqual(calculateTrip(scenario.payload), scenario.expect);
+        // warnings — довідка про порожні статті, на гроші не впливає.
+        const { warnings, ...money } = calculateTrip(scenario.payload);
+        assert.deepEqual(money, scenario.expect);
+        assert.equal(Array.isArray(warnings), true);
         assert.equal(typeof scenario.expect.netProfit, 'number');
         assert.equal(scenario.expect.status, undefined);
     }

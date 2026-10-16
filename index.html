@@ -885,6 +885,9 @@
         #cabinet-screen .cab-field.cab-req > label::after {
             content: ' *'; color: var(--negative); font-weight: 700;
         }
+        #cabinet-screen .cab-field.is-empty-cost input { border-color: var(--warning); }
+        #cabinet-screen .cab-empty-hint { font-size: 0.68rem; color: var(--warning); }
+        #cabinet-screen .cab-empty-hint[hidden] { display: none; }
         #cabinet-screen .cab-company-head { flex-direction: column; align-items: flex-start; gap: 4px; }
         #cabinet-screen .cab-company-sub { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
         #cabinet-screen .cab-company-grid input,
@@ -1080,6 +1083,12 @@
         .tc-vehicle-pick input[type="number"] { width: 5.5rem; flex: 0 0 auto; text-align: right; }
         #vehicle-norm-row { container-type: inline-size; container-name: vehicles; }
         #vehicle-breakdown { margin-top: 4px; max-width: 100%; }
+        .tc-cost-warn {
+            margin: 8px 0; padding: 10px 12px; border: 1px solid var(--warning); border-radius: 10px;
+            background: rgba(251, 191, 36, 0.12); font-size: 0.82rem; line-height: 1.4;
+        }
+        .tc-cost-warn[hidden] { display: none; }
+        .tc-cost-warn .link-btn { margin-top: 6px; }
         #vehicle-breakdown table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
         #vehicle-breakdown th, #vehicle-breakdown td {
             text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border-color); white-space: normal;
@@ -3901,6 +3910,7 @@
                 <div class="kpi-sub tc-gap-pill" id="res-breakeven-gap"></div>
             </div>
         </div>
+        <div class="tc-cost-warn" id="cost-warnings" role="status" hidden></div>
         <div class="tc-dock-cascade" id="tc-dock-cascade" aria-label="Від доходу до прибутку"></div>
         <div class="tc-kpi kpi-strip">
             <div class="kpi-chip">
@@ -7545,6 +7555,28 @@
     const SETTINGS_MAP = {};
     CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));
 
+    // AdBlue «Увімкнено», а норма порожня: у кабінеті підставляємо типову (сервер робить те саме).
+    const DEFAULT_ADBLUE_RATE = 2.5;
+    // Необов'язкові статті «Витратної частини»: порожньо = 0 у розрахунку.
+    const CAB_OPTIONAL_COST_KEYS = ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin',
+        'driverRateLoad', 'driverRateEmpty', 'driverPctVal', 'perDiem', 'toCost', 'tireCost', 'tireCount'];
+    function fillCabAdblueDefault() {
+        const enable = document.getElementById('cab-adblueEnable');
+        const rate = document.getElementById('cab-adblueConsumption');
+        if (enable && rate && enable.value === 'on' && !(parseFloat(rate.value) > 0)) rate.value = DEFAULT_ADBLUE_RATE;
+    }
+    function refreshCabEmptyHints() {
+        CAB_OPTIONAL_COST_KEYS.forEach(function (key) {
+            const row = document.getElementById('cabrow-' + key);
+            const input = document.getElementById('cab-' + key);
+            if (!row || !input) return;
+            const empty = !(parseFloat(input.value) > 0);
+            row.classList.toggle('is-empty-cost', empty);
+            const hint = row.querySelector('.cab-empty-hint');
+            if (hint) hint.hidden = !empty;
+        });
+    }
+
     // Стартовий шаблон для нового акаунта (зерновоз). Накладні навмисно порожні — користувач заповнить у кабінеті.
     const STARTER_SETTINGS = {
         totalFleet: 5,
@@ -7725,8 +7757,11 @@
                 inner = '<input type="number" id="cab-' + f.key + '" min="0" step="' + (f.step || '1') + '">';
             }
             const unit = f.unit ? '<span class="cab-unit">' + esc(f.unit) + '</span>' : '';
+            const emptyHint = CAB_OPTIONAL_COST_KEYS.indexOf(f.key) >= 0
+                ? '<small class="cab-empty-hint" hidden>Порожньо = 0 у розрахунку</small>'
+                : '';
             return '<div class="cab-field" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>' +
-                '<div class="cab-input">' + inner + unit + '</div></div>';
+                '<div class="cab-input">' + inner + unit + '</div>' + emptyHint + '</div>';
         }
 
         function profileFieldHtml(f) {
@@ -7834,6 +7869,11 @@
         box.innerHTML = html;
         box.dataset.built = '1';
         ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
+        document.getElementById('cab-adblueEnable').addEventListener('change', fillCabAdblueDefault);
+        CAB_OPTIONAL_COST_KEYS.forEach(key => {
+            const el = document.getElementById('cab-' + key);
+            if (el) el.addEventListener('input', refreshCabEmptyHints);
+        });
         ['cab-totalFleet', 'cab-amort', 'cab-admin', 'cab-otherOperating', 'cab-otherExpenses', 'cab-repair', 'cab-fin'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', refreshCabOverheadSum);
@@ -8457,6 +8497,8 @@
             });
         }
         updateCabVisibility();
+        fillCabAdblueDefault();
+        refreshCabEmptyHints();
         refreshCabOverheadSum();
         renderFleetDocs();
         document.getElementById('cab-message').innerText = '';
@@ -9257,6 +9299,32 @@
         table.appendChild(tbody);
         box.appendChild(table);
     }
+    function openCostsCabinet() {
+        openCabinet();
+        switchCabTab('costs');
+    }
+    // Порожні необов'язкові статті з відповіді сервера (result.warnings).
+    function renderCostWarnings(result) {
+        const box = document.getElementById('cost-warnings');
+        if (!box) return;
+        const list = result && Array.isArray(result.warnings) ? result.warnings : [];
+        box.textContent = '';
+        if (!list.length) {
+            box.hidden = true;
+            return;
+        }
+        const text = document.createElement('div');
+        text.textContent = '⚠ Не заповнено: ' + list.map(function (item) { return item.label; }).join(', ') +
+            '. Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'link-btn';
+        button.textContent = 'Заповнити в кабінеті';
+        button.addEventListener('click', openCostsCabinet);
+        box.appendChild(text);
+        box.appendChild(button);
+        box.hidden = false;
+    }
     function applyCalcResult(result, payload, routeName, requestId) {
         if (requestId != null && !calcResultIsFresh(requestId, calcRequestId)) return;
         lastCalcVatMode = !!(payload && payload.calcType === 'безготівковий');
@@ -9343,6 +9411,7 @@
             </tr>
         `).join('');
         renderVehicleBreakdown(result, requestId);
+        renderCostWarnings(result);
         renderChart(result.fuelAndAdblueTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
         lastCalcData = {
             routeName, trailerType, volume: payload.volume, rate: payload.rate,
@@ -9466,6 +9535,7 @@
 
     function clearCalcVisuals() {
         paintProfitHero(null);
+        renderCostWarnings(null);
         const beOp = document.getElementById('res-breakeven-op');
         if (beOp) beOp.textContent = 'маржа — · EBITDA —';
         const beChip = document.getElementById('kpi-breakeven-chip');

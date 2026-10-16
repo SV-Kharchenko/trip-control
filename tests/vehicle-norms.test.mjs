@@ -45,7 +45,8 @@ function moneyOf(result, needle) {
 
 test('a trip without a selected vehicle keeps every golden result', () => {
     for (const scenario of fixtures) {
-        assert.deepEqual(calculateTrip(scenario.payload), scenario.expect);
+        const { warnings, ...money } = calculateTrip(scenario.payload);
+        assert.deepEqual(money, scenario.expect);
     }
     assert.equal(sumVehicleTrips(fixtures[0].payload, null), null);
     assert.equal(sumVehicleTrips(fixtures[0].payload, []), null);
