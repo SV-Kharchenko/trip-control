@@ -1,10 +1,13 @@
-// Реєструє вебхук бота: https://<домен>/api/telegram-webhook із secret_token.
+// Реєструє вебхук бота: https://<домен>/api/telegram-webhook із secret_token,
+// і меню команд бота (setMyCommands: /users, /user, /help).
 // Запускає власник вручну, один раз після deploy:
 //
 //   TELEGRAM_BOT_TOKEN=... TELEGRAM_WEBHOOK_SECRET=... \
 //   node scripts/set-telegram-webhook.js https://<домен>
 //
 // Секрет: 1–256 символів A-Z a-z 0-9 _ -. Той самий має бути у Vercel env TELEGRAM_WEBHOOK_SECRET.
+
+import { BOT_COMMANDS } from '../lib/telegram-admin.js';
 
 const base = (process.argv[2] || '').replace(/\/+$/, '');
 const token = process.env.TELEGRAM_BOT_TOKEN || '';
@@ -35,3 +38,15 @@ if (!response.ok || !result.ok) {
     process.exit(1);
 }
 console.log('Вебхук встановлено:', base + '/api/telegram-webhook');
+
+const commandsResponse = await fetch('https://api.telegram.org/bot' + token + '/setMyCommands', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commands: BOT_COMMANDS })
+});
+const commandsResult = await commandsResponse.json().catch(() => ({}));
+if (!commandsResponse.ok || !commandsResult.ok) {
+    console.error('setMyCommands не вдався:', commandsResponse.status, commandsResult.description || '');
+    process.exit(1);
+}
+console.log('Команди бота:', BOT_COMMANDS.map((c) => '/' + c.command).join(', '));
