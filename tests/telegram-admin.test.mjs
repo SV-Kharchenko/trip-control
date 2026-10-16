@@ -145,6 +145,61 @@ test('updates from another chat or sender are silently ignored with 200', async 
     assert.equal(isOwnerChat({ message: { chat: ownerChat, from: ownerFrom } }, OWNER_CHAT), true);
 });
 
+test('in a group with TELEGRAM_CHAT_ID only the owner acts; other members get silence', async () => {
+    const group = { id: Number(OWNER_CHAT), type: 'supergroup', title: 'TRIP-CONTROL' };
+    const member = { id: 424242, is_bot: false, first_name: 'Member' };
+    const h = harness();
+    for (const update of [
+        callback('st:blocked:' + USER, { chat: group, from: member }),
+        callback('st:full:' + USER, { chat: { ...group, type: 'group' }, from: member }),
+        { update_id: 9, message: { message_id: 2, chat: group, from: member, text: '/user driver@agro.ua' } },
+        { update_id: 10, message: { message_id: 3, chat: group, text: '/user driver@agro.ua' } }
+    ]) {
+        const res = await h.send(update);
+        assert.equal(res.code, 200);
+        assert.deepEqual(res.body, { ok: true });
+    }
+    assert.equal(h.calls.length, 0, 'no reply, no answerCallbackQuery');
+    assert.equal(h.supabase.db.authUpdates.length, 0, 'status unchanged');
+    assert.equal(h.supabase.db.profiles[USER].is_approved, false);
+    assert.equal(h.supabase.db.audit.length, 0, 'no audit rows');
+    assert.equal(isOwnerChat({ message: { chat: group, from: member } }, OWNER_CHAT), false);
+    assert.equal(isOwnerChat({ message: { chat: group, from: ownerFrom } }, OWNER_CHAT), true);
+});
+
+test('an audit insert error is logged by code only and does not undo the status change', async (t) => {
+    const warnings = [];
+    t.mock.method(console, 'warn', (...args) => { warnings.push(args); });
+    const h = harness();
+    const realFrom = h.supabase.from;
+    h.supabase.from = (table) => {
+        const builder = realFrom(table);
+        if (table === 'security_audit_log') {
+            builder.insert = async () => ({ data: null, error: { code: '42501', message: 'permission denied for table security_audit_log', details: 'row 1' } });
+        }
+        return builder;
+    };
+    const res = await h.send(callback('st:blocked:' + USER));
+    assert.equal(res.code, 200);
+    assert.equal(h.supabase.db.auth[USER].banned_until !== null, true, 'status changed');
+    assert.equal(h.calls.find((c) => c.method === 'answerCallbackQuery').body.text, 'Статус: Заблоковано');
+    assert.equal(h.calls.some((c) => c.method === 'editMessageText'), true);
+    assert.deepEqual(warnings, [['audit insert failed', '42501']]);
+
+    warnings.length = 0;
+    const thrown = fakeSupabase();
+    const realThrownFrom = thrown.from;
+    thrown.from = (table) => {
+        const builder = realThrownFrom(table);
+        if (table === 'security_audit_log') builder.insert = async () => { throw Object.assign(new Error('socket hang up at 10.0.0.1'), { code: 'ECONNRESET' }); };
+        return builder;
+    };
+    const result = await setUserStatus(thrown, { userId: USER, status: 'full', actor: ADMIN, source: 'admin' });
+    assert.equal(result.status, 'full');
+    assert.equal(thrown.db.profiles[USER].is_approved, true);
+    assert.deepEqual(warnings, [['audit insert failed', 'ECONNRESET']]);
+});
+
 test('status buttons switch demo → full → blocked → demo through the shared logic', async () => {
     const h = harness();
     const { db } = h.supabase;
