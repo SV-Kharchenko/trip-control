@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { BLOCK_BAN_DURATION, userAccessStatus, userIsBlocked } from '../lib/account-block.js';
+import { userAccessStatus, userIsBlocked } from '../lib/account-block.js';
+import { setUserStatus, UserStatusError, writeAudit } from '../lib/user-status.js';
 
 /**
  * Admin CRM API — лише platform admin (profiles.role = 'admin').
@@ -40,19 +41,8 @@ async function requireAdmin(req, res) {
     return { user, profile };
 }
 
-async function audit(actor, action, entity, entityId, orgId, detail) {
-    try {
-        await supabase.from('security_audit_log').insert({
-            actor,
-            org_id: orgId || null,
-            action,
-            entity,
-            entity_id: entityId || null,
-            detail: detail || null
-        });
-    } catch (e) {
-        console.warn('audit insert failed', e);
-    }
+function audit(actor, action, entity, entityId, orgId, detail) {
+    return writeAudit(supabase, actor, action, entity, entityId, orgId, detail);
 }
 
 export default async function handler(req, res) {
@@ -124,41 +114,19 @@ export default async function handler(req, res) {
             }
 
             if (action === 'set_user_status') {
-                const userId = body.user_id;
-                const status = body.status;
-                if (!userId) return res.status(400).json({ error: 'user_id required' });
-                if (!['full', 'demo', 'blocked'].includes(status)) {
-                    return res.status(400).json({ error: 'Невідомий статус.' });
+                // Та сама логіка, що й у Telegram-бота: lib/user-status.js.
+                try {
+                    const result = await setUserStatus(supabase, {
+                        userId: body.user_id,
+                        status: body.status,
+                        actor: admin.user.id,
+                        source: 'admin'
+                    });
+                    return res.status(200).json({ ok: true, user_id: result.user_id, status: result.status, previous: result.previous });
+                } catch (e) {
+                    if (e instanceof UserStatusError) return res.status(e.httpStatus).json({ error: e.message });
+                    throw e;
                 }
-                const { data: target } = await supabase
-                    .from('profiles')
-                    .select('id, org_id, role, is_approved')
-                    .eq('id', userId)
-                    .single();
-                if (!target) return res.status(404).json({ error: 'Профіль не знайдено' });
-                if (target.role === 'admin') return res.status(400).json({ error: 'Статус адміністратора не змінюється.' });
-                const { data: authData, error: authReadError } = await supabase.auth.admin.getUserById(userId);
-                if (authReadError) throw authReadError;
-                const previous = userAccessStatus(authData && authData.user, target);
-                if (status === 'blocked') {
-                    const { error: banError } = await supabase.auth.admin.updateUserById(userId, { ban_duration: BLOCK_BAN_DURATION });
-                    if (banError) throw banError;
-                } else {
-                    if (previous === 'blocked') {
-                        const { error: unbanError } = await supabase.auth.admin.updateUserById(userId, { ban_duration: 'none' });
-                        if (unbanError) throw unbanError;
-                    }
-                    const approved = status === 'full';
-                    if (!!target.is_approved !== approved) {
-                        const { error } = await supabase
-                            .from('profiles')
-                            .update({ is_approved: approved })
-                            .eq('id', userId);
-                        if (error) throw error;
-                    }
-                }
-                await audit(admin.user.id, 'set_user_status', 'profiles', userId, target.org_id, { status, previous });
-                return res.status(200).json({ ok: true, user_id: userId, status, previous });
             }
 
             if (action === 'set_org_status') {

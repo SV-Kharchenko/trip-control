@@ -10,7 +10,8 @@
 | `RESEND_API_KEY` | Vercel env, лише `/api/weekly-report` | **Ні** |
 | `REPORT_FROM_EMAIL` | Vercel env, відправник листів звіту (`Name <mail@domain>`) | **Ні** |
 | `CRON_SECRET` | Vercel env. Cron надсилає його як `Authorization: Bearer`. Без нього розсилка не стартує | **Ні** |
-| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Vercel env, лише `/api/signup-notify` (сповіщення про нову реєстрацію) | **Ні** |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Vercel env, `/api/signup-notify` і `/api/telegram-webhook`. `TELEGRAM_CHAT_ID` — єдиний чат, з якого бот приймає команди | **Ні** |
+| `TELEGRAM_WEBHOOK_SECRET` | Vercel env. Telegram надсилає його в `X-Telegram-Bot-Api-Secret-Token`; без збігу `/api/telegram-webhook` відповідає 401. Той самий передається в `scripts/set-telegram-webhook.js` | **Ні** |
 
 ## Правила
 
