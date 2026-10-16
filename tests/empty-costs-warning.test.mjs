@@ -189,8 +189,8 @@ test('wash fields live on calculator step 4 next to the reefer fields', () => {
     const sync = html.slice(html.indexOf('<div id="main-sync-fields"'), html.indexOf('<div class="card" id="saved-section"'));
     assert.ok(sync.length > 0);
     assert.doesNotMatch(sync, /wash-cost|wash-freq/);
-    assert.match(html, /id="ref-hours"[\s\S]{0,200}<div class="form-row dynamic-field" id="field-wash-cost">\s*<label>Вартість промивки цистерни:<\/label>\s*<input type="number" id="wash-cost" oninput="calculate\(\)">/);
-    assert.match(html, /<div class="form-row dynamic-field" id="field-wash-freq">\s*<label>Промивок на рік:<\/label>\s*<input type="number" id="wash-freq" oninput="calculate\(\)">/);
+    assert.match(html, /id="ref-hours"[\s\S]{0,200}<div class="form-row dynamic-field" id="field-wash-cost">\s*<label for="wash-cost">Вартість промивки цистерни:<\/label>\s*<input type="number" id="wash-cost" oninput="calculate\(\)">/);
+    assert.match(html, /<div class="form-row dynamic-field" id="field-wash-freq">\s*<label for="wash-freq">Промивок на рік:<\/label>\s*<input type="number" id="wash-freq" oninput="calculate\(\)">/);
     assert.match(html, /take\(4, rowOf\('ref-hours'\)\);\s*take\(4, rowOf\('wash-cost'\)\);\s*take\(4, rowOf\('wash-freq'\)\);/);
     // Видимість лише для цистерни — наявна логіка .dynamic-field.active.
     assert.match(html, /if \(trailer === 'цистерна'\) \{ washCost\.classList\.add\('active'\); washFreq\.classList\.add\('active'\); \}/);
@@ -207,15 +207,38 @@ test('a trip field that is on no calculator step gets no button', () => {
     assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
 });
 
-test('mixed warnings: owner goes to the cabinet, logist gets the note', () => {
-    const mixed = [{ key: 'refFuelRate', label: 'Витрата пального рефрижератора' }, { key: 'amort', label: 'Амортизація' }];
-    const owner = warningUi({ role: 'owner', fields: { 'ref-fuel-rate': 4 } });
-    owner.render({ warnings: mixed });
-    assert.deepEqual(owner.buttons().map((b) => b.textContent), ['Заповнити в кабінеті']);
-    const logist = warningUi({ role: 'logist', fields: { 'ref-fuel-rate': 4 } });
-    logist.render({ warnings: mixed });
-    assert.equal(logist.buttons().length, 0);
-    assert.match(logist.box.textContent, /Попросіть власника заповнити в кабінеті\.$/);
+const MIXED_WARNINGS = [
+    { key: 'amort', label: 'Амортизація' },
+    { key: 'washCost', label: 'Вартість промивки цистерни' },
+    { key: 'washFreq', label: 'Промивок на рік' }
+];
+
+test('mixed warnings: owner gets both the cabinet and the calculator button', () => {
+    const ui = warningUi({ role: 'owner', fields: { 'wash-cost': 4, 'wash-freq': 4 } });
+    ui.render({ warnings: MIXED_WARNINGS });
+    assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в кабінеті', 'Заповнити в калькуляторі']);
+    assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
+    ui.buttons()[1].click();
+    assert.deepEqual(ui.calls, ['step:4']);
+    assert.equal(ui.inputs['wash-cost'].focused, true);
+    ui.buttons()[0].click();
+    assert.deepEqual(ui.calls, ['step:4', 'openCabinet', 'tab:costs']);
+});
+
+test('mixed warnings: logist gets the note and the calculator button', () => {
+    const ui = warningUi({ role: 'logist', fields: { 'ref-fuel-rate': 4, 'ref-hours': 4 } });
+    ui.render({ warnings: [{ key: 'fin', label: 'Фінансові витрати (кредити)' }, { key: 'refHours', label: 'Години роботи рефрижератора' }] });
+    assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+    assert.equal(ui.box.children[1].textContent, 'Попросіть власника заповнити в кабінеті.');
+    ui.buttons()[0].click();
+    assert.equal(ui.inputs['ref-hours'].focused, true);
+    assert.equal(ui.inputs['ref-fuel-rate'].focused, false);
+});
+
+test('step 4 labels focus their inputs', () => {
+    for (const id of ['ref-fuel-rate', 'ref-hours', 'wash-cost', 'wash-freq']) {
+        assert.match(html, new RegExp('<label for="' + id + '">[^<]+</label>\\s*<input type="number" id="' + id + '"'));
+    }
 });
 
 test('no warnings, no block', () => {

@@ -1088,7 +1088,7 @@
             background: rgba(251, 191, 36, 0.12); font-size: 0.82rem; line-height: 1.4;
         }
         .tc-cost-warn[hidden] { display: none; }
-        .tc-cost-warn .link-btn { margin-top: 6px; color: var(--warning); }
+        .tc-cost-warn .link-btn { margin: 6px 14px 0 0; color: var(--warning); }
         #vehicle-breakdown table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
         #vehicle-breakdown th, #vehicle-breakdown td {
             text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border-color); white-space: normal;
@@ -4113,22 +4113,22 @@
                 </div>
 
                 <div class="form-row dynamic-field" id="field-ref-consumption">
-                    <label>Витрата рефа (л/год):</label>
+                    <label for="ref-fuel-rate">Витрата рефа (л/год):</label>
                     <input type="number" id="ref-fuel-rate" step="0.1" oninput="calculate()">
                     <span class="unit">л/год</span>
                 </div>
                 <div class="form-row dynamic-field" id="field-ref-hours">
-                    <label>Час роботи рефрижератора:</label>
+                    <label for="ref-hours">Час роботи рефрижератора:</label>
                     <input type="number" id="ref-hours" oninput="calculate()">
                     <span class="unit">годин/рейс</span>
                 </div>
                 <div class="form-row dynamic-field" id="field-wash-cost">
-                    <label>Вартість промивки цистерни:</label>
+                    <label for="wash-cost">Вартість промивки цистерни:</label>
                     <input type="number" id="wash-cost" oninput="calculate()">
                     <span class="unit">грн</span>
                 </div>
                 <div class="form-row dynamic-field" id="field-wash-freq">
-                    <label>Промивок на рік:</label>
+                    <label for="wash-freq">Промивок на рік:</label>
                     <input type="number" id="wash-freq" oninput="calculate()">
                     <span class="unit">раз/рік</span>
                 </div>
@@ -9340,26 +9340,26 @@
         text.textContent = '⚠ Не заповнено: ' + list.map(function (item) { return item.label; }).join(', ') +
             '. Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
         box.appendChild(text);
-        const calcOnly = list.every(function (item) { return Object.prototype.hasOwnProperty.call(CALC_WARNING_FIELDS, item.key); });
-        let action = null;
-        if (calcOnly) {
-            const target = calcWarningField(list);
-            if (target) action = { label: 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } };
-        } else if (currentOrgRole === 'owner') {
-            action = { label: 'Заповнити в кабінеті', run: openCostsCabinet };
-        } else {
+        // Статті кабінету заповнює власник; поля рейсу (промивка, реф) — будь-хто в калькуляторі.
+        const hasCabinet = list.some(function (item) { return !Object.prototype.hasOwnProperty.call(CALC_WARNING_FIELDS, item.key); });
+        const target = calcWarningField(list);
+        const actions = [];
+        if (hasCabinet && currentOrgRole === 'owner') {
+            actions.push({ label: 'Заповнити в кабінеті', run: openCostsCabinet });
+        } else if (hasCabinet) {
             const note = document.createElement('div');
             note.textContent = 'Попросіть власника заповнити в кабінеті.';
             box.appendChild(note);
         }
-        if (action) {
+        if (target) actions.push({ label: 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } });
+        actions.forEach(function (action) {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'link-btn';
             button.textContent = action.label;
             button.addEventListener('click', action.run);
             box.appendChild(button);
-        }
+        });
         box.hidden = false;
     }
     function applyCalcResult(result, payload, routeName, requestId) {
