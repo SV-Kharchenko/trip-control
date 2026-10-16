@@ -885,6 +885,9 @@
         #cabinet-screen .cab-field.cab-req > label::after {
             content: ' *'; color: var(--negative); font-weight: 700;
         }
+        #cabinet-screen .cab-field.is-empty-cost input { border-color: var(--warning); }
+        #cabinet-screen .cab-empty-hint { font-size: 0.68rem; color: var(--warning); }
+        #cabinet-screen .cab-empty-hint[hidden] { display: none; }
         #cabinet-screen .cab-company-head { flex-direction: column; align-items: flex-start; gap: 4px; }
         #cabinet-screen .cab-company-sub { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
         #cabinet-screen .cab-company-grid input,
@@ -1080,6 +1083,13 @@
         .tc-vehicle-pick input[type="number"] { width: 5.5rem; flex: 0 0 auto; text-align: right; }
         #vehicle-norm-row { container-type: inline-size; container-name: vehicles; }
         #vehicle-breakdown { margin-top: 4px; max-width: 100%; }
+        .tc-cost-warn {
+            margin: 8px 0; padding: 10px 12px; border: 1px solid var(--warning); border-radius: 10px;
+            background: rgba(251, 191, 36, 0.12); font-size: 0.82rem; line-height: 1.4;
+        }
+        .tc-cost-warn[hidden] { display: none; }
+        .tc-cost-warn .link-btn { margin: 6px 14px 0 0; color: var(--warning); }
+        .tc-cost-warn-short { display: none; }
         #vehicle-breakdown table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
         #vehicle-breakdown th, #vehicle-breakdown td {
             text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border-color); white-space: normal;
@@ -3524,6 +3534,13 @@
             }
             body.layout-studio #dispatcher-result:not(.is-open) .tc-unit-row > div:not(:first-child),
             body.layout-studio #dispatcher-result:not(.is-open) #kpi-breakeven-chip { display: none !important; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-cost-warn { margin: 6px 0 0; padding: 0; border: none; background: none; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-cost-warn-full { display: none; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-cost-warn-short {
+                display: block; width: 100%; min-height: 32px; padding: 6px 10px; text-align: left;
+                border: 1px solid var(--warning); border-radius: 8px; background: rgba(251, 191, 36, 0.12);
+                color: var(--warning); font: inherit; font-size: 0.8rem; cursor: pointer;
+            }
             body.layout-studio #dispatcher-result.is-open {
                 max-height: calc(100dvh - 24px) !important;
                 overflow-y: auto !important;
@@ -3901,6 +3918,7 @@
                 <div class="kpi-sub tc-gap-pill" id="res-breakeven-gap"></div>
             </div>
         </div>
+        <div class="tc-cost-warn" id="cost-warnings" role="status" hidden></div>
         <div class="tc-dock-cascade" id="tc-dock-cascade" aria-label="Від доходу до прибутку"></div>
         <div class="tc-kpi kpi-strip">
             <div class="kpi-chip">
@@ -4103,14 +4121,24 @@
                 </div>
 
                 <div class="form-row dynamic-field" id="field-ref-consumption">
-                    <label>Витрата рефа (л/год):</label>
+                    <label for="ref-fuel-rate">Витрата рефа (л/год):</label>
                     <input type="number" id="ref-fuel-rate" step="0.1" oninput="calculate()">
                     <span class="unit">л/год</span>
                 </div>
                 <div class="form-row dynamic-field" id="field-ref-hours">
-                    <label>Час роботи рефрижератора:</label>
+                    <label for="ref-hours">Час роботи рефрижератора:</label>
                     <input type="number" id="ref-hours" oninput="calculate()">
                     <span class="unit">годин/рейс</span>
+                </div>
+                <div class="form-row dynamic-field" id="field-wash-cost">
+                    <label for="wash-cost">Вартість промивки цистерни:</label>
+                    <input type="number" id="wash-cost" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row dynamic-field" id="field-wash-freq">
+                    <label for="wash-freq">Промивок на рік:</label>
+                    <input type="number" id="wash-freq" oninput="calculate()">
+                    <span class="unit">раз/рік</span>
                 </div>
 
                 <div class="form-row">
@@ -4383,12 +4411,6 @@
         <div id="fuel-summary-box"></div>
         <input type="number" id="to-cost" oninput="calculate()">
         <input type="number" id="to-period" oninput="calculate()">
-        <div class="form-row dynamic-field" id="field-wash-cost">
-            <input type="number" id="wash-cost" oninput="calculate()">
-        </div>
-        <div class="form-row dynamic-field" id="field-wash-freq">
-            <input type="number" id="wash-freq" oninput="calculate()">
-        </div>
         <input type="number" id="tire-cost" oninput="calculate()">
         <input type="number" id="tire-count" oninput="calculate()">
         <input type="number" id="tire-mileage" oninput="calculate()">
@@ -5314,6 +5336,8 @@
         take(4, rowOf('road-quality'));
         take(4, rowOf('ref-fuel-rate'));
         take(4, rowOf('ref-hours'));
+        take(4, rowOf('wash-cost'));
+        take(4, rowOf('wash-freq'));
         take(4, rowOf('idle-days'));
         take(4, rowOf('idle-rate'));
         take(4, rowOf('round-trip-enable'));
@@ -7545,6 +7569,29 @@
     const SETTINGS_MAP = {};
     CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));
 
+    // AdBlue «Увімкнено», а норма порожня: сервер бере типову. У кабінеті лише підказка,
+    // щоб «Зберегти» не записало значення, якого користувач не вводив.
+    const DEFAULT_ADBLUE_RATE = 2.5;
+    // Необов'язкові статті «Витратної частини»: порожньо = 0 у розрахунку.
+    const CAB_OPTIONAL_COST_KEYS = ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin',
+        'driverRateLoad', 'driverRateEmpty', 'driverPctVal', 'perDiem', 'toCost', 'tireCost', 'tireCount'];
+    function syncCabAdbluePlaceholder() {
+        const enable = document.getElementById('cab-adblueEnable');
+        const rate = document.getElementById('cab-adblueConsumption');
+        if (enable && rate) rate.placeholder = enable.value === 'on' ? DEFAULT_ADBLUE_RATE + ' (типово)' : '';
+    }
+    function refreshCabEmptyHints() {
+        CAB_OPTIONAL_COST_KEYS.forEach(function (key) {
+            const row = document.getElementById('cabrow-' + key);
+            const input = document.getElementById('cab-' + key);
+            if (!row || !input) return;
+            const empty = !(parseFloat(input.value) > 0);
+            row.classList.toggle('is-empty-cost', empty);
+            const hint = row.querySelector('.cab-empty-hint');
+            if (hint) hint.hidden = !empty;
+        });
+    }
+
     // Стартовий шаблон для нового акаунта (зерновоз). Накладні навмисно порожні — користувач заповнить у кабінеті.
     const STARTER_SETTINGS = {
         totalFleet: 5,
@@ -7725,8 +7772,11 @@
                 inner = '<input type="number" id="cab-' + f.key + '" min="0" step="' + (f.step || '1') + '">';
             }
             const unit = f.unit ? '<span class="cab-unit">' + esc(f.unit) + '</span>' : '';
+            const emptyHint = CAB_OPTIONAL_COST_KEYS.indexOf(f.key) >= 0
+                ? '<small class="cab-empty-hint" hidden>Порожньо = 0 у розрахунку</small>'
+                : '';
             return '<div class="cab-field" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>' +
-                '<div class="cab-input">' + inner + unit + '</div></div>';
+                '<div class="cab-input">' + inner + unit + '</div>' + emptyHint + '</div>';
         }
 
         function profileFieldHtml(f) {
@@ -7834,6 +7884,11 @@
         box.innerHTML = html;
         box.dataset.built = '1';
         ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
+        document.getElementById('cab-adblueEnable').addEventListener('change', syncCabAdbluePlaceholder);
+        CAB_OPTIONAL_COST_KEYS.forEach(key => {
+            const el = document.getElementById('cab-' + key);
+            if (el) el.addEventListener('input', refreshCabEmptyHints);
+        });
         ['cab-totalFleet', 'cab-amort', 'cab-admin', 'cab-otherOperating', 'cab-otherExpenses', 'cab-repair', 'cab-fin'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', refreshCabOverheadSum);
@@ -8457,6 +8512,8 @@
             });
         }
         updateCabVisibility();
+        syncCabAdbluePlaceholder();
+        refreshCabEmptyHints();
         refreshCabOverheadSum();
         renderFleetDocs();
         document.getElementById('cab-message').innerText = '';
@@ -9257,6 +9314,74 @@
         table.appendChild(tbody);
         box.appendChild(table);
     }
+    function openCostsCabinet() {
+        toggleResultDock(false);
+        openCabinet();
+        switchCabTab('costs');
+    }
+    // Ці статті вводяться в калькуляторі для рейсу, а не в кабінеті.
+    const CALC_WARNING_FIELDS = { washCost: 'wash-cost', washFreq: 'wash-freq', refFuelRate: 'ref-fuel-rate', refHours: 'ref-hours' };
+    // Перше поле з попереджень, яке видно на кроці калькулятора.
+    function calcWarningField(list) {
+        for (const item of list) {
+            const input = document.getElementById(CALC_WARNING_FIELDS[item.key]);
+            const panel = input && input.closest('.tc-step-panel');
+            if (panel && panel.id) return { input: input, step: parseInt(panel.id.replace('tc-step-panel-', ''), 10) };
+        }
+        return null;
+    }
+    function focusCalcWarningField(target) {
+        toggleResultDock(false); // на мобільному розгорнутий док закрив би поле
+        showCalcStep(target.step);
+        if (target.input.scrollIntoView) target.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.input.focus();
+    }
+    // Порожні необов'язкові статті з відповіді сервера (result.warnings).
+    function renderCostWarnings(result) {
+        const box = document.getElementById('cost-warnings');
+        if (!box) return;
+        const list = result && Array.isArray(result.warnings) ? result.warnings : [];
+        box.textContent = '';
+        if (!list.length) {
+            box.hidden = true;
+            return;
+        }
+        // На мобільному в згорнутому доку видно лише короткий рядок; повний текст — після розгортання.
+        const short = document.createElement('button');
+        short.type = 'button';
+        short.className = 'tc-cost-warn-short';
+        short.textContent = '⚠ Не заповнено: ' + list.length + ' ' + plural(list.length, ['стаття', 'статті', 'статей']);
+        short.addEventListener('click', function () { toggleResultDock(true); });
+        box.appendChild(short);
+        const full = document.createElement('div');
+        full.className = 'tc-cost-warn-full';
+        box.appendChild(full);
+        const text = document.createElement('div');
+        text.textContent = '⚠ Не заповнено: ' + list.map(function (item) { return item.label; }).join(', ') +
+            '. Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
+        full.appendChild(text);
+        // Статті кабінету заповнює власник; поля рейсу (промивка, реф) — будь-хто в калькуляторі.
+        const hasCabinet = list.some(function (item) { return !Object.prototype.hasOwnProperty.call(CALC_WARNING_FIELDS, item.key); });
+        const target = calcWarningField(list);
+        const actions = [];
+        if (hasCabinet && currentOrgRole === 'owner') {
+            actions.push({ label: 'Заповнити в кабінеті', run: openCostsCabinet });
+        } else if (hasCabinet) {
+            const note = document.createElement('div');
+            note.textContent = 'Попросіть власника заповнити в кабінеті.';
+            full.appendChild(note);
+        }
+        if (target) actions.push({ label: 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } });
+        actions.forEach(function (action) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'link-btn';
+            button.textContent = action.label;
+            button.addEventListener('click', action.run);
+            full.appendChild(button);
+        });
+        box.hidden = false;
+    }
     function applyCalcResult(result, payload, routeName, requestId) {
         if (requestId != null && !calcResultIsFresh(requestId, calcRequestId)) return;
         lastCalcVatMode = !!(payload && payload.calcType === 'безготівковий');
@@ -9343,6 +9468,7 @@
             </tr>
         `).join('');
         renderVehicleBreakdown(result, requestId);
+        renderCostWarnings(result);
         renderChart(result.fuelAndAdblueTotal, result.driverTotal, result.toTotal, result.overheadTotal, result.taxesTotal, result.extrasTotal);
         lastCalcData = {
             routeName, trailerType, volume: payload.volume, rate: payload.rate,
@@ -9466,6 +9592,7 @@
 
     function clearCalcVisuals() {
         paintProfitHero(null);
+        renderCostWarnings(null);
         const beOp = document.getElementById('res-breakeven-op');
         if (beOp) beOp.textContent = 'маржа — · EBITDA —';
         const beChip = document.getElementById('kpi-breakeven-chip');

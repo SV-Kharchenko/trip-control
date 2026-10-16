@@ -9,6 +9,40 @@ const supabase = createClient(
 // Скільки розрахунків на добу дозволено в демо-режимі (акаунт без схвалення адміністратором)
 const DEMO_DAILY_LIMIT = 5;
 
+// AdBlue «Є», а норма чи ціна порожні: беремо типові значення, а не 0.
+export const DEFAULT_ADBLUE_RATE = 2.5;   // л/100 км
+export const DEFAULT_ADBLUE_PRICE = 18;   // грн/л
+
+// Необов'язкові статті: порожньо чи 0 → стаття рахується як 0, і про це
+// повертаємо попередження. Типових значень тут не підставляємо.
+const OPTIONAL_COSTS = [
+    { key: 'amort', label: 'Амортизація' },
+    { key: 'admin', label: 'Адміністративні витрати' },
+    { key: 'otherOperating', label: 'Інші операційні витрати' },
+    { key: 'otherExpenses', label: 'Інші витрати' },
+    { key: 'repair', label: 'Ремонти та інші оп. витрати' },
+    { key: 'fin', label: 'Фінансові витрати (кредити)' },
+    { key: 'driverRateLoad', label: 'Ставка водія з вантажем', when: b => (b.driverPayMode || 'km') === 'km' },
+    { key: 'driverRateEmpty', label: 'Ставка водія порожнім', when: b => (b.driverPayMode || 'km') === 'km' },
+    { key: 'driverPctVal', label: 'Відсоток водія від фрахту', when: b => b.driverPayMode === 'pct' },
+    { key: 'perDiem', label: 'Добові' },
+    { key: 'toCost', label: 'Вартість ТО' },
+    { key: 'tireCost', label: 'Ціна однієї шини' },
+    { key: 'tireCount', label: 'Кількість шин' },
+    { key: 'washCost', label: 'Вартість промивки цистерни', when: b => (b.trailerType || 'зерновоз') === 'цистерна' },
+    { key: 'washFreq', label: 'Промивок на рік', when: b => (b.trailerType || 'зерновоз') === 'цистерна' },
+    { key: 'refFuelRate', label: 'Витрата пального рефрижератора', when: b => (b.trailerType || 'зерновоз') === 'рефрижератор' },
+    { key: 'refHours', label: 'Години роботи рефрижератора', when: b => (b.trailerType || 'зерновоз') === 'рефрижератор' }
+];
+
+export function emptyCostWarnings(body) {
+    body = body || {};
+    return OPTIONAL_COSTS
+        .filter(item => !item.when || item.when(body))
+        .filter(item => !(parseFloat(body[item.key]) > 0))
+        .map(item => ({ key: item.key, label: item.label }));
+}
+
 // Чистий розрахунок рейсу. Арифметика та сама, що віддає POST /api/calculate.
 // Авторизація, демо-ліміт і поле demo лишаються в handler.
 // Публічний результат округлюється як і раніше. Незаокруглені маржа, EBITDA
@@ -69,8 +103,8 @@ function computeTrip(body) {
     const fuelPrice = parseFloat(body.fuelPrice);
 
     const useAdblue = body.useAdblue !== false; // за замовчуванням увімкнено, якщо не передано інше
-    const adblueRate = parseFloat(body.adblueConsumption) || 0;
-    const adbluePrice = parseFloat(body.adbluePrice) || 0;
+    const adblueRate = useAdblue ? (parseFloat(body.adblueConsumption) || DEFAULT_ADBLUE_RATE) : 0;
+    const adbluePrice = useAdblue ? (parseFloat(body.adbluePrice) || DEFAULT_ADBLUE_PRICE) : 0;
 
     // 3. Зарплата та добові
     const driverPayMode = body.driverPayMode || 'km';
@@ -337,6 +371,7 @@ function computeTrip(body) {
             overheadTotal: Math.round(overheadTotal),
             taxesTotal: Math.round(taxesTotal),
             detailedRows,
+            warnings: emptyCostWarnings(body),
 
             tripVolumeText,
             rtInfoText,
@@ -480,6 +515,15 @@ export function sumVehicleTrips(base, assignments) {
                 rowOrder.push(row.name);
             }
             rowValues[row.name] += row.val;
+        });
+    });
+    const warningKeys = {};
+    combined.warnings = [];
+    parts.forEach(function (part) {
+        (part.result.warnings || []).forEach(function (item) {
+            if (warningKeys[item.key]) return;
+            warningKeys[item.key] = true;
+            combined.warnings.push(item);
         });
     });
     combined.detailedRows = rowOrder.map(function (name) { return { name: name, val: rowValues[name] }; });
