@@ -1088,7 +1088,7 @@
             background: rgba(251, 191, 36, 0.12); font-size: 0.82rem; line-height: 1.4;
         }
         .tc-cost-warn[hidden] { display: none; }
-        .tc-cost-warn .link-btn { margin-top: 6px; }
+        .tc-cost-warn .link-btn { margin-top: 6px; color: var(--warning); }
         #vehicle-breakdown table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
         #vehicle-breakdown th, #vehicle-breakdown td {
             text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border-color); white-space: normal;
@@ -7555,15 +7555,16 @@
     const SETTINGS_MAP = {};
     CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));
 
-    // AdBlue «Увімкнено», а норма порожня: у кабінеті підставляємо типову (сервер робить те саме).
+    // AdBlue «Увімкнено», а норма порожня: сервер бере типову. У кабінеті лише підказка,
+    // щоб «Зберегти» не записало значення, якого користувач не вводив.
     const DEFAULT_ADBLUE_RATE = 2.5;
     // Необов'язкові статті «Витратної частини»: порожньо = 0 у розрахунку.
     const CAB_OPTIONAL_COST_KEYS = ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin',
         'driverRateLoad', 'driverRateEmpty', 'driverPctVal', 'perDiem', 'toCost', 'tireCost', 'tireCount'];
-    function fillCabAdblueDefault() {
+    function syncCabAdbluePlaceholder() {
         const enable = document.getElementById('cab-adblueEnable');
         const rate = document.getElementById('cab-adblueConsumption');
-        if (enable && rate && enable.value === 'on' && !(parseFloat(rate.value) > 0)) rate.value = DEFAULT_ADBLUE_RATE;
+        if (enable && rate) rate.placeholder = enable.value === 'on' ? DEFAULT_ADBLUE_RATE + ' (типово)' : '';
     }
     function refreshCabEmptyHints() {
         CAB_OPTIONAL_COST_KEYS.forEach(function (key) {
@@ -7869,7 +7870,7 @@
         box.innerHTML = html;
         box.dataset.built = '1';
         ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
-        document.getElementById('cab-adblueEnable').addEventListener('change', fillCabAdblueDefault);
+        document.getElementById('cab-adblueEnable').addEventListener('change', syncCabAdbluePlaceholder);
         CAB_OPTIONAL_COST_KEYS.forEach(key => {
             const el = document.getElementById('cab-' + key);
             if (el) el.addEventListener('input', refreshCabEmptyHints);
@@ -8497,7 +8498,7 @@
             });
         }
         updateCabVisibility();
-        fillCabAdblueDefault();
+        syncCabAdbluePlaceholder();
         refreshCabEmptyHints();
         refreshCabOverheadSum();
         renderFleetDocs();
@@ -9303,6 +9304,22 @@
         openCabinet();
         switchCabTab('costs');
     }
+    // Ці статті вводяться в калькуляторі для рейсу, а не в кабінеті.
+    const CALC_WARNING_FIELDS = { washCost: 'wash-cost', washFreq: 'wash-freq', refFuelRate: 'ref-fuel-rate', refHours: 'ref-hours' };
+    // Перше поле з попереджень, яке видно на кроці калькулятора.
+    function calcWarningField(list) {
+        for (const item of list) {
+            const input = document.getElementById(CALC_WARNING_FIELDS[item.key]);
+            const panel = input && input.closest('.tc-step-panel');
+            if (panel && panel.id) return { input: input, step: parseInt(panel.id.replace('tc-step-panel-', ''), 10) };
+        }
+        return null;
+    }
+    function focusCalcWarningField(target) {
+        showCalcStep(target.step);
+        if (target.input.scrollIntoView) target.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.input.focus();
+    }
     // Порожні необов'язкові статті з відповіді сервера (result.warnings).
     function renderCostWarnings(result) {
         const box = document.getElementById('cost-warnings');
@@ -9316,13 +9333,27 @@
         const text = document.createElement('div');
         text.textContent = '⚠ Не заповнено: ' + list.map(function (item) { return item.label; }).join(', ') +
             '. Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'link-btn';
-        button.textContent = 'Заповнити в кабінеті';
-        button.addEventListener('click', openCostsCabinet);
         box.appendChild(text);
-        box.appendChild(button);
+        const calcOnly = list.every(function (item) { return Object.prototype.hasOwnProperty.call(CALC_WARNING_FIELDS, item.key); });
+        let action = null;
+        if (calcOnly) {
+            const target = calcWarningField(list);
+            if (target) action = { label: 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } };
+        } else if (currentOrgRole === 'owner') {
+            action = { label: 'Заповнити в кабінеті', run: openCostsCabinet };
+        } else {
+            const note = document.createElement('div');
+            note.textContent = 'Попросіть власника заповнити в кабінеті.';
+            box.appendChild(note);
+        }
+        if (action) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'link-btn';
+            button.textContent = action.label;
+            button.addEventListener('click', action.run);
+            box.appendChild(button);
+        }
         box.hidden = false;
     }
     function applyCalcResult(result, payload, routeName, requestId) {

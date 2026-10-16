@@ -95,20 +95,135 @@ test('several vehicles return each warning once', () => {
     assert.deepEqual(keys(result), ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin']);
 });
 
-test('UI shows the warning block with a cabinet button and no block without warnings', () => {
+// Мінімальний DOM для блоку попереджень: функції беремо прямо з index.html.
+function fakeElement(tag) {
+    return {
+        tag, children: [], hidden: false, className: '', type: '', id: '', listeners: {}, focused: false, panel: null,
+        _text: '',
+        get textContent() { return this._text + this.children.map((child) => child.textContent).join(''); },
+        set textContent(value) { this._text = String(value); this.children = []; },
+        appendChild(child) { this.children.push(child); return child; },
+        addEventListener(name, fn) { this.listeners[name] = fn; },
+        click() { if (this.listeners.click) this.listeners.click(); },
+        focus() { this.focused = true; },
+        scrollIntoView() {},
+        closest() { return this.panel; }
+    };
+}
+
+function warningUi({ role, fields = {} }) {
+    const start = html.indexOf('    function openCostsCabinet() {');
+    const end = html.indexOf('    function applyCalcResult(');
+    assert.ok(start > 0 && end > start);
+    const box = fakeElement('div');
+    const inputs = {};
+    for (const [id, step] of Object.entries(fields)) {
+        inputs[id] = fakeElement('input');
+        inputs[id].id = id;
+        if (step) inputs[id].panel = { id: 'tc-step-panel-' + step };
+    }
+    const calls = [];
+    const document = {
+        getElementById: (id) => (id === 'cost-warnings' ? box : inputs[id] || null),
+        createElement: fakeElement
+    };
+    const render = new Function('document', 'currentOrgRole', 'openCabinet', 'switchCabTab', 'showCalcStep',
+        html.slice(start, end) + '\nreturn renderCostWarnings;')(
+        document, role,
+        () => calls.push('openCabinet'),
+        (tab) => calls.push('tab:' + tab),
+        (step) => calls.push('step:' + step)
+    );
+    const buttons = () => box.children.filter((child) => child.tag === 'button');
+    return { box, inputs, calls, buttons, render };
+}
+
+const OVERHEAD_WARNINGS = [{ key: 'amort', label: 'Амортизація' }, { key: 'fin', label: 'Фінансові витрати (кредити)' }];
+const WARNING_TEXT = '⚠ Не заповнено: Амортизація, Фінансові витрати (кредити). Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
+const REEF_WARNINGS = [{ key: 'refHours', label: 'Години роботи рефрижератора' }, { key: 'refFuelRate', label: 'Витрата пального рефрижератора' }];
+
+test('owner sees the warning with a button to the cabinet costs tab', () => {
+    const ui = warningUi({ role: 'owner' });
+    ui.render({ warnings: OVERHEAD_WARNINGS });
+    assert.equal(ui.box.hidden, false);
+    assert.equal(ui.box.children[0].textContent, WARNING_TEXT);
+    assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в кабінеті']);
+    ui.buttons()[0].click();
+    assert.deepEqual(ui.calls, ['openCabinet', 'tab:costs']);
+});
+
+test('logist gets a note instead of the cabinet button', () => {
+    const ui = warningUi({ role: 'logist' });
+    ui.render({ warnings: OVERHEAD_WARNINGS });
+    assert.equal(ui.box.hidden, false);
+    assert.equal(ui.buttons().length, 0);
+    assert.equal(ui.box.textContent, WARNING_TEXT + 'Попросіть власника заповнити в кабінеті.');
+});
+
+test('trip-only warnings focus the calculator field instead of the cabinet', () => {
+    for (const role of ['owner', 'logist']) {
+        const ui = warningUi({ role, fields: { 'ref-fuel-rate': 4, 'ref-hours': 4 } });
+        ui.render({ warnings: REEF_WARNINGS });
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
+        ui.buttons()[0].click();
+        assert.deepEqual(ui.calls, ['step:4']);
+        assert.equal(ui.inputs['ref-hours'].focused, true);
+        assert.equal(ui.inputs['ref-fuel-rate'].focused, false);
+    }
+});
+
+test('a trip field that is on no calculator step gets no button', () => {
+    // wash-cost / wash-freq зараз лише в прихованому #main-sync-fields.
+    const ui = warningUi({ role: 'owner', fields: { 'wash-cost': 0, 'wash-freq': 0 } });
+    ui.render({ warnings: [{ key: 'washCost', label: 'Вартість промивки цистерни' }, { key: 'washFreq', label: 'Промивок на рік' }] });
+    assert.equal(ui.box.hidden, false);
+    assert.equal(ui.buttons().length, 0);
+    assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
+});
+
+test('mixed warnings: owner goes to the cabinet, logist gets the note', () => {
+    const mixed = [{ key: 'refFuelRate', label: 'Витрата пального рефрижератора' }, { key: 'amort', label: 'Амортизація' }];
+    const owner = warningUi({ role: 'owner', fields: { 'ref-fuel-rate': 4 } });
+    owner.render({ warnings: mixed });
+    assert.deepEqual(owner.buttons().map((b) => b.textContent), ['Заповнити в кабінеті']);
+    const logist = warningUi({ role: 'logist', fields: { 'ref-fuel-rate': 4 } });
+    logist.render({ warnings: mixed });
+    assert.equal(logist.buttons().length, 0);
+    assert.match(logist.box.textContent, /Попросіть власника заповнити в кабінеті\.$/);
+});
+
+test('no warnings, no block', () => {
+    const ui = warningUi({ role: 'owner' });
+    ui.render({ warnings: OVERHEAD_WARNINGS });
+    ui.render({ warnings: [] });
+    assert.equal(ui.box.hidden, true);
+    assert.equal(ui.box.children.length, 0);
+    ui.render(null);
+    assert.equal(ui.box.hidden, true);
     assert.match(html, /<div class="tc-cost-warn" id="cost-warnings" role="status" hidden><\/div>/);
-    assert.match(html, /'⚠ Не заповнено: ' \+ list\.map\(function \(item\) \{ return item\.label; \}\)\.join\(', '\) \+\s*'\. Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений\.'/);
-    assert.match(html, /button\.textContent = 'Заповнити в кабінеті';/);
-    assert.match(html, /function openCostsCabinet\(\) \{\s*openCabinet\(\);\s*switchCabTab\('costs'\);/);
-    assert.match(html, /if \(!list\.length\) \{\s*box\.hidden = true;/);
     assert.match(html, /renderCostWarnings\(result\);\s*renderChart\(/);
     assert.match(html, /function clearCalcVisuals\(\) \{\s*paintProfitHero\(null\);\s*renderCostWarnings\(null\);/);
 });
 
-test('cabinet: AdBlue rate defaults to 2.5, starter template keeps S0 at 2.85', () => {
+test('cabinet shows 2.5 as a placeholder and never writes it into the field', () => {
+    const start = html.indexOf('    function syncCabAdbluePlaceholder() {');
+    const end = html.indexOf('    function refreshCabEmptyHints() {');
+    assert.ok(start > 0 && end > start);
+    const fields = { 'cab-adblueEnable': { value: 'on' }, 'cab-adblueConsumption': { value: '', placeholder: '' } };
+    const sync = new Function('document', 'DEFAULT_ADBLUE_RATE', html.slice(start, end) + '\nreturn syncCabAdbluePlaceholder;')(
+        { getElementById: (id) => fields[id] || null }, 2.5);
+    sync();
+    assert.equal(fields['cab-adblueConsumption'].placeholder, '2.5 (типово)');
+    assert.equal(fields['cab-adblueConsumption'].value, '');
+    fields['cab-adblueEnable'].value = 'off';
+    sync();
+    assert.equal(fields['cab-adblueConsumption'].placeholder, '');
+    assert.equal(fields['cab-adblueConsumption'].value, '');
     assert.match(html, /const DEFAULT_ADBLUE_RATE = 2\.5;/);
-    assert.match(html, /enable\.value === 'on' && !\(parseFloat\(rate\.value\) > 0\)\) rate\.value = DEFAULT_ADBLUE_RATE;/);
-    assert.match(html, /addEventListener\('change', fillCabAdblueDefault\)/);
+    assert.match(html, /addEventListener\('change', syncCabAdbluePlaceholder\)/);
+    assert.doesNotMatch(html, /fillCabAdblueDefault|rate\.value = DEFAULT_ADBLUE_RATE/);
+    // Стартовий шаблон лишається 2.85, тому S0 не змінюється.
     assert.match(html, /adblueConsumption: 2\.85,/);
 });
 
@@ -122,5 +237,5 @@ test('cabinet highlights empty optional costs', () => {
         assert.doesNotMatch(list, new RegExp("'" + required + "'"));
     }
     assert.match(html, /row\.classList\.toggle\('is-empty-cost', empty\);/);
-    assert.match(html, /fillCabAdblueDefault\(\);\s*refreshCabEmptyHints\(\);/);
+    assert.match(html, /syncCabAdbluePlaceholder\(\);\s*refreshCabEmptyHints\(\);/);
 });
