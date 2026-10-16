@@ -1089,6 +1089,7 @@
         }
         .tc-cost-warn[hidden] { display: none; }
         .tc-cost-warn .link-btn { margin: 6px 14px 0 0; color: var(--warning); }
+        .tc-cost-warn-short { display: none; }
         #vehicle-breakdown table { width: 100%; font-size: 0.78rem; border-collapse: collapse; }
         #vehicle-breakdown th, #vehicle-breakdown td {
             text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border-color); white-space: normal;
@@ -3533,6 +3534,13 @@
             }
             body.layout-studio #dispatcher-result:not(.is-open) .tc-unit-row > div:not(:first-child),
             body.layout-studio #dispatcher-result:not(.is-open) #kpi-breakeven-chip { display: none !important; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-cost-warn { margin: 6px 0 0; padding: 0; border: none; background: none; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-cost-warn-full { display: none; }
+            body.layout-studio #dispatcher-result:not(.is-open) .tc-cost-warn-short {
+                display: block; width: 100%; min-height: 32px; padding: 6px 10px; text-align: left;
+                border: 1px solid var(--warning); border-radius: 8px; background: rgba(251, 191, 36, 0.12);
+                color: var(--warning); font: inherit; font-size: 0.8rem; cursor: pointer;
+            }
             body.layout-studio #dispatcher-result.is-open {
                 max-height: calc(100dvh - 24px) !important;
                 overflow-y: auto !important;
@@ -9307,6 +9315,7 @@
         box.appendChild(table);
     }
     function openCostsCabinet() {
+        toggleResultDock(false);
         openCabinet();
         switchCabTab('costs');
     }
@@ -9322,6 +9331,7 @@
         return null;
     }
     function focusCalcWarningField(target) {
+        toggleResultDock(false); // на мобільному розгорнутий док закрив би поле
         showCalcStep(target.step);
         if (target.input.scrollIntoView) target.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.input.focus();
@@ -9336,10 +9346,20 @@
             box.hidden = true;
             return;
         }
+        // На мобільному в згорнутому доку видно лише короткий рядок; повний текст — після розгортання.
+        const short = document.createElement('button');
+        short.type = 'button';
+        short.className = 'tc-cost-warn-short';
+        short.textContent = '⚠ Не заповнено: ' + list.length + ' ' + plural(list.length, ['стаття', 'статті', 'статей']);
+        short.addEventListener('click', function () { toggleResultDock(true); });
+        box.appendChild(short);
+        const full = document.createElement('div');
+        full.className = 'tc-cost-warn-full';
+        box.appendChild(full);
         const text = document.createElement('div');
         text.textContent = '⚠ Не заповнено: ' + list.map(function (item) { return item.label; }).join(', ') +
             '. Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
-        box.appendChild(text);
+        full.appendChild(text);
         // Статті кабінету заповнює власник; поля рейсу (промивка, реф) — будь-хто в калькуляторі.
         const hasCabinet = list.some(function (item) { return !Object.prototype.hasOwnProperty.call(CALC_WARNING_FIELDS, item.key); });
         const target = calcWarningField(list);
@@ -9349,7 +9369,7 @@
         } else if (hasCabinet) {
             const note = document.createElement('div');
             note.textContent = 'Попросіть власника заповнити в кабінеті.';
-            box.appendChild(note);
+            full.appendChild(note);
         }
         if (target) actions.push({ label: 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } });
         actions.forEach(function (action) {
@@ -9358,7 +9378,7 @@
             button.className = 'link-btn';
             button.textContent = action.label;
             button.addEventListener('click', action.run);
-            box.appendChild(button);
+            full.appendChild(button);
         });
         box.hidden = false;
     }

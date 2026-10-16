@@ -127,15 +127,21 @@ function warningUi({ role, fields = {} }) {
         getElementById: (id) => (id === 'cost-warnings' ? box : inputs[id] || null),
         createElement: fakeElement
     };
-    const render = new Function('document', 'currentOrgRole', 'openCabinet', 'switchCabTab', 'showCalcStep',
+    const dock = [];
+    const plural = (n, forms) => (n % 10 === 1 && n % 100 !== 11 ? forms[0] : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? forms[1] : forms[2]);
+    const render = new Function('document', 'currentOrgRole', 'openCabinet', 'switchCabTab', 'showCalcStep', 'toggleResultDock', 'plural',
         html.slice(start, end) + '\nreturn renderCostWarnings;')(
         document, role,
         () => calls.push('openCabinet'),
         (tab) => calls.push('tab:' + tab),
-        (step) => calls.push('step:' + step)
+        (step) => calls.push('step:' + step),
+        (open) => dock.push(open),
+        plural
     );
-    const buttons = () => box.children.filter((child) => child.tag === 'button');
-    return { box, inputs, calls, buttons, render };
+    const full = () => box.children.find((child) => child.className === 'tc-cost-warn-full');
+    const short = () => box.children.find((child) => child.className === 'tc-cost-warn-short');
+    const buttons = () => full().children.filter((child) => child.tag === 'button');
+    return { box, inputs, calls, dock, full, short, buttons, render };
 }
 
 const OVERHEAD_WARNINGS = [{ key: 'amort', label: 'Амортизація' }, { key: 'fin', label: 'Фінансові витрати (кредити)' }];
@@ -146,7 +152,7 @@ test('owner sees the warning with a button to the cabinet costs tab', () => {
     const ui = warningUi({ role: 'owner' });
     ui.render({ warnings: OVERHEAD_WARNINGS });
     assert.equal(ui.box.hidden, false);
-    assert.equal(ui.box.children[0].textContent, WARNING_TEXT);
+    assert.equal(ui.full().children[0].textContent, WARNING_TEXT);
     assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в кабінеті']);
     ui.buttons()[0].click();
     assert.deepEqual(ui.calls, ['openCabinet', 'tab:costs']);
@@ -157,7 +163,7 @@ test('logist gets a note instead of the cabinet button', () => {
     ui.render({ warnings: OVERHEAD_WARNINGS });
     assert.equal(ui.box.hidden, false);
     assert.equal(ui.buttons().length, 0);
-    assert.equal(ui.box.textContent, WARNING_TEXT + 'Попросіть власника заповнити в кабінеті.');
+    assert.equal(ui.full().textContent, WARNING_TEXT + 'Попросіть власника заповнити в кабінеті.');
 });
 
 test('trip-only warnings focus the calculator field instead of the cabinet', () => {
@@ -165,7 +171,7 @@ test('trip-only warnings focus the calculator field instead of the cabinet', () 
         const ui = warningUi({ role, fields: { 'ref-fuel-rate': 4, 'ref-hours': 4 } });
         ui.render({ warnings: REEF_WARNINGS });
         assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
-        assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
+        assert.equal(ui.full().textContent.includes('Попросіть власника'), false);
         ui.buttons()[0].click();
         assert.deepEqual(ui.calls, ['step:4']);
         assert.equal(ui.inputs['ref-hours'].focused, true);
@@ -204,7 +210,7 @@ test('a trip field that is on no calculator step gets no button', () => {
     ui.render({ warnings: [{ key: 'refFuelRate', label: 'Витрата пального рефрижератора' }] });
     assert.equal(ui.box.hidden, false);
     assert.equal(ui.buttons().length, 0);
-    assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
+    assert.equal(ui.full().textContent.includes('Попросіть власника'), false);
 });
 
 const MIXED_WARNINGS = [
@@ -217,7 +223,7 @@ test('mixed warnings: owner gets both the cabinet and the calculator button', ()
     const ui = warningUi({ role: 'owner', fields: { 'wash-cost': 4, 'wash-freq': 4 } });
     ui.render({ warnings: MIXED_WARNINGS });
     assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в кабінеті', 'Заповнити в калькуляторі']);
-    assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
+    assert.equal(ui.full().textContent.includes('Попросіть власника'), false);
     ui.buttons()[1].click();
     assert.deepEqual(ui.calls, ['step:4']);
     assert.equal(ui.inputs['wash-cost'].focused, true);
@@ -229,10 +235,34 @@ test('mixed warnings: logist gets the note and the calculator button', () => {
     const ui = warningUi({ role: 'logist', fields: { 'ref-fuel-rate': 4, 'ref-hours': 4 } });
     ui.render({ warnings: [{ key: 'fin', label: 'Фінансові витрати (кредити)' }, { key: 'refHours', label: 'Години роботи рефрижератора' }] });
     assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
-    assert.equal(ui.box.children[1].textContent, 'Попросіть власника заповнити в кабінеті.');
+    assert.equal(ui.full().children[1].textContent, 'Попросіть власника заповнити в кабінеті.');
     ui.buttons()[0].click();
     assert.equal(ui.inputs['ref-hours'].focused, true);
     assert.equal(ui.inputs['ref-fuel-rate'].focused, false);
+});
+
+test('mobile: the collapsed dock shows only a short line that opens the dock', () => {
+    const ui = warningUi({ role: 'owner', fields: { 'wash-cost': 4, 'wash-freq': 4 } });
+    ui.render({ warnings: MIXED_WARNINGS });
+    assert.equal(ui.short().textContent, '⚠ Не заповнено: 3 статті');
+    assert.equal(ui.short().type, 'button');
+    ui.short().click();
+    assert.deepEqual(ui.dock, [true]);
+    // Обидві дії згортають док перед переходом.
+    ui.buttons()[1].click();
+    ui.buttons()[0].click();
+    assert.deepEqual(ui.dock, [true, false, false]);
+    const one = warningUi({ role: 'owner' });
+    one.render({ warnings: [{ key: 'amort', label: 'Амортизація' }] });
+    assert.equal(one.short().textContent, '⚠ Не заповнено: 1 стаття');
+    const many = warningUi({ role: 'owner' });
+    many.render({ warnings: calculateTrip(S0).warnings });
+    assert.equal(many.short().textContent, '⚠ Не заповнено: 6 статей');
+    // Короткий рядок видно лише на мобільному в згорнутому доку, повний текст там сховано.
+    assert.match(html, /\.tc-cost-warn-short \{ display: none; \}/);
+    const mobile = html.slice(html.indexOf('/* Док результату: згорнутий'), html.indexOf('/* Док результату: згорнутий') + 6000);
+    assert.match(mobile, /#dispatcher-result:not\(\.is-open\) \.tc-cost-warn-full \{ display: none; \}/);
+    assert.match(mobile, /#dispatcher-result:not\(\.is-open\) \.tc-cost-warn-short \{\s*display: block;/);
 });
 
 test('step 4 labels focus their inputs', () => {
