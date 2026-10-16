@@ -105,7 +105,12 @@ function callback(data, overrides = {}) {
             id: 'cb-1',
             from: overrides.from || ownerFrom,
             data,
-            message: { message_id: 55, chat: overrides.chat || ownerChat, text: signupMessage({ email: 'driver@agro.ua', user_metadata: { company_name: 'ТОВ Агро' } }, null) }
+            message: {
+                message_id: 55,
+                chat: overrides.chat || ownerChat,
+                text: signupMessage({ email: 'driver@agro.ua', user_metadata: { company_name: 'ТОВ Агро' } }, null),
+                reply_markup: statusKeyboard(USER)
+            }
         }
     };
 }
@@ -219,7 +224,7 @@ test('status buttons switch demo → full → blocked → demo through the share
     assert.equal(edit.body.message_id, 55);
     assert.match(edit.body.text, /🆕 Нова реєстрація/);
     assert.match(edit.body.text, /\nСтатус: Повний доступ · 16\.10\.2026, 14:05$/);
-    assert.deepEqual(edit.body.reply_markup, statusKeyboard(USER), 'buttons stay for another change');
+    assert.deepEqual(edit.body.reply_markup, { inline_keyboard: [] }, 'buttons are removed after a successful change');
 
     res = await h.send(callback('st:blocked:' + USER));
     assert.equal(db.auth[USER].banned_until !== null, true);
@@ -235,6 +240,9 @@ test('status buttons switch demo → full → blocked → demo through the share
     assert.equal(db.audit[2].detail.previous, 'blocked');
     const lastText = h.calls.filter((c) => c.method === 'editMessageText').at(-1).body.text;
     assert.equal(lastText.match(/Статус: /g).length, 1, 'status line is replaced, not stacked');
+    const edits = h.calls.filter((c) => c.method === 'editMessageText');
+    assert.equal(edits.length, 3);
+    for (const e of edits) assert.deepEqual(e.body.reply_markup, { inline_keyboard: [] }, 'no buttons after each change');
 });
 
 test('the admin account cannot be changed from Telegram', async () => {
@@ -255,6 +263,7 @@ test('errors reach the chat as a short message without internals', async () => {
     const answer = h.calls.find((c) => c.method === 'answerCallbackQuery');
     assert.equal(answer.body.text, 'Не вдалося змінити статус. Спробуйте ще раз.');
     assert.equal(JSON.stringify(h.calls).includes('exploded'), false);
+    assert.equal(h.calls.some((c) => /^editMessage/.test(c.method)), false, 'on error the message and its buttons stay as they were');
 
     const bad = await h.send(callback('st:root:' + USER));
     assert.equal(bad.code, 200);
