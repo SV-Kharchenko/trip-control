@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -86,6 +87,9 @@ async function requireUser(req, options = {}) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
         throw new HttpError(401, 'BAD_TOKEN', 'Недійсний токен.');
+    }
+    if (userIsBlocked(user)) {
+        throw new HttpError(403, USER_BLOCKED_ERROR.code, USER_BLOCKED_ERROR.error);
     }
 
     const { data: profile, error: profileError } = await supabase

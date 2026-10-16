@@ -85,7 +85,8 @@ test('view switch is display-only and does not rewrite the org role', () => {
 test('avatar menu closes from Escape and an outside click, and does not calculate', () => {
     const menu = sliceBetween(html, 'function menuGo(action)', 'function openHeaderCompany()');
     assert.equal(menu.includes('calculate('), false);
-    assert.match(menu, /mailto:support@trip-control.com/);
+    assert.match(menu, /action === 'help'\) openHelpModal\(\)/);
+    assert.equal(menu.includes('mailto:support@trip-control.com'), false);
     assert.match(menu, /switchCabTab\('company'\)|openHeaderCompany\(\)/);
     assert.match(menu, /switchCabTab\('docs'\)/);
     assert.match(menu, /switchCabTab\('costs'\)/);
