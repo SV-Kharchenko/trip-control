@@ -4122,6 +4122,16 @@
                     <input type="number" id="ref-hours" oninput="calculate()">
                     <span class="unit">годин/рейс</span>
                 </div>
+                <div class="form-row dynamic-field" id="field-wash-cost">
+                    <label>Вартість промивки цистерни:</label>
+                    <input type="number" id="wash-cost" oninput="calculate()">
+                    <span class="unit">грн</span>
+                </div>
+                <div class="form-row dynamic-field" id="field-wash-freq">
+                    <label>Промивок на рік:</label>
+                    <input type="number" id="wash-freq" oninput="calculate()">
+                    <span class="unit">раз/рік</span>
+                </div>
 
                 <div class="form-row">
                     <label>Подача авто (км):</label>
@@ -4393,12 +4403,6 @@
         <div id="fuel-summary-box"></div>
         <input type="number" id="to-cost" oninput="calculate()">
         <input type="number" id="to-period" oninput="calculate()">
-        <div class="form-row dynamic-field" id="field-wash-cost">
-            <input type="number" id="wash-cost" oninput="calculate()">
-        </div>
-        <div class="form-row dynamic-field" id="field-wash-freq">
-            <input type="number" id="wash-freq" oninput="calculate()">
-        </div>
         <input type="number" id="tire-cost" oninput="calculate()">
         <input type="number" id="tire-count" oninput="calculate()">
         <input type="number" id="tire-mileage" oninput="calculate()">
@@ -5324,6 +5328,8 @@
         take(4, rowOf('road-quality'));
         take(4, rowOf('ref-fuel-rate'));
         take(4, rowOf('ref-hours'));
+        take(4, rowOf('wash-cost'));
+        take(4, rowOf('wash-freq'));
         take(4, rowOf('idle-days'));
         take(4, rowOf('idle-rate'));
         take(4, rowOf('round-trip-enable'));

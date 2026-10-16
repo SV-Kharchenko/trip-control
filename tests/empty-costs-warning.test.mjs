@@ -173,10 +173,35 @@ test('trip-only warnings focus the calculator field instead of the cabinet', () 
     }
 });
 
+test('tank with empty wash: the button focuses wash-cost on step 4', () => {
+    for (const role of ['owner', 'logist']) {
+        const ui = warningUi({ role, fields: { 'wash-cost': 4, 'wash-freq': 4 } });
+        ui.render({ warnings: [{ key: 'washCost', label: 'Вартість промивки цистерни' }, { key: 'washFreq', label: 'Промивок на рік' }] });
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        ui.buttons()[0].click();
+        assert.deepEqual(ui.calls, ['step:4']);
+        assert.equal(ui.inputs['wash-cost'].focused, true);
+        assert.equal(ui.inputs['wash-freq'].focused, false);
+    }
+});
+
+test('wash fields live on calculator step 4 next to the reefer fields', () => {
+    const sync = html.slice(html.indexOf('<div id="main-sync-fields"'), html.indexOf('<div class="card" id="saved-section"'));
+    assert.ok(sync.length > 0);
+    assert.doesNotMatch(sync, /wash-cost|wash-freq/);
+    assert.match(html, /id="ref-hours"[\s\S]{0,200}<div class="form-row dynamic-field" id="field-wash-cost">\s*<label>Вартість промивки цистерни:<\/label>\s*<input type="number" id="wash-cost" oninput="calculate\(\)">/);
+    assert.match(html, /<div class="form-row dynamic-field" id="field-wash-freq">\s*<label>Промивок на рік:<\/label>\s*<input type="number" id="wash-freq" oninput="calculate\(\)">/);
+    assert.match(html, /take\(4, rowOf\('ref-hours'\)\);\s*take\(4, rowOf\('wash-cost'\)\);\s*take\(4, rowOf\('wash-freq'\)\);/);
+    // Видимість лише для цистерни — наявна логіка .dynamic-field.active.
+    assert.match(html, /if \(trailer === 'цистерна'\) \{ washCost\.classList\.add\('active'\); washFreq\.classList\.add\('active'\); \}/);
+    // Payload і відкриття збереженого розрахунку читають ті самі id.
+    assert.match(html, /washCost: document\.getElementById\('wash-cost'\) \? document\.getElementById\('wash-cost'\)\.value : 0,/);
+    assert.match(html, /\['washCost', 'wash-cost'\], \['washFreq', 'wash-freq'\]/);
+});
+
 test('a trip field that is on no calculator step gets no button', () => {
-    // wash-cost / wash-freq зараз лише в прихованому #main-sync-fields.
-    const ui = warningUi({ role: 'owner', fields: { 'wash-cost': 0, 'wash-freq': 0 } });
-    ui.render({ warnings: [{ key: 'washCost', label: 'Вартість промивки цистерни' }, { key: 'washFreq', label: 'Промивок на рік' }] });
+    const ui = warningUi({ role: 'owner', fields: { 'ref-fuel-rate': 0 } });
+    ui.render({ warnings: [{ key: 'refFuelRate', label: 'Витрата пального рефрижератора' }] });
     assert.equal(ui.box.hidden, false);
     assert.equal(ui.buttons().length, 0);
     assert.equal(ui.box.textContent.includes('Попросіть власника'), false);
