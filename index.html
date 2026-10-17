@@ -973,6 +973,29 @@
             color: var(--on-accent); background: var(--accent); border-color: var(--accent);
             -webkit-text-fill-color: var(--on-accent);
         }
+        /* Запрошення в команду: банер над формою або окремий екран після входу */
+        .auth-invite {
+            margin: 0 0 16px; padding: 14px; border: 1px solid var(--border-color); border-radius: 12px;
+            background: var(--input-bg); text-align: left;
+        }
+        .auth-invite[hidden] { display: none; }
+        .auth-invite-kicker { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+        .auth-invite-title { margin-top: 4px; font-size: 1.05rem; font-weight: 700; line-height: 1.3; color: var(--text-main); overflow-wrap: anywhere; }
+        .auth-invite-text { margin: 6px 0 0; font-size: 0.82rem; line-height: 1.45; color: var(--text-muted); overflow-wrap: anywhere; }
+        .auth-invite-text b { color: var(--text-main); }
+        .auth-invite-text.is-error { color: var(--warning-text, var(--warning)); }
+        .auth-invite-actions { display: grid; gap: 8px; margin-top: 12px; }
+        .auth-invite-actions:empty { display: none; }
+        .auth-invite-actions .btn { width: 100%; margin: 0; }
+        .auth-invite-actions .btn.is-secondary,
+        .auth-invite-actions .btn.is-secondary:hover {
+            background: transparent; color: var(--text-main); -webkit-text-fill-color: var(--text-main);
+            border: 1px solid var(--border-color); box-shadow: none;
+        }
+        /* «Після реєстрації — демо» стосується власної компанії, не вступу в чужу. */
+        .auth-card:has(.auth-invite:not([hidden])) .auth-tagline-sub { display: none; }
+        #auth-form.is-invite .auth-owner-only { display: none !important; }
+        #auth-form.is-invite #auth-email[readonly] { opacity: 0.8; cursor: not-allowed; }
         .auth-mode-title {
             margin: 2px 0 8px; color: var(--text-muted); font-size: 0.74rem; text-align: left; font-weight: 700;
         }
@@ -2602,6 +2625,13 @@
             box-shadow: none;
             filter: none;
         }
+        body[data-theme="light"] #auth-screen .auth-invite-actions .btn.is-secondary,
+        body[data-theme="light"] #auth-screen .auth-invite-actions .btn.is-secondary:hover {
+            background: var(--surface);
+            color: var(--text);
+            -webkit-text-fill-color: var(--text);
+            border: 1px solid var(--border);
+        }
         body[data-theme="light"] #auth-back-btn {
             background: var(--surface) !important;
             color: var(--text) !important;
@@ -3688,6 +3718,12 @@
         <p class="auth-tagline">Координуй маршрут. Керуй результатом.</p>
         <p class="auth-tagline-sub">Після реєстрації — демо: <b>5 розрахунків на добу</b>.</p>
         <div class="auth-divider"></div>
+        <section class="auth-invite" id="auth-invite" aria-live="polite" hidden>
+            <div class="auth-invite-kicker" id="auth-invite-kicker">Запрошення в команду</div>
+            <div class="auth-invite-title" id="auth-invite-title"></div>
+            <p class="auth-invite-text" id="auth-invite-text"></p>
+            <div class="auth-invite-actions" id="auth-invite-actions"></div>
+        </section>
         <div class="auth-tabs" role="tablist" aria-label="Вхід або реєстрація">
             <button type="button" id="auth-tab-login" class="on" role="tab" aria-selected="true" aria-controls="auth-form" onclick="setAuthTab('login')">Вхід</button>
             <button type="button" id="auth-tab-signup" role="tab" aria-selected="false" aria-controls="auth-form" onclick="setAuthTab('signup')">Реєстрація</button>
@@ -3716,12 +3752,12 @@
             </div>
             <button type="button" class="auth-forgot" id="auth-forgot-btn" onclick="enterResetMode()">Забули пароль?</button>
             <div id="signup-extra">
-                <div class="form-row two-cols" style="margin-bottom: 12px; grid-template-columns: 1fr;">
+                <div class="form-row two-cols auth-owner-only" style="margin-bottom: 12px; grid-template-columns: 1fr;">
                     <label class="visually-hidden" for="auth-company">Назва компанії або ФОП</label>
                     <input type="text" id="auth-company" name="organization" placeholder="Назва компанії або ФОП" maxlength="100" autocomplete="organization">
                 </div>
-                <div class="auth-mode-title">Як ви працюєте?</div>
-                <div class="auth-mode-grid" role="radiogroup" aria-label="Режим роботи">
+                <div class="auth-mode-title auth-owner-only">Як ви працюєте?</div>
+                <div class="auth-mode-grid auth-owner-only" role="radiogroup" aria-label="Режим роботи">
                     <label class="auth-mode-card">
                         <input type="radio" name="work-mode" value="solo">
                         <strong>👤 Сам</strong>
@@ -3733,7 +3769,7 @@
                         <small>Окремі входи, ролі, автори розрахунків і контроль доступу.</small>
                     </label>
                 </div>
-                <div class="form-row two-cols" style="margin-bottom: 10px; grid-template-columns: 1fr;">
+                <div class="form-row two-cols auth-owner-only" style="margin-bottom: 10px; grid-template-columns: 1fr;">
                     <label class="visually-hidden" for="auth-ownership">Форма власності</label>
                     <select id="auth-ownership" name="ownership" autocomplete="organization" onchange="syncSignupTaxOptions()">
                         <option value="fop" selected>Форма власності: ФОП</option>
@@ -3741,7 +3777,7 @@
                         <option value="other">Форма власності: інше</option>
                     </select>
                 </div>
-                <div class="form-row two-cols" style="margin-bottom: 16px; grid-template-columns: 1fr;">
+                <div class="form-row two-cols auth-owner-only" style="margin-bottom: 16px; grid-template-columns: 1fr;">
                     <label class="visually-hidden" for="auth-tax">Система оподаткування</label>
                     <select id="auth-tax" name="tax" autocomplete="off">
                         <option value="безготівковий">Безготівковий (з ПДВ)</option>
@@ -5916,6 +5952,286 @@
         }
     }
 
+    // ---------- Запрошення в команду ----------
+    // ?team_invite=<підписане посилання з листа>. До входу — банер і коротка реєстрація,
+    // після входу — екран «Приєднатися / Відхилити».
+    const INVITE_NOTICE_KEY = 'tc_invite_notice';
+    const INVITE_SNOOZE_KEY = 'tc_invite_snoozed';
+    const INVITE_STATUS_TEXT = {
+        accepted: 'Це запрошення вже прийнято.',
+        declined: 'Це запрошення відхилено. Попросіть власника надіслати нове.',
+        expired: 'Термін дії запрошення минув. Попросіть власника надіслати нове.',
+        revoked: 'Власник скасував це запрошення.',
+        unavailable: 'Компанія зараз недоступна.'
+    };
+    let inviteInfoCache = null;
+    let inviteFlowBusy = false;
+
+    function urlInviteToken() {
+        try { return new URLSearchParams(location.search).get('team_invite') || ''; } catch (e) { return ''; }
+    }
+    function clearUrlInviteToken() {
+        try {
+            const clean = new URL(location.href);
+            clean.searchParams.delete('team_invite');
+            history.replaceState(null, '', clean.pathname + clean.search + clean.hash);
+        } catch (e) {}
+        inviteInfoCache = null;
+    }
+    // Повідомлення переживає перезавантаження після «Приєднатися» / «Відхилити».
+    function rememberInviteNotice(text) {
+        try { sessionStorage.setItem(INVITE_NOTICE_KEY, String(text || '')); } catch (e) {}
+    }
+    function takeInviteNotice() {
+        try {
+            const text = sessionStorage.getItem(INVITE_NOTICE_KEY) || '';
+            sessionStorage.removeItem(INVITE_NOTICE_KEY);
+            return text;
+        } catch (e) { return ''; }
+    }
+    // «Продовжити без приєднання» ховає запрошення до кінця сесії браузера.
+    function inviteSnoozed(inviteId) {
+        try { return (sessionStorage.getItem(INVITE_SNOOZE_KEY) || '').split(',').indexOf(inviteId) >= 0; } catch (e) { return false; }
+    }
+    function snoozeInvite(inviteId) {
+        try {
+            const list = (sessionStorage.getItem(INVITE_SNOOZE_KEY) || '').split(',').filter(Boolean);
+            if (list.indexOf(inviteId) < 0) list.push(inviteId);
+            sessionStorage.setItem(INVITE_SNOOZE_KEY, list.join(','));
+        } catch (e) {}
+    }
+
+    // Без сесії: лише підписане посилання.
+    async function fetchInviteInfo(token) {
+        if (inviteInfoCache && inviteInfoCache.token === token) return inviteInfoCache.info;
+        const response = await fetch('/api/team', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'invite_info', token: token })
+        });
+        const json = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            const error = new Error(json.error || 'Не вдалося перевірити запрошення.');
+            error.code = json.code || 'INVITE_INFO_FAILED';
+            throw error;
+        }
+        inviteInfoCache = { token: token, info: json };
+        return json;
+    }
+
+    // Що показати юзеру з сесією: inactive / mismatch / auto_accept / join.
+    // auto_accept — щойно зареєстрований саме за цим запрошенням (invite_id у метаданих signUp).
+    function inviteDecision(info, user) {
+        if (!info || info.status !== 'sent') return 'inactive';
+        const email = String((user && user.email) || '').trim().toLowerCase();
+        if (email !== String(info.email || '').trim().toLowerCase()) return 'mismatch';
+        const meta = (user && user.user_metadata) || {};
+        if (meta.invite_id && meta.invite_id === info.invite_id) return 'auto_accept';
+        return 'join';
+    }
+    function inviteCompanyTitle(info) {
+        return 'Вас запросили в «' + ((info && info.org_name) || 'компанію') + '»';
+    }
+    function inviteJoinText(info) {
+        return (info.inviter_email ? 'Запросив: ' + info.inviter_email + '. ' : '') +
+            'Ви приєднаєтеся як логіст: рахуєте рейси компанії за її нормами, налаштування задає власник.';
+    }
+    function renderInviteBox(options) {
+        const box = document.getElementById('auth-invite');
+        if (!box) return;
+        document.getElementById('auth-invite-kicker').textContent = options.kicker || 'Запрошення в команду';
+        document.getElementById('auth-invite-title').textContent = options.title || '';
+        const text = document.getElementById('auth-invite-text');
+        text.textContent = options.text || '';
+        text.classList.toggle('is-error', options.error === true);
+        const actions = document.getElementById('auth-invite-actions');
+        actions.textContent = '';
+        (options.actions || []).forEach(function (action) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn ' + (action.primary ? 'btn-success' : 'is-secondary');
+            button.textContent = action.label;
+            button.addEventListener('click', function () {
+                actions.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+                action.run();
+            });
+            actions.appendChild(button);
+        });
+        box.hidden = false;
+    }
+    function hideInviteBox() {
+        const box = document.getElementById('auth-invite');
+        if (box) box.hidden = true;
+        const form = document.getElementById('auth-form');
+        if (form) form.classList.remove('is-invite');
+        const email = document.getElementById('auth-email');
+        if (email) email.readOnly = false;
+    }
+    // Після входу: форму входу ховаємо, лишаємо запрошення і його кнопки.
+    function showInviteScreen(options) {
+        document.getElementById('auth-screen').style.display = 'flex';
+        document.getElementById('main-app').style.display = 'none';
+        document.getElementById('auth-form').hidden = true;
+        document.getElementById('auth-recovery-form').hidden = true;
+        setAuthTabsVisible(false);
+        document.getElementById('logout-btn').style.display = 'none';
+        document.getElementById('auth-message').innerText = '';
+        renderInviteBox(options);
+    }
+    function continueWithoutInvite(info) {
+        if (info && info.invite_id) snoozeInvite(info.invite_id);
+        clearUrlInviteToken();
+        checkUserAccess();
+    }
+    async function acceptInviteFromScreen(token, info) {
+        showInviteScreen({ title: inviteCompanyTitle(info), text: 'Приєднуємо…' });
+        try {
+            await teamApi('POST', { action: 'accept', token: token });
+            clearUrlInviteToken();
+            rememberInviteNotice('Ви приєдналися до «' + (info.org_name || 'компанії') + '» як логіст.');
+            location.reload();
+        } catch (error) {
+            showInviteScreen({
+                title: inviteCompanyTitle(info),
+                text: error.message || 'Не вдалося приєднатися.',
+                error: true,
+                actions: [
+                    { label: 'Продовжити без приєднання', run: function () { continueWithoutInvite(info); } },
+                    { label: 'Відхилити запрошення', run: function () { declineInviteFromScreen(token, info); } }
+                ]
+            });
+        }
+    }
+    async function declineInviteFromScreen(token, info) {
+        try {
+            await teamApi('POST', { action: 'decline', token: token });
+            clearUrlInviteToken();
+            rememberInviteNotice('Запрошення в «' + (info.org_name || 'компанію') + '» відхилено.');
+            location.reload();
+        } catch (error) {
+            showInviteScreen({
+                title: inviteCompanyTitle(info),
+                text: error.message || 'Не вдалося відхилити запрошення.',
+                error: true,
+                actions: [{ label: 'Продовжити', run: function () { continueWithoutInvite(info); } }]
+            });
+        }
+    }
+    function showInviteJoin(token, info) {
+        showInviteScreen({
+            title: inviteCompanyTitle(info),
+            text: inviteJoinText(info),
+            actions: [
+                { label: 'Приєднатися', primary: true, run: function () { acceptInviteFromScreen(token, info); } },
+                { label: 'Відхилити', run: function () { declineInviteFromScreen(token, info); } }
+            ]
+        });
+    }
+    function showInviteMismatch(info, user) {
+        const current = (user && user.email) || '—';
+        showInviteScreen({
+            kicker: 'Запрошення для іншого email',
+            title: inviteCompanyTitle(info),
+            text: 'Запрошення надіслано на ' + info.email + ', а ви увійшли як ' + current + '.',
+            error: true,
+            actions: [
+                {
+                    label: 'Вийти й увійти як ' + info.email,
+                    primary: true,
+                    run: async function () {
+                        await supabaseClient.auth.signOut();
+                        resetUserScopedState();
+                        checkUserAccess();
+                    }
+                },
+                { label: 'Продовжити як ' + current, run: function () { continueWithoutInvite(info); } }
+            ]
+        });
+    }
+
+    // Сесія є. true — показано екран запрошення, далі не йдемо.
+    async function runInviteFlow(session) {
+        if (inviteFlowBusy) return true;
+        const user = session.user;
+        const token = urlInviteToken();
+        if (token) {
+            let info;
+            try {
+                info = await fetchInviteInfo(token);
+            } catch (error) {
+                clearUrlInviteToken();
+                rememberInviteNotice('Запрошення: ' + (error.message || 'посилання недійсне.'));
+                return false;
+            }
+            const decision = inviteDecision(info, user);
+            if (decision === 'inactive') {
+                clearUrlInviteToken();
+                rememberInviteNotice(INVITE_STATUS_TEXT[info.status] || 'Запрошення недійсне.');
+                return false;
+            }
+            if (decision === 'mismatch') {
+                showInviteMismatch(info, user);
+                return true;
+            }
+            if (decision === 'auto_accept') {
+                inviteFlowBusy = true;
+                try {
+                    await acceptInviteFromScreen(token, info);
+                } finally {
+                    inviteFlowBusy = false;
+                }
+                return true;
+            }
+            showInviteJoin(token, info);
+            return true;
+        }
+        // Зареєструвався сам на email, на який уже є запрошення: не губимо його.
+        try {
+            const mine = await teamApi('POST', { action: 'my_invites' });
+            const next = (mine.invites || []).find(function (item) { return !inviteSnoozed(item.invite_id); });
+            if (next) {
+                showInviteJoin(next.token, Object.assign({ status: 'sent' }, next));
+                return true;
+            }
+        } catch (e) {}
+        return false;
+    }
+
+    // Без сесії: банер над формою, email із запрошення, коротка реєстрація без анкети власника.
+    async function syncInviteAuth() {
+        const token = urlInviteToken();
+        if (!token) {
+            hideInviteBox();
+            return;
+        }
+        let info;
+        try {
+            info = await fetchInviteInfo(token);
+        } catch (error) {
+            hideInviteBox();
+            renderInviteBox({ title: 'Запрошення недійсне', text: error.message || 'Посилання недійсне.', error: true });
+            return;
+        }
+        if (info.status !== 'sent') {
+            hideInviteBox();
+            renderInviteBox({ title: inviteCompanyTitle(info), text: INVITE_STATUS_TEXT[info.status] || 'Запрошення недійсне.', error: true });
+            return;
+        }
+        renderInviteBox({
+            title: inviteCompanyTitle(info),
+            text: (info.inviter_email ? 'Запросив: ' + info.inviter_email + '. ' : '') +
+                (info.account_exists
+                    ? 'Увійдіть як ' + info.email + ', щоб приєднатися.'
+                    : 'Створіть пароль для ' + info.email + ' — анкета компанії не потрібна.')
+        });
+        const form = document.getElementById('auth-form');
+        form.classList.add('is-invite');
+        const email = document.getElementById('auth-email');
+        email.value = info.email;
+        email.readOnly = true;
+        setAuthTab(info.account_exists ? 'login' : 'signup');
+    }
+
     async function checkUserAccess(opts) {
         if (recoveryMode || urlLooksLikeRecovery()) {
             showRecoveryForm();
@@ -5938,6 +6254,7 @@
             showAuthForm();
             logoutBtn.style.display = 'none';
             if (!(opts && opts.preserveMessage)) authMsg.innerText = '';
+            syncInviteAuth();
             return;
         }
 
@@ -5950,21 +6267,9 @@
         currentUserId = session.user.id;
         currentUserEmail = session.user.email || '';
 
-        const inviteToken = new URLSearchParams(location.search).get('team_invite');
-        let inviteNotice = '';
-        if (inviteToken) {
-            try {
-                const accepted = await teamApi('POST', { action: 'accept', token: inviteToken });
-                inviteNotice = 'Запрошення прийнято. Ваша роль: ' + roleLabel(accepted.org_role) + '.';
-            } catch (inviteError) {
-                inviteNotice = 'Запрошення: ' + (inviteError.message || 'не вдалося прийняти.');
-            }
-            try {
-                const clean = new URL(location.href);
-                clean.searchParams.delete('team_invite');
-                history.replaceState(null, '', clean.pathname + clean.search + clean.hash);
-            } catch (e) {}
-        }
+        if (await runInviteFlow(session)) return;
+        hideInviteBox();
+        const inviteNotice = takeInviteNotice();
 
         const { data: profile, error } = await supabaseClient
             .from('profiles')
@@ -6272,7 +6577,7 @@
         loginBtn.hidden = false;
         loginBtn.type = 'submit';
         loginBtn.onclick = null;
-        loginBtn.textContent = 'Створити акаунт';
+        loginBtn.textContent = form.classList.contains('is-invite') ? 'Створити акаунт і приєднатися' : 'Створити акаунт';
         syncSignupTaxOptions();
         document.getElementById('auth-message').innerText = '';
     }
@@ -6474,13 +6779,15 @@
             const weak = passwordStrongEnough(password);
             if (weak) { authMsg.innerText = weak; return; }
             if (!syncPasswordMatch()) { authMsg.innerText = 'Паролі не збігаються.'; return; }
+            // За запрошенням: без анкети власника; лист підтвердження повертає з тим самим інвайтом.
+            const invite = document.getElementById('auth-form').classList.contains('is-invite') ? inviteInfoCache : null;
             const company = document.getElementById('auth-company').value.trim();
             const taxMode = document.getElementById('auth-tax').value;
             const ownership = document.getElementById('auth-ownership').value;
             const workModeEl = document.querySelector('input[name="work-mode"]:checked');
             const workMode = workModeEl ? workModeEl.value : '';
-            if (!company) { authMsg.innerText = 'Введіть назву компанії або ФОП.'; return; }
-            if (!['solo', 'team'].includes(workMode)) {
+            if (!invite && !company) { authMsg.innerText = 'Введіть назву компанії або ФОП.'; return; }
+            if (!invite && !['solo', 'team'].includes(workMode)) {
                 authMsg.innerText = 'Оберіть, як ви працюєте: самостійно чи з командою.';
                 return;
             }
@@ -6489,21 +6796,30 @@
                 authMsg.innerText = 'Потрібна згода з офертою та політикою конфіденційності.';
                 return;
             }
-            const { data, error } = await supabaseClient.auth.signUp({
-                email, password,
-                options: {
+            const signupOptions = invite
+                ? {
+                    emailRedirectTo: location.origin + '/?team_invite=' + encodeURIComponent(invite.token),
+                    data: { invite_id: invite.info.invite_id }
+                }
+                : {
                     data: {
                         company_name: company,
                         tax_mode: taxMode,
                         ownership: ownership,
                         work_mode: workMode
                     }
-                }
-            });
-            if (!error && data && data.user) notifyOwnerAboutSignup(data.user.id);
+                };
+            const { data, error } = await supabaseClient.auth.signUp({ email, password, options: signupOptions });
+            // Про логіста власнику бота напише алерт «приєднався», окремої «нової реєстрації» не шлемо.
+            if (!error && data && data.user && !invite) notifyOwnerAboutSignup(data.user.id);
             if (error) authMsg.innerText = translateAuthError(error);
             else if (data && data.user && !data.session) {
-                authMsg.innerText = '✅ Акаунт створено. Підтвердіть email за посиланням у листі, потім увійдіть.';
+                authMsg.innerText = invite
+                    ? '✅ Акаунт створено. Підтвердіть email за посиланням у листі — після цього ви одразу потрапите в «' + (invite.info.org_name || 'компанію') + '».'
+                    : '✅ Акаунт створено. Підтвердіть email за посиланням у листі, потім увійдіть.';
+            } else if (invite) {
+                authMsg.innerText = '✅ Акаунт створено. Приєднуємо до компанії…';
+                setTimeout(() => checkUserAccess(), 300);
             } else {
                 authMsg.innerText = '✅ Акаунт створено. Відкриваємо демо зі стартовим шаблоном…';
                 setTimeout(() => checkUserAccess(), 1500);
@@ -8609,18 +8925,24 @@
                 '<div class="tc-member-actions">' + (disabled ? enableControl : disableControl) + '</div></div>';
         });
         const inviteRows = (teamState.invites || []).map(invite => {
-            const expired = new Date(invite.expires_at).getTime() <= Date.now();
-            return '<div class="tc-member-row tc-invite-row"><div class="tc-member-who"><b>' + teamEsc(invite.email) +
-                '</b><span class="tc-role-badge is-' + (invite.org_role === 'owner' ? 'owner' : 'logist') + '">' + teamEsc(roleLabel(invite.org_role)) + '</span>' +
-                '<small>' + teamEsc(inviteTimeLeft(invite.expires_at)) + '</small>' +
+            const status = teamInviteStatus(invite);
+            const view = TEAM_INVITE_STATUS[status] || TEAM_INVITE_STATUS.sent;
+            const accepted = status === 'accepted';
+            const note = status === 'sent'
+                ? inviteTimeLeft(invite.expires_at)
+                : (accepted ? 'Приєднався ' : 'Надіслано ') + new Date(accepted ? invite.accepted_at : invite.created_at).toLocaleDateString('uk-UA');
+            const link = accepted ? '' :
                 '<div class="tc-invite-link"><input readonly aria-label="Посилання запрошення для ' +
                 teamEsc(invite.email) + '" id="team-invite-link-' + teamEsc(invite.id) + '" value="' +
                 teamEsc(invite.invite_url || '') + '"><button type="button" onclick="copyTeamInvite(\'' +
-                teamEsc(invite.id) + '\')">Копіювати</button></div></div><div class="tc-member-role"></div><div><span class="tc-state-chip ' +
-                (expired ? 'is-off' : 'is-wait') + '">' + (expired ? 'запрошення прострочено' : 'запрошення очікує') +
-                '</span></div><div class="tc-member-actions"><button type="button" onclick="resendTeamInvite(\'' +
-                teamEsc(invite.id) + '\')">Надіслати ще раз</button><button type="button" class="bad" onclick="revokeTeamInvite(\'' +
-                teamEsc(invite.id) + '\', this)">Скасувати</button></div></div>';
+                teamEsc(invite.id) + '\')">Копіювати</button></div>';
+            const actions = accepted ? '' :
+                '<button type="button" onclick="resendTeamInvite(\'' + teamEsc(invite.id) + '\')">Надіслати ще раз</button>' +
+                '<button type="button" class="bad" onclick="revokeTeamInvite(\'' + teamEsc(invite.id) + '\', this)">Скасувати</button>';
+            return '<div class="tc-member-row tc-invite-row is-' + status + '"><div class="tc-member-who"><b>' + teamEsc(invite.email) +
+                '</b><span class="tc-role-badge is-' + (invite.org_role === 'owner' ? 'owner' : 'logist') + '">' + teamEsc(roleLabel(invite.org_role)) + '</span>' +
+                '<small>' + teamEsc(note) + '</small>' + link + '</div><div class="tc-member-role"></div><div><span class="tc-state-chip ' +
+                view.chip + '">' + view.label + '</span></div><div class="tc-member-actions">' + actions + '</div></div>';
         });
         list.innerHTML = rows.concat(inviteRows).join('') || '<div class="cab-muted">У команді поки нікого немає.</div>';
         const visibility = document.getElementById('team-see-all');
@@ -8637,6 +8959,20 @@
         }
         populateAuthorFilter();
         renderSavedTable();
+    }
+
+    // Статус запрошення в «Команді»: надіслано / прийнято / відхилено / прострочено.
+    const TEAM_INVITE_STATUS = {
+        sent: { label: 'надіслано', chip: 'is-wait' },
+        accepted: { label: 'прийнято', chip: 'is-on' },
+        declined: { label: 'відхилено', chip: 'is-off' },
+        expired: { label: 'прострочено', chip: 'is-off' }
+    };
+    function teamInviteStatus(invite) {
+        if (invite.accepted_at) return 'accepted';
+        if (invite.declined_at) return 'declined';
+        if (!(new Date(invite.expires_at).getTime() > Date.now())) return 'expired';
+        return 'sent';
     }
 
     function inviteTimeLeft(expiresAt) {
@@ -8687,10 +9023,10 @@
             applyTeamModeUi();
             resetCabinet();
         }
-        if (result.delivery === 'email' || result.delivery === 'email_resend') {
+        if (result.delivery === 'email') {
             showToast('Запрошення надіслано на ' + email);
         } else {
-            showToast('Запрошення створено — скопіюйте посилання у списку');
+            showToast('Лист не надіслано — скопіюйте посилання у списку', 4600);
         }
         await loadTeamState({ silent: true });
         if (document.getElementById('cabinet-screen').style.display === 'block') {
@@ -8698,8 +9034,8 @@
             openCabinet();
             switchCabTab('team');
             const status = document.getElementById('team-status');
-            if (status && result.delivery !== 'email' && result.delivery !== 'email_resend') {
-                status.textContent = 'Пошта не підтвердила доставку — посилання доступне нижче.';
+            if (status && result.delivery !== 'email') {
+                status.textContent = 'Лист не надіслано — посилання доступне нижче, його можна скопіювати.';
             }
         }
     }
@@ -8815,9 +9151,9 @@
             const result = await teamApi('POST', { action: 'resend', invite_id: inviteId });
             await loadTeamState({ silent: true });
             renderTeamPanel();
-            showToast(result.delivery === 'email' || result.delivery === 'email_resend'
+            showToast(result.delivery === 'email'
                 ? 'Нове запрошення надіслано'
-                : 'Нове посилання створено — скопіюйте його');
+                : 'Лист не надіслано — нове посилання є у списку, скопіюйте його', result.delivery === 'email' ? undefined : 4600);
         } catch (error) {
             if (status) status.textContent = error.message || 'Не вдалося оновити запрошення.';
         }
