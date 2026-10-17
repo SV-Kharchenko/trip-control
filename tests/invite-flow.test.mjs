@@ -125,7 +125,8 @@ function fakeSupabase(state, calls) {
         if (logists.length >= 3) return fail('MEMBER_LIMIT');
         if (profile.org_id !== invite.org_id && state.orgData.has(profile.org_id)) return fail('OLD_ORG_HAS_DATA');
         if (profile.org_id !== invite.org_id) state.organizations = state.organizations.filter((org) => org.id !== profile.org_id);
-        Object.assign(profile, { org_id: invite.org_id, org_role: invite.org_role, member_status: 'active' });
+        const ownerApproved = state.profiles.some((row) => row.org_id === invite.org_id && row.org_role === 'owner' && row.member_status === 'active' && row.id !== p_user_id && row.is_approved === true);
+        Object.assign(profile, { org_id: invite.org_id, org_role: invite.org_role, member_status: 'active', is_approved: ownerApproved });
         invite.accepted_at = iso(NOW);
         return { data: { org_id: invite.org_id, org_role: invite.org_role }, error: null };
     }
@@ -150,7 +151,7 @@ function fakeSupabase(state, calls) {
 function world() {
     const state = {
         organizations: [{ id: ORG, name: 'Зерно Логістик', status: 'active', work_mode: 'team' }],
-        profiles: [{ id: OWNER, email: 'owner@zerno.ua', org_id: ORG, org_role: 'owner', member_status: 'active', created_at: iso(NOW - 30 * DAY) }],
+        profiles: [{ id: OWNER, email: 'owner@zerno.ua', org_id: ORG, org_role: 'owner', member_status: 'active', is_approved: true, created_at: iso(NOW - 30 * DAY) }],
         org_invites: [],
         company_settings: [{ org_id: ORG, settings: { logists_see_all: false } }],
         security_audit_log: [],
@@ -159,13 +160,20 @@ function world() {
     };
     const calls = [];
     const sent = [];
+    // hangMail: Resend never answers; only the abort signal ends the request.
+    const net = { hangMail: false };
     const fetch = async (url, init) => {
         sent.push({ url: String(url), body: JSON.parse(init.body) });
+        if (net.hangMail && String(url) === 'https://api.resend.com/emails') {
+            return new Promise((resolve, reject) => {
+                init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+            });
+        }
         return { ok: true, status: 200, json: async () => ({}) };
     };
     const env = { ...ENV };
     const clock = { now: NOW };
-    const handler = team.createTeamHandler({ supabase: fakeSupabase(state, calls), fetch, env, now: () => clock.now });
+    const handler = team.createTeamHandler({ supabase: fakeSupabase(state, calls), fetch, env, now: () => clock.now, mailTimeoutMs: 30 });
     async function call(method, body, session) {
         const req = { method, body, headers: session ? { authorization: 'Bearer ' + session } : {} };
         let status = 0;
@@ -186,7 +194,7 @@ function world() {
     }
     const mails = () => sent.filter((item) => item.url === 'https://api.resend.com/emails');
     const telegrams = () => sent.filter((item) => item.url.startsWith('https://api.telegram.org/'));
-    return { state, calls, sent, mails, telegrams, env, clock, call, account };
+    return { state, calls, sent, mails, telegrams, env, clock, net, call, account };
 }
 
 const tokenFrom = (url) => decodeURIComponent(new URL(url).searchParams.get('team_invite'));
@@ -332,6 +340,92 @@ test('decline: marked declined, frees the seat, cannot be accepted; resend bring
     assert.equal((await w.call('POST', { action: 'invite_info', token: fresh })).json.status, 'sent');
     // The old link no longer matches the row.
     assert.equal((await w.call('POST', { action: 'invite_info', token })).status, 400);
+});
+
+test('accept requires a confirmed email: 403, invite and company untouched', async () => {
+    const w = world();
+    const me = w.account(15, 'fresh@example.com', { confirmed: false });
+    const invite = await w.call('POST', { action: 'invite', email: 'fresh@example.com' }, 'owner');
+    const refused = await w.call('POST', { action: 'accept', token: tokenFrom(invite.json.invite_url) }, me.session);
+    assert.equal(refused.status, 403);
+    assert.equal(refused.json.code, 'EMAIL_NOT_CONFIRMED');
+    assert.ok(!w.calls.some((call) => call[0] === 'rpc'));
+    assert.equal(w.state.org_invites[0].accepted_at, null);
+    assert.equal(w.state.profiles.find((row) => row.id === me.id).org_id, me.org);
+
+    w.state.sessions[me.session].email_confirmed_at = iso(NOW);
+    const accepted = await w.call('POST', { action: 'accept', token: tokenFrom(invite.json.invite_url) }, me.session);
+    assert.equal(accepted.status, 200);
+});
+
+test('joined logist takes the owner approval: approved owner → approved, unapproved owner → reset', async () => {
+    const w = world();
+    const first = w.account(16, 'first@example.com');
+    const a = await w.call('POST', { action: 'invite', email: 'first@example.com' }, 'owner');
+    assert.equal((await w.call('POST', { action: 'accept', token: tokenFrom(a.json.invite_url) }, first.session)).status, 200);
+    assert.equal(w.state.profiles.find((row) => row.id === first.id).is_approved, true);
+
+    w.state.profiles.find((row) => row.id === OWNER).is_approved = false;
+    const second = w.account(17, 'second@example.com');
+    w.state.profiles.find((row) => row.id === second.id).is_approved = true;
+    const b = await w.call('POST', { action: 'invite', email: 'second@example.com' }, 'owner');
+    assert.equal((await w.call('POST', { action: 'accept', token: tokenFrom(b.json.invite_url) }, second.session)).status, 200);
+    assert.equal(w.state.profiles.find((row) => row.id === second.id).is_approved, false);
+    assert.match(migration, /is_approved = v_owner_approved/);
+    assert.match(migration, /SELECT coalesce\(bool_or\(p\.is_approved\), false\)\s+INTO v_owner_approved/);
+});
+
+test('re-invite refused by rate limit or seats keeps the old invite working', async () => {
+    const w = world();
+    const old = await w.call('POST', { action: 'invite', email: 'keep@example.com' }, 'owner');
+    assert.equal(old.status, 200);
+    for (let i = 0; i < team.INVITE_RATE_LIMIT; i += 1) {
+        w.state.security_audit_log.push({ org_id: ORG, action: 'invite_member', at: iso(NOW - 60 * 1000) });
+    }
+    const limited = await w.call('POST', { action: 'invite', email: 'keep@example.com' }, 'owner');
+    assert.equal(limited.status, 429);
+    assert.equal(w.state.org_invites.length, 1);
+    assert.equal(w.state.org_invites[0].revoked_at, null);
+    assert.equal((await w.call('POST', { action: 'invite_info', token: tokenFrom(old.json.invite_url) })).json.status, 'sent');
+
+    // Seats full by active logists: the replacement is refused, the old invite stays.
+    w.state.security_audit_log = [];
+    w.state.profiles.push(
+        { id: uid(40), email: 's1@example.com', org_id: ORG, org_role: 'logist', member_status: 'active' },
+        { id: uid(41), email: 's2@example.com', org_id: ORG, org_role: 'logist', member_status: 'active' },
+        { id: uid(42), email: 's3@example.com', org_id: ORG, org_role: 'logist', member_status: 'active' }
+    );
+    const full = await w.call('POST', { action: 'invite', email: 'keep@example.com' }, 'owner');
+    assert.equal(full.status, 409);
+    assert.equal(full.json.code, 'MEMBER_LIMIT');
+    assert.equal(w.state.org_invites[0].revoked_at, null);
+
+    // With a free seat the replacement does not count the invite it replaces.
+    w.state.profiles = w.state.profiles.filter((row) => row.id !== uid(42));
+    const replaced = await w.call('POST', { action: 'invite', email: 'keep@example.com' }, 'owner');
+    assert.equal(replaced.status, 200, JSON.stringify(replaced.json));
+    assert.ok(w.state.org_invites[0].revoked_at);
+});
+
+test('Resend that hangs is aborted (8 s in prod): invite answers with manual_link', async () => {
+    assert.equal(mail.INVITE_MAIL_TIMEOUT_MS, 8000);
+    const w = world();
+    w.net.hangMail = true;
+    const started = Date.now();
+    const { status, json } = await w.call('POST', { action: 'invite', email: 'slow@example.com' }, 'owner');
+    assert.equal(status, 200);
+    assert.equal(json.delivery, 'manual_link');
+    assert.match(json.invite_url, /team_invite=v2\./);
+    assert.ok(Date.now() - started < 2000);
+    assert.equal(w.mails().length, 1);
+
+    let signal = null;
+    const hang = (url, init) => { signal = init.signal; return new Promise((resolve, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted')))); };
+    await assert.rejects(
+        mail.sendInviteEmail('a@example.com', { subject: 's', text: 't', html: 'h' }, { fetch: hang, env: ENV, timeoutMs: 20 }),
+        (error) => error.code === 'INVITE_MAIL_TIMEOUT'
+    );
+    assert.ok(signal && signal.aborted);
 });
 
 test('account whose company has data: 409 with a human message, company kept', async () => {
@@ -513,6 +607,15 @@ test('migration: declined_at, data check before dropping the old company, not ap
     }
 });
 
+test('migration: the autosaved starter template is not user data (same values as STARTER_SETTINGS)', () => {
+    const starter = Function('return ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1])();
+    const sql = migration.match(/jsonb_build_object\(\s*('totalFleet'[\s\S]*?)\)\s*@>/)[1];
+    const pairs = [...sql.matchAll(/'(\w+)',\s*('[^']*'|[\d.]+)/g)]
+        .map(([, key, value]) => [key, value.startsWith("'") ? value.slice(1, -1) : Number(value)]);
+    assert.deepEqual(Object.fromEntries(pairs), starter);
+    assert.match(html, /companySettings = Object\.assign\(\{\}, STARTER_SETTINGS, companySettings \|\| \{\}\);/);
+});
+
 test('accept_org_invite on Postgres: empty company removed, company with data kept (PGlite)', (t) => {
     try {
         createRequire(import.meta.url).resolve('@electric-sql/pglite');
@@ -527,6 +630,11 @@ test('accept_org_invite on Postgres: empty company removed, company with data ke
     assert.match(run.stdout, /PASS old org with calculation: OLD_ORG_HAS_DATA/);
     assert.match(run.stdout, /PASS old org with fleet vehicle: OLD_ORG_HAS_DATA/);
     assert.match(run.stdout, /PASS old org with another member: OLD_ORG_HAS_DATA/);
+    assert.match(run.stdout, /PASS starter template only: join succeeds, old company removed/);
+    assert.match(run.stdout, /PASS old org with edited starter template: OLD_ORG_HAS_DATA/);
+    assert.match(run.stdout, /PASS old org with starter template plus own setting: OLD_ORG_HAS_DATA/);
+    assert.match(run.stdout, /PASS approved owner: logist becomes approved/);
+    assert.match(run.stdout, /PASS unapproved owner: logist approval reset/);
     assert.match(run.stdout, /PASS declined invite: INVITE_DECLINED/);
     assert.match(run.stdout, /PASS fourth logist: MEMBER_LIMIT/);
 });

@@ -53,11 +53,25 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- Signup writes {"logists_see_all": false}; anything else was set by the user.
+  -- Signup writes {"logists_see_all": false}; the first sign-in autosaves the
+  -- starter template (STARTER_SETTINGS in index.html, same values here). Neither
+  -- is user data. Any other key or any changed value was set by the user.
   IF EXISTS (
     SELECT 1 FROM public.company_settings AS s
     WHERE s.org_id = p_org_id
-      AND coalesce(s.settings, '{}'::jsonb) - 'logists_see_all' <> '{}'::jsonb
+      AND NOT (
+        jsonb_build_object(
+          'totalFleet', 5, 'fuelLoad', 37, 'fuelEmpty', 32, 'fuelPrice', 57,
+          'adblueEnable', 'on', 'adblueConsumption', 2.85, 'adbluePrice', 18,
+          'driverPayMode', 'km', 'driverRateLoad', 4.03, 'driverRateEmpty', 2.3,
+          'driverPctVal', 12, 'perDiem', 850, 'toCost', 18000, 'toPeriod', 50000,
+          'tireCost', 16500, 'tireCount', 14, 'tireMileage', 150000
+        ) @> coalesce((
+          SELECT jsonb_object_agg(e.key, e.value)
+          FROM jsonb_each(coalesce(s.settings, '{}'::jsonb) - 'logists_see_all') AS e
+          WHERE e.value NOT IN ('null'::jsonb, '""'::jsonb)
+        ), '{}'::jsonb)
+      )
   ) THEN
     RETURN true;
   END IF;
@@ -101,6 +115,7 @@ DECLARE
   v_invite public.org_invites%ROWTYPE;
   v_profile public.profiles%ROWTYPE;
   v_target_member_count integer;
+  v_owner_approved boolean;
 BEGIN
   IF NOT public.is_service_role() THEN
     RAISE EXCEPTION 'SERVICE_ROLE_REQUIRED' USING ERRCODE = '42501';
@@ -155,6 +170,16 @@ BEGIN
     RAISE EXCEPTION 'MEMBER_LIMIT' USING ERRCODE = 'P0001';
   END IF;
 
+  -- A logist works under the owner's approval: approved owner → approved logist,
+  -- otherwise the flag is reset (an approved solo account does not carry it over).
+  SELECT coalesce(bool_or(p.is_approved), false)
+  INTO v_owner_approved
+  FROM public.profiles AS p
+  WHERE p.org_id = v_invite.org_id
+    AND p.org_role = 'owner'
+    AND p.member_status = 'active'
+    AND p.id <> p_user_id;
+
   IF v_profile.org_id IS DISTINCT FROM v_invite.org_id THEN
     IF v_profile.org_id IS NOT NULL THEN
       PERFORM 1
@@ -170,7 +195,8 @@ BEGIN
     UPDATE public.profiles AS p
     SET org_id = v_invite.org_id,
         org_role = v_invite.org_role,
-        member_status = 'active'
+        member_status = 'active',
+        is_approved = v_owner_approved
     WHERE p.id = p_user_id;
 
     IF v_profile.org_id IS NOT NULL THEN
@@ -182,7 +208,8 @@ BEGIN
   ELSE
     UPDATE public.profiles AS p
     SET org_role = v_invite.org_role,
-        member_status = 'active'
+        member_status = 'active',
+        is_approved = v_owner_approved
     WHERE p.id = p_user_id;
   END IF;
 
@@ -194,7 +221,7 @@ BEGIN
     actor, org_id, action, entity, entity_id, detail
   ) VALUES (
     p_user_id, v_invite.org_id, 'accept_invite', 'org_invites', v_invite.id::text,
-    jsonb_build_object('org_role', v_invite.org_role, 'old_org_removed', v_profile.org_id IS DISTINCT FROM v_invite.org_id)
+    jsonb_build_object('org_role', v_invite.org_role, 'is_approved', v_owner_approved, 'old_org_removed', v_profile.org_id IS DISTINCT FROM v_invite.org_id)
   );
 
   RETURN QUERY SELECT v_invite.org_id, v_invite.org_role;

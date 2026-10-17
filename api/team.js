@@ -401,7 +401,7 @@ export function createTeamService(deps) {
             expiresAt: invite.expires_at
         });
         try {
-            await sendInviteEmail(invite.email, message, { fetch: deps.fetch, env });
+            await sendInviteEmail(invite.email, message, { fetch: deps.fetch, env, timeoutMs: deps.mailTimeoutMs });
             return 'email';
         } catch (error) {
             console.warn('invite mail failed:', error && error.code);
@@ -451,6 +451,15 @@ export function createTeamService(deps) {
             .is('revoked_at', null)
             .maybeSingle();
         if (pendingError) throw pendingError;
+
+        // Seats and rate first: a refused invite leaves the old one working.
+        // The invite being replaced does not hold a second seat.
+        const seats = await teamSeatUsage(orgId, pendingInvite ? pendingInvite.id : null);
+        if (seats.used >= seats.limit) {
+            throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
+        }
+        await assertInviteRate(orgId);
+
         if (pendingInvite) {
             const { error: revokeError } = await supabase
                 .from('org_invites')
@@ -460,12 +469,6 @@ export function createTeamService(deps) {
                 .is('revoked_at', null);
             if (revokeError) throw revokeError;
         }
-
-        const seats = await teamSeatUsage(orgId);
-        if (seats.used >= seats.limit) {
-            throw new HttpError(409, 'MEMBER_LIMIT', `Уже зайнято ${seats.used} з ${seats.limit} логістів.`);
-        }
-        await assertInviteRate(orgId);
 
         const rawToken = randomBytes(32).toString('base64url');
         const expiresAt = new Date(now() + INVITE_TTL_MS).toISOString();
@@ -610,6 +613,9 @@ export function createTeamService(deps) {
     }
 
     async function acceptInvite(actor, body) {
+        if (!actor.user.email_confirmed_at) {
+            throw new HttpError(403, 'EMAIL_NOT_CONFIRMED', 'Спочатку підтвердьте email за посиланням з листа.');
+        }
         const token = String(body.token || '');
         if (token.length < 32 || token.length > 512) {
             throw new HttpError(400, 'BAD_INVITE_TOKEN', 'Некоректне посилання запрошення.');

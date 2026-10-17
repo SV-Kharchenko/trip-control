@@ -11,6 +11,9 @@ const migration = fs.readFileSync(process.argv[2] || new URL('../supabase/migrat
 const db = new PGlite();
 const TEAM = '50000000-0000-0000-0000-000000000001';
 const OWNER = '00000000-0000-0000-0000-0000000000c1';
+// Second team: its owner is not approved yet.
+const TEAM2 = '50000000-0000-0000-0000-000000000002';
+const OWNER2 = '00000000-0000-0000-0000-0000000000c2';
 
 await db.exec(`
 CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
@@ -20,7 +23,7 @@ CREATE FUNCTION public.is_service_role() RETURNS boolean LANGUAGE sql AS $$ SELE
 
 CREATE TABLE public.organizations (id uuid PRIMARY KEY, name text, status text DEFAULT 'active', work_mode text DEFAULT 'solo');
 CREATE TABLE public.profiles (id uuid PRIMARY KEY, email text, org_id uuid REFERENCES public.organizations(id),
-  org_role text, member_status text DEFAULT 'active');
+  org_role text, member_status text DEFAULT 'active', is_approved boolean DEFAULT false);
 CREATE TABLE public.company_settings (org_id uuid PRIMARY KEY REFERENCES public.organizations(id), settings jsonb);
 CREATE TABLE public.usage_counters (org_id uuid REFERENCES public.organizations(id), day date, calc_count int);
 CREATE TABLE public.calculations (id serial PRIMARY KEY, org_id uuid REFERENCES public.organizations(id), user_id uuid);
@@ -36,7 +39,9 @@ CREATE TABLE public.security_audit_log (id bigserial PRIMARY KEY, at timestamptz
   action text, entity text, entity_id text, detail jsonb);
 
 INSERT INTO public.organizations (id, name, work_mode) VALUES ('${TEAM}', 'Team fixture', 'team');
-INSERT INTO public.profiles (id, email, org_id, org_role) VALUES ('${OWNER}', 'owner@example.com', '${TEAM}', 'owner');
+INSERT INTO public.organizations (id, name, work_mode) VALUES ('${TEAM2}', 'Team fixture 2', 'team');
+INSERT INTO public.profiles (id, email, org_id, org_role, is_approved) VALUES ('${OWNER}', 'owner@example.com', '${TEAM}', 'owner', true);
+INSERT INTO public.profiles (id, email, org_id, org_role, is_approved) VALUES ('${OWNER2}', 'owner2@example.com', '${TEAM2}', 'owner', false);
 `);
 
 // Twice: the migration must be idempotent.
@@ -72,7 +77,7 @@ async function invite(email, extra = {}) {
     const expires = extra.expired ? "now() - interval '1 hour'" : "now() + interval '7 days'";
     await db.query(`INSERT INTO public.org_invites (org_id, email, token_hash, invited_by, expires_at, created_at, declined_at)
         VALUES ($1, $2, $3, $4, ${expires}, now() - interval '2 hours', $5)`,
-    [TEAM, email, hash, OWNER, extra.declined ? new Date().toISOString() : null]);
+    [extra.org || TEAM, email, hash, extra.org === TEAM2 ? OWNER2 : OWNER, extra.declined ? new Date().toISOString() : null]);
     return hash;
 }
 
@@ -105,19 +110,53 @@ async function one(sql, params) {
     check(accepted.accepted_at !== null, 'new email: invite marked accepted');
 }
 
+// The first sign-in autosaves STARTER_SETTINGS (index.html) over the signup default.
+const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const STARTER = Function('return ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1])();
+const starterSql = (patch = {}) => `UPDATE public.company_settings SET settings = '${JSON.stringify(Object.assign({}, STARTER, { logists_see_all: false }, patch))}' WHERE org_id = :org;`;
+
+// 1b. Account that only has the autosaved starter template: joins, old company removed.
+{
+    const a = await signup('starter@example.com', starterSql());
+    const hash = await invite('starter@example.com');
+    const res = await accept(hash, a.user, 'starter@example.com');
+    const profile = await one('SELECT org_id, org_role FROM public.profiles WHERE id = $1', [a.user]);
+    const oldOrg = await one('SELECT count(*)::int AS c FROM public.organizations WHERE id = $1', [a.org]);
+    check(res.ok && profile.org_id === TEAM && profile.org_role === 'logist' && oldOrg.c === 0,
+        'starter template only: join succeeds, old company removed');
+}
+
+// 1c. is_approved follows the target owner: approved owner → approved logist, otherwise reset.
+{
+    const a = await signup('approve-me@example.com');
+    const hash = await invite('approve-me@example.com');
+    const res = await accept(hash, a.user, 'approve-me@example.com');
+    const profile = await one('SELECT is_approved FROM public.profiles WHERE id = $1', [a.user]);
+    check(res.ok && profile.is_approved === true, 'approved owner: logist becomes approved');
+}
+{
+    const a = await signup('was-approved@example.com', `UPDATE public.profiles SET is_approved = true WHERE id = :user;`);
+    const hash = await invite('was-approved@example.com', { org: TEAM2 });
+    const res = await accept(hash, a.user, 'was-approved@example.com');
+    const profile = await one('SELECT org_id, is_approved FROM public.profiles WHERE id = $1', [a.user]);
+    check(res.ok && profile.org_id === TEAM2 && profile.is_approved === false, 'unapproved owner: logist approval reset');
+}
+
 // 2. Existing accounts whose company holds data: 409, nothing moves or disappears.
 const DATA_CASES = [
     ['calculation', `INSERT INTO public.calculations (org_id, user_id) VALUES (:org, :user);`],
     ['fleet vehicle', `INSERT INTO public.fleet_vehicles (org_id, label) VALUES (:org, 'AA1111AA');`],
     ['route template', `INSERT INTO public.route_templates (org_id) VALUES (:org);`],
-    ['company settings', `UPDATE public.company_settings SET settings = '{"logists_see_all": false, "fuelPrice": 57}' WHERE org_id = :org;`],
+    ['company settings', `UPDATE public.company_settings SET settings = '{"logists_see_all": false, "fuelPrice": 61}' WHERE org_id = :org;`],
+    ['edited starter template', starterSql({ fuelPrice: 58 })],
+    ['starter template plus own setting', starterSql({ doc_warn_days: 30 })],
     ['company profile', `UPDATE public.org_company_profiles SET phone = '+380000000000' WHERE org_id = :org;`],
     ['another member', `INSERT INTO public.profiles (id, email, org_id, org_role) VALUES (gen_random_uuid(), 'mate@example.com', :org, 'logist');`]
 ];
 for (const [label, sql] of DATA_CASES) {
     const email = label.replace(/\s+/g, '-') + '@example.com';
     const a = await signup(email, sql);
-    const hash = await invite(email);
+    const hash = await invite(email, { org: TEAM2 });
     const res = await accept(hash, a.user, email);
     const profile = await one('SELECT org_id FROM public.profiles WHERE id = $1', [a.user]);
     const oldOrg = await one('SELECT count(*)::int AS c FROM public.organizations WHERE id = $1', [a.org]);
