@@ -165,8 +165,8 @@ test('light and dark text pairs stay at least 4.5:1', () => {
     assert.equal(html.includes('undressPaperSections'), false);
     assert.match(html, /body\[data-theme="light"\] \.auth-card \{[\s\S]*background: var\(--surface\)/);
     assert.match(html, /body\[data-theme="light"\] \.auth-tabs button\.on \{[\s\S]*background: var\(--accent\);[\s\S]*color: var\(--on-accent\)/);
-    assert.match(html, /\.preset-tile\.active \{[\s\S]*color: var\(--on-accent\)/);
-    assert.match(html, /\.preset-tile\.active \.pt-hint,[\s\S]*color: var\(--on-accent\)/);
+    // Плитки «Пресети причепа» прибрано разом зі стилями.
+    assert.equal(html.includes('.preset-tile'), false);
     assert.equal(html.includes('paperStudio'), false);
     assert.equal(html.includes('function dressPaperSections'), false);
     for (const name of ['applyMapTheme', 'mountStudioDom', 'renderChart', 'initMap']) {

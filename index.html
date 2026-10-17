@@ -1500,52 +1500,6 @@
         }
         .preset-btn:hover { border-color: var(--steel); color: var(--text-main); }
         .preset-btn.active { background: var(--amber) !important; color: #1a1205 !important; border-color: transparent !important; font-weight: 700; }
-        .preset-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-        .preset-tile {
-            --pt: var(--amber);
-            position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 7px; min-height: 108px; padding: 12px 8px; cursor: pointer;
-            background:
-                radial-gradient(90% 80% at 50% 0%, color-mix(in srgb, var(--pt) 14%, transparent), transparent 60%),
-                var(--input-bg);
-            border: 1px solid var(--border-color); border-radius: 14px;
-            color: var(--text-muted); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em;
-            text-transform: uppercase; text-align: center; font-family: var(--font-ui);
-            transition: border-color 0.2s, color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s;
-        }
-        .preset-tile[data-preset="зерновоз"] { --pt: #fbbf24; }
-        .preset-tile[data-preset="рефрижератор"] { --pt: #7dd3fc; }
-        .preset-tile[data-preset="тент"] { --pt: #34d399; }
-        .preset-tile[data-preset="цистерна"] { --pt: #f59e0b; }
-        .preset-tile .pt-ico {
-            width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
-            font-size: 1.35rem; line-height: 1;
-            background: color-mix(in srgb, var(--pt) 16%, transparent);
-            border: 1px solid color-mix(in srgb, var(--pt) 35%, var(--border-color));
-        }
-        .preset-tile .pt-hint {
-            font-size: 0.58rem; letter-spacing: 0.04em; text-transform: none; font-weight: 500;
-            color: var(--text-muted); opacity: 1;
-        }
-        .preset-tile:hover { border-color: color-mix(in srgb, var(--pt) 55%, var(--border-color)); color: var(--text-main); transform: translateY(-2px); }
-        .preset-tile.active {
-            color: var(--on-accent); border-color: var(--accent);
-            background: var(--accent);
-            box-shadow: none;
-        }
-        .preset-tile.active .pt-hint,
-        .preset-tile.active .pt-ico {
-            color: var(--on-accent); opacity: 1;
-        }
-        .preset-tile.active .pt-ico {
-            background: color-mix(in srgb, var(--on-accent) 16%, transparent);
-            border-color: color-mix(in srgb, var(--on-accent) 35%, transparent);
-        }
-        .preset-tile.active::after {
-            content: '✓'; position: absolute; top: 8px; right: 9px; width: 18px; height: 18px;
-            border-radius: 50%; display: grid; place-items: center; font-size: 0.65rem;
-            background: var(--pt); color: #1a1205; font-weight: 800;
-        }
 
         .dynamic-field { display: none; }
         .dynamic-field.active { display: grid; }
@@ -1696,7 +1650,6 @@
         @media (max-width: 700px) {
             .tc-kpi { grid-template-columns: repeat(2, 1fr); }
             .tc-kpi .kpi-chip:last-child { grid-column: 1 / -1; }
-            .preset-tiles { grid-template-columns: repeat(2, 1fr); }
             .tc-costs-body { grid-template-columns: 1fr; }
             .form-row { grid-template-columns: minmax(0, 1fr) 108px 34px; }
             .form-row.two-cols { grid-template-columns: 1fr; }
@@ -2277,7 +2230,6 @@
             body.layout-studio .form-row input,
             body.layout-studio .form-row select,
             body.layout-studio .btn,
-            body.layout-studio .preset-tile,
             body.layout-studio .tc-studio-nav button {
                 min-height: 44px;
             }
@@ -4065,14 +4017,6 @@
       <div class="tc-work">
         <div class="card">
                 <h2><span class="tc-sec-ico" aria-hidden="true">▤</span>Параметри рейсу</h2>
-                <div class="preset-bar-label">Пресети причепа</div>
-                <div class="preset-tiles">
-                    <button type="button" class="preset-tile active" data-preset="зерновоз" onclick="applyPreset('зерновоз', this)"><span class="pt-ico">🌾</span>Зерновоз<span class="pt-hint">сипучі</span></button>
-                    <button type="button" class="preset-tile" data-preset="рефрижератор" onclick="applyPreset('рефрижератор', this)"><span class="pt-ico">❄️</span>Реф<span class="pt-hint">холод</span></button>
-                    <button type="button" class="preset-tile" data-preset="тент" onclick="applyPreset('тент', this)"><span class="pt-ico">🚛</span>Тент<span class="pt-hint">універсал</span></button>
-                    <button type="button" class="preset-tile" data-preset="цистерна" onclick="applyPreset('цистерна', this)"><span class="pt-ico">🛢️</span>Цистерна<span class="pt-hint">наливні</span></button>
-                </div>
-
                 <div id="vehicle-norm-row" hidden>
                     <div class="tc-vehicle-label">
                         <div class="preset-bar-label">Авто з парку</div>
@@ -4146,8 +4090,8 @@
                     </select>
                 </div>
 
-                <div class="form-row two-cols tc-keep-hidden">
-                    <label>Тип причепа:</label>
+                <div class="form-row two-cols">
+                    <label for="trailer-type">Тип причепа:</label>
                     <select id="trailer-type" onchange="onTrailerChange()">
                         <option value="зерновоз" selected>Зерновоз</option>
                         <option value="рефрижератор">Рефрижератор</option>
@@ -5187,8 +5131,9 @@
         });
         const client = document.getElementById('client-name');
         if (client) client.value = '';
-        const presetBtn = document.querySelector('.preset-tile[data-preset="зерновоз"]');
-        applyPreset('зерновоз', presetBtn);
+        clearVehicleNormChoice();
+        document.getElementById('trailer-type').value = 'зерновоз';
+        syncTrailerExtras();
         updateRouteBar();
         calculate();
         showToast('Підставлено демо-рейс');
@@ -5344,13 +5289,8 @@
         take(1, document.getElementById('podacha-info'));
         take(1, rowOf('dist'));
 
-        let presetLabel = null;
-        Array.prototype.forEach.call(card.children, function (child) {
-            if (!presetLabel && child.classList && child.classList.contains('preset-bar-label')) presetLabel = child;
-        });
-        take(2, presetLabel);
-        take(2, card.querySelector('.preset-tiles'));
         take(2, document.getElementById('vehicle-norm-row'));
+        take(2, rowOf('trailer-type'));
         take(2, rowOf('return-mode'));
         take(2, rowOf('volume'));
         take(2, rowOf('norm-weight'));
@@ -5360,7 +5300,6 @@
         take(2, rowOf('contract-currency'));
         take(2, document.getElementById('contract-fx-note'));
         take(2, rowOf('rate'));
-        take(2, rowOf('trailer-type'));
 
         take(3, document.querySelector('.tc-lower'));
 
@@ -7116,38 +7055,6 @@
         document.getElementById('conv-res').innerText = formatMoney(val * rate);
     }
 
-    function applyPreset(type, btnElement) {
-        clearVehicleNormChoice();
-        document.getElementById('trailer-type').value = type;
-        
-        if (btnElement) {
-            document.querySelectorAll('.preset-tile').forEach(btn => btn.classList.remove('active'));
-            btnElement.classList.add('active');
-        } else {
-            document.querySelectorAll('.preset-tile').forEach(btn => btn.classList.toggle('active', btn.dataset.preset === type));
-        }
-
-        if (type === 'зерновоз') {
-            document.getElementById('fuel-load').value = 37;
-            document.getElementById('fuel-empty').value = 32;
-            document.getElementById('norm-weight').value = 21.5;
-        } else if (type === 'рефрижератор') {
-            document.getElementById('fuel-load').value = 34;
-            document.getElementById('fuel-empty').value = 29;
-            document.getElementById('norm-weight').value = 20.0;
-        } else if (type === 'тент') {
-            document.getElementById('fuel-load').value = 32;
-            document.getElementById('fuel-empty').value = 27;
-            document.getElementById('norm-weight').value = 22.0;
-        } else if (type === 'цистерна') {
-            document.getElementById('fuel-load').value = 35;
-            document.getElementById('fuel-empty').value = 28;
-            document.getElementById('norm-weight').value = 24.0;
-        }
-        onTrailerChange();
-        updateStepSummaries();
-    }
-
     function syncTrailerExtras() {
         const trailerEl = document.getElementById('trailer-type');
         const trailer = trailerEl ? trailerEl.value : '';
@@ -7281,9 +7188,6 @@
         const trailer = document.getElementById('trailer-type');
         if (trailer && data.trailerType) {
             trailer.value = data.trailerType;
-            document.querySelectorAll('.preset-tile').forEach(function (btn) {
-                btn.classList.toggle('active', btn.dataset.preset === data.trailerType);
-            });
             syncTrailerExtras();
         }
         const fuelLoad = document.getElementById('fuel-load');
@@ -7999,9 +7903,6 @@
             }
         });
         document.getElementById('trailer-type').value = 'зерновоз';
-        document.querySelectorAll('.preset-tile').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.preset === 'зерновоз');
-        });
     }
 
     // Підставляє збережені параметри компанії в поля калькулятора (порожні ключі поля не чіпають)
@@ -11409,9 +11310,6 @@
         const pctBox = document.getElementById('driver-pct-box');
         if (kmBox) kmBox.style.display = mode === 'km' ? 'block' : 'none';
         if (pctBox) pctBox.style.display = mode === 'pct' ? 'block' : 'none';
-        document.querySelectorAll('.preset-tile').forEach(function (btn) {
-            btn.classList.toggle('active', btn.dataset.preset === data.trailerType);
-        });
         const trailer = data.trailerType || '';
         const refOn = trailer === 'рефрижератор';
         const washOn = trailer === 'цистерна';
