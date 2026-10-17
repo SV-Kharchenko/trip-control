@@ -1,4 +1,5 @@
-// Checks supabase/migrations/20261017090000_invite_flow.sql on a real Postgres
+// Checks supabase/migrations/20261017090000_invite_flow.sql and
+// 20261017130000_starter_defaults_user_data.sql (org_has_user_data) on a real Postgres
 // (PGlite, in memory). The schema below is a stub of the production tables the
 // function touches; nothing touches Supabase.
 //
@@ -8,6 +9,7 @@ import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 
 const migration = fs.readFileSync(process.argv[2] || new URL('../supabase/migrations/20261017090000_invite_flow.sql', import.meta.url), 'utf8');
+const starterMigration = fs.readFileSync(process.argv[3] || new URL('../supabase/migrations/20261017130000_starter_defaults_user_data.sql', import.meta.url), 'utf8');
 const db = new PGlite();
 const TEAM = '50000000-0000-0000-0000-000000000001';
 const OWNER = '00000000-0000-0000-0000-0000000000c1';
@@ -47,6 +49,8 @@ INSERT INTO public.profiles (id, email, org_id, org_role, is_approved) VALUES ('
 // Twice: the migration must be idempotent.
 await db.exec(migration);
 await db.exec(migration);
+await db.exec(starterMigration);
+await db.exec(starterMigration);
 
 // The seat trigger as created by 20261012210000; the migration above only replaces its function.
 await db.exec(`
@@ -158,6 +162,8 @@ const DATA_CASES = [
     ['company settings', `UPDATE public.company_settings SET settings = '{"logists_see_all": false, "fuelPrice": 61}' WHERE org_id = :org;`],
     ['edited starter template', starterSql({ fuelPrice: 58 })],
     ['starter template plus own setting', starterSql({ doc_warn_days: 30 })],
+    // The template autosaved before 2026-10-17 is no longer recognised.
+    ['previous starter template (5/37/57/850)', starterSql({ totalFleet: 5, fuelLoad: 37, fuelPrice: 57, perDiem: 850 })],
     ['company profile', `UPDATE public.org_company_profiles SET phone = '+380000000000' WHERE org_id = :org;`],
     ['another member', `INSERT INTO public.profiles (id, email, org_id, org_role) VALUES (gen_random_uuid(), 'mate@example.com', :org, 'logist');`]
 ];
