@@ -5185,6 +5185,8 @@
     }
 
     function fillDemoTrip() {
+        // Спершу скидаємо вибір авто: відкат норм не має переписати поля демо-рейсу (напр. кількість авто).
+        clearVehicleNormChoice();
         Object.keys(STARTER_TRIP).forEach(function (id) {
             const el = document.getElementById(id);
             if (el) el.value = STARTER_TRIP[id];

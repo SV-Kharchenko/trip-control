@@ -616,19 +616,16 @@ test('migration: seat trigger is the 20261012210000 body plus declined_at, REVOK
     assert.doesNotMatch(migration, /TRIGGER trg_enforce_logist_activation_limit/);
 });
 
-test('migration: the autosaved starter template is not user data (current and previous STARTER_SETTINGS)', () => {
+test('migration: only the current STARTER_SETTINGS template is not user data', () => {
     const starter = Function('return ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1])();
     const pairsOf = (sql) => Object.fromEntries([...sql.matchAll(/'(\w+)',\s*('[^']*'|[\d.]+)/g)]
         .map(([, key, value]) => [key, value.startsWith("'") ? value.slice(1, -1) : Number(value)]));
     const next = read('supabase/migrations/20261017130000_starter_defaults_user_data.sql').replace(/\r\n/g, '\n');
     const current = next.match(/v_starter_current constant jsonb := jsonb_build_object\(([\s\S]*?)\);/)[1];
-    const previous = next.match(/v_starter_previous constant jsonb := jsonb_build_object\(([\s\S]*?)\);/)[1];
     assert.deepEqual(pairsOf(current), starter);
-    // The previous set is exactly what 20261017090000 (already on production) compares with.
-    const shipped = migration.match(/jsonb_build_object\(\s*('totalFleet'[\s\S]*?)\)\s*@>/)[1];
-    assert.deepEqual(pairsOf(previous), pairsOf(shipped));
-    assert.deepEqual(pairsOf(previous), { ...starter, totalFleet: 5, fuelLoad: 37, fuelPrice: 57, perDiem: 850 });
-    assert.match(next, /NOT \(v_starter_previous @> v_settings OR v_starter_current @> v_settings\)/);
+    // No backward compatibility with the previous template (5 / 37 / 57 / 850).
+    assert.doesNotMatch(next, /v_starter_previous/);
+    assert.match(next, /AND NOT \(v_starter_current @> v_settings\)/);
     assert.match(next, /REVOKE ALL ON FUNCTION public\.org_has_user_data\(uuid, uuid\) FROM PUBLIC, anon, authenticated;/);
     assert.match(html, /companySettings = Object\.assign\(\{\}, STARTER_SETTINGS, companySettings \|\| \{\}\);/);
 });
@@ -650,9 +647,8 @@ test('accept_org_invite on Postgres: empty company removed, company with data ke
     assert.match(run.stdout, /PASS starter template only: join succeeds, old company removed/);
     assert.match(run.stdout, /PASS old org with edited starter template: OLD_ORG_HAS_DATA/);
     assert.match(run.stdout, /PASS old org with starter template plus own setting: OLD_ORG_HAS_DATA/);
-    assert.match(run.stdout, /PASS previous starter template only: join succeeds, old company removed/);
-    assert.match(run.stdout, /PASS old org with edited previous starter template: OLD_ORG_HAS_DATA/);
-    assert.match(run.stdout, /PASS old org with mix of previous and current templates: OLD_ORG_HAS_DATA/);
+    assert.match(run.stdout, /PASS old org with previous starter template \(5\/37\/57\/850\): OLD_ORG_HAS_DATA/);
+    assert.doesNotMatch(run.stdout, /previous starter template only/);
     assert.match(run.stdout, /PASS approved owner: logist becomes approved/);
     assert.match(run.stdout, /PASS unapproved owner: logist approval reset/);
     assert.match(run.stdout, /PASS seat trigger: A declined \+ B, C, D pending → B accept passes/);

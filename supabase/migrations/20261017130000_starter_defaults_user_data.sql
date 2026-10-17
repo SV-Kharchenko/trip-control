@@ -3,9 +3,9 @@
 --
 -- org_has_user_data (20261017090000_invite_flow.sql) treats the autosaved
 -- starter template as "no data", so an account that only has it can join a team
--- and its empty company is removed. Accounts created before this change carry
--- the previous template, new ones the current one: both are recognised here.
--- A mix of the two, any other key or any other value is still user data.
+-- and its empty company is removed. Only the current template is recognised:
+-- settings with the previous values (5 / 37 / 57 / 850) count as user data,
+-- as does any other key or any other value.
 --
 -- Same function otherwise. CREATE OR REPLACE keeps its owner; grants restated.
 -- Safe to run more than once. Not applied to production by this PR.
@@ -21,14 +21,6 @@ DECLARE
   v_table text;
   v_found boolean;
   v_settings jsonb;
-  -- Starter template until 2026-10-17 (accounts already autosaved with it).
-  v_starter_previous constant jsonb := jsonb_build_object(
-    'totalFleet', 5, 'fuelLoad', 37, 'fuelEmpty', 32, 'fuelPrice', 57,
-    'adblueEnable', 'on', 'adblueConsumption', 2.85, 'adbluePrice', 18,
-    'driverPayMode', 'km', 'driverRateLoad', 4.03, 'driverRateEmpty', 2.3,
-    'driverPctVal', 12, 'perDiem', 850, 'toCost', 18000, 'toPeriod', 50000,
-    'tireCost', 16500, 'tireCount', 14, 'tireMileage', 150000
-  );
   -- Current STARTER_SETTINGS in index.html (same values).
   v_starter_current constant jsonb := jsonb_build_object(
     'totalFleet', 1, 'fuelLoad', 38, 'fuelEmpty', 32, 'fuelPrice', 95,
@@ -67,7 +59,7 @@ BEGIN
   END LOOP;
 
   -- Signup writes {"logists_see_all": false}; the first sign-in autosaves the
-  -- starter template (previous or current). Neither is user data.
+  -- current starter template. Neither is user data.
   SELECT coalesce((
     SELECT jsonb_object_agg(e.key, e.value)
     FROM jsonb_each(coalesce(s.settings, '{}'::jsonb) - 'logists_see_all') AS e
@@ -78,7 +70,7 @@ BEGIN
   WHERE s.org_id = p_org_id;
 
   IF v_settings IS NOT NULL
-     AND NOT (v_starter_previous @> v_settings OR v_starter_current @> v_settings)
+     AND NOT (v_starter_current @> v_settings)
   THEN
     RETURN true;
   END IF;

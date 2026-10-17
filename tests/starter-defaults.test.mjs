@@ -48,6 +48,14 @@ test('demo trip: one truck, the rest unchanged', () => {
     });
 });
 
+test('demo trip clears the fleet choice first, so restoring norms cannot overwrite the demo fields', () => {
+    const start = html.indexOf('    function fillDemoTrip() {');
+    const fn = html.slice(start, html.indexOf('\n    }\n', start));
+    const clear = fn.indexOf('clearVehicleNormChoice();');
+    assert.ok(clear !== -1 && clear < fn.indexOf('Object.keys(STARTER_TRIP)'), 'clearVehicleNormChoice() before STARTER_TRIP');
+    assert.match(fn, /^    function fillDemoTrip\(\) \{\n(\s*\/\/.*\n)?\s+clearVehicleNormChoice\(\);/);
+});
+
 test('S0 has its own inputs and does not move: 6 687 / 5 400', () => {
     const s0 = JSON.parse(read('tests/fixtures/s0-fop.json'));
     assert.equal(s0.fuelPrice, '57');

@@ -125,9 +125,7 @@ async function one(sql, params) {
 // The first sign-in autosaves STARTER_SETTINGS (index.html) over the signup default.
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const STARTER = Function('return ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1])();
-// Template autosaved before 2026-10-17: production accounts already carry it.
-const STARTER_PREVIOUS = Object.assign({}, STARTER, { totalFleet: 5, fuelLoad: 37, fuelPrice: 57, perDiem: 850 });
-const starterSql = (patch = {}, base = STARTER) => `UPDATE public.company_settings SET settings = '${JSON.stringify(Object.assign({}, base, { logists_see_all: false }, patch))}' WHERE org_id = :org;`;
+const starterSql = (patch = {}) => `UPDATE public.company_settings SET settings = '${JSON.stringify(Object.assign({}, STARTER, { logists_see_all: false }, patch))}' WHERE org_id = :org;`;
 
 // 1b. Account that only has the autosaved starter template: joins, old company removed.
 {
@@ -138,13 +136,6 @@ const starterSql = (patch = {}, base = STARTER) => `UPDATE public.company_settin
     const oldOrg = await one('SELECT count(*)::int AS c FROM public.organizations WHERE id = $1', [a.org]);
     check(res.ok && profile.org_id === TEAM && profile.org_role === 'logist' && oldOrg.c === 0,
         'starter template only: join succeeds, old company removed');
-}
-{
-    const a = await signup('starter-previous@example.com', starterSql({}, STARTER_PREVIOUS));
-    const hash = await invite('starter-previous@example.com', { org: TEAM2 });
-    const res = await accept(hash, a.user, 'starter-previous@example.com');
-    const oldOrg = await one('SELECT count(*)::int AS c FROM public.organizations WHERE id = $1', [a.org]);
-    check(res.ok && oldOrg.c === 0, 'previous starter template only: join succeeds, old company removed');
 }
 
 // 1c. is_approved follows the target owner: approved owner → approved logist, otherwise reset.
@@ -171,8 +162,8 @@ const DATA_CASES = [
     ['company settings', `UPDATE public.company_settings SET settings = '{"logists_see_all": false, "fuelPrice": 61}' WHERE org_id = :org;`],
     ['edited starter template', starterSql({ fuelPrice: 58 })],
     ['starter template plus own setting', starterSql({ doc_warn_days: 30 })],
-    ['edited previous starter template', starterSql({ fuelPrice: 58 }, STARTER_PREVIOUS)],
-    ['mix of previous and current templates', starterSql({ perDiem: 850 })],
+    // The template autosaved before 2026-10-17 is no longer recognised.
+    ['previous starter template (5/37/57/850)', starterSql({ totalFleet: 5, fuelLoad: 37, fuelPrice: 57, perDiem: 850 })],
     ['company profile', `UPDATE public.org_company_profiles SET phone = '+380000000000' WHERE org_id = :org;`],
     ['another member', `INSERT INTO public.profiles (id, email, org_id, org_role) VALUES (gen_random_uuid(), 'mate@example.com', :org, 'logist');`]
 ];
