@@ -232,3 +232,70 @@ REVOKE ALL ON FUNCTION public.accept_org_invite(text, uuid, text)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.accept_org_invite(text, uuid, text)
   TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Seat trigger (from 20261012210000): a declined invite no longer holds a seat,
+-- same as in the team API. CREATE OR REPLACE keeps the owner and the
+-- trg_enforce_logist_activation_limit trigger on public.profiles as they are.
+-- ---------------------------------------------------------------------------
+
+-- Service role is not exempt: the team API updates profiles with that role.
+-- A pending invite for this same email is the seat being accepted, so it is
+-- not counted twice. A different person's invite still occupies a seat.
+CREATE OR REPLACE FUNCTION public.enforce_logist_activation_limit()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_used integer;
+BEGIN
+  IF NOT (NEW.org_role = 'logist' AND NEW.member_status = 'active') THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+     AND OLD.org_role = 'logist'
+     AND OLD.member_status = 'active'
+     AND OLD.org_id IS NOT DISTINCT FROM NEW.org_id
+  THEN
+    RETURN NEW;
+  END IF;
+
+  PERFORM 1
+  FROM public.organizations
+  WHERE id = NEW.org_id
+  FOR UPDATE;
+
+  SELECT
+    (SELECT count(*)::integer FROM public.profiles AS p
+      WHERE p.org_id = NEW.org_id
+        AND p.id IS DISTINCT FROM NEW.id
+        AND p.member_status = 'active'
+        AND p.org_role = 'logist')
+    +
+    (SELECT count(*)::integer FROM public.org_invites AS oi
+      WHERE oi.org_id = NEW.org_id
+        AND oi.accepted_at IS NULL
+        AND oi.revoked_at IS NULL
+        AND oi.declined_at IS NULL
+        AND oi.expires_at > now()
+        AND (
+          NEW.email IS NULL
+          OR lower(oi.email) IS DISTINCT FROM lower(NEW.email)
+        ))
+  INTO v_used;
+
+  IF v_used >= 3 THEN
+    RAISE EXCEPTION 'MEMBER_LIMIT'
+      USING ERRCODE = 'P0001',
+            DETAIL = 'One owner and at most three logists, including live invitations';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.enforce_logist_activation_limit()
+  FROM PUBLIC, anon, authenticated, service_role;

@@ -48,6 +48,14 @@ INSERT INTO public.profiles (id, email, org_id, org_role, is_approved) VALUES ('
 await db.exec(migration);
 await db.exec(migration);
 
+// The seat trigger as created by 20261012210000; the migration above only replaces its function.
+await db.exec(`
+CREATE TRIGGER trg_enforce_logist_activation_limit
+  BEFORE UPDATE OF org_role, member_status, org_id
+  ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_logist_activation_limit();
+`);
+
 let failed = 0;
 function check(ok, label) {
     console.log((ok ? 'PASS ' : 'FAIL ') + label);
@@ -183,6 +191,50 @@ for (const [label, sql] of DATA_CASES) {
     const hash = await invite('late@example.com', { expired: true });
     const res = await accept(hash, a.user, 'late@example.com');
     check(!res.ok && /INVITE_EXPIRED/.test(res.message), 'expired invite: INVITE_EXPIRED');
+}
+
+// 3b. Seat trigger ignores declined invites: A declined + B, C, D pending → B joins;
+//     then D revoked, and enabling a disabled member is not blocked by A.
+{
+    const TEAM3 = '50000000-0000-0000-0000-000000000003';
+    const OWNER3 = '00000000-0000-0000-0000-0000000000c3';
+    await db.exec(`
+INSERT INTO public.organizations (id, name, work_mode) VALUES ('${TEAM3}', 'Team fixture 3', 'team');
+INSERT INTO public.profiles (id, email, org_id, org_role, is_approved) VALUES ('${OWNER3}', 'owner3@example.com', '${TEAM3}', 'owner', true);
+`);
+    await invite('seat-a@example.com', { org: TEAM3, declined: true });
+    const hashB = await invite('seat-b@example.com', { org: TEAM3 });
+    await invite('seat-c@example.com', { org: TEAM3 });
+    const hashD = await invite('seat-d@example.com', { org: TEAM3 });
+    const b = await signup('seat-b@example.com');
+    const res = await accept(hashB, b.user, 'seat-b@example.com');
+    const profile = await one('SELECT org_id, member_status FROM public.profiles WHERE id = $1', [b.user]);
+    check(res.ok && profile.org_id === TEAM3 && profile.member_status === 'active',
+        'seat trigger: A declined + B, C, D pending → B accept passes');
+
+    await db.query('UPDATE public.org_invites SET revoked_at = now() WHERE token_hash = $1', [hashD]);
+    const e = '00000000-0000-0000-0000-0000000000e3';
+    await db.query(`INSERT INTO public.profiles (id, email, org_id, org_role, member_status) VALUES ($1, 'seat-e@example.com', $2, 'logist', 'disabled')`, [e, TEAM3]);
+    let enabled;
+    try {
+        await db.query(`UPDATE public.profiles SET member_status = 'active' WHERE id = $1`, [e]);
+        enabled = { ok: true };
+    } catch (error) {
+        enabled = { ok: false, message: String(error.message || error) };
+    }
+    check(enabled.ok, 'seat trigger: enabling a member is not blocked by a declined invite' + (enabled.ok ? '' : ' (' + enabled.message + ')'));
+
+    // Control: with a live invite in A's place the same enable is refused.
+    await db.query(`UPDATE public.profiles SET member_status = 'disabled' WHERE id = $1`, [e]);
+    await invite('seat-f@example.com', { org: TEAM3 });
+    let refused;
+    try {
+        await db.query(`UPDATE public.profiles SET member_status = 'active' WHERE id = $1`, [e]);
+        refused = '';
+    } catch (error) {
+        refused = String(error.message || error);
+    }
+    check(/MEMBER_LIMIT/.test(refused), 'seat trigger: live invites still hold seats (MEMBER_LIMIT)');
 }
 
 // 4. Seat limit: owner + 3 active logists is full.

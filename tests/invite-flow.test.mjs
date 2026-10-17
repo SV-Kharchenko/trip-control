@@ -607,6 +607,15 @@ test('migration: declined_at, data check before dropping the old company, not ap
     }
 });
 
+test('migration: seat trigger is the 20261012210000 body plus declined_at, REVOKE kept, trigger untouched', () => {
+    const fn = (sql) => sql.replace(/\r\n/g, '\n').match(/CREATE OR REPLACE FUNCTION public\.enforce_logist_activation_limit\(\)[\s\S]*?\n\$\$;/)[0];
+    const before = fn(read('supabase/migrations/20261012210000_seat_reactivation_and_history_followups.sql'));
+    const after = fn(migration);
+    assert.equal(after, before.replace('        AND oi.revoked_at IS NULL\n', '        AND oi.revoked_at IS NULL\n        AND oi.declined_at IS NULL\n'));
+    assert.match(migration, /REVOKE ALL ON FUNCTION public\.enforce_logist_activation_limit\(\)\s+FROM PUBLIC, anon, authenticated, service_role;/);
+    assert.doesNotMatch(migration, /TRIGGER trg_enforce_logist_activation_limit/);
+});
+
 test('migration: the autosaved starter template is not user data (same values as STARTER_SETTINGS)', () => {
     const starter = Function('return ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1])();
     const sql = migration.match(/jsonb_build_object\(\s*('totalFleet'[\s\S]*?)\)\s*@>/)[1];
@@ -635,6 +644,9 @@ test('accept_org_invite on Postgres: empty company removed, company with data ke
     assert.match(run.stdout, /PASS old org with starter template plus own setting: OLD_ORG_HAS_DATA/);
     assert.match(run.stdout, /PASS approved owner: logist becomes approved/);
     assert.match(run.stdout, /PASS unapproved owner: logist approval reset/);
+    assert.match(run.stdout, /PASS seat trigger: A declined \+ B, C, D pending → B accept passes/);
+    assert.match(run.stdout, /PASS seat trigger: enabling a member is not blocked by a declined invite/);
+    assert.match(run.stdout, /PASS seat trigger: live invites still hold seats/);
     assert.match(run.stdout, /PASS declined invite: INVITE_DECLINED/);
     assert.match(run.stdout, /PASS fourth logist: MEMBER_LIMIT/);
 });
