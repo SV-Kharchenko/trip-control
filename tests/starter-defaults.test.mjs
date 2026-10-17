@@ -53,6 +53,7 @@ test('demo trip clears the fleet choice first, so restoring norms cannot overwri
     const fn = html.slice(start, html.indexOf('\n    }\n', start));
     const clear = fn.indexOf('clearVehicleNormChoice();');
     assert.ok(clear !== -1 && clear < fn.indexOf('Object.keys(STARTER_TRIP)'), 'clearVehicleNormChoice() before STARTER_TRIP');
+    assert.equal(fn.split('clearVehicleNormChoice();').length - 1, 1, 'only one clearVehicleNormChoice() call');
     assert.match(fn, /^    function fillDemoTrip\(\) \{\n(\s*\/\/.*\n)?\s+clearVehicleNormChoice\(\);/);
 });
 
