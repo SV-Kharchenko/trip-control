@@ -1500,52 +1500,6 @@
         }
         .preset-btn:hover { border-color: var(--steel); color: var(--text-main); }
         .preset-btn.active { background: var(--amber) !important; color: #1a1205 !important; border-color: transparent !important; font-weight: 700; }
-        .preset-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-        .preset-tile {
-            --pt: var(--amber);
-            position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            gap: 7px; min-height: 108px; padding: 12px 8px; cursor: pointer;
-            background:
-                radial-gradient(90% 80% at 50% 0%, color-mix(in srgb, var(--pt) 14%, transparent), transparent 60%),
-                var(--input-bg);
-            border: 1px solid var(--border-color); border-radius: 14px;
-            color: var(--text-muted); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em;
-            text-transform: uppercase; text-align: center; font-family: var(--font-ui);
-            transition: border-color 0.2s, color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.2s;
-        }
-        .preset-tile[data-preset="зерновоз"] { --pt: #fbbf24; }
-        .preset-tile[data-preset="рефрижератор"] { --pt: #7dd3fc; }
-        .preset-tile[data-preset="тент"] { --pt: #34d399; }
-        .preset-tile[data-preset="цистерна"] { --pt: #f59e0b; }
-        .preset-tile .pt-ico {
-            width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
-            font-size: 1.35rem; line-height: 1;
-            background: color-mix(in srgb, var(--pt) 16%, transparent);
-            border: 1px solid color-mix(in srgb, var(--pt) 35%, var(--border-color));
-        }
-        .preset-tile .pt-hint {
-            font-size: 0.58rem; letter-spacing: 0.04em; text-transform: none; font-weight: 500;
-            color: var(--text-muted); opacity: 1;
-        }
-        .preset-tile:hover { border-color: color-mix(in srgb, var(--pt) 55%, var(--border-color)); color: var(--text-main); transform: translateY(-2px); }
-        .preset-tile.active {
-            color: var(--on-accent); border-color: var(--accent);
-            background: var(--accent);
-            box-shadow: none;
-        }
-        .preset-tile.active .pt-hint,
-        .preset-tile.active .pt-ico {
-            color: var(--on-accent); opacity: 1;
-        }
-        .preset-tile.active .pt-ico {
-            background: color-mix(in srgb, var(--on-accent) 16%, transparent);
-            border-color: color-mix(in srgb, var(--on-accent) 35%, transparent);
-        }
-        .preset-tile.active::after {
-            content: '✓'; position: absolute; top: 8px; right: 9px; width: 18px; height: 18px;
-            border-radius: 50%; display: grid; place-items: center; font-size: 0.65rem;
-            background: var(--pt); color: #1a1205; font-weight: 800;
-        }
 
         .dynamic-field { display: none; }
         .dynamic-field.active { display: grid; }
@@ -1696,7 +1650,6 @@
         @media (max-width: 700px) {
             .tc-kpi { grid-template-columns: repeat(2, 1fr); }
             .tc-kpi .kpi-chip:last-child { grid-column: 1 / -1; }
-            .preset-tiles { grid-template-columns: repeat(2, 1fr); }
             .tc-costs-body { grid-template-columns: 1fr; }
             .form-row { grid-template-columns: minmax(0, 1fr) 108px 34px; }
             .form-row.two-cols { grid-template-columns: 1fr; }
@@ -2277,7 +2230,6 @@
             body.layout-studio .form-row input,
             body.layout-studio .form-row select,
             body.layout-studio .btn,
-            body.layout-studio .preset-tile,
             body.layout-studio .tc-studio-nav button {
                 min-height: 44px;
             }
@@ -4065,14 +4017,6 @@
       <div class="tc-work">
         <div class="card">
                 <h2><span class="tc-sec-ico" aria-hidden="true">▤</span>Параметри рейсу</h2>
-                <div class="preset-bar-label">Пресети причепа</div>
-                <div class="preset-tiles">
-                    <button type="button" class="preset-tile active" data-preset="зерновоз" onclick="applyPreset('зерновоз', this)"><span class="pt-ico">🌾</span>Зерновоз<span class="pt-hint">сипучі</span></button>
-                    <button type="button" class="preset-tile" data-preset="рефрижератор" onclick="applyPreset('рефрижератор', this)"><span class="pt-ico">❄️</span>Реф<span class="pt-hint">холод</span></button>
-                    <button type="button" class="preset-tile" data-preset="тент" onclick="applyPreset('тент', this)"><span class="pt-ico">🚛</span>Тент<span class="pt-hint">універсал</span></button>
-                    <button type="button" class="preset-tile" data-preset="цистерна" onclick="applyPreset('цистерна', this)"><span class="pt-ico">🛢️</span>Цистерна<span class="pt-hint">наливні</span></button>
-                </div>
-
                 <div id="vehicle-norm-row" hidden>
                     <div class="tc-vehicle-label">
                         <div class="preset-bar-label">Авто з парку</div>
@@ -4146,8 +4090,8 @@
                     </select>
                 </div>
 
-                <div class="form-row two-cols tc-keep-hidden">
-                    <label>Тип причепа:</label>
+                <div class="form-row two-cols">
+                    <label for="trailer-type">Тип причепа:</label>
                     <select id="trailer-type" onchange="onTrailerChange()">
                         <option value="зерновоз" selected>Зерновоз</option>
                         <option value="рефрижератор">Рефрижератор</option>
@@ -4479,12 +4423,8 @@
                 <option value="rejected">Відхилено</option>
                 <option value="done">Виконано</option>
             </select>
-            <select id="history-trailer" aria-label="Причіп" onchange="historyPage=0;renderSavedTable()">
-                <option value="">Усі причепи</option>
-                <option value="зерновоз">Зерновоз</option>
-                <option value="рефрижератор">Рефрижератор</option>
-                <option value="тент">Тент</option>
-                <option value="цистерна">Цистерна</option>
+            <select id="history-plate" aria-label="Авто" onchange="historyPage=0;renderSavedTable()">
+                <option value="">Усі авто</option>
             </select>
             <select id="history-sort" aria-label="Сортування" onchange="historyPage=0;renderSavedTable()">
                 <option value="new">Спочатку нові</option>
@@ -5193,8 +5133,9 @@
         });
         const client = document.getElementById('client-name');
         if (client) client.value = '';
-        const presetBtn = document.querySelector('.preset-tile[data-preset="зерновоз"]');
-        applyPreset('зерновоз', presetBtn);
+        clearVehicleNormChoice();
+        document.getElementById('trailer-type').value = 'зерновоз';
+        syncTrailerExtras();
         updateRouteBar();
         calculate();
         showToast('Підставлено демо-рейс');
@@ -5350,13 +5291,8 @@
         take(1, document.getElementById('podacha-info'));
         take(1, rowOf('dist'));
 
-        let presetLabel = null;
-        Array.prototype.forEach.call(card.children, function (child) {
-            if (!presetLabel && child.classList && child.classList.contains('preset-bar-label')) presetLabel = child;
-        });
-        take(2, presetLabel);
-        take(2, card.querySelector('.preset-tiles'));
         take(2, document.getElementById('vehicle-norm-row'));
+        take(2, rowOf('trailer-type'));
         take(2, rowOf('return-mode'));
         take(2, rowOf('volume'));
         take(2, rowOf('norm-weight'));
@@ -5366,7 +5302,6 @@
         take(2, rowOf('contract-currency'));
         take(2, document.getElementById('contract-fx-note'));
         take(2, rowOf('rate'));
-        take(2, rowOf('trailer-type'));
 
         take(3, document.querySelector('.tc-lower'));
 
@@ -7122,38 +7057,6 @@
         document.getElementById('conv-res').innerText = formatMoney(val * rate);
     }
 
-    function applyPreset(type, btnElement) {
-        clearVehicleNormChoice();
-        document.getElementById('trailer-type').value = type;
-        
-        if (btnElement) {
-            document.querySelectorAll('.preset-tile').forEach(btn => btn.classList.remove('active'));
-            btnElement.classList.add('active');
-        } else {
-            document.querySelectorAll('.preset-tile').forEach(btn => btn.classList.toggle('active', btn.dataset.preset === type));
-        }
-
-        if (type === 'зерновоз') {
-            document.getElementById('fuel-load').value = 37;
-            document.getElementById('fuel-empty').value = 32;
-            document.getElementById('norm-weight').value = 21.5;
-        } else if (type === 'рефрижератор') {
-            document.getElementById('fuel-load').value = 34;
-            document.getElementById('fuel-empty').value = 29;
-            document.getElementById('norm-weight').value = 20.0;
-        } else if (type === 'тент') {
-            document.getElementById('fuel-load').value = 32;
-            document.getElementById('fuel-empty').value = 27;
-            document.getElementById('norm-weight').value = 22.0;
-        } else if (type === 'цистерна') {
-            document.getElementById('fuel-load').value = 35;
-            document.getElementById('fuel-empty').value = 28;
-            document.getElementById('norm-weight').value = 24.0;
-        }
-        onTrailerChange();
-        updateStepSummaries();
-    }
-
     function syncTrailerExtras() {
         const trailerEl = document.getElementById('trailer-type');
         const trailer = trailerEl ? trailerEl.value : '';
@@ -7287,9 +7190,6 @@
         const trailer = document.getElementById('trailer-type');
         if (trailer && data.trailerType) {
             trailer.value = data.trailerType;
-            document.querySelectorAll('.preset-tile').forEach(function (btn) {
-                btn.classList.toggle('active', btn.dataset.preset === data.trailerType);
-            });
             syncTrailerExtras();
         }
         const fuelLoad = document.getElementById('fuel-load');
@@ -8005,9 +7905,6 @@
             }
         });
         document.getElementById('trailer-type').value = 'зерновоз';
-        document.querySelectorAll('.preset-tile').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.preset === 'зерновоз');
-        });
     }
 
     // Підставляє збережені параметри компанії в поля калькулятора (порожні ключі поля не чіпають)
@@ -8458,6 +8355,7 @@
         writeFleetOpenMap(map);
     }
     function renderFleetDocs() {
+        if (refreshHistoryPlateOptions()) renderSavedTable();
         renderVehicleNormSelect();
         syncFleetWarnControl();
         const list = document.getElementById('fleet-list');
@@ -10081,6 +9979,7 @@
             return;
         }
         await loadTripActuals();
+        refreshHistoryPlateOptions();
         renderSavedTable();
         refreshMigrateBox();
     }
@@ -10762,13 +10661,155 @@
         if (fields.from && fields.to) return fields.from + ' → ' + fields.to;
         return fields.name;
     }
+    // Фільтр «Авто»: номери з автопарку + номери зі збережених рейсів, яких уже нема в парку.
+    const HISTORY_NO_VEHICLE = '__none__';
+    function historyPlateKey(label) {
+        return String(label || '').toUpperCase().replace(/[\s\-‐-―]+/g, '');
+    }
+    function historyTripVehicles(row) {
+        const list = row && row.inputs && Array.isArray(row.inputs.vehicles) ? row.inputs.vehicles : [];
+        return list.filter(function (item) { return item && (item.id || String(item.label || '').trim()); });
+    }
+    // Ключ авто рейсу = значення опції: vehicle_id з парку; без нього — збіг номера з парком;
+    // інакше група видаленого авто (за vehicle_id і номером): її vehicle_id або нормалізований номер.
+    function historyPlateIndex(rows, fleet) {
+        const fleetById = {};
+        const fleetByPlate = {};
+        (fleet || []).forEach(function (vehicle) {
+            if (!vehicle || !vehicle.id) return;
+            const id = String(vehicle.id);
+            fleetById[id] = vehicle;
+            const plate = historyPlateKey(vehicle.label);
+            if (plate && !fleetByPlate[plate]) fleetByPlate[plate] = id;
+        });
+        const parent = {};
+        const find = function (node) {
+            if (!(node in parent)) return node;
+            while (parent[node] !== node) { parent[node] = parent[parent[node]]; node = parent[node]; }
+            return node;
+        };
+        const join = function (a, b) {
+            [a, b].forEach(function (node) { if (!(node in parent)) parent[node] = node; });
+            const ra = find(a);
+            const rb = find(b);
+            if (ra !== rb) parent[ra < rb ? rb : ra] = ra < rb ? ra : rb;
+        };
+        const fleetKey = function (vehicle) {
+            const id = vehicle.id ? String(vehicle.id) : '';
+            if (id && fleetById[id]) return id;
+            const plate = historyPlateKey(vehicle.label);
+            return plate && fleetByPlate[plate] ? fleetByPlate[plate] : '';
+        };
+        const orphanNodes = function (vehicle) {
+            const nodes = [];
+            if (vehicle.id) nodes.push('id:' + vehicle.id);
+            const plate = historyPlateKey(vehicle.label);
+            if (plate) nodes.push('p:' + plate);
+            return nodes;
+        };
+        const newestFirst = (rows || []).slice().sort(function (a, b) {
+            return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+        });
+        newestFirst.forEach(function (row) {
+            historyTripVehicles(row).forEach(function (vehicle) {
+                if (fleetKey(vehicle)) return;
+                const nodes = orphanNodes(vehicle);
+                if (nodes.length) join(nodes[0], nodes[nodes.length - 1]);
+            });
+        });
+        const groups = {};
+        newestFirst.forEach(function (row) {
+            historyTripVehicles(row).forEach(function (vehicle) {
+                if (fleetKey(vehicle)) return;
+                const nodes = orphanNodes(vehicle);
+                if (!nodes.length) return;
+                const root = find(nodes[0]);
+                const group = groups[root] || (groups[root] = { ids: [], plate: '', label: '' });
+                if (vehicle.id && group.ids.indexOf(String(vehicle.id)) === -1) group.ids.push(String(vehicle.id));
+                if (!group.label && String(vehicle.label || '').trim()) {
+                    group.label = String(vehicle.label).trim();
+                    group.plate = historyPlateKey(vehicle.label);
+                }
+            });
+        });
+        Object.keys(groups).forEach(function (root) {
+            const group = groups[root];
+            group.value = group.ids.length ? group.ids.slice().sort()[0] : group.plate;
+        });
+        const keyOf = function (vehicle) {
+            const own = fleetKey(vehicle);
+            if (own) return own;
+            const nodes = orphanNodes(vehicle);
+            return nodes.length && groups[find(nodes[0])] ? groups[find(nodes[0])].value : '';
+        };
+        const options = [];
+        Object.keys(fleetById).forEach(function (id) {
+            options.push({ value: id, label: String(fleetById[id].label || '').trim() || 'Авто' });
+        });
+        Object.keys(groups).forEach(function (root) {
+            const group = groups[root];
+            if (group.value) options.push({ value: group.value, label: group.label || 'Авто' });
+        });
+        options.sort(function (a, b) {
+            return a.label.localeCompare(b.label, 'uk', { numeric: true, sensitivity: 'base' }) || a.value.localeCompare(b.value);
+        });
+        return {
+            options: options,
+            keysOf: function (row) {
+                const keys = [];
+                historyTripVehicles(row).forEach(function (vehicle) {
+                    const key = keyOf(vehicle);
+                    if (key && keys.indexOf(key) === -1) keys.push(key);
+                });
+                return keys;
+            },
+            // Номер зі знімка рейсу і поточний номер у парку (якщо авто перейменували).
+            platesOf: function (row) {
+                const out = [];
+                historyTripVehicles(row).forEach(function (vehicle) {
+                    const own = fleetKey(vehicle);
+                    [vehicle.label, own ? fleetById[own].label : ''].forEach(function (label) {
+                        const text = String(label || '').trim();
+                        const key = historyPlateKey(text);
+                        if (key && !out.some(function (item) { return historyPlateKey(item) === key; })) out.push(text);
+                    });
+                });
+                return out;
+            }
+        };
+    }
+    function historyPlateMatches(index, row, value) {
+        if (!value) return true;
+        const keys = index.keysOf(row);
+        if (value === HISTORY_NO_VEHICLE) return !keys.length;
+        return keys.indexOf(value) !== -1;
+    }
+    // Після loadSavedCalculations і змін автопарку. Обране значення лишається, якщо ще є; true — якщо скинуто.
+    function refreshHistoryPlateOptions() {
+        const select = document.getElementById('history-plate');
+        if (!select) return false;
+        const current = select.value;
+        const index = historyPlateIndex(savedCalculations, fleetVehicles);
+        const options = [{ value: '', label: 'Усі авто' }].concat(index.options, [{ value: HISTORY_NO_VEHICLE, label: 'Без авто' }]);
+        select.textContent = '';
+        options.forEach(function (option) {
+            const el = document.createElement('option');
+            el.value = option.value;
+            el.textContent = option.label;
+            select.appendChild(el);
+        });
+        const kept = options.some(function (option) { return option.value === current; });
+        select.value = kept ? current : '';
+        return !kept && current !== '';
+    }
     function filteredHistory() {
         const search = (document.getElementById('history-search') || {}).value || '';
         const needle = search.trim().toLowerCase();
         const from = (document.getElementById('history-from') || {}).value || '';
         const to = (document.getElementById('history-to') || {}).value || '';
         const status = (document.getElementById('history-status') || {}).value || '';
-        const trailer = (document.getElementById('history-trailer') || {}).value || '';
+        const plate = (document.getElementById('history-plate') || {}).value || '';
+        const plates = historyPlateIndex(savedCalculations, fleetVehicles);
         const sort = (document.getElementById('history-sort') || {}).value || 'new';
         const authorSelect = document.getElementById('saved-author-filter');
         const authorId = currentWorkMode === 'team' && authorSelect ? authorSelect.value : '';
@@ -10777,13 +10818,18 @@
         rows = rows.filter(function (row) {
             const fields = historyFields(row);
             if (status && fields.status !== status) return false;
-            if (trailer && fields.trailer !== trailer) return false;
+            if (!historyPlateMatches(plates, row, plate)) return false;
             const day = fields.date ? String(fields.date).slice(0, 10) : '';
             if (from && day && day < from) return false;
             if (to && day && day > to) return false;
             if (!needle) return true;
-            const hay = [fields.name, fields.client, fields.from, fields.to, fields.trailer, savedAuthorLabel(row.userId)].join(' ').toLowerCase();
-            return hay.indexOf(needle) !== -1;
+            const rowPlates = plates.platesOf(row);
+            const hay = [fields.name, fields.client, fields.from, fields.to, fields.trailer, savedAuthorLabel(row.userId)]
+                .concat(rowPlates).join(' ').toLowerCase();
+            if (hay.indexOf(needle) !== -1) return true;
+            // «АА 1234» знаходить «AA1234-ХХ»: номер порівнюємо без пробілів і дефісів.
+            const plateNeedle = historyPlateKey(needle);
+            return plateNeedle.length >= 3 && rowPlates.some(function (text) { return historyPlateKey(text).indexOf(plateNeedle) !== -1; });
         });
         rows.sort(function (a, b) {
             const fa = historyFields(a);
@@ -11266,9 +11312,6 @@
         const pctBox = document.getElementById('driver-pct-box');
         if (kmBox) kmBox.style.display = mode === 'km' ? 'block' : 'none';
         if (pctBox) pctBox.style.display = mode === 'pct' ? 'block' : 'none';
-        document.querySelectorAll('.preset-tile').forEach(function (btn) {
-            btn.classList.toggle('active', btn.dataset.preset === data.trailerType);
-        });
         const trailer = data.trailerType || '';
         const refOn = trailer === 'рефрижератор';
         const washOn = trailer === 'цистерна';
@@ -11355,14 +11398,27 @@
         const previous = row.status || 'draft';
         row.status = status;
         renderSavedTable();
+        if (uiPreview) {
+            showToast('✓ Статус: ' + statusLabel(status), 2200, 'ok');
+            return;
+        }
         try {
-            const { error } = await supabaseClient.from('calculations').update({ status: status }).eq('id', id);
-            if (error) throw error;
+            const { data, error, status: httpStatus } = await supabaseClient.from('calculations').update({ status: status }).eq('id', id).select('id');
+            if (error) throw Object.assign({}, error, { httpStatus: httpStatus });
+            // RLS filters rows silently: nothing updated means no right to this trip.
+            if (!data || !data.length) throw { code: '42501', httpStatus: 403 };
+            showToast('✓ Статус: ' + statusLabel(status), 2200, 'ok');
         } catch (e) {
             row.status = previous;
             renderSavedTable();
-            showToast('Статус не збережено. Потрібна міграція історії, якщо її ще не застосовано.');
+            showToast(tripStatusErrorText(e), 4200, 'error');
         }
+    }
+    function tripStatusErrorText(e) {
+        const code = String((e && e.code) || '');
+        const httpStatus = Number(e && e.httpStatus);
+        if (code === '42501' || httpStatus === 403) return 'Немає прав змінювати статус цього рейсу';
+        return dbErrorText(e);
     }
     async function loadRouteTemplates() {
         routeTemplates = [];
@@ -12545,14 +12601,22 @@
             {
                 id: 'preview-1', userId: 'preview-owner', routeName: 'Умань — Ізмаїл',
                 createdAt: '2026-10-02T08:00:00.000Z', tripDate: '2026-10-06', status: 'accepted', overheadTotal: 4100,
-                inputs: { origin: 'Умань', destination: 'Ізмаїл', clientName: 'Агросвіт', returnMode: 'разовий', dist: '640', podachaDist: '20', carsCount: '2', normWeight: '22', volume: '44', daysPerTrip: '1.5', rate: '890', contractCurrency: 'UAH', trailerType: 'зерновоз' },
+                inputs: { origin: 'Умань', destination: 'Ізмаїл', clientName: 'Агросвіт', returnMode: 'разовий', dist: '640', podachaDist: '20', carsCount: '2', normWeight: '22', volume: '44', daysPerTrip: '1.5', rate: '890', contractCurrency: 'UAH', trailerType: 'зерновоз',
+                    vehicles: [{ id: 'preview-fleet-1', label: 'AA0001KA', tonnage: 22 }, { id: 'preview-fleet-2', label: 'AA0002KA', tonnage: 22 }] },
                 grossIncome: 39160, netProfit: 8420, trailerType: 'зерновоз'
             },
             {
                 id: 'preview-2', userId: 'preview-logist', routeName: 'Київ — Львів',
                 createdAt: '2026-09-18T08:00:00.000Z', tripDate: '2026-10-08', status: 'draft',
-                inputs: { origin: 'Київ', destination: 'Львів', clientName: 'Захід Транс', returnMode: 'циклічний', dist: '540', carsCount: '3', normWeight: '21', volume: '126', daysPerTrip: '2', rate: '760', contractCurrency: 'UAH', trailerType: 'тент' },
+                inputs: { origin: 'Київ', destination: 'Львів', clientName: 'Захід Транс', returnMode: 'циклічний', dist: '540', carsCount: '3', normWeight: '21', volume: '126', daysPerTrip: '2', rate: '760', contractCurrency: 'UAH', trailerType: 'тент',
+                    vehicles: [{ id: 'preview-fleet-2', label: 'AA0002KA', tonnage: 21 }, { id: 'preview-fleet-sold', label: 'BC 7777 AX', tonnage: 21 }, { label: 'AI-4545-KB', tonnage: 21 }] },
                 grossIncome: 95760, netProfit: -3200, trailerType: 'тент'
+            },
+            {
+                id: 'preview-3', userId: 'preview-logist', routeName: 'Вінниця — Одеса',
+                createdAt: '2026-09-10T08:00:00.000Z', tripDate: '2026-09-12', status: 'done',
+                inputs: { origin: 'Вінниця', destination: 'Одеса', clientName: 'Агросвіт', returnMode: 'разовий', dist: '430', carsCount: '1', normWeight: '22', volume: '22', daysPerTrip: '1', rate: '700', contractCurrency: 'UAH', trailerType: 'зерновоз' },
+                grossIncome: 15400, netProfit: 2100, trailerType: 'зерновоз'
             }
         ];
         routeTemplates = [{ id: 'preview-template', name: 'Умань → Ізмаїл', scope: 'personal', params: { origin: 'Умань', destination: 'Ізмаїл', dist: '640', carsCount: '2', daysPerTrip: '1.5', trailerType: 'зерновоз' }, owner_user_id: 'preview-owner', use_count: 0 }];
@@ -12564,6 +12628,7 @@
             { id: 'preview-fleet-2', label: 'AA0002KA', make_model: 'DAF XF', year_made: 2016, oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null, fuel_load: 35, fuel_empty: 30, adblue_on: false, adblue_consumption: null, trailer_plate: null, trailer_type: 'тент', payload_t: 18 }
         ];
         renderVehicleNormSelect();
+        refreshHistoryPlateOptions();
         currentUserId = 'preview-owner';
         currentUserEmail = 'owner@trip-control.test';
         companyName = 'Агросвіт';
