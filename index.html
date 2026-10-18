@@ -1818,6 +1818,57 @@
             .tc-help-links { grid-template-columns: 1fr; }
         }
         #rt-info.is-warning { color: var(--warning-text) !important; }
+        /* Тариф і оплата (екран у меню користувача) */
+        .tc-billing-card { width: min(100%, 560px); }
+        .tc-billing-status {
+            display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+            padding: 10px 12px; margin: 4px 0 14px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--input);
+        }
+        .tc-billing-status span { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+        .tc-billing-status b { font-size: 1rem; color: var(--text); }
+        .tc-billing-status.is-paid b { color: var(--positive); }
+        .tc-billing-fieldset { border: 0; margin: 0 0 12px; padding: 0; min-width: 0; }
+        .tc-billing-fieldset legend { font-size: 0.8rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; padding: 0; }
+        .tc-billing-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .tc-billing-option { position: relative; display: block; cursor: pointer; }
+        .tc-billing-option input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+        .tc-billing-option > span {
+            display: grid; gap: 2px; min-height: 58px; padding: 10px 12px; border-radius: var(--radius-control);
+            border: 1px solid var(--border); background: var(--surface); color: var(--text);
+        }
+        .tc-billing-option b { font-size: 0.95rem; }
+        .tc-billing-option small { font-size: 0.8rem; color: var(--muted); }
+        .tc-billing-option input:checked + span { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+        .tc-billing-option input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .tc-billing-option[hidden] { display: none !important; }
+        .tc-billing-note { margin: 0 0 12px; font-size: 0.8rem; color: var(--muted); line-height: 1.45; }
+        .tc-billing-consent { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; font-size: 0.84rem; color: var(--text); line-height: 1.45; cursor: pointer; }
+        .tc-billing-consent input { margin-top: 3px; flex: none; }
+        .tc-billing-consent a, .tc-billing-refund a { color: var(--accent); }
+        .tc-billing-pay { width: 100%; min-height: 46px; }
+        .tc-billing-msg { min-height: 1.2em; margin: 8px 0 0; font-size: 0.84rem; color: var(--text); line-height: 1.45; }
+        .tc-billing-msg.is-error { color: var(--negative); }
+        .tc-billing-msg.is-ok { color: var(--positive); }
+        .tc-billing-return { padding: 10px 12px; margin: 0 0 12px; border-radius: 10px; border: 1px solid var(--border-soft); font-size: 0.88rem; line-height: 1.45; color: var(--text); }
+        .tc-billing-return.is-ok { border-color: var(--positive); }
+        .tc-billing-return.is-error { border-color: var(--negative); }
+        .tc-billing-history { margin-top: 16px; }
+        .tc-billing-history h3 { font-size: 0.9rem; margin: 0 0 8px; color: var(--text); }
+        .tc-billing-table-wrap { overflow-x: auto; }
+        .tc-billing-history table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .tc-billing-history th, .tc-billing-history td { padding: 6px 8px; border-bottom: 1px solid var(--border-soft); text-align: left; white-space: nowrap; color: var(--text); }
+        .tc-billing-history th { color: var(--muted); font-weight: 700; }
+        .tc-billing-refund { margin: 14px 0 0; font-size: 0.84rem; }
+        .tc-billing-footer .tc-legal-footer { margin-top: 14px; }
+        .tc-billing-banner {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+            margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius-card);
+            border: 1px solid var(--gold); background: var(--surface); color: var(--text); font-size: 0.88rem;
+        }
+        .tc-billing-banner[hidden] { display: none !important; }
+        @media (max-width: 480px) {
+            .tc-billing-options { grid-template-columns: 1fr; }
+        }
         .auth-blocked-help { margin-top: 10px; font-size: 0.86rem; line-height: 1.5; color: var(--text-main); }
         .auth-blocked-help a { color: inherit; font-weight: 700; }
         .auth-blocked-help .auth-forgot { margin: 10px auto 0; text-align: center; font-size: 0.82rem; border: 0; background: none; cursor: pointer; text-decoration: underline; }
@@ -4515,6 +4566,7 @@
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Історія і шаблони</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('defaults')">Значення за замовчуванням</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('billing')">Тариф і оплата</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('help')">Довідка і підтримка</button>
                         <button type="button" role="menuitem" class="tc-menu-item is-danger" onclick="menuGo('logout')">Вийти</button>
                         <div class="tc-menu-foot">
@@ -4547,6 +4599,10 @@
             </div>
             <div id="demo-hint" style="width: 100%; font-size: 0.75rem; color: var(--text-muted);">Перевірте параметри заявки і натисніть «Розрахувати». Результат не оновлюється наживо.</div>
             <button type="button" class="hint-close" onclick="dismissHint('demo-banner')" aria-label="Закрити" title="Закрити">×</button>
+        </div>
+        <div id="billing-banner" class="tc-billing-banner" role="status" hidden>
+            <span id="billing-banner-text">Доступ діє до —</span>
+            <button type="button" class="btn btn-success" id="billing-banner-btn" onclick="openBillingModal()">Продовжити</button>
         </div>
     </div>
 
@@ -5381,6 +5437,48 @@
             <a class="tc-help-link" href="https://t.me/+380966888252" target="_blank" rel="noopener">Telegram</a>
             <a class="tc-help-link" href="https://wa.me/380966888252" target="_blank" rel="noopener">WhatsApp</a>
         </div>
+    </div>
+</div>
+<div id="tc-billing-modal" class="tc-modal" hidden onclick="if (event.target === this) closeBillingModal()">
+    <div class="tc-modal-card tc-billing-card" role="dialog" aria-modal="true" aria-labelledby="tc-billing-title">
+        <div class="tc-modal-head">
+            <h2 id="tc-billing-title">Тариф і оплата</h2>
+            <button type="button" class="tc-modal-close" aria-label="Закрити" onclick="closeBillingModal()">✕</button>
+        </div>
+        <div class="tc-billing-status" id="billing-status"><span>Статус</span><b id="billing-status-value">—</b></div>
+        <div class="tc-billing-return" id="billing-return" role="status" aria-live="polite" hidden></div>
+        <div id="billing-owner" hidden>
+            <fieldset class="tc-billing-fieldset">
+                <legend>Тариф</legend>
+                <div class="tc-billing-options">
+                    <label class="tc-billing-option"><input type="radio" name="billing-plan" value="month" checked onchange="syncBillingPayButton()"><span><b>1 місяць</b><small id="billing-price-month">250 грн</small></span></label>
+                    <label class="tc-billing-option"><input type="radio" name="billing-plan" value="year" onchange="syncBillingPayButton()"><span><b>1 рік</b><small id="billing-price-year">2500 грн</small></span></label>
+                </div>
+            </fieldset>
+            <fieldset class="tc-billing-fieldset">
+                <legend>Спосіб оплати</legend>
+                <div class="tc-billing-options" id="billing-providers">
+                    <label class="tc-billing-option" data-provider="mono"><input type="radio" name="billing-provider" value="mono"><span><b>plata by mono</b><small>monobank</small></span></label>
+                    <label class="tc-billing-option" data-provider="wayforpay"><input type="radio" name="billing-provider" value="wayforpay"><span><b>WayForPay</b><small>картка Visa / Mastercard</small></span></label>
+                </div>
+            </fieldset>
+            <p class="tc-billing-note">Apple Pay / Google Pay — на сторінці оплати. Автосписань немає: кожен період оплачується окремо.</p>
+            <label class="tc-billing-consent"><input type="checkbox" id="billing-consent"><span>Погоджуюсь з <a href="/offer" target="_blank" rel="noopener">Публічною офертою</a> та <a href="/privacy" target="_blank" rel="noopener">Політикою конфіденційності</a></span></label>
+            <button type="button" class="btn btn-success tc-billing-pay" id="billing-pay-btn" onclick="startBillingPayment()">Оплатити</button>
+            <p class="tc-billing-msg" id="billing-msg" role="status" aria-live="polite"></p>
+            <div class="tc-billing-history" id="billing-history-box" hidden>
+                <h3>Історія платежів</h3>
+                <div class="tc-billing-table-wrap">
+                    <table>
+                        <thead><tr><th>Дата</th><th>Тариф</th><th>Сума</th><th>Спосіб</th><th>Статус</th></tr></thead>
+                        <tbody id="billing-history"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <p class="tc-billing-note" id="billing-not-owner" hidden>Оплату здійснює власник компанії.</p>
+        <p class="tc-billing-refund"><a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення коштів</a></p>
+        <div class="tc-billing-footer" id="billing-footer-slot"></div>
     </div>
 </div>
 <div id="tc-toast" role="status" aria-live="polite"></div>
@@ -6410,6 +6508,7 @@
             switchCabTab('costs');
         } else if (action === 'clients') openAdminCrm();
         else if (action === 'help') openHelpModal();
+        else if (action === 'billing') openBillingModal();
         else if (action === 'logout') handleLogout();
     }
     let helpReturnFocus = null;
@@ -6971,8 +7070,10 @@
         } else if (profile.organizations && profile.organizations.status === 'blocked') {
             showBlockingMessage('⛔ Доступ вашої компанії <b>заблоковано адміністратором</b>.');
         } else {
-            // Доступ є: або повний (is_approved = true), або демо (is_approved = false)
-            isDemo = !profile.is_approved;
+            // Доступ є: повний (ручне is_approved або оплачена компанія) або демо. Лише для UI — сервер перевіряє сам.
+            billingManualAccess = !!profile.is_approved;
+            billingPaidUntil = await loadOrgPaidUntil(profile.org_id);
+            isDemo = !(profile.is_approved || billingPaidActive(billingPaidUntil));
             isAdmin = profile.role === 'admin';
             currentOrgRole = profile.org_role || 'owner';
             currentWorkMode = (profile.organizations && profile.organizations.work_mode) || 'solo';
@@ -7025,6 +7126,8 @@
             }
             if (inviteNotice) showToast(inviteNotice);
             else if (landingDraftApplied) showToast('Підставили дані з головної — натисни «Розрахувати»');
+            syncBillingBanner();
+            handleBillingParams();
         }
     }
 
@@ -7046,6 +7149,295 @@
             document.head.appendChild(s);
         });
         return googleMapsPromise;
+    }
+
+    // ===== Тариф і оплата =====
+    // Сума й доступ рахуються на сервері (/api/billing/*); тут лише UI. isDemo = !(is_approved || paid_until > зараз).
+    let billingPaidUntil = null;
+    let billingManualAccess = false;
+    let billingSummary = null;
+    let billingReturnFocus = null;
+    let billingPolling = false;
+    const BILLING_PLAN_LABEL = { month: '1 місяць', year: '1 рік' };
+    const BILLING_PROVIDER_LABEL = { mono: 'plata by mono', wayforpay: 'WayForPay' };
+    const BILLING_STATUS_LABEL = {
+        created: 'Створено', pending: 'Очікує оплати', success: 'Оплачено', failure: 'Не оплачено',
+        expired: 'Прострочено', reversed: 'Скасовано', refunded: 'Повернено'
+    };
+    function billingPaidActive(until) {
+        const at = Date.parse(until || '');
+        return Number.isFinite(at) && at > Date.now();
+    }
+    function billingDate(at) {
+        const d = new Date(at);
+        if (!Number.isFinite(d.getTime())) return '—';
+        return d.toLocaleDateString('uk-UA', { timeZone: 'Europe/Kyiv', day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+    // paid_until своєї компанії (RLS: усі учасники). Без таблиці (міграція ще не застосована) — «не оплачено».
+    async function loadOrgPaidUntil(orgId) {
+        if (!orgId) return null;
+        try {
+            const { data, error } = await supabaseClient.from('org_subscriptions').select('paid_until').eq('org_id', orgId).maybeSingle();
+            if (error || !data) return null;
+            return data.paid_until || null;
+        } catch (e) {
+            return null;
+        }
+    }
+    async function billingFetch(path, init) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session ? session.access_token : currentSessionToken;
+        const headers = Object.assign({ Authorization: 'Bearer ' + token }, (init && init.headers) || {});
+        const res = await fetch('/api/billing/' + path, Object.assign({}, init || {}, { headers: headers }));
+        let json = {};
+        try { json = await res.json(); } catch (e) { json = {}; }
+        if (!res.ok) {
+            const error = new Error(json.error || 'Сервіс оплати недоступний. Спробуйте пізніше.');
+            error.status = res.status;
+            error.code = json.code;
+            throw error;
+        }
+        return json;
+    }
+    function billingStatusText(summary) {
+        if (summary && summary.manual_full_access) return 'Повний доступ';
+        if (summary && billingPaidActive(summary.paid_until)) return 'Оплачено до ' + billingDate(summary.paid_until);
+        return 'Демо';
+    }
+    function billingPreviewSummary() {
+        const params = new URLSearchParams(location.search);
+        const paid = params.get('billing_state') === 'paid';
+        const owner = params.get('billing_role') !== 'logist';
+        const until = new Date(Date.now() + (paid ? 41 : -3) * 24 * 3600 * 1000).toISOString();
+        return {
+            paid_until: paid ? until : null,
+            paid: paid,
+            manual_full_access: false,
+            can_pay: owner,
+            payments_enabled: true,
+            providers: ['mono', 'wayforpay'],
+            prices: [{ plan: 'month', label: '1 місяць', uah: 250 }, { plan: 'year', label: '1 рік', uah: 2500 }],
+            legal_version: LEGAL_VERSION,
+            payments: owner && paid ? [
+                { id: 'p2', provider: 'wayforpay', plan: 'month', amount_uah: 250, status: 'success', created_at: new Date(Date.now() - 19 * 24 * 3600 * 1000).toISOString() },
+                { id: 'p1', provider: 'mono', plan: 'month', amount_uah: 250, status: 'expired', created_at: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString() }
+            ] : []
+        };
+    }
+    function selectedBillingPlan() {
+        const el = document.querySelector('input[name="billing-plan"]:checked');
+        return el ? el.value : 'month';
+    }
+    function syncBillingPayButton() {
+        const btn = document.getElementById('billing-pay-btn');
+        if (!btn) return;
+        const plan = selectedBillingPlan();
+        const price = billingSummary && (billingSummary.prices || []).find(function (p) { return p.plan === plan; });
+        btn.textContent = price ? 'Оплатити ' + price.uah + ' грн' : 'Оплатити';
+    }
+    function setBillingMessage(text, tone) {
+        const msg = document.getElementById('billing-msg');
+        if (!msg) return;
+        msg.textContent = text || '';
+        msg.className = 'tc-billing-msg' + (tone ? ' is-' + tone : '');
+    }
+    function renderBilling(summary) {
+        billingSummary = summary;
+        const status = document.getElementById('billing-status');
+        const value = document.getElementById('billing-status-value');
+        if (value) value.textContent = billingStatusText(summary);
+        if (status) status.classList.toggle('is-paid', !!(summary.manual_full_access || billingPaidActive(summary.paid_until)));
+        const owner = !!summary.can_pay;
+        document.getElementById('billing-owner').hidden = !owner;
+        document.getElementById('billing-not-owner').hidden = owner;
+        (summary.prices || []).forEach(function (p) {
+            const el = document.getElementById('billing-price-' + p.plan);
+            if (el) el.textContent = p.uah + ' грн';
+        });
+        const providers = summary.providers || [];
+        let firstAvailable = null;
+        document.querySelectorAll('#billing-providers .tc-billing-option').forEach(function (label) {
+            const on = providers.indexOf(label.dataset.provider) !== -1;
+            label.hidden = !on;
+            const input = label.querySelector('input');
+            input.disabled = !on;
+            if (!on) input.checked = false;
+            if (on && !firstAvailable) firstAvailable = input;
+        });
+        if (firstAvailable && !document.querySelector('input[name="billing-provider"]:checked')) firstAvailable.checked = true;
+        const payBtn = document.getElementById('billing-pay-btn');
+        payBtn.disabled = !providers.length;
+        syncBillingPayButton();
+        if (owner && !providers.length) setBillingMessage('Оплата тимчасово недоступна. Спробуйте пізніше.', 'error');
+        const rows = summary.payments || [];
+        const box = document.getElementById('billing-history-box');
+        const body = document.getElementById('billing-history');
+        box.hidden = !rows.length;
+        body.textContent = '';
+        rows.forEach(function (p) {
+            const tr = document.createElement('tr');
+            [billingDate(p.created_at), BILLING_PLAN_LABEL[p.plan] || p.plan, p.amount_uah + ' грн',
+                BILLING_PROVIDER_LABEL[p.provider] || p.provider, BILLING_STATUS_LABEL[p.status] || p.status].forEach(function (text) {
+                const td = document.createElement('td');
+                td.textContent = text;
+                tr.appendChild(td);
+            });
+            body.appendChild(tr);
+        });
+    }
+    // Той самий футер, що внизу застосунку (клон розмітки, без другої копії в HTML).
+    function ensureBillingFooter() {
+        const slot = document.getElementById('billing-footer-slot');
+        if (!slot || slot.firstElementChild) return;
+        const source = document.querySelector('#main-app > .tc-legal-footer');
+        if (source) slot.appendChild(source.cloneNode(true));
+    }
+    async function openBillingModal() {
+        const modal = document.getElementById('tc-billing-modal');
+        if (!modal) return;
+        closeUserMenu();
+        ensureBillingFooter();
+        billingReturnFocus = document.activeElement;
+        modal.hidden = false;
+        document.body.classList.add('tc-modal-open');
+        setBillingMessage('');
+        const close = modal.querySelector('.tc-modal-close');
+        if (close) close.focus();
+        if (uiPreview) {
+            renderBilling(billingPreviewSummary());
+            return;
+        }
+        document.getElementById('billing-status-value').textContent = 'Завантаження…';
+        try {
+            renderBilling(await billingFetch('summary'));
+        } catch (e) {
+            document.getElementById('billing-status-value').textContent = billingManualAccess ? 'Повний доступ'
+                : (billingPaidActive(billingPaidUntil) ? 'Оплачено до ' + billingDate(billingPaidUntil) : 'Демо');
+            document.getElementById('billing-owner').hidden = true;
+            document.getElementById('billing-not-owner').hidden = currentOrgRole === 'owner';
+            setBillingMessage(e.message, 'error');
+        }
+    }
+    function closeBillingModal() {
+        const modal = document.getElementById('tc-billing-modal');
+        if (!modal || modal.hidden) return;
+        modal.hidden = true;
+        document.body.classList.remove('tc-modal-open');
+        const back = billingReturnFocus || document.getElementById('tc-avatar-btn');
+        billingReturnFocus = null;
+        if (back && typeof back.focus === 'function') back.focus();
+    }
+    document.addEventListener('keydown', function (event) {
+        const modal = document.getElementById('tc-billing-modal');
+        if (!modal || modal.hidden || event.key !== 'Escape') return;
+        event.preventDefault();
+        closeBillingModal();
+    });
+    async function startBillingPayment() {
+        const consent = document.getElementById('billing-consent');
+        if (!consent || !consent.checked) {
+            setBillingMessage('Потрібна згода з Публічною офертою та Політикою конфіденційності.', 'error');
+            return;
+        }
+        const providerEl = document.querySelector('input[name="billing-provider"]:checked');
+        if (!providerEl) {
+            setBillingMessage('Оберіть спосіб оплати.', 'error');
+            return;
+        }
+        if (uiPreview) {
+            setBillingMessage('Прев’ю: тут відкрилася б сторінка оплати ' + BILLING_PROVIDER_LABEL[providerEl.value] + '.', 'ok');
+            return;
+        }
+        const btn = document.getElementById('billing-pay-btn');
+        btn.disabled = true;
+        setBillingMessage('Створюємо рахунок…');
+        try {
+            // Лише код тарифу й провайдера: суму сервер бере з плану.
+            const res = await billingFetch('create-invoice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan: selectedBillingPlan(), provider: providerEl.value, consent: true, legal_version: LEGAL_VERSION })
+            });
+            setBillingMessage('Переходимо на сторінку оплати…', 'ok');
+            location.href = res.url;
+        } catch (e) {
+            btn.disabled = false;
+            setBillingMessage(e.message, 'error');
+        }
+    }
+    function showBillingReturn(text, tone) {
+        const box = document.getElementById('billing-return');
+        if (!box) return;
+        box.hidden = !text;
+        box.textContent = text || '';
+        box.className = 'tc-billing-return' + (tone ? ' is-' + tone : '');
+    }
+    function applyPaidAccess(paidUntil) {
+        billingPaidUntil = paidUntil;
+        const wasDemo = isDemo;
+        isDemo = !(billingManualAccess || billingPaidActive(billingPaidUntil));
+        document.body.classList.toggle('demo-mode', isDemo);
+        syncHeaderChrome();
+        syncBillingBanner();
+        if (wasDemo && !isDemo) loadGoogleMaps().then(initMap).catch(function () {});
+    }
+    // Після повернення з оплати: питаємо /status кожні 3 с до 60 с (вебхук міг ще не дійти).
+    async function pollBillingStatus(pid) {
+        if (billingPolling) return;
+        billingPolling = true;
+        showBillingReturn('Перевіряємо оплату…');
+        const started = Date.now();
+        try {
+            while (Date.now() - started <= 60000) {
+                let res = null;
+                try { res = await billingFetch('status?pid=' + encodeURIComponent(pid)); } catch (e) { res = null; }
+                if (res && res.status === 'success') {
+                    showBillingReturn('Оплату зараховано. Доступ діє до ' + billingDate(res.paid_until) + '.', 'ok');
+                    applyPaidAccess(res.paid_until);
+                    openBillingModal();
+                    return;
+                }
+                if (res && (res.status === 'failure' || res.status === 'expired' || res.status === 'reversed')) {
+                    showBillingReturn('Оплату не завершено. Спробуйте ще раз або оберіть інший спосіб оплати.', 'error');
+                    return;
+                }
+                await new Promise(function (resolve) { setTimeout(resolve, 3000); });
+            }
+            showBillingReturn('Оплата ще обробляється. Статус оновиться автоматично — перевірте за кілька хвилин.');
+        } finally {
+            billingPolling = false;
+        }
+    }
+    function handleBillingParams() {
+        const params = new URLSearchParams(location.search);
+        const mode = params.get('billing');
+        if (!mode) return;
+        const pid = params.get('pid') || '';
+        if (!uiPreview) {
+            params.delete('billing');
+            params.delete('pid');
+            const rest = params.toString();
+            history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+        }
+        if (mode === 'pay') openBillingModal();
+        else if (mode === 'return') {
+            openBillingModal();
+            if (/^[0-9a-f-]{36}$/i.test(pid) && !uiPreview) pollBillingStatus(pid);
+        }
+    }
+    // Банер за ≤ 3 дні до кінця оплаченого періоду (ручний повний доступ — без банера).
+    function syncBillingBanner() {
+        const banner = document.getElementById('billing-banner');
+        if (!banner) return;
+        const until = Date.parse(billingPaidUntil || '');
+        const left = until - Date.now();
+        const show = !billingManualAccess && Number.isFinite(until) && left > 0 && left <= 3 * 24 * 3600 * 1000;
+        banner.hidden = !show;
+        if (!show) return;
+        const owner = currentOrgRole === 'owner';
+        document.getElementById('billing-banner-text').textContent = 'Доступ діє до ' + billingDate(billingPaidUntil) + '.' +
+            (owner ? '' : ' Оплату здійснює власник компанії.');
+        document.getElementById('billing-banner-btn').hidden = !owner;
     }
 
     // ===== Демо-режим =====
@@ -13672,6 +14064,12 @@
         if (typeof renderChart === 'function') renderChart(42000, 28000, 6500, 12000, 8500, 3200);
         paintPreviewRouteAlts();
         refreshSetupChecklist();
+        // Прев’ю оплати: ?billing=pay [&billing_state=paid|soon] [&billing_role=logist]
+        const billingStateQ = previewParams.get('billing_state');
+        if (billingStateQ === 'soon') billingPaidUntil = new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString();
+        if (previewParams.get('billing_role') === 'logist') currentOrgRole = 'logist';
+        syncBillingBanner();
+        handleBillingParams();
     }
 
     // ЗАПУСК ПРОГРАМИ
