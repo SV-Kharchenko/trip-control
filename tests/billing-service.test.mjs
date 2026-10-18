@@ -399,3 +399,19 @@ test('mono webhook: 10 forged notifications in a row → at most 1 pubkey reques
     assert.equal(w.store.db.events.length, 0);
     assert.equal(w.store.db.subs[ORG], undefined);
 });
+
+test('WayForPay webhook with amount 250.00 / "250.00" in the raw body is accepted and credited', async () => {
+    for (const literal of ['250', '250.00', '"250.00"']) {
+        const w = world();
+        const created = await w.pay(Object.assign({ plan: 'month', provider: 'wayforpay' }, w.consent));
+        const ref = 'tc-' + created.body.payment_id;
+        const text = literal.replace(/"/g, '');
+        const sig = crypto.createHmac('md5', WFP_SECRET).update([WFP_MERCHANT, ref, text, 'UAH', '541963', '41****8217', 'Approved', '1100'].join(';')).digest('hex');
+        const raw = '{"merchantAccount":"' + WFP_MERCHANT + '","orderReference":"' + ref + '","amount":' + literal +
+            ',"currency":"UAH","authCode":"541963","cardPan":"41****8217","transactionStatus":"Approved","reasonCode":1100,"processingDate":1760778300,"merchantSignature":"' + sig + '"}';
+        const res = await w.call('POST', 'wayforpay-webhook', { raw, headers: { 'content-type': 'application/json' } });
+        assert.equal(res.statusCode, 200, literal);
+        assert.equal(res.body.status, 'accept', literal);
+        assert.equal(w.store.db.subs[ORG].paid_until, '2026-11-18T09:00:00.000Z', literal);
+    }
+});

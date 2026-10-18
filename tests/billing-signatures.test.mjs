@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { test } from 'node:test';
 import { createPubKeyCache, pemFromBase64, plausibleSignature, PUBKEY_REFETCH_MS, verifyMonoSignature } from '../lib/billing/mono.js';
 import {
-    acceptResponse, checkStatus, notificationSignature, purchaseFields, purchaseSignature,
+    acceptResponse, amountSignatureForms, checkStatus, notificationSignature, purchaseFields, purchaseSignature,
     signaturesMatch, verifyNotification, wfpSign
 } from '../lib/billing/wayforpay.js';
 import { PLANS } from '../lib/billing/plans.js';
@@ -139,4 +139,27 @@ test('WayForPay notification, accept response and CHECK_STATUS signatures', asyn
     const forged = fakeNet({ wfpCheck: Object.assign({ merchantSignature: '0'.repeat(32) }, body) });
     await assert.rejects(checkStatus(forged.fetch, env, 'tc-order-1'), (e) => e.code === 'WFP_BAD_SIGNATURE');
     assert.equal(wfpSign('k', ['a', 1, null]), md5('k', 'a;1;'));
+});
+
+test('WayForPay amount: signature over the amount as sent — 250, 250.00 and "250.00"', async () => {
+    const env = baseEnv();
+    // WayForPay signs the amount text exactly as it appears in its JSON body.
+    const signed = (amountText) => md5(WFP_SECRET, ['trip_control_test', 'tc-a', amountText, 'UAH', '1', '41****1', 'Approved', '1100'].join(';'));
+    const raw = (amountLiteral, amountText) => '{"merchantAccount":"trip_control_test","orderReference":"tc-a","amount":' + amountLiteral +
+        ',"currency":"UAH","authCode":"1","cardPan":"41****1","transactionStatus":"Approved","reasonCode":1100,"merchantSignature":"' + signed(amountText) + '"}';
+    for (const [literal, text] of [['250', '250'], ['250.00', '250.00'], ['"250.00"', '250.00'], ['"250"', '250'], ['250.5', '250.5'], ['250.50', '250.50']]) {
+        assert.equal(verifyNotification(JSON.parse(raw(literal, text)), env), true, literal);
+    }
+    // A signature over another amount never matches.
+    assert.equal(verifyNotification(JSON.parse(raw('250.00', '2500.00')), env), false);
+    assert.equal(verifyNotification(JSON.parse(raw('250', '250.01')), env), false);
+    assert.deepEqual(amountSignatureForms(250), ['250', '250.00']);
+    assert.deepEqual(amountSignatureForms('250.00'), ['250.00']);
+    assert.deepEqual(amountSignatureForms(undefined), ['undefined']);
+
+    // CHECK_STATUS answer with 250.00 verifies the same way.
+    const net = fakeNet();
+    net.state.wfpCheck = JSON.parse(raw('250.00', '250.00'));
+    const checked = await checkStatus(net.fetch, env, 'tc-a');
+    assert.equal(Number(checked.amount), 250);
 });
