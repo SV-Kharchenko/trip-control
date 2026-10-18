@@ -48,8 +48,8 @@ test('header keeps live rates and moves actions into the avatar menu', () => {
     assert.match(top, /Клієнтська база/);
     assert.match(top, /Довідка і підтримка/);
     assert.match(top, /onclick="menuGo\('logout'\)"/);
-    assert.match(top, /\/legal\/offer\.html/);
-    assert.match(top, /\/legal\/privacy\.html/);
+    assert.match(top, /href="\/offer"/);
+    assert.match(top, /href="\/privacy"/);
     assert.match(top, /class="tc-logo-trip"/);
     assert.equal(top.includes('tc-action-btn'), false);
     assert.equal(top.includes('logo-compass'), false);

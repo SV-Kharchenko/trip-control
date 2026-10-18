@@ -1,0 +1,36 @@
+/* Спільний футер з реквізитами й платіжною інформацією (.tc-legal-footer).
+   Одна розмітка на екрані входу, у меню, в застосунку, на /offer, /privacy, /payment-refund і 404.
+   Кольори — з токенів теми (--muted, --text, --border-soft, --accent, --surface); запасні значення для 404 без токенів. */
+.tc-legal-footer {
+    display: grid; gap: 8px; justify-items: center; text-align: center;
+    margin: 0; padding: 14px 4px 4px;
+    border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+    font-family: var(--font-ui, 'Manrope', sans-serif);
+    font-size: 12px; line-height: 1.5; letter-spacing: normal;
+    color: var(--muted, #9aa3b2);
+}
+.tc-legal-footer p { margin: 0; }
+.tc-legal-footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.tc-legal-footer a:hover { color: var(--text, #e8eaf0); }
+.tc-legal-footer__links {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px;
+    font-weight: 600; color: var(--text, #e8eaf0);
+}
+.tc-legal-footer__links a { color: inherit; }
+.tc-legal-footer__pay {
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px;
+}
+/* Текстові бейджі замість логотипів, доки немає офіційних SVG в assets/payments/. */
+.tc-pay-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 22px; padding: 0 8px; border-radius: 6px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.22));
+    background: var(--surface, transparent); color: var(--text, #e8eaf0);
+    font-size: 11px; font-weight: 800; letter-spacing: 0.04em; white-space: nowrap;
+}
+.tc-pay-badge--visa { font-style: italic; letter-spacing: 0.08em; }
+.tc-legal-footer__paytext { flex-basis: 100%; }
+.tc-legal-footer__seller a { white-space: nowrap; }
+@media (min-width: 720px) {
+    .tc-legal-footer__paytext { flex-basis: auto; }
+}

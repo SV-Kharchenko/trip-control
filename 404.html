@@ -12,10 +12,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Syne:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-18">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
       padding: 24px; font-family: 'IBM Plex Sans', sans-serif; color: #e8edf5;
       background:
         linear-gradient(165deg, rgba(5,10,15,0.72), rgba(5,12,18,0.55) 45%, rgba(5,10,15,0.78)),
@@ -42,6 +43,9 @@
       background: linear-gradient(90deg, #0b4f3c 0%, #127a58 48%, #1aa56e 100%);
     }
     a.home:hover { filter: brightness(1.08); }
+    .tc-legal-footer { width: 100%; max-width: 560px; color: #8b9bb4; border-top-color: rgba(184,151,90,0.3); }
+    .tc-legal-footer__links, .tc-pay-badge { color: #e8edf5; }
+    .tc-pay-badge { background: rgba(8,14,20,0.88); border-color: rgba(184,151,90,0.45); }
   </style>
 </head>
 <body>
@@ -52,5 +56,18 @@
     <p class="lead">Такої адреси немає. Можливо, посилання застаріло або в ньому друкарська помилка.</p>
     <a class="home" href="/">На головну</a>
   </main>
+  <footer class="tc-legal-footer">
+      <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+          <a href="/offer" target="_blank" rel="noopener">Публічна оферта</a>
+          <a href="/privacy" target="_blank" rel="noopener">Політика конфіденційності</a>
+          <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
+      </nav>
+      <div class="tc-legal-footer__pay">
+          <span class="tc-pay-badge tc-pay-badge--visa" role="img" aria-label="Visa">VISA</span>
+          <span class="tc-pay-badge tc-pay-badge--mc" role="img" aria-label="Mastercard">Mastercard</span>
+          <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+      </div>
+      <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+  </footer>
 </body>
 </html>

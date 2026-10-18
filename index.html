@@ -25,6 +25,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-18">
 <style>
         :root, [data-theme="night"] {
             --bg-color: #0b111b; --card-bg: rgba(16,22,34,0.82); --border-color: rgba(125,211,252,0.18);
@@ -1536,6 +1537,9 @@
                 #050a0f;
         }
         #auth-screen::before { display: none; }
+        /* Форма реєстрації з футером вища за екран: прокрутка замість обрізання; margin:auto центрує, коли місця досить. */
+        #auth-screen { overflow-y: auto; align-items: flex-start; }
+        #auth-screen > .auth-card { margin: auto 0; }
         .auth-card {
             position: relative; z-index: 1;
             background: rgba(8,14,20,0.88); border: 1px solid rgba(184,151,90,0.45);
@@ -2744,6 +2748,15 @@
         }
         .tc-menu-foot a { color: var(--muted); text-decoration: none; }
         .tc-menu-foot a:hover { color: var(--text); text-decoration: underline; }
+        .tc-menu-foot:has(.tc-legal-footer) { display: block; padding: 0; border-top: 0; }
+        .tc-menu-foot .tc-legal-footer { padding: 10px 8px 6px; font-size: 11px; }
+        .tc-menu-foot .tc-legal-footer a { text-decoration: underline; }
+        body.layout-studio .tc-menu-foot .tc-legal-footer a { display: inline; min-height: 0; }
+        body.layout-studio .tc-menu-foot .tc-legal-footer__links a { display: inline-block; padding: 4px 0; }
+        .tc-user-menu:has(.tc-legal-footer) { max-height: calc(100vh - 96px); overflow-y: auto; overscroll-behavior: contain; }
+        .tc-footer .tc-legal-footer { margin-top: 4px; }
+        #main-app > .tc-legal-footer { grid-column: 1 / -1; margin-top: 18px; }
+        #cabinet-screen .tc-legal-footer { margin-top: 18px; }
         body.layout-studio #demo-banner {
             margin: 0 0 14px;
             border-radius: 0;
@@ -3739,8 +3752,8 @@
                 </div>
                 <div class="auth-legal" id="auth-legal-box">
                     <label>
-                        <input type="checkbox" id="auth-consent" name="consent">
-                        <span>Погоджуюсь з <a href="/legal/offer.html" target="_blank" rel="noopener">офертою</a> та <a href="/legal/privacy.html" target="_blank" rel="noopener">політикою конфіденційності</a> (обробка ЄДРПОУ, телефону тощо).</span>
+                        <input type="checkbox" id="auth-consent" name="consent" required>
+                        <span>Погоджуюсь з <a href="/offer" target="_blank" rel="noopener">Публічною офертою</a> та <a href="/privacy" target="_blank" rel="noopener">Політикою конфіденційності</a></span>
                     </label>
                 </div>
             </div>
@@ -3769,7 +3782,21 @@
 
         <div id="auth-message" style="font-size: 0.9rem; margin-top: 15px; color: var(--warning); line-height: 1.4;"></div>
         <button id="logout-btn" class="btn btn-danger" style="display:none; width: 100%; margin-top: 15px;" onclick="handleLogout()">Вийти з акаунта</button>
-        <div class="tc-footer">Безпечний доступ · <a href="/legal/offer.html" target="_blank" rel="noopener">Оферта</a> · <a href="/legal/privacy.html" target="_blank" rel="noopener">Конфіденційність</a></div>
+        <div class="tc-footer">
+            <footer class="tc-legal-footer">
+                <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+                    <a href="/offer" target="_blank" rel="noopener">Публічна оферта</a>
+                    <a href="/privacy" target="_blank" rel="noopener">Політика конфіденційності</a>
+                    <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
+                </nav>
+                <div class="tc-legal-footer__pay">
+                    <span class="tc-pay-badge tc-pay-badge--visa" role="img" aria-label="Visa">VISA</span>
+                    <span class="tc-pay-badge tc-pay-badge--mc" role="img" aria-label="Mastercard">Mastercard</span>
+                    <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+                </div>
+                <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+            </footer>
+        </div>
     </div>
 </div>
 
@@ -3849,9 +3876,19 @@
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('help')">Довідка і підтримка</button>
                         <button type="button" role="menuitem" class="tc-menu-item is-danger" onclick="menuGo('logout')">Вийти</button>
                         <div class="tc-menu-foot">
-                            <a href="/legal/offer.html" target="_blank" rel="noopener">Оферта</a>
-                            <span aria-hidden="true">·</span>
-                            <a href="/legal/privacy.html" target="_blank" rel="noopener">Конфіденційність</a>
+                            <footer class="tc-legal-footer">
+                                <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+                                    <a href="/offer" target="_blank" rel="noopener">Публічна оферта</a>
+                                    <a href="/privacy" target="_blank" rel="noopener">Політика конфіденційності</a>
+                                    <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
+                                </nav>
+                                <div class="tc-legal-footer__pay">
+                                    <span class="tc-pay-badge tc-pay-badge--visa" role="img" aria-label="Visa">VISA</span>
+                                    <span class="tc-pay-badge tc-pay-badge--mc" role="img" aria-label="Mastercard">Mastercard</span>
+                                    <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+                                </div>
+                                <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+                            </footer>
                         </div>
                     </div>
                 </div>
@@ -4565,6 +4602,19 @@
             </div>
         </div>
     </section>
+    <footer class="tc-legal-footer">
+        <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+            <a href="/offer" target="_blank" rel="noopener">Публічна оферта</a>
+            <a href="/privacy" target="_blank" rel="noopener">Політика конфіденційності</a>
+            <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
+        </nav>
+        <div class="tc-legal-footer__pay">
+            <span class="tc-pay-badge tc-pay-badge--visa" role="img" aria-label="Visa">VISA</span>
+            <span class="tc-pay-badge tc-pay-badge--mc" role="img" aria-label="Mastercard">Mastercard</span>
+            <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+        </div>
+        <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+    </footer>
 </div>
 
 <div id="cabinet-screen">
@@ -4589,6 +4639,19 @@
             <button type="button" class="btn cab-cancel" onclick="closeCabinet()">Скасувати</button>
             <button class="btn btn-success cab-save" id="cab-save-btn" onclick="saveCabinet()">Зберегти</button>
         </div>
+        <footer class="tc-legal-footer">
+            <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+                <a href="/offer" target="_blank" rel="noopener">Публічна оферта</a>
+                <a href="/privacy" target="_blank" rel="noopener">Політика конфіденційності</a>
+                <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
+            </nav>
+            <div class="tc-legal-footer__pay">
+                <span class="tc-pay-badge tc-pay-badge--visa" role="img" aria-label="Visa">VISA</span>
+                <span class="tc-pay-badge tc-pay-badge--mc" role="img" aria-label="Mastercard">Mastercard</span>
+                <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+            </div>
+            <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+        </footer>
     </div>
 </div>
 
@@ -6684,6 +6747,9 @@
         } catch (e) {}
     }
 
+    // Редакція оферти й політики конфіденційності (дата в legal/*.html). Та сама в lib/legal.js і в
+    // дозволеному списку public.record_signup_consent(); оновлюйте всі три разом, коли змінюється редакція.
+    const LEGAL_VERSION = '2026-10-18';
     async function handleAuth(type) {
         const authMsg = document.getElementById('auth-message');
         const email = document.getElementById('auth-email').value.trim();
@@ -6729,20 +6795,26 @@
             }
             const consent = document.getElementById('auth-consent');
             if (!consent || !consent.checked) {
-                authMsg.innerText = 'Потрібна згода з офертою та політикою конфіденційності.';
+                authMsg.innerText = 'Потрібна згода з Публічною офертою та Політикою конфіденційності.';
                 return;
             }
             const signupOptions = invite
                 ? {
                     emailRedirectTo: location.origin + '/?team_invite=' + encodeURIComponent(invite.token),
-                    data: { invite_id: invite.info.invite_id }
+                    data: {
+                        invite_id: invite.info.invite_id,
+                        consent_offer_version: LEGAL_VERSION,
+                        consent_privacy_version: LEGAL_VERSION
+                    }
                 }
                 : {
                     data: {
                         company_name: company,
                         tax_mode: taxMode,
                         ownership: ownership,
-                        work_mode: workMode
+                        work_mode: workMode,
+                        consent_offer_version: LEGAL_VERSION,
+                        consent_privacy_version: LEGAL_VERSION
                     }
                 };
             const { data, error } = await supabaseClient.auth.signUp({ email, password, options: signupOptions });

@@ -14,7 +14,7 @@
 
 ## Платіжка
 
-Поки провайдер не підключений — webhook готовий приймати події. Коли оберете LiqPay / WayForPay / Stripe:
+Поки провайдер не підключений — webhook готовий приймати події. Провайдери оплати карткою: plata by mono (monobank) і WayForPay. Під час підключення:
 
 1. У кабінеті провайдера вкажіть URL: `https://trip-control.com/api/billing-webhook`
 2. Той самий секрет у header `X-Billing-Secret` (або Bearer)

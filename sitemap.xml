@@ -4,9 +4,12 @@
     <loc>https://trip-control.com/</loc>
   </url>
   <url>
-    <loc>https://trip-control.com/legal/privacy.html</loc>
+    <loc>https://trip-control.com/offer</loc>
   </url>
   <url>
-    <loc>https://trip-control.com/legal/offer.html</loc>
+    <loc>https://trip-control.com/privacy</loc>
+  </url>
+  <url>
+    <loc>https://trip-control.com/payment-refund</loc>
   </url>
 </urlset>
