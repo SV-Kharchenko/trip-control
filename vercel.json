@@ -4,6 +4,11 @@
       "maxDuration": 60
     }
   },
+  "rewrites": [
+    { "source": "/offer", "destination": "/legal/offer.html" },
+    { "source": "/privacy", "destination": "/legal/privacy.html" },
+    { "source": "/payment-refund", "destination": "/legal/payment-refund.html" }
+  ],
   "crons": [
     {
       "path": "/api/weekly-report",

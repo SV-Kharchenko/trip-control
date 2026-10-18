@@ -1,69 +1,356 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="uk" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Конфіденційність — TRIP-CONTROL</title>
-  <meta name="description" content="Політика конфіденційності TRIP-CONTROL: які дані збирає сервіс, навіщо вони потрібні і як зберігаються.">
-  <link rel="canonical" href="https://trip-control.com/legal/privacy.html">
+  <title>Політика конфіденційності — Trip Control</title>
+  <meta name="description" content="Політика конфіденційності Trip Control: які персональні дані обробляються, з якою метою, скільки зберігаються і як ними керувати.">
+  <link rel="canonical" href="https://trip-control.com/privacy">
   <meta property="og:type" content="article">
   <meta property="og:locale" content="uk_UA">
   <meta property="og:site_name" content="TRIP-CONTROL">
-  <meta property="og:title" content="Політика конфіденційності — TRIP-CONTROL">
-  <meta property="og:description" content="Політика конфіденційності TRIP-CONTROL: які дані збирає сервіс, навіщо вони потрібні і як зберігаються.">
-  <meta property="og:url" content="https://trip-control.com/legal/privacy.html">
+  <meta property="og:title" content="Політика конфіденційності — Trip Control">
+  <meta property="og:description" content="Політика конфіденційності Trip Control: які персональні дані обробляються, з якою метою, скільки зберігаються і як ними керувати.">
+  <meta property="og:url" content="https://trip-control.com/privacy">
   <meta property="og:image" content="https://trip-control.com/assets/brand/icon-512.png">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Політика конфіденційності — TRIP-CONTROL">
-  <meta name="twitter:description" content="Політика конфіденційності TRIP-CONTROL: які дані збирає сервіс, навіщо вони потрібні і як зберігаються.">
+  <meta name="twitter:title" content="Політика конфіденційності — Trip Control">
+  <meta name="twitter:description" content="Політика конфіденційності Trip Control: які персональні дані обробляються, з якою метою, скільки зберігаються і як ними керувати.">
   <meta name="twitter:image" content="https://trip-control.com/assets/brand/icon-512.png">
+  <meta name="theme-color" content="#F4EFE4">
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script>
+    /* Тема як у застосунку: лише читаємо tc_theme (light|dark, за замовчуванням light), нічого не пишемо. */
+    (function () {
+      var t = 'light';
+      try { t = localStorage.getItem('tc_theme') || 'light'; } catch (e) {}
+      if (t === 'control') t = 'dark';
+      if (t !== 'dark') t = 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta && t === 'dark') meta.setAttribute('content', '#0E1117');
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Syne:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-18">
   <style>
-    body { margin: 0; font-family: 'IBM Plex Sans', sans-serif; background: #0b111b; color: #e8edf5; line-height: 1.55; }
-    main { max-width: 720px; margin: 0 auto; padding: 40px 20px 80px; }
-    h1 { font-family: Syne, sans-serif; font-size: 1.6rem; margin: 0 0 8px; }
-    .meta { color: #8b9bb4; font-size: 0.85rem; margin-bottom: 28px; }
-    h2 { font-size: 1.05rem; margin: 28px 0 10px; color: #7dd3fc; }
-    p, li { color: #c5d0e0; font-size: 0.92rem; }
-    a { color: #38bdf8; }
-    .back { display: inline-block; margin-bottom: 24px; text-decoration: none; }
+    /* Токени з index.html: [data-theme="light"] / [data-theme="dark"]. */
+    [data-theme="light"] {
+      --bg: #F4EFE4; --surface: #FFFDF8; --text: #0D2A28; --muted: #5A6B66;
+      --border: #D9D1BD; --border-soft: #E3DCCB; --accent: #0D2A29; --gold: #B08A4C; --teal: #1A6B65;
+      --mark-bg: #F3E2B8; --mark-text: #5C3F0A;
+      color-scheme: light;
+    }
+    [data-theme="dark"] {
+      --bg: #0E1117; --surface: #161B24; --text: #E8EAF0; --muted: #8B93A3;
+      --border: #2E3646; --border-soft: #262D3A; --accent: #7C9CFF; --gold: #E0B25A; --teal: #4FD1C5;
+      --mark-bg: #4A3A16; --mark-text: #FBE3A6;
+      color-scheme: dark;
+    }
+    :root { --font-ui: 'Manrope', sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); line-height: 1.6; -webkit-text-size-adjust: 100%; }
+    .legal-page { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; }
+    .legal-back { display: inline-block; margin-bottom: 20px; color: var(--muted); font-weight: 600; font-size: 14px; text-decoration: none; }
+    .legal-back:hover { color: var(--text); text-decoration: underline; }
+    .legal-doc { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px; padding: 28px 28px 32px; font-size: 15px; overflow-wrap: anywhere; }
+    .legal-doc h1 { font-size: 1.55rem; line-height: 1.25; margin: 0 0 12px; font-weight: 800; }
+    .legal-doc h2 { font-size: 1.12rem; line-height: 1.35; margin: 28px 0 10px; font-weight: 700; }
+    .legal-doc h3 { font-size: 1rem; margin: 20px 0 8px; font-weight: 700; }
+    .legal-doc p, .legal-doc li { margin: 0 0 10px; }
+    .legal-doc ul, .legal-doc ol { margin: 0 0 12px; padding-left: 22px; }
+    .legal-doc a { color: var(--teal); }
+    .legal-doc strong { font-weight: 700; }
+    .legal-doc mark { background: var(--mark-bg); color: var(--mark-text); padding: 0 3px; border-radius: 4px; }
+    .legal-doc table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 14px; }
+    .legal-doc th, .legal-doc td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; text-align: left; }
+    .legal-doc th { background: color-mix(in srgb, var(--border-soft) 55%, transparent); font-weight: 700; }
+    .legal-page .tc-legal-footer { margin-top: 28px; }
+    @media (max-width: 700px) {
+      .legal-page { padding: 16px 12px 32px; }
+      .legal-doc { padding: 18px 14px 22px; font-size: 14.5px; border-radius: 12px; }
+      .legal-doc h1 { font-size: 1.3rem; }
+      /* Таблиці скролються горизонтально, сторінка — ні. */
+      .legal-doc table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .legal-doc th, .legal-doc td { min-width: 140px; }
+    }
   </style>
 </head>
 <body>
-<main>
-  <a class="back" href="/">← TRIP-CONTROL</a>
-  <h1>Політика конфіденційності</h1>
-  <p class="meta">Обробка персональних даних у сервісі TRIP-CONTROL. Редакція від 09.10.2026. Шаблон — узгодьте з юристом перед публікацією.</p>
-
-  <h2>1. Які дані збираємо</h2>
-  <ul>
-    <li>Облікові: email, пароль (хеш у Supabase Auth).</li>
-    <li>Дані компанії: назва, система оподаткування, ЄДРПОУ/ІПН, адреса, телефон, email для звітів тощо.</li>
-    <li>Операційні: параметри парку, розрахунки рейсів, лічильники використання.</li>
-    <li>Технічні: IP / логи доступу на рівні хостингу та Auth (захист від зловживань).</li>
-  </ul>
-
-  <h2>2. Мета обробки</h2>
-  <p>Надання Сервісу, підтримка акаунта, білінг, безпека, виконання вимог законодавства України.</p>
-
-  <h2>3. Зберігання та доступ</h2>
-  <p>Дані зберігаються в Supabase (ЄС/обраний регіон проєкту) з Row Level Security. Доступ адміністратора Сервісу — лише для підтримки та CRM. Платіжні дані карток обробляє платіжний провайдер, не TRIP-CONTROL.</p>
-
-  <h2>4. Передача третім сторонам</h2>
-  <p>Google Maps / Places (для карт і адрес, лише за повного доступу), хостинг (Vercel), платіжна система (після підключення). Без продажу даних третім особам для маркетингу.</p>
-
-  <h2>5. Права користувача</h2>
-  <p>Ви можете запросити доступ, виправлення або видалення даних, написавши на email підтримки (вкажіть у оферті). Видалення акаунта може обмежити доступ до Сервісу.</p>
-
-  <h2>6. Згода</h2>
-  <p>Реєструючись і ставлячи позначку згоди, ви підтверджуєте ознайомлення з цією політикою та офертою.</p>
-
-  <p><a href="/legal/offer.html">Публічна оферта</a></p>
+<main class="legal-page">
+  <a class="legal-back" href="/">← Trip Control</a>
+<article class="legal-doc" lang="uk">
+<h1>Політика конфіденційності сервісу Trip Control</h1>
+<p><strong>Редакція від 18.10.2026. Набирає чинності: 18.10.2026.</strong></p>
+<p>Ця Політика пояснює, які персональні дані збирає сервіс Trip Control (<a href="https://trip-control.com">https://trip-control.com</a>, далі — «Сервіс»), навіщо, на яких підставах, кому вони передаються, скільки зберігаються та які права ви маєте. Політику складено відповідно до Закону України «Про захист персональних даних»; за структурою вона також враховує підходи Загального регламенту ЄС про захист даних (GDPR).</p>
+<h2>1. Володілець персональних даних</h2>
+<p><strong>ФОП Харченко Святослав Вікторович</strong><br />
+РНОКПП: 3184920472<br />
+Номер запису в ЄДР: 2010870000000000260 від 21.06.2024<br />
+Адреса: 19700, Черкаська обл., м. Золотоноша, вул. Січова, буд. 25, кв. 75<br />
+Email: tripcontrol.com@gmail.com<br />
+Телефон: +380730888252</p>
+<p>З усіх питань щодо персональних даних звертайтеся на tripcontrol.com@gmail.com.</p>
+<h2>2. Які дані ми обробляємо</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Категорія</th>
+<th>Що саме</th>
+<th>Звідки</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Обліковий запис</td>
+<td>email, хеш пароля (пароль у відкритому вигляді ми не бачимо і не зберігаємо), ім’я, роль у команді</td>
+<td>від вас під час реєстрації або за запрошенням</td>
+</tr>
+<tr class="even">
+<td>Організація</td>
+<td>назва компанії; реквізити компанії (за бажанням — для документів і експорту)</td>
+<td>від вас</td>
+</tr>
+<tr class="odd">
+<td>Автопарк</td>
+<td>дані транспортних засобів (марка, номер, витрата пального тощо), за потреби — імена водіїв</td>
+<td>від вас</td>
+</tr>
+<tr class="even">
+<td>Розрахунки рейсів</td>
+<td>маршрути та адреси, відстані, витрати, ставки, статуси та історія рейсів</td>
+<td>від вас і з картографічних сервісів</td>
+</tr>
+<tr class="odd">
+<td>Оплата</td>
+<td>сума, дата, тариф, ідентифікатор платежу, статус, маска картки (якщо її передає Платіжний провайдер)</td>
+<td>від Платіжного провайдера</td>
+</tr>
+<tr class="even">
+<td>Технічні дані</td>
+<td>IP-адреса, тип браузера і пристрою, дата й час запитів, журнали помилок</td>
+<td>автоматично</td>
+</tr>
+<tr class="odd">
+<td>Cookies / localStorage</td>
+<td>ідентифікатор сесії, налаштування теми</td>
+<td>автоматично (див. розділ 8)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Дані банківської картки</strong> (номер, строк дії, CVV) вводяться на сторінці Платіжного провайдера (monobank або WayForPay) та обробляються ним. Ми не отримуємо і не зберігаємо повних даних вашої картки.</p>
+<p>Ми не збираємо спеціальних категорій даних (про здоров’я, релігійні переконання тощо) і просимо не вносити їх до Сервісу.</p>
+<p>Якщо ви вносите до Сервісу дані інших осіб (наприклад, водіїв чи колег), ви підтверджуєте, що маєте законну підставу для цього і поінформували цих осіб.</p>
+<h2>3. Мета та правові підстави обробки</h2>
+<p>Підстави визначено статтею 11 Закону України «Про захист персональних даних».</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Мета</th>
+<th>Правова підстава</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Реєстрація, вхід, надання доступу до Сервісу, робота команди, розрахунки, експорт</td>
+<td>укладення та виконання договору (Публічної оферти), стороною якого ви є</td>
+</tr>
+<tr class="even">
+<td>Приймання оплати, активація та продовження тарифу, повернення коштів</td>
+<td>виконання договору; обов’язок, передбачений законом (облік і звітність)</td>
+</tr>
+<tr class="odd">
+<td>Службові листи: підтвердження реєстрації, запрошення, нагадування про завершення тарифу, звіти</td>
+<td>виконання договору</td>
+</tr>
+<tr class="even">
+<td>Сповіщення адміністратора про нові реєстрації, оплати та повернення платежів</td>
+<td>законний інтерес володільця (контроль роботи Сервісу та протидія зловживанням)</td>
+</tr>
+<tr class="odd">
+<td>Безпека, захист від шахрайства, діагностика збоїв (технічні журнали)</td>
+<td>законний інтерес володільця</td>
+</tr>
+<tr class="even">
+<td>Відповіді на звернення та претензії</td>
+<td>виконання договору; законний інтерес</td>
+</tr>
+<tr class="odd">
+<td>Виконання вимог законодавства (податковий облік, запити державних органів)</td>
+<td>обов’язок, передбачений законом</td>
+</tr>
+</tbody>
+</table>
+<p>Під час реєстрації ви також надаєте згоду на обробку персональних даних відповідно до цієї Політики. Ми не надсилаємо рекламних розсилок без вашої окремої згоди та не продаємо персональні дані.</p>
+<h2>4. Кому ми передаємо дані</h2>
+<p>Для роботи Сервісу ми залучаємо таких розпорядників і постачальників послуг. Кожен отримує лише дані, необхідні для своєї функції.</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Постачальник</th>
+<th>Функція</th>
+<th>Які дані</th>
+<th>Розташування</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Supabase Inc.</td>
+<td>база даних, автентифікація</td>
+<td>усі дані Облікового запису, Організації, автопарку, розрахунків</td>
+<td>сервери в ЄС (Ірландія); компанія — США</td>
+</tr>
+<tr class="even">
+<td>Vercel Inc.</td>
+<td>хостинг вебзастосунку</td>
+<td>технічні дані, запити до Сервісу</td>
+<td>США та глобальна мережа серверів</td>
+</tr>
+<tr class="odd">
+<td>Google LLC (Google Maps Platform)</td>
+<td>побудова маршрутів, карти, пошук адрес</td>
+<td>адреси й координати точок маршруту, технічні дані браузера</td>
+<td>США та інші країни</td>
+</tr>
+<tr class="even">
+<td>OpenStreetMap / Overpass API</td>
+<td>пошук точок інтересу вздовж маршруту (АЗС, стоянки тощо)</td>
+<td>координати маршруту; IP-адреса, якщо запит іде з вашого браузера</td>
+<td>переважно ЄС</td>
+</tr>
+<tr class="odd">
+<td>Resend (Plus Five Five, Inc.)</td>
+<td>надсилання службових листів</td>
+<td>email, ім’я, зміст листа (запрошення, підтвердження, звіти)</td>
+<td>США</td>
+</tr>
+<tr class="even">
+<td>Telegram</td>
+<td>службові сповіщення адміністратору (нові реєстрації, приєднання логістів, оплати та повернення платежів) і керування статусом доступу</td>
+<td>про нову реєстрацію — email, назва компанії, режим роботи (самостійно / з логістами) та організаційна форма (ФОП / ТОВ / інше); про приєднання логіста — його email і назва компанії; на запит адміністратора — email, назва компанії, кількість розрахунків, дата реєстрації та статус доступу; про успішну оплату або повернення платежу — назва компанії, тариф, сума, платіжний провайдер і дата «оплачено до»</td>
+<td>ОАЕ / інші країни</td>
+</tr>
+<tr class="odd">
+<td>АТ «Універсал Банк» (monobank)</td>
+<td>приймання оплати карткою</td>
+<td>дані платежу; дані картки вводяться безпосередньо у банку</td>
+<td>Україна</td>
+</tr>
+<tr class="even">
+<td>ТОВ «ВЕЙФОРПЕЙ» (WayForPay)</td>
+<td>приймання оплати карткою</td>
+<td>дані платежу; дані картки вводяться безпосередньо у провайдера</td>
+<td>Україна</td>
+</tr>
+</tbody>
+</table>
+<p>Функцію «Поділитися» у Viber/Telegram ви запускаєте самостійно: дані розрахунку передаються обраному вами месенджеру та адресату за вашим рішенням, і подальша обробка регулюється правилами цього месенджера.</p>
+<p>Використання карт Google також регулюється Політикою конфіденційності Google: <a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a>.</p>
+<p>Ми також можемо передати дані органам державної влади, якщо цього вимагає закон, або правонаступнику в разі передачі Сервісу іншій особі — з повідомленням вам.</p>
+<h2>5. Транскордонна передача даних</h2>
+<p>Частина постачальників (Supabase, Vercel, Google, Resend, Telegram) обробляє дані на серверах за межами України — зокрема в ЄС, США та інших країнах. Передача здійснюється відповідно до статті 29 Закону України «Про захист персональних даних»: до держав, що забезпечують належний захист персональних даних (держави — учасниці Конвенції Ради Європи № 108, зокрема держави ЄС), а в інших випадках — на підставі договорів із постачальниками, що містять стандартні гарантії захисту даних, та вашої згоди, наданої під час реєстрації.</p>
+<h2>6. Строки зберігання</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Дані</th>
+<th>Строк</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Обліковий запис, Організація, автопарк, розрахунки</td>
+<td>поки існує Обліковий запис; після запиту на видалення — видаляються протягом 30 днів</td>
+</tr>
+<tr class="even">
+<td>Дані Організації після завершення Платного тарифу</td>
+<td>зберігаються (Організація переходить у Демо-режим) до видалення Облікового запису</td>
+</tr>
+<tr class="odd">
+<td>Платіжні дані та документи</td>
+<td>1095 днів з дати подання звітності (п. 44.3 Податкового кодексу України) або довше, якщо цього вимагає закон</td>
+</tr>
+<tr class="even">
+<td>Технічні журнали</td>
+<td>до 90 днів</td>
+</tr>
+<tr class="odd">
+<td>Листування зі службою підтримки</td>
+<td>до 3 років з моменту останнього звернення (строк позовної давності)</td>
+</tr>
+</tbody>
+</table>
+<p>Резервні копії бази даних можуть містити видалені дані ще обмежений час, після чого перезаписуються автоматично.</p>
+<h2>7. Ваші права</h2>
+<p>Відповідно до статті 8 Закону України «Про захист персональних даних» ви маєте право:</p>
+<ul>
+<li>знати, які ваші дані обробляються, з якою метою, де вони зберігаються та кому передаються;</li>
+<li>отримати доступ до своїх даних;</li>
+<li>вимагати виправлення неточних або неповних даних (більшість даних можна змінити самостійно в Сервісі);</li>
+<li>вимагати видалення даних, обмеження обробки або заперечити проти обробки;</li>
+<li>відкликати згоду на обробку (це не впливає на законність обробки до відкликання; без даних, необхідних для виконання договору, надання доступу до Сервісу буде неможливим);</li>
+<li>отримати свої дані у структурованому форматі (експорт PDF/Excel доступний у Сервісі, повну вивантажку — за запитом);</li>
+<li>подати скаргу Уповноваженому Верховної Ради України з прав людини або звернутися до суду.</li>
+</ul>
+<p><strong>Як скористатися правами.</strong> Надішліть запит на tripcontrol.com@gmail.com з email, зареєстрованого в Сервісі. Ми відповідаємо протягом 30 календарних днів. Щоб захистити ваші дані, ми можемо попросити підтвердити, що запит надіслано власником Облікового запису.</p>
+<p><strong>Видалення Облікового запису</strong> — за запитом на email; дані видаляються протягом 30 днів, крім тих, які ми зобов’язані зберігати за законом. Якщо ви Власник Організації, видалення Організації також видаляє дані її рейсів і автопарку для всіх її учасників.</p>
+<p><strong>Контакти Уповноваженого Верховної Ради України з прав людини:</strong> 01008, м. Київ, вул. Інститутська, 21/8; гаряча лінія 0 800 50 17 20; <a href="https://ombudsman.gov.ua">https://ombudsman.gov.ua</a>; hotline@ombudsman.gov.ua.</p>
+<h2>8. Cookies та localStorage</h2>
+<p>Сервіс використовує лише технічно необхідні cookies та сховище браузера (localStorage):</p>
+<ul>
+<li>для підтримання сесії після входу (автентифікація);</li>
+<li>для збереження вибраної теми оформлення та інших налаштувань інтерфейсу.</li>
+</ul>
+<p>Без них Сервіс не може працювати, тому окрема згода на них не запитується. Ми не використовуємо рекламних чи аналітичних cookies. На сайті не підключено жодних аналітичних, рекламних чи трекінгових інструментів (зокрема Google Analytics, Vercel Analytics, пікселів соцмереж), тому аналітичні cookies не встановлюються. Зі сторонніх скриптів Сервіс завантажує лише клієнтську бібліотеку Supabase (вхід і робота з базою даних), а для карт і маршрутів — Google Maps. Сторонні сервіси (зокрема Google Maps) можуть встановлювати власні cookies відповідно до своїх політик.</p>
+<p>Ви можете видалити cookies і localStorage у налаштуваннях браузера; після цього потрібно буде увійти знову.</p>
+<h2>9. Безпека</h2>
+<p>Ми застосовуємо розумні технічні та організаційні заходи захисту: шифроване з’єднання HTTPS; зберігання паролів лише у вигляді хешу засобами провайдера автентифікації; розмежування доступу до даних на рівні бази (кожна Організація бачить лише свої дані); обмежений доступ до адміністративних інструментів; приймання платежів через сертифікованих провайдерів (стандарт PCI DSS). Жоден спосіб передачі чи зберігання даних не гарантує абсолютної безпеки; у разі інциденту, що створює ризик для ваших прав, ми повідомимо вас і, якщо це вимагається, Уповноваженого.</p>
+<h2>10. Діти</h2>
+<p>Сервіс призначений для професійного використання і не розрахований на осіб, молодших 18 років. Ми свідомо не збираємо їхніх даних. Якщо ви дізналися, що неповнолітня особа надала нам дані, напишіть нам — ми їх видалимо.</p>
+<h2>11. Зміни Політики</h2>
+<p>Ми можемо оновлювати цю Політику. Нова редакція публікується на цій сторінці із зазначенням дати. Про суттєві зміни ми додатково повідомляємо на email. Продовження користування Сервісом після набрання чинності новою редакцією означає ознайомлення з нею.</p>
+<h2>12. Контакти</h2>
+<p>Email: tripcontrol.com@gmail.com<br />
+Телефон: +380730888252<br />
+Адреса: 19700, Черкаська обл., м. Золотоноша, вул. Січова, буд. 25, кв. 75</p>
+</article>
+  <footer class="tc-legal-footer">
+      <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+          <a href="/offer">Публічна оферта</a>
+          <a href="/privacy">Політика конфіденційності</a>
+          <a href="/payment-refund">Оплата та повернення</a>
+      </nav>
+      <div class="tc-legal-footer__pay">
+          <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
+          <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
+          <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
+          <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+      </div>
+      <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+  </footer>
 </main>
 </body>
 </html>

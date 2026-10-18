@@ -1,0 +1,32 @@
+/* Спільний футер з реквізитами й платіжною інформацією (.tc-legal-footer).
+   Одна розмітка на екрані входу, у меню, в застосунку, на /offer, /privacy, /payment-refund і 404.
+   Кольори — з токенів теми (--muted, --text, --border-soft, --accent, --surface); запасні значення для 404 без токенів. */
+.tc-legal-footer {
+    display: grid; gap: 8px; justify-items: center; text-align: center;
+    margin: 0; padding: 14px 4px 4px;
+    border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+    font-family: var(--font-ui, 'Manrope', sans-serif);
+    font-size: 12px; line-height: 1.5; letter-spacing: normal;
+    color: var(--muted, #9aa3b2);
+}
+.tc-legal-footer p { margin: 0; }
+.tc-legal-footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.tc-legal-footer a:hover { color: var(--text, #e8eaf0); }
+.tc-legal-footer__links {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px;
+    font-weight: 600; color: var(--text, #e8eaf0);
+}
+.tc-legal-footer__links a { color: inherit; }
+.tc-legal-footer__pay {
+    display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px;
+}
+/* Логотипи платіжних систем (assets/payments/*.svg, файли не змінюємо). Visa: синій у світлій темі, білий у темній. */
+.tc-pay-logo { display: block; height: 20px; width: auto; flex: none; }
+.tc-pay-logo--on-dark { display: none; }
+[data-theme="dark"] .tc-pay-logo--on-light { display: none; }
+[data-theme="dark"] .tc-pay-logo--on-dark { display: block; }
+.tc-legal-footer__paytext { flex-basis: 100%; }
+.tc-legal-footer__seller a { white-space: nowrap; }
+@media (min-width: 720px) {
+    .tc-legal-footer__paytext { flex-basis: auto; }
+}

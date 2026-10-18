@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Оплата та повернення коштів — Trip Control</title>
+  <meta name="description" content="Оплата та повернення коштів у Trip Control: способи оплати карткою, строки і порядок повернення.">
+  <link rel="canonical" href="https://trip-control.com/payment-refund">
+  <meta property="og:type" content="article">
+  <meta property="og:locale" content="uk_UA">
+  <meta property="og:site_name" content="TRIP-CONTROL">
+  <meta property="og:title" content="Оплата та повернення коштів — Trip Control">
+  <meta property="og:description" content="Оплата та повернення коштів у Trip Control: способи оплати карткою, строки і порядок повернення.">
+  <meta property="og:url" content="https://trip-control.com/payment-refund">
+  <meta property="og:image" content="https://trip-control.com/assets/brand/icon-512.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Оплата та повернення коштів — Trip Control">
+  <meta name="twitter:description" content="Оплата та повернення коштів у Trip Control: способи оплати карткою, строки і порядок повернення.">
+  <meta name="twitter:image" content="https://trip-control.com/assets/brand/icon-512.png">
+  <meta name="theme-color" content="#F4EFE4">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script>
+    /* Тема як у застосунку: лише читаємо tc_theme (light|dark, за замовчуванням light), нічого не пишемо. */
+    (function () {
+      var t = 'light';
+      try { t = localStorage.getItem('tc_theme') || 'light'; } catch (e) {}
+      if (t === 'control') t = 'dark';
+      if (t !== 'dark') t = 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta && t === 'dark') meta.setAttribute('content', '#0E1117');
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-18">
+  <style>
+    /* Токени з index.html: [data-theme="light"] / [data-theme="dark"]. */
+    [data-theme="light"] {
+      --bg: #F4EFE4; --surface: #FFFDF8; --text: #0D2A28; --muted: #5A6B66;
+      --border: #D9D1BD; --border-soft: #E3DCCB; --accent: #0D2A29; --gold: #B08A4C; --teal: #1A6B65;
+      --mark-bg: #F3E2B8; --mark-text: #5C3F0A;
+      color-scheme: light;
+    }
+    [data-theme="dark"] {
+      --bg: #0E1117; --surface: #161B24; --text: #E8EAF0; --muted: #8B93A3;
+      --border: #2E3646; --border-soft: #262D3A; --accent: #7C9CFF; --gold: #E0B25A; --teal: #4FD1C5;
+      --mark-bg: #4A3A16; --mark-text: #FBE3A6;
+      color-scheme: dark;
+    }
+    :root { --font-ui: 'Manrope', sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); line-height: 1.6; -webkit-text-size-adjust: 100%; }
+    .legal-page { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; }
+    .legal-back { display: inline-block; margin-bottom: 20px; color: var(--muted); font-weight: 600; font-size: 14px; text-decoration: none; }
+    .legal-back:hover { color: var(--text); text-decoration: underline; }
+    .legal-doc { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px; padding: 28px 28px 32px; font-size: 15px; overflow-wrap: anywhere; }
+    .legal-doc h1 { font-size: 1.55rem; line-height: 1.25; margin: 0 0 12px; font-weight: 800; }
+    .legal-doc h2 { font-size: 1.12rem; line-height: 1.35; margin: 28px 0 10px; font-weight: 700; }
+    .legal-doc h3 { font-size: 1rem; margin: 20px 0 8px; font-weight: 700; }
+    .legal-doc p, .legal-doc li { margin: 0 0 10px; }
+    .legal-doc ul, .legal-doc ol { margin: 0 0 12px; padding-left: 22px; }
+    .legal-doc a { color: var(--teal); }
+    .legal-doc strong { font-weight: 700; }
+    .legal-doc mark { background: var(--mark-bg); color: var(--mark-text); padding: 0 3px; border-radius: 4px; }
+    .legal-doc table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 14px; }
+    .legal-doc th, .legal-doc td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; text-align: left; }
+    .legal-doc th { background: color-mix(in srgb, var(--border-soft) 55%, transparent); font-weight: 700; }
+    .legal-page .tc-legal-footer { margin-top: 28px; }
+    @media (max-width: 700px) {
+      .legal-page { padding: 16px 12px 32px; }
+      .legal-doc { padding: 18px 14px 22px; font-size: 14.5px; border-radius: 12px; }
+      .legal-doc h1 { font-size: 1.3rem; }
+      /* Таблиці скролються горизонтально, сторінка — ні. */
+      .legal-doc table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .legal-doc th, .legal-doc td { min-width: 140px; }
+    }
+  </style>
+</head>
+<body>
+<main class="legal-page">
+  <a class="legal-back" href="/">← Trip Control</a>
+<article class="legal-doc" lang="uk">
+<h1>Оплата та повернення коштів</h1>
+<p><strong>Редакція від 18.10.2026.</strong> Повні умови — у <a href="https://trip-control.com/offer">Публічній оферті</a> (розділи 4, 5, 8).</p>
+<h2>Що ви оплачуєте</h2>
+<p>Trip Control — онлайн-сервіс для розрахунку рентабельності вантажних рейсів автомобільного транспорту. Оплата надає повний доступ до сервісу для однієї компанії (організації: власник і до 3 логістів) на обраний строк.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Тариф</th>
+<th>Ціна</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Демо-доступ (до 5 розрахунків на добу)</td>
+<td>безкоштовно</td>
+</tr>
+<tr class="even">
+<td>Платний тариф, 1 місяць</td>
+<td>250 грн</td>
+</tr>
+<tr class="odd">
+<td>Платний тариф, 1 рік</td>
+<td>2 500 грн</td>
+</tr>
+</tbody>
+</table>
+<p>Ціни вказано в гривнях, без ПДВ (продавець не є платником ПДВ).</p>
+<h2>Як оплатити</h2>
+<ul>
+<li>Банківською карткою Visa або Mastercard (а також Apple Pay / Google Pay) через <strong>monobank</strong> (інтернет-еквайринг) або <strong>WayForPay</strong> — на ваш вибір на сторінці оплати.</li>
+<li>Дані картки вводяться на захищеній сторінці платіжного провайдера. Ми не отримуємо і не зберігаємо даних вашої картки.</li>
+<li><strong>Автоматичних списань немає.</strong> Кожен період оплачується окремо — лише коли ви самі натискаєте «Оплатити».</li>
+<li>Комісії за оплату ми з вас не стягуємо — ви сплачуєте лише ціну тарифу. Після оплати платіжний провайдер надсилає на ваш email фіскальний чек (ПРРО). На запит для ФОП і компаній надаємо рахунок та акт.</li>
+</ul>
+<h2>Як надається доступ</h2>
+<ul>
+<li>Доставка не здійснюється: доступ надається онлайн одразу після підтвердження оплати (зазвичай за кілька хвилин).</li>
+<li>Якщо оплатити до завершення поточного періоду, новий період додається до чинної дати «оплачено до».</li>
+<li>За 3 дні до завершення ми нагадуємо про це на email.</li>
+<li>Після завершення періоду акаунт переходить у Демо-режим. Ваші дані зберігаються.</li>
+</ul>
+<h2>Повернення коштів</h2>
+<ul>
+<li><strong>Повне повернення</strong> — якщо ви звернулися протягом 14 днів з дати оплати і не користувалися платними функціями.</li>
+<li><strong>Річний тариф</strong> — протягом 14 днів з дати оплати повертаємо вартість невикористаних повних місяців (2 500 грн мінус 250 грн за кожен розпочатий місяць користування).</li>
+<li><strong>Технічна неможливість надати послугу</strong> з нашої вини (понад 72 години поспіль) — повертаємо вартість невикористаних повних місяців незалежно від строку або за вашим бажанням подовжуємо доступ.</li>
+<li><strong>Як подати запит:</strong> напишіть на tripcontrol.com@gmail.com з email вашого акаунта; вкажіть дату, суму оплати та причину. Ми розглядаємо запит протягом 7 робочих днів.</li>
+<li><strong>Куди повертаються кошти:</strong> на ту саму картку, з якої здійснено оплату, через того самого платіжного провайдера. Строк зарахування залежить від провайдера та банку, що випустив картку (зазвичай до 30 днів).</li>
+</ul>
+<h2>Продавець</h2>
+<p><strong>ФОП Харченко Святослав Вікторович</strong><br />
+РНОКПП: 3184920472<br />
+Номер запису в ЄДР: 2010870000000000260 від 21.06.2024<br />
+Адреса: 19700, Черкаська обл., м. Золотоноша, вул. Січова, буд. 25, кв. 75<br />
+Email: tripcontrol.com@gmail.com<br />
+Телефон: +380730888252<br />
+Платник єдиного податку 3-ї групи, не платник ПДВ</p>
+</article>
+  <footer class="tc-legal-footer">
+      <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+          <a href="/offer">Публічна оферта</a>
+          <a href="/privacy">Політика конфіденційності</a>
+          <a href="/payment-refund">Оплата та повернення</a>
+      </nav>
+      <div class="tc-legal-footer__pay">
+          <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
+          <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
+          <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
+          <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+      </div>
+      <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+  </footer>
+</main>
+</body>
+</html>

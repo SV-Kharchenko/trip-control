@@ -573,7 +573,7 @@ test('client wiring: short signup keeps the invite, join/decline screen, mismatc
     assert.match(html, /#auth-form\.is-invite \.auth-owner-only \{ display: none !important; \}/);
     assert.match(html, /email\.readOnly = true;/);
     assert.match(html, /emailRedirectTo: location\.origin \+ '\/\?team_invite=' \+ encodeURIComponent\(invite\.token\),/);
-    assert.match(html, /data: \{ invite_id: invite\.info\.invite_id \}/);
+    assert.match(html, /data: \{\s*invite_id: invite\.info\.invite_id,/);
     assert.match(html, /if \(!invite && !company\)/);
     assert.match(html, /if \(!error && data && data\.user && !invite\) notifyOwnerAboutSignup/);
     // Join / decline and mismatch texts.
