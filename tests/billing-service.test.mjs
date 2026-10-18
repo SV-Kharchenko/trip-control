@@ -415,3 +415,52 @@ test('WayForPay webhook with amount 250.00 / "250.00" in the raw body is accepte
         assert.equal(w.store.db.subs[ORG].paid_until, '2026-11-18T09:00:00.000Z', literal);
     }
 });
+
+test('reversed / refunded are recorded even when the amount differs (warning only); success still needs a match', async () => {
+    const w = world();
+    await w.pay(Object.assign({ plan: 'month', provider: 'mono' }, w.consent));
+    const p = monoPayment(w);
+    await w.monoHook({ invoiceId: 'inv_1', reference: p.id, status: 'success', amount: 25000, ccy: 980, modifiedDate: '2026-10-18T09:05:00Z' });
+    const until = w.store.db.subs[ORG].paid_until;
+    const warnings = [];
+    const warn = console.warn;
+    console.warn = (...args) => warnings.push(args.join(' '));
+    try {
+        await w.monoHook({ invoiceId: 'inv_1', reference: p.id, status: 'reversed', amount: 10000, ccy: 980, modifiedDate: '2026-10-19T09:00:00Z' });
+    } finally {
+        console.warn = warn;
+    }
+    assert.equal(w.store.db.payments[0].status, 'reversed');
+    assert.equal(w.store.db.subs[ORG].paid_until, until);
+    assert.ok(warnings.some((line) => /amount\/currency mismatch/.test(line)));
+    assert.equal(w.store.db.events.at(-1).payload.amount, 10000);
+    assert.match(w.net.telegrams().at(-1), /^↩️ Повернення: /);
+
+    const v = world();
+    const c = await v.pay(Object.assign({ plan: 'month', provider: 'wayforpay' }, v.consent));
+    const ref = 'tc-' + c.body.payment_id;
+    await v.wfpHook(v.wfpBody({ orderReference: ref, amount: 250, transactionStatus: 'Approved', processingDate: 1760778300 }));
+    const refunded = await v.wfpHook(v.wfpBody({ orderReference: ref, amount: 100, transactionStatus: 'Refunded', processingDate: 1760864700 }));
+    assert.equal(refunded.body.status, 'accept');
+    assert.equal(v.store.db.payments[0].status, 'reversed');
+});
+
+test('mono webhook: unknown invoiceId → fallback by reference for a payment without invoice id, then invoiceId is saved', async () => {
+    const w = world();
+    await w.pay(Object.assign({ plan: 'month', provider: 'mono' }, w.consent));
+    const p = w.store.db.payments[0];
+    p.provider_invoice_id = null; // the invoice/create answer was lost
+    const hook = { invoiceId: 'inv_late', reference: p.id, status: 'success', amount: 25000, ccy: 980, modifiedDate: '2026-10-18T09:05:00Z' };
+    assert.equal((await w.monoHook(hook)).statusCode, 200);
+    assert.equal(p.provider_invoice_id, 'inv_late');
+    assert.equal(p.status, 'success');
+    assert.ok(w.store.db.subs[ORG].paid_until);
+    // A payment that already has another invoice id is not hijacked by reference.
+    const v = world();
+    await v.pay(Object.assign({ plan: 'month', provider: 'mono' }, v.consent));
+    const q = v.store.db.payments[0];
+    assert.equal((await v.monoHook(Object.assign({}, hook, { invoiceId: 'inv_other', reference: q.id }))).statusCode, 200);
+    assert.equal(q.provider_invoice_id, 'inv_1');
+    assert.equal(q.status, 'pending');
+    assert.equal(v.store.db.events.length, 0);
+});
