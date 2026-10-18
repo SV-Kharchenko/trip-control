@@ -126,17 +126,20 @@ function telegramFake(paidUntil) {
     return { from, auth: { admin: { async listUsers() { return { data: { users: auth }, error: null }; }, async getUserById() { return { data: { user: auth[0] }, error: null }; } } } };
 }
 
-test('Telegram /user and /users show «Оплачено до …» for a paid company; full/demo/blocked unchanged', async () => {
+test('Telegram /user and /users: a paid company shows «Повний доступ · оплачено до …»; buttons unchanged', async () => {
     const until = new Date(Date.now() + 30 * DAY).toISOString();
     const card = await userCardById(telegramFake(until), 'u1');
-    assert.match(card.text, /\nСтатус: Демо · Оплачено до \d{2}\.\d{2}\.\d{4}$/);
+    assert.match(card.text, /\nСтатус: Повний доступ · оплачено до \d{2}\.\d{2}\.\d{4}$/);
     assert.deepEqual(card.replyMarkup.inline_keyboard.flat().map((b) => b.callback_data.split(':')[1]), ['full', 'demo', 'blocked']);
     const list = await usersPage(telegramFake(until), 'all', 1, Date.now());
-    assert.match(list.text, /1\. owner@agro\.ua · Демо · Оплачено до \d{2}\.\d{2}\.\d{4} · розрахунків 0/);
+    assert.match(list.text, /1\. owner@agro\.ua · Повний доступ · оплачено до \d{2}\.\d{2}\.\d{4} · розрахунків 0/);
+    // Filters still follow the manual status.
+    assert.match((await usersPage(telegramFake(until), 'demo', 1, Date.now())).text, /Фільтр: demo · знайдено 1/);
     const unpaid = await userCardById(telegramFake(null), 'u1');
     assert.match(unpaid.text, /\nСтатус: Демо$/);
     const expired = await usersPage(telegramFake(new Date(Date.now() - DAY).toISOString()), 'all', 1, Date.now());
-    assert.equal(expired.text.includes('Оплачено'), false);
+    assert.equal(/оплачено/i.test(expired.text), false);
+    assert.match(expired.text, /owner@agro\.ua · Демо · /);
 });
 
 test('migration: new file after legal_consents (prod 20261018182708), RLS, functions, no backfill', () => {
