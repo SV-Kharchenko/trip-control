@@ -380,3 +380,22 @@ test('no secrets in error responses', async () => {
     assert.equal(w.store.db.payments[0].status, 'failure');
     assert.equal(LOGIST.length, 36);
 });
+
+test('mono webhook: 10 forged notifications in a row → at most 1 pubkey request; garbage x-sign → none', async () => {
+    const w = world();
+    await w.pay(Object.assign({ plan: 'month', provider: 'mono' }, w.consent));
+    const p = monoPayment(w);
+    const forger = monoKeyPair();
+    const hook = { invoiceId: 'inv_1', reference: p.id, status: 'success', amount: 25000, ccy: 980, modifiedDate: '2026-10-18T09:05:00Z' };
+    for (let i = 0; i < 10; i += 1) {
+        assert.equal((await w.monoHook(Object.assign({}, hook, { n: i }), forger)).statusCode, 401);
+    }
+    assert.ok(w.net.calls.filter((c) => c.url.endsWith('/merchant/pubkey')).length <= 1);
+    const before = w.net.calls.length;
+    for (const bad of ['', 'not base64!', '%%%']) {
+        assert.equal((await w.call('POST', 'mono-webhook', { raw: JSON.stringify(hook), headers: { 'x-sign': bad } })).statusCode, 401);
+    }
+    assert.equal(w.net.calls.length, before, 'no request to mono for an empty / invalid x-sign');
+    assert.equal(w.store.db.events.length, 0);
+    assert.equal(w.store.db.subs[ORG], undefined);
+});

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { test } from 'node:test';
-import { createPubKeyCache, pemFromBase64, verifyMonoSignature } from '../lib/billing/mono.js';
+import { createPubKeyCache, pemFromBase64, plausibleSignature, PUBKEY_REFETCH_MS, verifyMonoSignature } from '../lib/billing/mono.js';
 import {
     acceptResponse, checkStatus, notificationSignature, purchaseFields, purchaseSignature,
     signaturesMatch, verifyNotification, wfpSign
@@ -57,14 +57,30 @@ test('mono: generated prime256v1 pair; pubkey cache refetches once after rotatio
     assert.equal(verifyMonoSignature(Buffer.from(raw), newKey.sign(raw), oldKey.pem), false);
 
     const net = fakeNet({ monoKeyBase64: newKey.base64 });
-    const cache = createPubKeyCache(net.fetch, baseEnv({ MONO_PUBKEY: oldKey.base64 }));
+    const clock = { now: Date.parse('2026-10-18T09:00:00Z') };
+    const cache = createPubKeyCache(net.fetch, baseEnv({ MONO_PUBKEY: oldKey.base64 }), { now: () => clock.now });
+    const fetches = () => net.calls.filter((c) => c.url.endsWith('/pubkey')).length;
     assert.equal(await cache.verify(Buffer.from(raw), newKey.sign(raw)), true, 'stale MONO_PUBKEY → refetch → ok');
-    assert.equal(net.calls.filter((c) => c.url.endsWith('/pubkey')).length, 1);
+    assert.equal(fetches(), 1);
     assert.equal(net.calls[0].headers['X-Token'], 'mono-test-token');
     assert.equal(await cache.verify(Buffer.from(raw), newKey.sign(raw)), true);
-    assert.equal(net.calls.filter((c) => c.url.endsWith('/pubkey')).length, 1, 'cached after refetch');
+    assert.equal(fetches(), 1, 'cached after refetch');
     assert.equal(await cache.verify(Buffer.from(raw + ' '), newKey.sign(raw)), false);
-    assert.equal(net.calls.filter((c) => c.url.endsWith('/pubkey')).length, 2, 'one refetch per failed check, then false');
+    assert.equal(fetches(), 1, 'no second refetch within 5 minutes');
+    clock.now += PUBKEY_REFETCH_MS;
+    assert.equal(await cache.verify(Buffer.from(raw + ' '), newKey.sign(raw)), false);
+    assert.equal(fetches(), 2, 'one refetch after 5 minutes, then false');
+});
+
+test('mono: empty or non-base64 x-sign → false without any request to mono', async () => {
+    const net = fakeNet({ monoKeyBase64: monoKeyPair().base64 });
+    const cache = createPubKeyCache(net.fetch, baseEnv({ MONO_PUBKEY: '' }));
+    for (const bad of [undefined, '', '   ', 'not base64!', 'abc', 'A'.repeat(500), '====']) {
+        assert.equal(plausibleSignature(bad), false, String(bad));
+        assert.equal(await cache.verify(Buffer.from('{}'), bad), false);
+    }
+    assert.equal(net.calls.length, 0);
+    assert.equal(plausibleSignature(DOC_XSIGN), true);
 });
 
 const md5 = (key, text) => crypto.createHmac('md5', key).update(text, 'utf8').digest('hex');
