@@ -30,6 +30,10 @@ CREATE TABLE public.organizations (id uuid PRIMARY KEY, name text, status text D
 CREATE TABLE public.profiles (id uuid PRIMARY KEY, org_id uuid, org_role text, member_status text DEFAULT 'active',
   is_approved boolean DEFAULT false);
 CREATE TABLE public.calculations (id serial PRIMARY KEY, org_id uuid, user_id uuid, name text);
+-- Read by org_has_user_data (redefined by the migration).
+CREATE TABLE public.company_settings (org_id uuid PRIMARY KEY, settings jsonb);
+CREATE TABLE public.org_company_profiles (org_id uuid PRIMARY KEY, ownership text, phone text, lang text,
+  updated_at timestamptz, updated_by uuid);
 
 CREATE FUNCTION public.current_org_id() RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT p.org_id FROM public.profiles AS p JOIN public.organizations AS o ON o.id = p.org_id
@@ -261,6 +265,32 @@ const approved = async (user) => (await as(user, 'SELECT public.current_is_appro
     const kept = await as(OWNER, 'SELECT count(*)::int AS c FROM public.calculations');
     check(!afterExpiry.ok && /DEMO_SAVE_LIMIT/.test(afterExpiry.message) && kept.rows[0].c === 5,
         'after paid_until: demo limit is back, all 5 calculations are kept');
+}
+
+// A disabled member of a paid company is not approved; clients cannot call org_has_paid_access.
+{
+    await setPaidUntil(ORG, `now() + interval '20 days'`);
+    await db.exec(`UPDATE public.profiles SET member_status = 'disabled' WHERE id = '${LOGIST}'`);
+    check(await approved(LOGIST) === false, 'disabled member of a paid company: current_is_approved false');
+    await db.exec(`UPDATE public.profiles SET member_status = 'active' WHERE id = '${LOGIST}'`);
+    check(await approved(LOGIST) === true, 'active again: true');
+    const direct = await as(OWNER, `SELECT public.org_has_paid_access('${ORG}')`);
+    check(!direct.ok && direct.code === '42501', 'authenticated cannot call org_has_paid_access (42501)');
+}
+
+// org_has_user_data: a company with payments or a subscription row is kept by accept_org_invite.
+{
+    const empty = '80000000-0000-0000-0000-0000000000a1';
+    const paidOnly = '80000000-0000-0000-0000-0000000000a2';
+    const subOnly = '80000000-0000-0000-0000-0000000000a3';
+    const someone = '00000000-0000-0000-0000-0000000000f1';
+    await db.exec(`INSERT INTO public.organizations (id, name) VALUES ('${empty}', 'e'), ('${paidOnly}', 'p'), ('${subOnly}', 's')`);
+    await payment(paidOnly, 'month', someone);
+    await db.exec(`INSERT INTO public.org_subscriptions (org_id, paid_until) VALUES ('${subOnly}', now() - interval '1 year')`);
+    const has = async (org) => (await one('SELECT public.org_has_user_data($1, $2) AS h', [org, someone])).h;
+    check(await has(empty) === false, 'org_has_user_data: empty company → no data');
+    check(await has(paidOnly) === true, 'org_has_user_data: company with a payment → has data');
+    check(await has(subOnly) === true, 'org_has_user_data: company with a subscription (even expired) → has data');
 }
 
 // The owner cannot extend paid_until through organizations either (no such column there).

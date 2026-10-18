@@ -126,10 +126,13 @@ AS $$
   );
 $$;
 
-REVOKE ALL ON FUNCTION public.org_has_paid_access(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.org_has_paid_access(uuid) TO authenticated, service_role;
+-- Only current_is_approved() (SECURITY DEFINER) and the server use it; clients do not call it.
+REVOKE ALL ON FUNCTION public.org_has_paid_access(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.org_has_paid_access(uuid) TO service_role;
 
 -- Manual approval (profiles.is_approved) is permanent full access; otherwise a paid company.
+-- current_org_id() counts only an active member of a non-blocked company, so a disabled member
+-- of a paid company is not approved.
 CREATE OR REPLACE FUNCTION public.current_is_approved()
 RETURNS boolean
 LANGUAGE sql
@@ -138,7 +141,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT coalesce((
-    SELECT p.is_approved OR public.org_has_paid_access(p.org_id)
+    SELECT p.is_approved OR coalesce(public.org_has_paid_access(public.current_org_id()), false)
     FROM public.profiles AS p
     WHERE p.id = auth.uid()
     LIMIT 1
@@ -273,3 +276,95 @@ $$;
 
 REVOKE ALL ON FUNCTION public.apply_payment_status(uuid, text, timestamptz) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.apply_payment_status(uuid, text, timestamptz) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- org_has_user_data: a company with payments or a subscription has data
+-- ---------------------------------------------------------------------------
+-- Same function as in 20261017130000_starter_defaults_user_data.sql (current starter template),
+-- plus payments and org_subscriptions in the list of tables. accept_org_invite therefore never
+-- removes a company that has paid. Keep the starter values in sync with index.html STARTER_SETTINGS.
+
+CREATE OR REPLACE FUNCTION public.org_has_user_data(p_org_id uuid, p_user_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_table text;
+  v_found boolean;
+  v_settings jsonb;
+  -- Current STARTER_SETTINGS in index.html (same values).
+  v_starter_current constant jsonb := jsonb_build_object(
+    'totalFleet', 1, 'fuelLoad', 38, 'fuelEmpty', 32, 'fuelPrice', 95,
+    'adblueEnable', 'on', 'adblueConsumption', 2.85, 'adbluePrice', 18,
+    'driverPayMode', 'km', 'driverRateLoad', 4.03, 'driverRateEmpty', 2.3,
+    'driverPctVal', 12, 'perDiem', 500, 'toCost', 18000, 'toPeriod', 50000,
+    'tireCost', 16500, 'tireCount', 14, 'tireMileage', 150000
+  );
+BEGIN
+  IF p_org_id IS NULL THEN
+    RETURN false;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.profiles AS p
+    WHERE p.org_id = p_org_id AND p.id IS DISTINCT FROM p_user_id
+  ) THEN
+    RETURN true;
+  END IF;
+
+  FOREACH v_table IN ARRAY ARRAY[
+    'calculations', 'calc_vehicles', 'trip_actuals', 'route_templates',
+    'fleet_vehicles', 'trailer_presets', 'weekly_reports',
+    -- A company that paid or has a subscription row is kept (payments outlive nothing silently).
+    'payments', 'org_subscriptions'
+  ] LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns AS c
+      WHERE c.table_schema = 'public' AND c.table_name = v_table AND c.column_name = 'org_id'
+    ) THEN
+      EXECUTE format('SELECT EXISTS (SELECT 1 FROM public.%I WHERE org_id = $1)', v_table)
+        INTO v_found
+        USING p_org_id;
+      IF v_found THEN
+        RETURN true;
+      END IF;
+    END IF;
+  END LOOP;
+
+  -- Signup writes {"logists_see_all": false}; the first sign-in autosaves the
+  -- current starter template. Neither is user data.
+  SELECT coalesce((
+    SELECT jsonb_object_agg(e.key, e.value)
+    FROM jsonb_each(coalesce(s.settings, '{}'::jsonb) - 'logists_see_all') AS e
+    WHERE e.value NOT IN ('null'::jsonb, '""'::jsonb)
+  ), '{}'::jsonb)
+  INTO v_settings
+  FROM public.company_settings AS s
+  WHERE s.org_id = p_org_id;
+
+  IF v_settings IS NOT NULL
+     AND NOT (v_starter_current @> v_settings)
+  THEN
+    RETURN true;
+  END IF;
+
+  -- Signup fills only ownership; EDRPOU, phone, address and the rest come from the cabinet.
+  IF EXISTS (
+    SELECT 1
+    FROM public.org_company_profiles AS ocp,
+         jsonb_each(to_jsonb(ocp) - ARRAY['org_id', 'ownership', 'lang', 'updated_at', 'updated_by', 'created_at']) AS f
+    WHERE ocp.org_id = p_org_id
+      AND f.value NOT IN ('null'::jsonb, '""'::jsonb)
+  ) THEN
+    RETURN true;
+  END IF;
+
+  RETURN false;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.org_has_user_data(uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.org_has_user_data(uuid, uuid) TO service_role;
