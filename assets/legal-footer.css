@@ -20,15 +20,11 @@
 .tc-legal-footer__pay {
     display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px;
 }
-/* Текстові бейджі замість логотипів, доки немає офіційних SVG в assets/payments/. */
-.tc-pay-badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-height: 22px; padding: 0 8px; border-radius: 6px;
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.22));
-    background: var(--surface, transparent); color: var(--text, #e8eaf0);
-    font-size: 11px; font-weight: 800; letter-spacing: 0.04em; white-space: nowrap;
-}
-.tc-pay-badge--visa { font-style: italic; letter-spacing: 0.08em; }
+/* Логотипи платіжних систем (assets/payments/*.svg, файли не змінюємо). Visa: синій у світлій темі, білий у темній. */
+.tc-pay-logo { display: block; height: 20px; width: auto; flex: none; }
+.tc-pay-logo--on-dark { display: none; }
+[data-theme="dark"] .tc-pay-logo--on-light { display: none; }
+[data-theme="dark"] .tc-pay-logo--on-dark { display: block; }
 .tc-legal-footer__paytext { flex-basis: 100%; }
 .tc-legal-footer__seller a { white-space: nowrap; }
 @media (min-width: 720px) {

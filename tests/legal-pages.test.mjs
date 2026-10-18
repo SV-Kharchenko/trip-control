@@ -81,19 +81,42 @@ test('one footer component with the three links, payments and seller on every pa
     for (const { file } of PAGES) pages[file] = read(file);
     const reference = normalize(footersOf(html)[0] || '');
     assert.ok(reference, 'footer in index.html');
+    // On the legal pages the footer links open in the same tab; otherwise the markup is identical.
+    const sameTab = reference.replace(/ target="_blank" rel="noopener"/g, '');
     for (const [file, source] of Object.entries(pages)) {
         const footers = footersOf(source);
         assert.ok(footers.length >= 1, file);
+        const expected = file.startsWith('legal/') ? sameTab : reference;
         for (const footer of footers) {
-            assert.equal(normalize(footer), reference, file + ': same markup');
+            assert.equal(normalize(footer), expected, file + ': same markup');
         }
         assert.match(source, /<link rel="stylesheet" href="\/assets\/legal-footer\.css\?v=[\d-]+">/, file);
+    }
+    for (const { file } of PAGES) {
+        const footer = footersOf(pages[file])[0];
+        assert.equal(footer.includes('target='), false, file);
+        assert.match(footer, /<a href="\/offer">Публічна оферта<\/a>/);
+        assert.match(footer, /<a href="\/privacy">Політика конфіденційності<\/a>/);
+        assert.match(footer, /<a href="\/payment-refund">Оплата та повернення<\/a>/);
     }
     assert.match(reference, /<a href="\/offer" target="_blank" rel="noopener">Публічна оферта<\/a>/);
     assert.match(reference, /<a href="\/privacy" target="_blank" rel="noopener">Політика конфіденційності<\/a>/);
     assert.match(reference, /<a href="\/payment-refund" target="_blank" rel="noopener">Оплата та повернення<\/a>/);
-    assert.match(reference, />VISA</);
-    assert.match(reference, />Mastercard</);
+    // Official logos: Visa blue on light, white on dark; Mastercard the same for both.
+    assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="\/assets\/payments\/visa\.svg" alt="Visa" width="62" height="20">/);
+    assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="\/assets\/payments\/visa-white\.svg" alt="Visa" width="62" height="20">/);
+    assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--mc" src="\/assets\/payments\/mastercard\.svg" alt="Mastercard" width="32" height="20">/);
+    assert.equal(/tc-pay-badge|>VISA</.test(reference), false);
+    const css = read('assets/legal-footer.css');
+    assert.match(css, /\.tc-pay-logo \{ display: block; height: 20px;/);
+    assert.match(css, /\.tc-pay-logo--on-dark \{ display: none; \}/);
+    assert.match(css, /\[data-theme="dark"\] \.tc-pay-logo--on-light \{ display: none; \}/);
+    assert.match(css, /\[data-theme="dark"\] \.tc-pay-logo--on-dark \{ display: block; \}/);
+    for (const svg of ['visa.svg', 'visa-white.svg', 'mastercard.svg']) {
+        assert.match(read('assets/payments/' + svg), /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/, svg);
+    }
+    // 404 is always dark: white Visa.
+    assert.match(read('404.html'), /<html lang="uk" data-theme="dark">/);
     assert.match(reference, /Оплата карткою через plata by mono \(monobank\) та WayForPay · Apple Pay \/ Google Pay/);
     assert.match(reference, /ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol\.com@gmail\.com">tripcontrol\.com@gmail\.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
     // Auth screen, menu, bottom of the app, bottom of the cabinet.
@@ -102,7 +125,7 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(sliceBetween(html, '<div class="tc-menu-foot">', '<button type="button" class="tc-icon-btn tc-burger"'), /tc-legal-footer/);
     assert.match(sliceBetween(html, '</section>\n', '<div id="cabinet-screen">'), /<footer class="tc-legal-footer">/);
     assert.match(sliceBetween(html, '<div id="cabinet-screen">', '<div id="admin-screen">'), /<footer class="tc-legal-footer">/);
-    // No fake logos while assets/payments/ has no official SVGs.
+    // Logos come from the files, not drawn inline.
     assert.equal(/<svg[^>]*(visa|mastercard)/i.test(reference), false);
 });
 
