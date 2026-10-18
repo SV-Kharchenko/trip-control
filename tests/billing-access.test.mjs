@@ -154,7 +154,15 @@ test('migration: new file after legal_consents (prod 20261018182708), RLS, funct
     assert.match(sql, /source text NOT NULL CHECK \(source IN \('webhook', 'status_check', 'manual'\)\)/);
     assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.apply_payment_success\(uuid, timestamptz\) TO service_role;/);
     assert.match(sql, /REVOKE ALL ON FUNCTION public\.apply_payment_success\(uuid, timestamptz\) FROM PUBLIC, anon, authenticated;/);
-    assert.match(sql, /SELECT p\.is_approved OR public\.org_has_paid_access\(p\.org_id\)/);
+    assert.match(sql, /SELECT p\.is_approved OR coalesce\(public\.org_has_paid_access\(public\.current_org_id\(\)\), false\)/);
+    assert.match(sql, /REVOKE ALL ON FUNCTION public\.org_has_paid_access\(uuid\) FROM PUBLIC, anon, authenticated;\nGRANT EXECUTE ON FUNCTION public\.org_has_paid_access\(uuid\) TO service_role;/);
+    // org_has_user_data: payments and org_subscriptions count as data; the starter template copy matches index.html.
+    const userData = sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.org_has_user_data'));
+    assert.match(userData, /'fleet_vehicles', 'trailer_presets', 'weekly_reports',\n[^\n]*\n\s+'payments', 'org_subscriptions'/);
+    const pairsOf = (text) => Object.fromEntries([...text.matchAll(/'(\w+)',\s*('[^']*'|[\d.]+)/g)]
+        .map(([, key, value]) => [key, value.startsWith("'") ? value.slice(1, -1) : Number(value)]));
+    const starter = Function('return ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1])();
+    assert.deepEqual(pairsOf(userData.match(/v_starter_current constant jsonb := jsonb_build_object\(([\s\S]*?)\);/)[1]), starter);
     assert.equal(/UPDATE public\.profiles/.test(sql), false, 'no backfill of is_approved');
     assert.equal(/ALTER TABLE public\.organizations/.test(sql), false, 'paid_until is not on organizations');
 });
