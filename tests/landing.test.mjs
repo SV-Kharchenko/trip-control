@@ -293,6 +293,9 @@ test('demo path: OSM instead of Google, the paid branch unchanged, POI search st
     assert.match(html, /class="tc-map-btn tc-map-poi-btn full-only" id="map-poi-btn"/);
     assert.match(html, /<div class="lock-ph demo-only"><b>🔒 Доступно після оплати<\/b><small>📍 Пошук АЗС, стоянок TIR, кафе і СТО вздовж маршруту<\/small><\/div>/);
     assert.match(html, /body\.demo-mode \.full-only \{ display: none !important; \}/);
+    // Map lock in demo: distance is computed via OSM now.
+    assert.match(html, /<b>Карта маршруту, проміжні зупинки й пошук об'єктів — після оплати<\/b>\n\s+<small>У демо відстань рахується через OpenStreetMap<\/small>/);
+    assert.equal(html.includes('вводьте відстань вручну'), false);
     // New lock text over the route.
     assert.match(html, /<div class="lock-ph demo-only"><b>🔒 Карти Google і проміжні зупинки — після оплати<\/b>/);
 });
