@@ -712,11 +712,14 @@ export async function geoRoute(query, options = {}) {
     return { status: 200, body, cacheable: !(podacha && podacha.failure) };
 }
 
-// Спільний бюджет на інстанс для запитів до Photon / OSRM (≈1 запит/с, невеликий запас на route з подачею):
+// Бюджет на інстанс окремо для Photon і OSRM (≈1 запит/с на сервіс, запас до 4 — route з подачею й короткі сплески):
 // поважаємо fair-use публічних сервісів незалежно від кількості IP. Відповіді з CDN сюди не доходять.
 export const OSM_GEO_UPSTREAM_RPS = 1;
-export const OSM_GEO_UPSTREAM_BURST = 2;
-const geoUpstreamBudget = { tokens: OSM_GEO_UPSTREAM_BURST, at: 0 };
+export const OSM_GEO_UPSTREAM_BURST = 4;
+export function geoBudgetState() {
+    return { photon: { tokens: OSM_GEO_UPSTREAM_BURST, at: 0 }, osrm: { tokens: OSM_GEO_UPSTREAM_BURST, at: 0 } };
+}
+const geoUpstreamBudget = geoBudgetState();
 
 export function geoTakeBudget(state, cost, nowMs, rps = OSM_GEO_UPSTREAM_RPS, burst = OSM_GEO_UPSTREAM_BURST) {
     const elapsed = Math.max(0, nowMs - state.at) / 1000;
@@ -727,12 +730,18 @@ export function geoTakeBudget(state, cost, nowMs, rps = OSM_GEO_UPSTREAM_RPS, bu
     return true;
 }
 
-// Скільки запитів до Photon / OSRM потрібно (некоректний запит бюджет не витрачає).
+// Який сервіс і скільки запитів до нього потрібно. Некоректний запит (GEO_BAD_INPUT) бюджет не витрачає,
+// у т. ч. route з невалідним base.
+export function geoUpstreamService(mode) {
+    return mode === 'geocode' ? 'photon' : 'osrm';
+}
 export function geoUpstreamCost(mode, query) {
     const q = query || {};
     if (mode === 'geocode') return geoNormalizeQuery(q.q) ? 1 : 0;
     if (!geoParsePoint(q.from) || !geoParsePoint(q.to)) return 0;
-    return q.base != null && String(q.base).trim() !== '' && geoParsePoint(q.base) ? 2 : 1;
+    const hasBase = q.base != null && String(q.base).trim() !== '';
+    if (!hasBase) return 1;
+    return geoParsePoint(q.base) ? 2 : 0;
 }
 
 function geoRequestQuery(req) {
@@ -762,7 +771,7 @@ export async function handleGeo(req, res, options = {}) {
         const cost = geoUpstreamCost(mode, query);
         if (geoRateLimited(store, mode + '|' + geoClientIp(req), limit, now())) {
             result = geoError('GEO_RATE_LIMIT');
-        } else if (cost > 0 && !geoTakeBudget(budget, cost, now())) {
+        } else if (cost > 0 && !geoTakeBudget(budget[geoUpstreamService(mode)], cost, now())) {
             result = geoError('GEO_RATE_LIMIT');
         } else if (mode === 'geocode') {
             result = await geoGeocode(query.q, options);

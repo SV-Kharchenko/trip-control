@@ -206,12 +206,12 @@ test('successful GET responses are CDN-cacheable; errors are no-store', async ()
         route: 'public, s-maxage=86400, stale-while-revalidate=604800'
     });
     const ok = fakeRes();
-    await handleGeo(geoReq({ mode: 'geocode', q: 'Житомир' }), ok, { rateStore: new Map(), budget: { tokens: 2, at: 0 }, ...mockFetch([{ status: 200, body: PHOTON }]) });
+    await handleGeo(geoReq({ mode: 'geocode', q: 'Житомир' }), ok, { rateStore: new Map(), budget: poi.geoBudgetState(), ...mockFetch([{ status: 200, body: PHOTON }]) });
     assert.equal(ok.statusCode, 200);
     assert.equal(ok.headers['Cache-Control'], 'public, s-maxage=604800');
     const route = fakeRes();
     await handleGeo(geoReq({ mode: 'route', from: '50,30', to: '51,31' }), route,
-        { rateStore: new Map(), budget: { tokens: 2, at: 0 }, ...mockFetch([{ status: 200, body: { code: 'Ok', routes: [{ distance: 1000 }] } }]) });
+        { rateStore: new Map(), budget: poi.geoBudgetState(), ...mockFetch([{ status: 200, body: { code: 'Ok', routes: [{ distance: 1000 }] } }]) });
     assert.equal(route.headers['Cache-Control'], 'public, s-maxage=86400, stale-while-revalidate=604800');
     const bad = fakeRes();
     await handleGeo(geoReq({ mode: 'route', from: '50,30' }), bad, { rateStore: new Map() });
@@ -273,7 +273,7 @@ test('route with base: if base → A fails, 200 without podacha_km is not cached
         : { status: 200, body: { code: 'Ok', routes: [{ distance: 543211 }] } });
     const res = fakeRes();
     await handleGeo(geoReq({ mode: 'route', from: '50.26,28.67', to: '46.48,30.73', base: '50.45,30.52' }), res,
-        { rateStore: new Map(), budget: { tokens: 2, at: 0 }, now: () => 0, fetchImpl });
+        { rateStore: new Map(), budget: poi.geoBudgetState(), now: () => 0, fetchImpl });
     assert.equal(res.statusCode, 200);
     assert.equal(res.body.km, 543);
     assert.equal('podacha_km' in res.body, false);
@@ -281,37 +281,57 @@ test('route with base: if base → A fails, 200 without podacha_km is not cached
     assert.equal('cacheable' in res.body, false);
 });
 
-test('global upstream budget per instance (≈1 rps): over budget → GEO_RATE_LIMIT without calling Photon / OSRM', async () => {
-    const { OSM_GEO_UPSTREAM_RPS, OSM_GEO_UPSTREAM_BURST, geoTakeBudget, geoUpstreamCost } = poi;
+test('upstream budget per instance, separate buckets for Photon and OSRM (≈1 rps, burst 4): over budget → GEO_RATE_LIMIT', async () => {
+    const { OSM_GEO_UPSTREAM_RPS, OSM_GEO_UPSTREAM_BURST, geoTakeBudget, geoUpstreamCost, geoUpstreamService, geoBudgetState } = poi;
     assert.equal(OSM_GEO_UPSTREAM_RPS, 1);
-    assert.equal(OSM_GEO_UPSTREAM_BURST, 2);
-    const state = { tokens: 2, at: 0 };
-    assert.equal(geoTakeBudget(state, 1, 0), true);
-    assert.equal(geoTakeBudget(state, 1, 0), true);
+    assert.ok(OSM_GEO_UPSTREAM_BURST >= 4);
+    assert.deepEqual(geoBudgetState(), { photon: { tokens: OSM_GEO_UPSTREAM_BURST, at: 0 }, osrm: { tokens: OSM_GEO_UPSTREAM_BURST, at: 0 } });
+    assert.equal(geoUpstreamService('geocode'), 'photon');
+    assert.equal(geoUpstreamService('route'), 'osrm');
+    const state = { tokens: 4, at: 0 };
+    for (let i = 0; i < 4; i++) assert.equal(geoTakeBudget(state, 1, 0), true, 'burst ' + i);
     assert.equal(geoTakeBudget(state, 1, 100), false);
     assert.equal(geoTakeBudget(state, 1, 1100), true, 'refills 1 token per second');
     assert.equal(geoTakeBudget(state, 2, 1100), false);
-    assert.equal(geoTakeBudget(state, 2, 10000), true, 'never above the burst');
-    assert.equal(geoTakeBudget(state, 1, 10000), false);
-    assert.equal(geoUpstreamCost('geocode', { q: 'ab' }), 0, 'bad input does not spend the budget');
+    assert.equal(geoTakeBudget(state, 4, 60000), true, 'never above the burst');
+    assert.equal(geoTakeBudget(state, 1, 60000), false);
+    // Bad input does not spend the budget — including route with an invalid base.
+    assert.equal(geoUpstreamCost('geocode', { q: 'ab' }), 0);
     assert.equal(geoUpstreamCost('geocode', { q: 'житомир' }), 1);
     assert.equal(geoUpstreamCost('route', { from: '50,30', to: '51,31' }), 1);
+    assert.equal(geoUpstreamCost('route', { from: '50,30', to: '51,31', base: '  ' }), 1);
     assert.equal(geoUpstreamCost('route', { from: '50,30', to: '51,31', base: '50.4,30.5' }), 2);
+    assert.equal(geoUpstreamCost('route', { from: '50,30', to: '51,31', base: 'x' }), 0);
+    assert.equal(geoUpstreamCost('route', { from: '50,30', to: '51,31', base: '91,0' }), 0);
     assert.equal(geoUpstreamCost('route', { from: '50,30' }), 0);
-    const { fetchImpl, calls } = mockFetch(() => ({ status: 200, body: PHOTON }));
-    const budget = { tokens: 2, at: 0 };
+
+    const budget = geoBudgetState();
+    const photon = mockFetch(() => ({ status: 200, body: PHOTON }));
     const statuses = [];
-    for (const q of ['житомир', 'одеса', 'київ']) {
+    for (const q of ['житомир', 'одеса', 'київ', 'львів', 'рівне']) {
         const res = fakeRes();
-        await handleGeo(geoReq({ mode: 'geocode', q }), res, { rateStore: new Map(), budget, now: () => 500, fetchImpl });
+        await handleGeo(geoReq({ mode: 'geocode', q }), res, { rateStore: new Map(), budget, now: () => 500, fetchImpl: photon.fetchImpl });
         statuses.push(res.statusCode);
         if (res.statusCode === 429) {
             assert.equal(res.body.code, 'GEO_RATE_LIMIT');
             assert.equal(res.headers['Cache-Control'], 'no-store');
         }
     }
-    assert.deepEqual(statuses, [200, 200, 429]);
-    assert.equal(calls.length, 2);
+    assert.deepEqual(statuses, [200, 200, 200, 200, 429]);
+    assert.equal(photon.calls.length, 4);
+    // Photon is exhausted, OSRM has its own bucket.
+    const osrm = mockFetch(() => ({ status: 200, body: { code: 'Ok', routes: [{ distance: 1000 }] } }));
+    const route = fakeRes();
+    await handleGeo(geoReq({ mode: 'route', from: '50,30', to: '51,31', base: '50.4,30.5' }), route, { rateStore: new Map(), budget, now: () => 500, fetchImpl: osrm.fetchImpl });
+    assert.equal(route.statusCode, 200);
+    assert.equal(budget.osrm.tokens, OSM_GEO_UPSTREAM_BURST - 2);
+    // Invalid base → 400 and the OSRM bucket is untouched.
+    const bad = fakeRes();
+    await handleGeo(geoReq({ mode: 'route', from: '50,30', to: '51,31', base: 'x' }), bad, { rateStore: new Map(), budget, now: () => 500, fetchImpl: osrm.fetchImpl });
+    assert.equal(bad.statusCode, 400);
+    assert.equal(bad.body.code, 'GEO_BAD_INPUT');
+    assert.equal(budget.osrm.tokens, OSM_GEO_UPSTREAM_BURST - 2);
+    assert.equal(osrm.calls.length, 2);
 });
 
 test('runtime log: only the upstream host, status and duration — no IP, no address, no coordinates', async () => {
@@ -349,7 +369,7 @@ test('api/poi.js loads without SUPABASE_* (Preview): geocode / route work, Supab
         const out = [];
         let r = res(); await poi.default({ method: 'GET', query: { mode: 'geocode', q: 'ab' }, headers: {} }, r); out.push(r.s, r.b.code);
         r = res(); await poi.handleGeo({ method: 'GET', query: { mode: 'geocode', q: 'житомир' }, headers: {} }, r,
-            { rateStore: new Map(), budget: { tokens: 2, at: 0 }, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ features: [] }) }) });
+            { rateStore: new Map(), budget: poi.geoBudgetState(), fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ features: [] }) }) });
         out.push(r.s);
         r = res(); await poi.default({ method: 'POST', query: {}, headers: {}, body: {} }, r); out.push(r.s);
         process.stdout.write(JSON.stringify(out));`;
@@ -360,4 +380,38 @@ test('api/poi.js loads without SUPABASE_* (Preview): geocode / route work, Supab
     assert.equal(/^const supabase = createClient\(/m.test(source), false);
     assert.match(source, /function supabaseAdmin\(\) \{\n\s+if \(!supabaseClient\) \{\n\s+supabaseClient = createClient\(/);
     assert.equal((source.match(/supabaseAdmin\(\)/g) || []).length, 5);
+});
+
+test('client: route retries once after ~1 s on GEO_RATE_LIMIT; other errors and a second 429 are not retried', async () => {
+    const vm = await import('node:vm');
+    const load = (responses) => {
+        const calls = [];
+        const waits = [];
+        const sandbox = {
+            window: {},
+            setTimeout: (fn, ms) => { waits.push(ms); fn(); return 0; },
+            fetch: async (url) => {
+                calls.push(url);
+                const next = responses[calls.length - 1];
+                return { ok: next.status === 200, status: next.status, json: async () => next.body };
+            }
+        };
+        vm.runInNewContext(read('assets/osm-geo.js'), sandbox);
+        return { geo: sandbox.window.TcOsmGeo, calls, waits };
+    };
+    const points = { from: { lat: 50.26, lon: 28.67 }, to: { lat: 46.48, lon: 30.73 } };
+    const limited = { status: 429, body: { code: 'GEO_RATE_LIMIT', error: 'x' } };
+    const ok = { status: 200, body: { km: 543 } };
+    const retried = load([limited, ok]);
+    assert.equal((await retried.geo.route(points)).km, 543);
+    assert.equal(retried.calls.length, 2);
+    assert.equal(retried.calls[0], retried.calls[1]);
+    assert.deepEqual(retried.waits, [1000]);
+    const twice = load([limited, limited]);
+    await assert.rejects(twice.geo.route(points), (err) => err.code === 'GEO_RATE_LIMIT');
+    assert.equal(twice.calls.length, 2);
+    const other = load([{ status: 502, body: { code: 'GEO_UNAVAILABLE', error: 'x' } }]);
+    await assert.rejects(other.geo.route(points), (err) => err.code === 'GEO_UNAVAILABLE');
+    assert.equal(other.calls.length, 1);
+    assert.deepEqual(other.waits, []);
 });

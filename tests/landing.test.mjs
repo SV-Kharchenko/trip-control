@@ -401,3 +401,16 @@ test('applyLandingDraft: «ТО та шини» go to the calculator only when t
     assert.deepEqual(changed.values, { ...cabinet, 'to-cost': '21000', 'tire-mileage': '90000' });
     assert.equal(changed.values['tire-count'], '12', '12,0 equals the cabinet value, written as 12');
 });
+
+test('LANDING_DRAFT_DEFAULTS in index.html equal the data-default fields of the landing panel, both ways', () => {
+    const literal = html.match(/const LANDING_DRAFT_DEFAULTS = (\{[^}]*\});/)[1];
+    const defaults = new Function('return ' + literal)();
+    const panelDefaults = {};
+    for (const input of panel.match(/<input [^>]*data-default="[^"]*"[^>]*>/g) || []) {
+        const name = input.match(/ name="([^"]+)"/)[1];
+        panelDefaults[name] = Number(input.match(/ data-default="([^"]+)"/)[1]);
+        assert.equal(input.match(/ value="([^"]+)"/)[1], input.match(/ data-default="([^"]+)"/)[1], name);
+    }
+    assert.deepEqual(plain(defaults), panelDefaults);
+    assert.deepEqual(Object.keys(panelDefaults).sort(), ['tire-cost', 'tire-count', 'tire-mileage', 'to-cost', 'to-period']);
+});

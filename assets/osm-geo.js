@@ -47,10 +47,16 @@
   }
 
   // { from, to, base? } — точки { lat, lon } → { km, podacha_km? }
-  function route(points) {
+  // На GEO_RATE_LIMIT (бюджет сервера на OSRM) — один повтор приблизно за секунду, далі ручне введення.
+  var ROUTE_RETRY_MS = 1000;
+  function route(points, retryMs) {
     var url = '/api/poi?mode=route&from=' + pointParam(points.from) + '&to=' + pointParam(points.to);
     if (points.base) url += '&base=' + pointParam(points.base);
-    return getJson(url);
+    var wait = retryMs == null ? ROUTE_RETRY_MS : retryMs;
+    return getJson(url).catch(function (err) {
+      if (!err || err.code !== 'GEO_RATE_LIMIT') throw err;
+      return new Promise(function (resolve) { setTimeout(resolve, wait); }).then(function () { return getJson(url); });
+    });
   }
 
   // Комбобокс: <input role="combobox"> + <ul role="listbox">; ↑/↓/Enter/Esc, мінімум 3 символи, debounce 300 мс.
