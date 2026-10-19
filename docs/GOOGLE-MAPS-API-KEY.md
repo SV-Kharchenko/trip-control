@@ -1,6 +1,8 @@
 # Google Maps API key — обмеження (тиждень 1)
 
-Ключ зараз завантажується лише для **схвалених** акаунтів (`loadGoogleMaps` у `index.html`). Демо не створює платних Places/Directions запитів з браузера. Обмеження ключа в Google Cloud — обов’язкові: без них ключ з HTML можна вкрасти й спамити квоту.
+Ключ зараз завантажується лише для **схвалених** акаунтів (`loadGoogleMaps` у `index.html`, гілка `else` після `if (isDemo)` у `checkUserAccess()`). Google потрібен їм лише для автопідказок адрес (`createAddressAutocomplete`) і маршруту (`calculateGoogleRoute`). Обмеження ключа в Google Cloud — обов’язкові: без них ключ з HTML можна вкрасти й спамити квоту.
+
+**Гості лендингу й демо-акаунти Google не вантажать.** Підказки адрес і відстань у них — OpenStreetMap через наш проксі `/api/poi?mode=geocode|route` (див. [OSM-GEO.md](OSM-GEO.md)), тож платних Places/Directions запитів від гостей і демо немає. Пошук об’єктів уздовж маршруту («Знайти об’єкти», Overpass) як і раніше лише для схвалених акаунтів.
 
 ## Ручні кроки в Google Cloud Console
 

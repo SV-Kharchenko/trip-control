@@ -479,7 +479,255 @@ function storeChunk(fresh, types, cacheKey, elements) {
     return { rows: rows, elements: stored };
 }
 
+// ===== Адреси й відстань за OpenStreetMap (лендинг і демо-акаунти) =====
+// GET /api/poi?mode=geocode&q=…  → підказки адрес (Photon);
+// GET /api/poi?mode=route&from=lat,lon&to=lat,lon[&base=lat,lon] → км за дорогами (OSRM, профіль легкового авто — оцінка).
+// Анонімні (лендинг без входу), без POI й без Overpass. Захист: per-IP ліміт у пам'яті інстансу (м'який, скидається
+// на холодному старті) + CDN-кеш Vercel за URL. Платні/схвалені акаунти й далі працюють з Google у браузері.
+export const OSM_GEO_PHOTON = 'https://photon.komoot.io/api/';
+export const OSM_GEO_OSRM = 'https://router.project-osrm.org/route/v1/driving/';
+export const OSM_GEO_REFERER = 'https://trip-control.com/';
+export const OSM_GEO_TIMEOUT_MS = 7000;
+export const OSM_GEO_MODES = ['geocode', 'route'];
+export const OSM_GEO_RATE_LIMITS = { geocode: 60, route: 20 };
+export const OSM_GEO_RATE_WINDOW_MS = 60 * 1000;
+export const OSM_GEO_RATE_MAX_KEYS = 5000;
+export const OSM_GEO_CACHE_CONTROL = {
+    geocode: 'public, s-maxage=604800',
+    route: 'public, s-maxage=86400, stale-while-revalidate=604800'
+};
+export const OSM_GEO_ATTRIBUTION = '© OpenStreetMap contributors';
+export const OSM_GEO_ERRORS = {
+    GEO_BAD_INPUT: { status: 400, error: 'Некоректний запит адреси або координат.' },
+    GEO_NO_ROUTE: { status: 404, error: 'Маршрут між цими точками не знайдено. Введіть відстань вручну.' },
+    GEO_RATE_LIMIT: { status: 429, error: 'Забагато запитів. Спробуйте за хвилину або введіть відстань вручну.' },
+    GEO_UNAVAILABLE: { status: 502, error: 'Сервіс карт тимчасово недоступний. Введіть відстань вручну.' },
+    GEO_TIMEOUT: { status: 504, error: 'Сервіс карт не відповів вчасно. Введіть відстань вручну.' }
+};
+// Межі для координат: Європа з запасом (рейси з України в ЄС, Туреччину, Кавказ).
+export const OSM_GEO_BOUNDS = { minLat: 34, maxLat: 72, minLon: -25, maxLon: 60 };
+// Зсув підказок до центру України; результати з ЄС лишаються (bbox не ставимо, щоб не відрізати Європу).
+export const OSM_GEO_BIAS = { lat: 49.0, lon: 31.5 };
+
+const geoRateStore = new Map();
+
+export function geoError(code) {
+    const known = OSM_GEO_ERRORS[code] || OSM_GEO_ERRORS.GEO_UNAVAILABLE;
+    return { status: known.status, body: { code: OSM_GEO_ERRORS[code] ? code : 'GEO_UNAVAILABLE', error: known.error } };
+}
+
+// q: trim + один пробіл + нижній регістр (той самий ключ CDN-кешу, що й на клієнті); 3–100 символів.
+export function geoNormalizeQuery(value) {
+    const q = String(value == null ? '' : value).replace(/\s+/g, ' ').trim().toLowerCase();
+    return q.length >= 3 && q.length <= 100 ? q : null;
+}
+
+// "lat,lon" → { lat, lon } з округленням до 4 знаків (~11 м); поза межами Європи → null.
+export function geoParsePoint(value) {
+    const parts = String(value == null ? '' : value).split(',');
+    if (parts.length !== 2) return null;
+    const raw = parts.map((part) => part.trim());
+    if (raw.some((part) => !/^-?\d+(\.\d+)?$/.test(part))) return null;
+    const lat = Math.round(Number(raw[0]) * 10000) / 10000;
+    const lon = Math.round(Number(raw[1]) * 10000) / 10000;
+    const b = OSM_GEO_BOUNDS;
+    if (!(lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180)) return null;
+    if (lat < b.minLat || lat > b.maxLat || lon < b.minLon || lon > b.maxLon) return null;
+    return { lat, lon };
+}
+
+export function geoPhotonUrl(q) {
+    return OSM_GEO_PHOTON + '?q=' + encodeURIComponent(q) + '&limit=6&lat=' + OSM_GEO_BIAS.lat.toFixed(1)
+        + '&lon=' + OSM_GEO_BIAS.lon.toFixed(1);
+}
+
+export function geoOsrmUrl(from, to) {
+    return OSM_GEO_OSRM + from.lon + ',' + from.lat + ';' + to.lon + ',' + to.lat
+        + '?overview=false&alternatives=false&steps=false';
+}
+
+// Photon GeoJSON → [{ label, name, city, region, lat, lon }]; label = «Назва, місто/громада, область[, країна]».
+export function geoNormalizePhoton(data) {
+    const features = data && Array.isArray(data.features) ? data.features : [];
+    const out = [];
+    const seen = new Set();
+    for (const feature of features) {
+        const props = (feature && feature.properties) || {};
+        const coords = feature && feature.geometry && Array.isArray(feature.geometry.coordinates)
+            ? feature.geometry.coordinates : [];
+        const lon = Number(coords[0]);
+        const lat = Number(coords[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        // Точки поза Європою відкидаємо: маршрут до них route однаково не прийме.
+        const b = OSM_GEO_BOUNDS;
+        if (lat < b.minLat || lat > b.maxLat || lon < b.minLon || lon > b.maxLon) continue;
+        const street = [props.street, props.housenumber].filter(Boolean).join(' ');
+        const name = String(props.name || street || '').trim();
+        if (!name) continue;
+        const cityRaw = String(props.city || props.county || '').trim();
+        const city = cityRaw && cityRaw !== name ? cityRaw : '';
+        const region = String(props.state || '').trim();
+        const country = props.countrycode && String(props.countrycode).toUpperCase() !== 'UA'
+            ? String(props.country || '').trim() : '';
+        const parts = [];
+        for (const part of [name, city, region, country]) {
+            if (part && !parts.includes(part)) parts.push(part);
+        }
+        const label = parts.join(', ');
+        if (seen.has(label)) continue;
+        seen.add(label);
+        out.push({
+            label,
+            name,
+            city,
+            region,
+            lat: Math.round(lat * 1e6) / 1e6,
+            lon: Math.round(lon * 1e6) / 1e6
+        });
+        if (out.length >= 6) break;
+    }
+    return out;
+}
+
+export function geoClientIp(req) {
+    const headers = (req && req.headers) || {};
+    const forwarded = String(headers['x-forwarded-for'] || '').split(',')[0].trim();
+    if (forwarded) return forwarded;
+    const real = String(headers['x-real-ip'] || '').trim();
+    return real || 'unknown';
+}
+
+// Фіксоване вікно на ключ (режим + IP). Пам'ять інстансу: м'який захист, не спільний між інстансами.
+export function geoRateLimited(store, key, limit, nowMs, windowMs = OSM_GEO_RATE_WINDOW_MS, maxKeys = OSM_GEO_RATE_MAX_KEYS) {
+    let entry = store.get(key);
+    if (!entry || nowMs >= entry.resetAt) {
+        entry = { count: 0, resetAt: nowMs + windowMs };
+        store.delete(key);
+        store.set(key, entry);
+    }
+    entry.count += 1;
+    if (store.size > maxKeys) {
+        for (const [k, v] of store) {
+            if (nowMs >= v.resetAt) store.delete(k);
+        }
+        for (const k of store.keys()) {
+            if (store.size <= maxKeys) break;
+            if (k !== key) store.delete(k);
+        }
+    }
+    return entry.count > limit;
+}
+
+export async function geoFetchJson(url, options = {}) {
+    const fetchImpl = options.fetchImpl || fetch;
+    const timeoutMs = options.timeoutMs == null ? OSM_GEO_TIMEOUT_MS : options.timeoutMs;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const response = await fetchImpl(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': OVERPASS_USER_AGENT,
+                'Referer': OSM_GEO_REFERER
+            },
+            signal: controller.signal
+        });
+        let data = null;
+        try { data = await response.json(); } catch (e) { data = null; }
+        return { ok: response.ok, status: response.status, data };
+    } catch (error) {
+        return { ok: false, status: 0, data: null, timeout: !!(error && error.name === 'AbortError') };
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
+
+function geoUpstreamError(result) {
+    if (result.timeout) return geoError('GEO_TIMEOUT');
+    if (result.status === 429) return geoError('GEO_RATE_LIMIT');
+    return geoError('GEO_UNAVAILABLE');
+}
+
+export async function geoGeocode(rawQuery, options = {}) {
+    const q = geoNormalizeQuery(rawQuery);
+    if (!q) return geoError('GEO_BAD_INPUT');
+    const result = await geoFetchJson(geoPhotonUrl(q), options);
+    if (!result.ok) return geoUpstreamError(result);
+    return { status: 200, body: { items: geoNormalizePhoton(result.data), source: 'photon', attribution: OSM_GEO_ATTRIBUTION } };
+}
+
+async function geoOsrmKm(from, to, options) {
+    const result = await geoFetchJson(geoOsrmUrl(from, to), options);
+    const code = result.data && result.data.code;
+    if (code === 'NoRoute' || code === 'NoSegment') return { failure: geoError('GEO_NO_ROUTE') };
+    if (!result.ok) return { failure: geoUpstreamError(result) };
+    const route = code === 'Ok' && Array.isArray(result.data.routes) ? result.data.routes[0] : null;
+    const meters = route ? Number(route.distance) : NaN;
+    if (!Number.isFinite(meters)) return { failure: geoError('GEO_UNAVAILABLE') };
+    return { km: Math.round(meters / 1000) };
+}
+
+export async function geoRoute(query, options = {}) {
+    const from = geoParsePoint(query && query.from);
+    const to = geoParsePoint(query && query.to);
+    const hasBase = query && query.base != null && String(query.base).trim() !== '';
+    const base = hasBase ? geoParsePoint(query.base) : null;
+    if (!from || !to || (hasBase && !base)) return geoError('GEO_BAD_INPUT');
+    const legs = [geoOsrmKm(from, to, options)];
+    if (base) legs.push(geoOsrmKm(base, from, options));
+    const [main, podacha] = await Promise.all(legs);
+    if (main.failure) return main.failure;
+    const body = { km: main.km };
+    if (podacha && !podacha.failure) body.podacha_km = podacha.km;
+    body.source = 'osrm';
+    body.estimate = true;
+    body.attribution = OSM_GEO_ATTRIBUTION;
+    return { status: 200, body };
+}
+
+function geoRequestQuery(req) {
+    if (req && req.query && typeof req.query === 'object') return req.query;
+    try {
+        return Object.fromEntries(new URL((req && req.url) || '/', 'https://trip-control.com').searchParams);
+    } catch (e) {
+        return {};
+    }
+}
+
+export function geoRequestMode(req) {
+    if (!req || req.method !== 'GET') return null;
+    const mode = geoRequestQuery(req).mode;
+    return OSM_GEO_MODES.includes(mode) ? mode : null;
+}
+
+export async function handleGeo(req, res, options = {}) {
+    const mode = geoRequestMode(req);
+    const query = geoRequestQuery(req);
+    const store = options.rateStore || geoRateStore;
+    const now = options.now || Date.now;
+    let result;
+    try {
+        const limit = OSM_GEO_RATE_LIMITS[mode];
+        if (geoRateLimited(store, mode + '|' + geoClientIp(req), limit, now())) {
+            result = geoError('GEO_RATE_LIMIT');
+        } else if (mode === 'geocode') {
+            result = await geoGeocode(query.q, options);
+        } else {
+            result = await geoRoute(query, options);
+        }
+    } catch (error) {
+        console.warn('osm geo:', error && error.message);
+        result = geoError('GEO_UNAVAILABLE');
+    }
+    res.setHeader('Cache-Control', result.status === 200 ? OSM_GEO_CACHE_CONTROL[mode] : 'no-store');
+    return res.status(result.status).json(result.body);
+}
+
 export default async function handler(req, res) {
+    if (geoRequestMode(req)) {
+        return handleGeo(req, res);
+    }
     const startedAt = Date.now();
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
