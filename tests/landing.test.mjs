@@ -131,10 +131,19 @@ test('try panel: dialog, 5 steps, «Далі» primary on 1–4, «Розрах�
     assert.match(landingJs, /if \(!silent && lastFocus && lastFocus\.focus\) lastFocus\.focus\(\);/);
 });
 
-test('try panel fields: no value="0" and no numeric defaults; decimal inputs with placeholders; one-off by default', () => {
+test('try panel fields: no value="0"; real defaults only in «ТО та шини»; decimal inputs with placeholders; one-off by default', () => {
     const inputs = panel.match(/<input [^>]*>/g);
     assert.ok(inputs.length > 40);
-    assert.equal(inputs.some((i) => / value="/.test(i)), false);
+    assert.equal(inputs.some((i) => / value="0"/.test(i)), false);
+    const DEFAULTS = { 'to-cost': '15000', 'to-period': '50000', 'tire-cost': '16500', 'tire-count': '14', 'tire-mileage': '100000' };
+    const withValue = inputs.filter((i) => / value="/.test(i));
+    assert.equal(withValue.length, Object.keys(DEFAULTS).length, withValue.join('\n'));
+    for (const [name, value] of Object.entries(DEFAULTS)) {
+        assert.match(panel, new RegExp('<input type="text" inputmode="decimal" id="t-' + name + '" name="' + name + '" value="' + value
+            + '" placeholder="напр\\. ' + value + '" data-default="' + value + '" autocomplete="off">'), name);
+    }
+    // An empty value from an older draft does not wipe these defaults.
+    assert.match(landingJs, /if \(value\.trim\(\) === '' && el\.hasAttribute\('data-default'\)\) value = el\.getAttribute\('data-default'\);/);
     assert.equal(panel.includes('type="number"'), false);
     const numeric = inputs.filter((i) => /inputmode="decimal"/.test(i));
     assert.equal(numeric.length, 44);

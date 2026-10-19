@@ -162,7 +162,10 @@
       if (!el.name || !Object.prototype.hasOwnProperty.call(data, el.name)) return;
       var v = String(data[el.name] == null ? '' : data[el.name]);
       if (el.tagName === 'SELECT' && !Array.prototype.some.call(el.options, function (o) { return o.value === v; })) return;
-      el.value = draftValue(v, el.hasAttribute('data-zero'));
+      var value = draftValue(v, el.hasAttribute('data-zero'));
+      // «ТО та шини» мають значення за замовчуванням: порожнє з чернетки його не стирає.
+      if (value.trim() === '' && el.hasAttribute('data-default')) value = el.getAttribute('data-default');
+      el.value = value;
     });
     if (data._step) step = parseInt(data._step, 10) || 1;
     return true;
