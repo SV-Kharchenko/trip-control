@@ -4106,8 +4106,8 @@
                 <div class="form-row two-cols">
                     <label>Логістика повернення:</label>
                     <select id="return-mode" onchange="calculate()">
-                        <option value="циклічний" selected>🟢 Циклічний вивіз (весь об'єм, з поверненням)</option>
-                        <option value="разовий">⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option>
+                        <option value="циклічний">🟢 Циклічний вивіз (весь об'єм, з поверненням)</option>
+                        <option value="разовий" selected>⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option>
                     </select>
                 </div>
 
@@ -4250,27 +4250,27 @@
 
                         <div class="form-row">
                             <label>Плече B→C (порожнім):</label>
-                            <input type="number" id="rt-transfer-dist" value="0" oninput="calculate()">
+                            <input type="number" id="rt-transfer-dist" min="0" placeholder="0, якщо C = B" oninput="calculate()">
                             <span class="unit">км</span>
                         </div>
                         <div class="form-row">
                             <label>Плече C→D (вантаженим):</label>
-                            <input type="number" id="rt-backhaul-dist" value="0" oninput="calculate()">
+                            <input type="number" id="rt-backhaul-dist" min="0" placeholder="напр. 480" oninput="calculate()">
                             <span class="unit">км</span>
                         </div>
                         <div class="form-row">
                             <label>Плече D→A (порожнім):</label>
-                            <input type="number" id="rt-return-dist" value="0" oninput="calculate()">
+                            <input type="number" id="rt-return-dist" min="0" placeholder="0, якщо D = A" oninput="calculate()">
                             <span class="unit">км</span>
                         </div>
                         <div class="form-row">
                             <label>Загальний обсяг зворотного вантажу:</label>
-                            <input type="number" id="rt-total-volume" value="0" oninput="calculate()">
+                            <input type="number" id="rt-total-volume" min="0" placeholder="напр. 40" oninput="calculate()">
                             <span class="unit">т</span>
                         </div>
                         <div class="form-row">
                             <label>Розцінка зворотного вантажу:</label>
-                            <input type="number" id="rt-rate" step="0.01" oninput="calculate()">
+                            <input type="number" id="rt-rate" step="0.01" min="0" placeholder="напр. 1200" oninput="calculate()">
                             <span class="unit" id="rt-rate-unit">грн/т</span>
                         </div>
                         <div id="rt-info" style="font-size: 0.8rem; color: var(--success); font-weight: 600; text-align: right; margin-top: 4px;"></div>
@@ -7781,6 +7781,10 @@
         ['days-per-trip', 'Днів на рейс'], ['rate', 'Ставка'], ['fuel-load', 'Витрата з вантажем'], ['fuel-empty', 'Витрата порожнім'],
         ['fuel-price', 'Ціна палива'], ['total-fleet', 'Авто в парку'], ['to-period', 'Пробіг між ТО'], ['tire-mileage', 'Ресурс шин']
     ];
+    // Увімкнений кругорейс без обсягу, розцінки чи плеча C→D нічого б не порахував — це теж обов'язкові поля.
+    const ROUND_TRIP_REQUIRED_FIELDS = [
+        ['rt-total-volume', 'Обсяг зворотного вантажу'], ['rt-rate', 'Розцінка зворотного вантажу'], ['rt-backhaul-dist', 'Плече C→D']
+    ];
 
     const OPT_ON_OFF = [['on', 'Увімкнено'], ['off', 'Вимкнено']];
     // Профіль компанії (вкладка Компанія). Обов'язкові лише назва + оподаткування.
@@ -9804,7 +9808,9 @@
 
         // Обов'язкові поля: без них результат був би вигаданим — запит не відправляємо (і в демо він не рахується в ліміт)
         const oneOff = document.getElementById('return-mode').value === 'разовий'; // разовий рейс: «Обсяг» не потрібен
-        const missing = REQUIRED_FIELDS.filter(([id]) => !(oneOff && id === 'volume') && !(parseFloat(document.getElementById(id).value) > 0));
+        const roundTripOn = document.getElementById('round-trip-enable').value === 'on';
+        const missing = REQUIRED_FIELDS.concat(roundTripOn ? ROUND_TRIP_REQUIRED_FIELDS : [])
+            .filter(([id]) => !(oneOff && id === 'volume') && !(parseFloat(document.getElementById(id).value) > 0));
         const mh = document.getElementById('missing-hint');
         if (missing.length) {
             const dismissKey = missing.map(m => m[0]).join(',');
