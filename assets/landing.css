@@ -444,12 +444,3 @@ body.lp-try-open { overflow: hidden; }
 [data-theme="light"] #landing-screen .lp-who .lp-sub,
 [data-theme="light"] #landing-screen .lp-t-group,
 [data-theme="light"] #landing-screen .lp-ro-badge { color: var(--gold); }
-
-/* ---- Підказки «?» до річних накладних (кабінет і крок 5 панелі; assets/cost-hints.js) ---- */
-.tc-hint-btn { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; min-width: 22px; padding: 0; border-radius: 50%; border: 1px solid var(--border, var(--border-color)); background: transparent; color: var(--muted, var(--text-muted)); font: 700 12px/1 var(--font-ui); cursor: pointer; position: relative; }
-.tc-hint-btn::before { content: ''; position: absolute; inset: -11px; } /* ціль для пальця ≥ 44px */
-.tc-hint-btn:hover, .tc-hint-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
-.tc-hint-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.tc-hint-text { margin: 4px 0 8px; padding: 8px 10px; border-radius: 8px; border: 1px dashed var(--border, var(--border-color)); background: color-mix(in srgb, var(--accent) 6%, transparent); color: var(--muted, var(--text-muted)); font-size: 12px; line-height: 1.45; text-align: left; }
-.tc-hint-text[hidden] { display: none; }
-#landing-screen .lp-hint-head { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
