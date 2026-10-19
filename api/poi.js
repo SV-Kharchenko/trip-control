@@ -621,8 +621,11 @@ export function geoRateLimited(store, key, limit, nowMs, windowMs = OSM_GEO_RATE
 export async function geoFetchJson(url, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
     const timeoutMs = options.timeoutMs == null ? OSM_GEO_TIMEOUT_MS : options.timeoutMs;
+    const log = options.log || geoLogUpstream;
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let result;
     try {
         const response = await fetchImpl(url, {
             method: 'GET',
@@ -635,12 +638,26 @@ export async function geoFetchJson(url, options = {}) {
         });
         let data = null;
         try { data = await response.json(); } catch (e) { data = null; }
-        return { ok: response.ok, status: response.status, data };
+        result = { ok: response.ok, status: response.status, data };
     } catch (error) {
-        return { ok: false, status: 0, data: null, timeout: !!(error && error.name === 'AbortError') };
+        result = { ok: false, status: 0, data: null, timeout: !!(error && error.name === 'AbortError') };
     } finally {
         clearTimeout(timeoutId);
     }
+    log(geoUpstreamLogLine(url, result, Date.now() - startedAt));
+    return result;
+}
+
+// Рядок у runtime-лог: лише сервіс, статус upstream і тривалість. Без IP, без адреси (q) і координат.
+export function geoUpstreamLogLine(url, result, ms) {
+    let host = 'unknown';
+    try { host = new URL(url).hostname; } catch (e) { host = 'unknown'; }
+    const status = result.timeout ? 'timeout' : (result.status || 'network');
+    return 'osm-geo upstream ' + host + ' status=' + status + ' ms=' + Math.max(0, Math.round(ms));
+}
+
+function geoLogUpstream(line) {
+    console.info(line);
 }
 
 function geoUpstreamError(result) {

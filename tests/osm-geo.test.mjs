@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { test } from 'node:test';
 
+console.info = () => {}; // upstream log lines are checked explicitly below
+
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
@@ -310,4 +312,27 @@ test('global upstream budget per instance (≈1 rps): over budget → GEO_RATE_L
     }
     assert.deepEqual(statuses, [200, 200, 429]);
     assert.equal(calls.length, 2);
+});
+
+test('runtime log: only the upstream host, status and duration — no IP, no address, no coordinates', async () => {
+    const { geoUpstreamLogLine } = poi;
+    const lines = [];
+    const log = (line) => lines.push(line);
+    await geoGeocode('Житомир, вулиця Перемоги 1', { ...mockFetch([{ status: 403, body: {} }]), log });
+    await geoRoute({ from: '50.2601,28.6696', to: '46.4843,30.7323' }, { ...mockFetch([{ status: 200, body: { code: 'Ok', routes: [{ distance: 1000 }] } }]), log });
+    const hang = async (url, options) => new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => { const e = new Error('aborted'); e.name = 'AbortError'; reject(e); });
+    });
+    await geoGeocode('одеса', { fetchImpl: hang, timeoutMs: 5, log });
+    await geoGeocode('київ', { ...mockFetch([new TypeError('getaddrinfo ENOTFOUND')]), log });
+    assert.equal(lines.length, 4);
+    assert.match(lines[0], /^osm-geo upstream photon\.komoot\.io status=403 ms=\d+$/);
+    assert.match(lines[1], /^osm-geo upstream router\.project-osrm\.org status=200 ms=\d+$/);
+    assert.match(lines[2], /^osm-geo upstream photon\.komoot\.io status=timeout ms=\d+$/);
+    assert.match(lines[3], /^osm-geo upstream photon\.komoot\.io status=network ms=\d+$/);
+    for (const line of lines) assert.equal(/житомир|перемоги|50\.26|28\.66|одеса|київ|\d+\.\d+\.\d+\.\d+/i.test(line), false, line);
+    assert.equal(geoUpstreamLogLine('not a url', { status: 502 }, 12.4), 'osm-geo upstream unknown status=502 ms=12');
+    const source = read('api/poi.js');
+    const geo = source.slice(source.indexOf('// ===== Адреси й відстань за OpenStreetMap'), source.indexOf('export default async function handler'));
+    assert.equal(/console\.(log|info|warn|error)\([^)]*(geoClientIp|x-forwarded-for|req\.headers|query\.q|url\b)/.test(geo), false);
 });
