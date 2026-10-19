@@ -141,7 +141,7 @@ function computeTrip(body) {
     const repairYear = parseFloat(body.repair) || 0;
     const finYear = parseFloat(body.fin) || 0;
     const totalFleet = parseFloat(body.totalFleet);
-    const workDaysYear = 300;
+    const workDaysYear = 365;
 
     // --- ХОДКИ ТА ПРОБІГИ ---
     let tripsCount = 0;

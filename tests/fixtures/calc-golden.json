@@ -148,23 +148,23 @@
       "fxRate": 1,
       "grossIncome": 688000,
       "netIncome": 688000,
-      "marginalIncome": -131773,
+      "marginalIncome": -131545,
       "marginPerTon": -306,
-      "ebitda": -133373,
-      "ebitdaPerTon": -310,
-      "netProfit": -178493,
-      "profitabilityPct": -25.94380523255816,
+      "ebitda": -132861,
+      "ebitdaPerTon": -309,
+      "netProfit": -177297,
+      "profitabilityPct": -25.76986448709783,
       "breakevenMarginPerTon": 1906,
-      "breakevenEbitdaPerTon": 1910,
-      "breakevenFullPerTon": 2042,
-      "breakevenGapPerTon": -442,
+      "breakevenEbitdaPerTon": 1909,
+      "breakevenFullPerTon": 2039,
+      "breakevenGapPerTon": -439,
       "breakevenExVatPerTon": null,
       "rateExVatPerTon": 1333,
       "fuelAndAdblueTotal": 609495,
       "driverTotal": 151808,
-      "toTotal": 58470,
+      "toTotal": 58242,
       "extrasTotal": 0,
-      "overheadTotal": 5440,
+      "overheadTotal": 4471,
       "taxesTotal": 41280,
       "detailedRows": [
         {
@@ -181,15 +181,15 @@
         },
         {
           "name": "🔧 ТО, Шини та Ремонти",
-          "val": 58470
+          "val": 58242
         },
         {
           "name": "🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)",
-          "val": 1600
+          "val": 1315
         },
         {
           "name": "📉 Амортизація та фінансові витрати (після EBITDA)",
-          "val": 3840
+          "val": 3156
         },
         {
           "name": "🏛️ Податки (ФОП / ПДВ)",
