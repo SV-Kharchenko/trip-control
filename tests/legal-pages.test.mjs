@@ -121,7 +121,7 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(reference, /ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol\.com@gmail\.com">tripcontrol\.com@gmail\.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
     // Landing, auth screen, menu, bottom of the app, bottom of the cabinet.
     assert.equal(footersOf(html).length, 5);
-    const landingFooters = footersOf(sliceBetween(html, '<div id="landing-screen">', '<div id="auth-screen">'));
+    const landingFooters = footersOf(sliceBetween(html, '<div id="landing-screen" hidden>', '<div id="auth-screen">'));
     const authFooters = footersOf(html.slice(html.indexOf('<div id="auth-screen">')));
     assert.equal(landingFooters.length, 1);
     assert.equal(normalize(landingFooters[0]), normalize(authFooters[0] || ''));

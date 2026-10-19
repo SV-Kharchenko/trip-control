@@ -30,7 +30,7 @@ function functionSource(source, name) {
     }
     throw new Error('unclosed ' + name);
 }
-const landing = sliceBetween(html, '<div id="landing-screen">', '<div id="auth-screen">');
+const landing = sliceBetween(html, '<div id="landing-screen" hidden>', '<div id="auth-screen">');
 const panel = sliceBetween(landing, 'id="try-panel"', '</form>');
 const result = sliceBetween(landing, '<section class="lp-try-res lp-card" id="try-res"', '</section>');
 
@@ -44,7 +44,7 @@ test('landing lives in index.html on «/»: no new rewrites, styles and scripts 
     assert.match(html, /<link rel="stylesheet" href="\/assets\/landing\.css\?v=[\d-]+">/);
     assert.match(html, /<script src="\/assets\/osm-geo\.js\?v=[\d-]+" defer><\/script>/);
     assert.match(html, /<script src="\/assets\/landing\.js\?v=[\d-]+" defer><\/script>/);
-    assert.ok(html.indexOf('<div id="landing-screen">') < html.indexOf('<div id="auth-screen">'));
+    assert.ok(html.indexOf('<div id="landing-screen" hidden>') < html.indexOf('<div id="auth-screen">'));
     assert.equal((html.match(/<h1[\s>]/g) || []).length, 1);
     assert.match(landing, /<h1>Порахуй, чи вигідний рейс, <em>ще до того, як погодився<\/em><\/h1>/);
     for (const id of ['example', 'features', 'who', 'pricing', 'faq']) assert.match(landing, new RegExp('<section[^>]* id="' + id + '"'));
@@ -340,4 +340,14 @@ test('landing texts: pricing from plans.js, demo has OSM, paid keeps Google; no 
     // Example numbers are static text from the golden S0, not computed.
     assert.match(landing, /<div class="lp-tc-profit-value">6 687 грн<\/div>/);
     assert.match(landing, /542 км · 60 т за ставкою 1 500 грн\/т/);
+});
+
+test('review fixes: OSM box hidden wins over demo-only; landing hidden without CSS; step 5 note matches empty fields', () => {
+    assert.match(landingCss, /\.tc-osm-box\[hidden\] \{ display: none !important; \}/);
+    assert.match(functionSource(html, 'initDemoOsmRoute'), /box\.hidden = !geo;/);
+    assert.match(html, /<div id="landing-screen" hidden>\n<script>\n[^\n]*\n    if \(document\.documentElement\.getAttribute\('data-screen'\) === 'landing'\) document\.getElementById\('landing-screen'\)\.hidden = false;\n<\/script>/);
+    assert.match(functionSource(html, 'showLanding'), /landing\.hidden = false;/);
+    assert.match(functionSource(html, 'leaveLanding'), /landing\.hidden = true;/);
+    assert.match(landing, /Значення — приклад; у кабінеті вони вже заповнені стартовими нормами\./);
+    assert.equal(html.includes('Тут стартові значення нового кабінету'), false);
 });

@@ -204,12 +204,12 @@ test('successful GET responses are CDN-cacheable; errors are no-store', async ()
         route: 'public, s-maxage=86400, stale-while-revalidate=604800'
     });
     const ok = fakeRes();
-    await handleGeo(geoReq({ mode: 'geocode', q: 'Житомир' }), ok, { rateStore: new Map(), ...mockFetch([{ status: 200, body: PHOTON }]) });
+    await handleGeo(geoReq({ mode: 'geocode', q: 'Житомир' }), ok, { rateStore: new Map(), budget: { tokens: 2, at: 0 }, ...mockFetch([{ status: 200, body: PHOTON }]) });
     assert.equal(ok.statusCode, 200);
     assert.equal(ok.headers['Cache-Control'], 'public, s-maxage=604800');
     const route = fakeRes();
     await handleGeo(geoReq({ mode: 'route', from: '50,30', to: '51,31' }), route,
-        { rateStore: new Map(), ...mockFetch([{ status: 200, body: { code: 'Ok', routes: [{ distance: 1000 }] } }]) });
+        { rateStore: new Map(), budget: { tokens: 2, at: 0 }, ...mockFetch([{ status: 200, body: { code: 'Ok', routes: [{ distance: 1000 }] } }]) });
     assert.equal(route.headers['Cache-Control'], 'public, s-maxage=86400, stale-while-revalidate=604800');
     const bad = fakeRes();
     await handleGeo(geoReq({ mode: 'route', from: '50,30' }), bad, { rateStore: new Map() });
@@ -263,4 +263,51 @@ test('Photon / OSRM hostnames only on the server (and docs); CSP, rewrites, func
     assert.match(client, /'\/api\/poi\?mode=geocode&q='/);
     assert.match(client, /'\/api\/poi\?mode=route&from='/);
     assert.equal(/method:\s*'POST'/.test(client), false);
+});
+
+test('route with base: if base → A fails, 200 without podacha_km is not cached (no-store)', async () => {
+    const { fetchImpl } = mockFetch((url) => url.includes('30.52,50.45;')
+        ? { status: 503, body: null }
+        : { status: 200, body: { code: 'Ok', routes: [{ distance: 543211 }] } });
+    const res = fakeRes();
+    await handleGeo(geoReq({ mode: 'route', from: '50.26,28.67', to: '46.48,30.73', base: '50.45,30.52' }), res,
+        { rateStore: new Map(), budget: { tokens: 2, at: 0 }, now: () => 0, fetchImpl });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.km, 543);
+    assert.equal('podacha_km' in res.body, false);
+    assert.equal(res.headers['Cache-Control'], 'no-store');
+    assert.equal('cacheable' in res.body, false);
+});
+
+test('global upstream budget per instance (≈1 rps): over budget → GEO_RATE_LIMIT without calling Photon / OSRM', async () => {
+    const { OSM_GEO_UPSTREAM_RPS, OSM_GEO_UPSTREAM_BURST, geoTakeBudget, geoUpstreamCost } = poi;
+    assert.equal(OSM_GEO_UPSTREAM_RPS, 1);
+    assert.equal(OSM_GEO_UPSTREAM_BURST, 2);
+    const state = { tokens: 2, at: 0 };
+    assert.equal(geoTakeBudget(state, 1, 0), true);
+    assert.equal(geoTakeBudget(state, 1, 0), true);
+    assert.equal(geoTakeBudget(state, 1, 100), false);
+    assert.equal(geoTakeBudget(state, 1, 1100), true, 'refills 1 token per second');
+    assert.equal(geoTakeBudget(state, 2, 1100), false);
+    assert.equal(geoTakeBudget(state, 2, 10000), true, 'never above the burst');
+    assert.equal(geoTakeBudget(state, 1, 10000), false);
+    assert.equal(geoUpstreamCost('geocode', { q: 'ab' }), 0, 'bad input does not spend the budget');
+    assert.equal(geoUpstreamCost('geocode', { q: 'житомир' }), 1);
+    assert.equal(geoUpstreamCost('route', { from: '50,30', to: '51,31' }), 1);
+    assert.equal(geoUpstreamCost('route', { from: '50,30', to: '51,31', base: '50.4,30.5' }), 2);
+    assert.equal(geoUpstreamCost('route', { from: '50,30' }), 0);
+    const { fetchImpl, calls } = mockFetch(() => ({ status: 200, body: PHOTON }));
+    const budget = { tokens: 2, at: 0 };
+    const statuses = [];
+    for (const q of ['житомир', 'одеса', 'київ']) {
+        const res = fakeRes();
+        await handleGeo(geoReq({ mode: 'geocode', q }), res, { rateStore: new Map(), budget, now: () => 500, fetchImpl });
+        statuses.push(res.statusCode);
+        if (res.statusCode === 429) {
+            assert.equal(res.body.code, 'GEO_RATE_LIMIT');
+            assert.equal(res.headers['Cache-Control'], 'no-store');
+        }
+    }
+    assert.deepEqual(statuses, [200, 200, 429]);
+    assert.equal(calls.length, 2);
 });

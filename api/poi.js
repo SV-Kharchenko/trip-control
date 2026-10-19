@@ -683,7 +683,31 @@ export async function geoRoute(query, options = {}) {
     body.source = 'osrm';
     body.estimate = true;
     body.attribution = OSM_GEO_ATTRIBUTION;
-    return { status: 200, body };
+    // Просили подачу, а плече base→A впало: відповідь неповна — CDN її не кешує.
+    return { status: 200, body, cacheable: !(podacha && podacha.failure) };
+}
+
+// Спільний бюджет на інстанс для запитів до Photon / OSRM (≈1 запит/с, невеликий запас на route з подачею):
+// поважаємо fair-use публічних сервісів незалежно від кількості IP. Відповіді з CDN сюди не доходять.
+export const OSM_GEO_UPSTREAM_RPS = 1;
+export const OSM_GEO_UPSTREAM_BURST = 2;
+const geoUpstreamBudget = { tokens: OSM_GEO_UPSTREAM_BURST, at: 0 };
+
+export function geoTakeBudget(state, cost, nowMs, rps = OSM_GEO_UPSTREAM_RPS, burst = OSM_GEO_UPSTREAM_BURST) {
+    const elapsed = Math.max(0, nowMs - state.at) / 1000;
+    state.tokens = Math.min(burst, state.tokens + elapsed * rps);
+    state.at = nowMs;
+    if (state.tokens < cost) return false;
+    state.tokens -= cost;
+    return true;
+}
+
+// Скільки запитів до Photon / OSRM потрібно (некоректний запит бюджет не витрачає).
+export function geoUpstreamCost(mode, query) {
+    const q = query || {};
+    if (mode === 'geocode') return geoNormalizeQuery(q.q) ? 1 : 0;
+    if (!geoParsePoint(q.from) || !geoParsePoint(q.to)) return 0;
+    return q.base != null && String(q.base).trim() !== '' && geoParsePoint(q.base) ? 2 : 1;
 }
 
 function geoRequestQuery(req) {
@@ -705,11 +729,15 @@ export async function handleGeo(req, res, options = {}) {
     const mode = geoRequestMode(req);
     const query = geoRequestQuery(req);
     const store = options.rateStore || geoRateStore;
+    const budget = options.budget || geoUpstreamBudget;
     const now = options.now || Date.now;
     let result;
     try {
         const limit = OSM_GEO_RATE_LIMITS[mode];
+        const cost = geoUpstreamCost(mode, query);
         if (geoRateLimited(store, mode + '|' + geoClientIp(req), limit, now())) {
+            result = geoError('GEO_RATE_LIMIT');
+        } else if (cost > 0 && !geoTakeBudget(budget, cost, now())) {
             result = geoError('GEO_RATE_LIMIT');
         } else if (mode === 'geocode') {
             result = await geoGeocode(query.q, options);
@@ -720,7 +748,8 @@ export async function handleGeo(req, res, options = {}) {
         console.warn('osm geo:', error && error.message);
         result = geoError('GEO_UNAVAILABLE');
     }
-    res.setHeader('Cache-Control', result.status === 200 ? OSM_GEO_CACHE_CONTROL[mode] : 'no-store');
+    const cacheable = result.status === 200 && result.cacheable !== false;
+    res.setHeader('Cache-Control', cacheable ? OSM_GEO_CACHE_CONTROL[mode] : 'no-store');
     return res.status(result.status).json(result.body);
 }
 

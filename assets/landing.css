@@ -421,6 +421,8 @@ body.lp-try-open { overflow: hidden; }
 
 /* ---- Демо в застосунку: блок «Маршрут» на OpenStreetMap (.tc-osm-box.demo-only) ---- */
 .tc-osm-box { margin: 0 0 12px; padding: 12px 12px 10px 14px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--card-bg); }
+/* OSM_GEO = false → box.hidden = true; body.demo-mode .demo-only не має перебити hidden */
+.tc-osm-box[hidden] { display: none !important; }
 .tc-osm-box input { text-align: left; }
 .tc-osm-box .form-row { margin-bottom: 8px; }
 .tc-osm-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 6px; }
