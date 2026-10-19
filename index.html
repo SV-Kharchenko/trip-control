@@ -1807,6 +1807,7 @@
             .tc-modal-card { width: 100%; border-radius: 16px 16px 0 0; max-height: 88vh; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
             .tc-help-links { grid-template-columns: 1fr; }
         }
+        #rt-info.is-warning { color: var(--warning-text) !important; }
         .auth-blocked-help { margin-top: 10px; font-size: 0.86rem; line-height: 1.5; color: var(--text-main); }
         .auth-blocked-help a { color: inherit; font-weight: 700; }
         .auth-blocked-help .auth-forgot { margin: 10px auto 0; text-align: center; font-size: 0.82rem; border: 0; background: none; cursor: pointer; text-decoration: underline; }
@@ -4310,6 +4311,7 @@
                             <span class="unit" id="ferry-unit">грн</span>
                         </div>
                         <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Сума за один рейс/ходку — множиться на кількість ходок автоматично.</div>
+                        <div class="tc-extras-rt-note" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 4px;">Брокер рахується і на кожну завантажену зворотну ходку; дороги, кордон, зелена карта, паром — лише для A→B.</div>
                     </div>
 
         </div>
@@ -7785,6 +7787,8 @@
     const ROUND_TRIP_REQUIRED_FIELDS = [
         ['rt-total-volume', 'Обсяг зворотного вантажу'], ['rt-rate', 'Розцінка зворотного вантажу'], ['rt-backhaul-dist', 'Плече C→D']
     ];
+    // B→C і D→A: 0 дозволено (C = B, D = A), порожнє поле — ні.
+    const ROUND_TRIP_ZERO_OK_FIELDS = [['rt-transfer-dist', 'Плече B→C'], ['rt-return-dist', 'Плече D→A']];
 
     const OPT_ON_OFF = [['on', 'Увімкнено'], ['off', 'Вимкнено']];
     // Профіль компанії (вкладка Компанія). Обов'язкові лише назва + оподаткування.
@@ -9469,7 +9473,7 @@
         line('Ціна палива', num(p.fuelPrice), 'грн/л');
         line('Витрата палива (вантажем)', num(p.fuelLoad), 'л/100км'); line('Витрата палива (порожнім)', num(p.fuelEmpty), 'л/100км');
         line('Днів на рейс', num(p.daysPerTrip), 'дн');
-        if (p.isRoundTrip) { line('Зворотний рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотний рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотний рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотний обсяг', num(p.rtTotalVolume), 'т'); line('Зворотна ставка', num(p.rtRate), rateUnit); }
+        if (p.isRoundTrip) { line('Зворотний рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотний рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотний рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотний обсяг', num(p.rtTotalVolume), 'т'); line('Зворотний обсяг враховано', num(r.rtVolumeUsed), 'т'); if (r.rtWarning) line('Зворотний вантаж', r.rtWarning); line('Зворотна ставка', num(p.rtRate), rateUnit); }
         ws.addRow([]);
         head('Результати');
         line('Валовий дохід', Math.round(r.grossIncome), 'грн');
@@ -9718,7 +9722,9 @@
         updateKpiSparklines(result);
         updateRouteBar();
         document.getElementById('trip-volume-info').innerText = result.tripVolumeText || '';
-        document.getElementById('rt-info').innerText = result.rtInfoText || '';
+        const rtInfo = document.getElementById('rt-info');
+        rtInfo.innerText = result.rtInfoText || '';
+        rtInfo.classList.toggle('is-warning', !!result.rtWarning);
         document.getElementById('podacha-info').innerText = result.podachaText || '';
         document.getElementById('fuel-summary-box').innerText = result.fuelSummaryText || '⛽ Паливний розрахунок: ...';
         const badge = document.getElementById('res-badge');
@@ -9810,7 +9816,11 @@
         const oneOff = document.getElementById('return-mode').value === 'разовий'; // разовий рейс: «Обсяг» не потрібен
         const roundTripOn = document.getElementById('round-trip-enable').value === 'on';
         const missing = REQUIRED_FIELDS.concat(roundTripOn ? ROUND_TRIP_REQUIRED_FIELDS : [])
-            .filter(([id]) => !(oneOff && id === 'volume') && !(parseFloat(document.getElementById(id).value) > 0));
+            .filter(([id]) => !(oneOff && id === 'volume') && !(parseFloat(document.getElementById(id).value) > 0))
+            .concat(roundTripOn ? ROUND_TRIP_ZERO_OK_FIELDS.filter(([id]) => {
+                const value = String(document.getElementById(id).value).trim();
+                return value === '' || !(parseFloat(value) >= 0);
+            }) : []);
         const mh = document.getElementById('missing-hint');
         if (missing.length) {
             const dismissKey = missing.map(m => m[0]).join(',');
