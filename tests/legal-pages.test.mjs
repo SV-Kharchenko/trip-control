@@ -119,8 +119,12 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(read('404.html'), /<html lang="uk" data-theme="dark">/);
     assert.match(reference, /Оплата карткою через plata by mono \(monobank\) та WayForPay · Apple Pay \/ Google Pay/);
     assert.match(reference, /ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol\.com@gmail\.com">tripcontrol\.com@gmail\.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
-    // Auth screen, menu, bottom of the app, bottom of the cabinet.
-    assert.equal(footersOf(html).length, 4);
+    // Landing, auth screen, menu, bottom of the app, bottom of the cabinet.
+    assert.equal(footersOf(html).length, 5);
+    const landingFooters = footersOf(sliceBetween(html, '<div id="landing-screen" hidden>', '<div id="auth-screen">'));
+    const authFooters = footersOf(html.slice(html.indexOf('<div id="auth-screen">')));
+    assert.equal(landingFooters.length, 1);
+    assert.equal(normalize(landingFooters[0]), normalize(authFooters[0] || ''));
     assert.match(sliceBetween(html, '<div class="tc-footer">', '</div>\n    </div>\n</div>'), /tc-legal-footer/);
     assert.match(sliceBetween(html, '<div class="tc-menu-foot">', '<button type="button" class="tc-icon-btn tc-burger"'), /tc-legal-footer/);
     assert.match(sliceBetween(html, '</section>\n', '<div id="cabinet-screen">'), /<footer class="tc-legal-footer">/);
