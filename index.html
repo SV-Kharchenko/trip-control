@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIP-CONTROL, розрахунок прибутковості автомобільних перевезень</title>
-    <meta name="description" content="TRIP-CONTROL — калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
+    <title>TRIP-CONTROL · калькулятор прибутковості вантажних рейсів</title>
+    <meta name="description" content="Порахуй, чи вигідний рейс, ще до того, як погодився. Пальне, AdBlue, водій, ТО, шини й податки. Демо безкоштовно: 5 розрахунків на добу.">
     <link rel="canonical" href="https://trip-control.com/">
     <meta property="og:type" content="website">
     <meta property="og:locale" content="uk_UA">
     <meta property="og:site_name" content="TRIP-CONTROL">
-    <meta property="og:title" content="TRIP-CONTROL — розрахунок прибутковості автоперевезень">
-    <meta property="og:description" content="Калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
+    <meta property="og:title" content="TRIP-CONTROL · калькулятор прибутковості вантажних рейсів">
+    <meta property="og:description" content="Порахуй, чи вигідний рейс, ще до того, як погодився. Пальне, AdBlue, водій, ТО, шини й податки. Демо безкоштовно: 5 розрахунків на добу.">
     <meta property="og:url" content="https://trip-control.com/">
     <meta property="og:image" content="https://trip-control.com/assets/brand/icon-512.png">
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="TRIP-CONTROL — розрахунок прибутковості автоперевезень">
-    <meta name="twitter:description" content="Калькулятор прибутковості автомобільних перевезень: маржа, EBITDA, беззбитковість. Демо: 5 розрахунків на добу.">
+    <meta name="twitter:title" content="TRIP-CONTROL · калькулятор прибутковості вантажних рейсів">
+    <meta name="twitter:description" content="Порахуй, чи вигідний рейс, ще до того, як погодився. Пальне, AdBlue, водій, ТО, шини й податки. Демо безкоштовно: 5 розрахунків на добу.">
     <meta name="twitter:image" content="https://trip-control.com/assets/brand/icon-512.png">
     <meta name="theme-color" content="#F4EFE4">
     <link rel="icon" href="/favicon.ico" sizes="any">
@@ -26,6 +26,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-18">
+    <link rel="stylesheet" href="/assets/landing.css?v=2026-10-19">
+    <script src="/assets/osm-geo.js?v=2026-10-19" defer></script>
+    <script src="/assets/landing.js?v=2026-10-19" defer></script>
 <style>
         :root, [data-theme="night"] {
             --bg-color: #0b111b; --card-bg: rgba(16,22,34,0.82); --border-color: rgba(125,211,252,0.18);
@@ -3667,10 +3670,636 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
 </head>
 <body class="layout-studio" data-theme="light">
+<script>
+    // Перший екран до першого рендеру: застосунок (є сесія Supabase або auth-потік у URL) чи лендинг для гостя.
+    // html[data-entry] читає checkUserAccess(); html[data-screen="landing"] показує #landing-screen (assets/landing.css).
+    function tcEntryScreen(hasSession, search, hash) {
+        if (hasSession) return 'app';
+        const keys = ['access_token', 'refresh_token', 'code', 'error', 'error_code', 'error_description', 'team_invite'];
+        const sources = [String(search || '').replace(/^\?/, ''), String(hash || '').replace(/^#/, '')];
+        for (let i = 0; i < sources.length; i++) {
+            const params = new URLSearchParams(sources[i]);
+            if (params.get('type') === 'recovery' || params.get('preview') === '1') return 'app';
+            if (keys.some(function (key) { return params.has(key); })) return 'app';
+        }
+        return 'landing';
+    }
+    (function () {
+        let hasSession = false;
+        let theme = '';
+        try {
+            hasSession = !!localStorage.getItem('sb-qkfqjorzsxcajcneohoy-auth-token');
+            theme = localStorage.getItem('tc_theme') || '';
+        } catch (e) {}
+        const entry = tcEntryScreen(hasSession, location.search, location.hash);
+        document.documentElement.setAttribute('data-entry', entry);
+        if (entry === 'landing') document.documentElement.setAttribute('data-screen', 'landing');
+        // Темна тема одразу, без спалаху світлої (restoreTheme() у onload зробить те саме).
+        if (theme === 'dark' || theme === 'control') document.body.setAttribute('data-theme', 'dark');
+    })();
+</script>
+
+<!-- Лендинг для гостя (той самий URL «/»). Видно лише при html[data-screen="landing"]. -->
+<div id="landing-screen">
+<!-- 1. Шапка -->
+<header class="lp-site-head">
+  <div class="lp-wrap">
+    <a href="#lp-top" class="lp-brand" aria-label="TRIP-CONTROL, на початок">
+      <svg class="tc-logo-svg" viewBox="0 0 330 64" aria-hidden="true">
+        <path class="tc-logo-road" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="4.5" stroke-linecap="round"></path>
+        <path class="tc-logo-dash" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+        <circle class="tc-logo-bead" cx="13" cy="49" r="5.5"></circle>
+        <circle class="tc-logo-node" cx="51" cy="15" r="7" stroke-width="3.2"></circle>
+        <circle class="tc-logo-bead" cx="51" cy="15" r="2.4"></circle>
+        <text x="78" y="43" font-family="Manrope, Arial, sans-serif" font-size="27" font-weight="600" letter-spacing="5"><tspan class="tc-logo-trip">TRIP</tspan><tspan class="tc-logo-control">CONTROL</tspan></text>
+      </svg>
+    </a>
+    <nav class="lp-site-nav" aria-label="Розділи">
+      <a href="#try" class="lp-nav-try" data-try>Спробувати розрахунок</a>
+      <a href="#example">Приклад</a>
+      <a href="#features">Можливості</a>
+      <a href="#who">Для кого</a>
+      <a href="#pricing">Тарифи</a>
+      <a href="#faq">Питання</a>
+    </nav>
+    <div class="lp-head-actions">
+      <a class="lp-btn lp-btn-ghost lp-btn-sm" href="#login" data-auth="login">Увійти</a>
+      <a class="lp-btn lp-btn-primary lp-btn-sm" href="#signup" data-auth="signup">Реєстрація</a>
+      <button class="lp-burger" type="button" id="lp-burger" aria-label="Меню" aria-expanded="false" aria-controls="lp-mnav"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+  <nav class="lp-mnav" id="lp-mnav" aria-label="Розділи" hidden>
+    <a href="#try" data-try>Спробувати розрахунок</a>
+    <a href="#example">Приклад</a>
+    <a href="#features">Можливості</a>
+    <a href="#who">Для кого</a>
+    <a href="#pricing">Тарифи</a>
+    <a href="#faq">Питання</a>
+  </nav>
+</header>
+
+<main id="lp-top">
+
+<!-- 2. Hero -->
+<section class="lp-hero">
+  <div class="lp-wrap lp-hero-grid">
+    <div>
+      <div class="lp-kicker">Калькулятор прибутковості вантажних рейсів</div>
+      <h1>Порахуй, чи вигідний рейс, <em>ще до того, як погодився</em></h1>
+      <p class="lp-lead">Вводиш ставку, відстань і тоннаж. <span style="white-space:nowrap">TRIP-CONTROL</span> віднімає пальне, AdBlue, зарплату водія, ТО, шини й податки та показує чистий прибуток рейсу і ставку беззбитковості за тонну.</p>
+      <div class="lp-hero-ctas">
+        <a class="lp-btn lp-btn-primary lp-btn-lg" href="#try" data-try>Спробувати розрахунок</a>
+        <a class="lp-btn lp-btn-ghost lp-btn-lg" href="#example">Дивитись приклад</a>
+      </div>
+      <ul class="lp-hero-points">
+        <li>Демо: 5 розрахунків на добу</li>
+        <li>Курси НБУ для ставок у EUR і USD</li>
+        <li>Без автосписань</li>
+      </ul>
+    </div>
+    <div class="lp-hero-card">
+      <div class="lp-card lp-result-dock">
+        <span class="lp-tag">Реальний розрахунок</span>
+        <div class="lp-tc-profit-kicker">Чистий прибуток рейсу</div>
+        <div class="lp-tc-profit-value">6 687 грн</div>
+        <div class="lp-kpi-row">
+          <div class="lp-kpi"><b>7.4%</b><span>рентабельність</span></div>
+          <div class="lp-kpi"><b>111</b><span>грн/т</span></div>
+          <div class="lp-kpi"><b>3 344</b><span>грн/добу</span></div>
+        </div>
+        <div class="lp-be-box">
+          <div><div class="lp-lbl">Беззбитковість</div><div class="lp-val">1 381 грн/т</div></div>
+          <span class="lp-tc-gap-pill">+119 грн/т запасу</span>
+        </div>
+        <div class="lp-tc-cascade-row" style="margin-top:12px"><span>Дохід</span><span class="lp-tc-cascade-num">90 000 грн</span></div>
+        <div class="lp-tc-cascade-row lp-is-muted"><span>− Змінні витрати</span><span class="lp-tc-cascade-num">77 913 грн</span></div>
+        <div class="lp-tc-cascade-row lp-is-muted"><span>− Амортизація, податки</span><span class="lp-tc-cascade-num">5 400 грн</span></div>
+        <div class="lp-tc-cascade-row lp-is-profit"><span>Чистий прибуток</span><span class="lp-tc-cascade-num">6 687 грн</span></div>
+        <div class="lp-src">Зерновоз · 542 км · 60 т за ставкою 1 500 грн/т · ФОП 3 група</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. Живий приклад -->
+<section class="lp-example" id="example">
+  <div class="lp-wrap">
+    <div class="lp-sec-head">
+      <div class="lp-kicker">Живий приклад</div>
+      <h2>Ось так виглядає розрахунок одного рейсу</h2>
+      <p class="lp-lead">Цифри нижче порахував той самий рушій, що працює в кабінеті. Змінювати дані тут не можна, свої рейси рахуєш після реєстрації.</p>
+    </div>
+
+    <div class="lp-ex-grid">
+      <!-- Вхідні дані: сірі, з оверлеєм -->
+      <div class="lp-card lp-inputs" aria-label="Вхідні дані прикладу">
+        <div class="lp-fields" id="lp-ex-fields" title="Свої рейси рахуй після реєстрації">
+          <div class="lp-fgroup">Рейс</div>
+          <div class="lp-field"><label>Форма розрахунку</label><div class="lp-in lp-sel">ФОП (3 група: 5% + ВЗ 1%)</div></div>
+          <div class="lp-field"><label>Логістика повернення</label><div class="lp-in lp-sel">Циклічний вивіз</div></div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>Тип причепа</label><div class="lp-in lp-sel">Зерновоз</div></div>
+            <div class="lp-field"><label>Валюта контракту</label><div class="lp-in lp-sel">Гривня</div></div>
+          </div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>Відстань перевезення</label><div class="lp-in"><span class="lp-mono">542</span><span class="lp-u">км</span></div></div>
+            <div class="lp-field"><label>Подача авто</label><div class="lp-in"><span class="lp-mono">50</span><span class="lp-u">км</span></div></div>
+          </div>
+          <div class="lp-fgroup">Вантаж і тариф</div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>Об'єм контракту</label><div class="lp-in"><span class="lp-mono">60</span><span class="lp-u">т</span></div></div>
+            <div class="lp-field"><label>Вага на авто</label><div class="lp-in"><span class="lp-mono">20</span><span class="lp-u">т</span></div></div>
+          </div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>Розцінка</label><div class="lp-in"><span class="lp-mono">1 500</span><span class="lp-u">грн/т</span></div></div>
+            <div class="lp-field"><label>Діб на ходку</label><div class="lp-in"><span class="lp-mono">2</span><span class="lp-u">доби</span></div></div>
+          </div>
+          <div class="lp-fgroup">Пальне і екіпаж</div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>ДП з вантажем</label><div class="lp-in"><span class="lp-mono">37</span><span class="lp-u">л/100</span></div></div>
+            <div class="lp-field"><label>ДП порожнім</label><div class="lp-in"><span class="lp-mono">32</span><span class="lp-u">л/100</span></div></div>
+          </div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>Вартість ДП</label><div class="lp-in"><span class="lp-mono">57</span><span class="lp-u">грн/л</span></div></div>
+            <div class="lp-field"><label>Добові</label><div class="lp-in"><span class="lp-mono">850</span><span class="lp-u">грн</span></div></div>
+          </div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>AdBlue, витрата</label><div class="lp-in"><span class="lp-mono">2.85</span><span class="lp-u">л/100</span></div></div>
+            <div class="lp-field"><label>AdBlue, ціна</label><div class="lp-in"><span class="lp-mono">18</span><span class="lp-u">грн/л</span></div></div>
+          </div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>Водій з вантажем</label><div class="lp-in"><span class="lp-mono">4.03</span><span class="lp-u">грн/км</span></div></div>
+            <div class="lp-field"><label>Водій порожнім</label><div class="lp-in"><span class="lp-mono">2.3</span><span class="lp-u">грн/км</span></div></div>
+          </div>
+          <div class="lp-f2">
+            <div class="lp-field"><label>ТО / 50 тис. км</label><div class="lp-in"><span class="lp-mono">18 000</span><span class="lp-u">грн</span></div></div>
+            <div class="lp-field"><label>Шина ×14 / 150 тис.</label><div class="lp-in"><span class="lp-mono">16 500</span><span class="lp-u">грн</span></div></div>
+          </div>
+        </div>
+        <div class="lp-ro-badge" aria-hidden="true">🔒 Лише перегляд · натисни на поле</div>
+        <div class="lp-lock" id="lp-lock-toast" role="status" aria-live="polite">
+          <button class="lp-lock-x" type="button" aria-label="Закрити" data-close-lock>×</button>
+          <div class="lp-ico" aria-hidden="true">🔒</div>
+          <b>Свої рейси рахуй після реєстрації</b>
+          <p>Демо безкоштовне: 5 розрахунків на добу, без картки.</p>
+          <a class="lp-btn lp-btn-primary" href="#signup" data-auth="signup">Зареєструватися</a>
+        </div>
+      </div>
+
+      <div class="lp-ex-right">
+        <div class="lp-card lp-result-dock">
+          <div>
+            <div class="lp-tc-profit-kicker">Чистий прибуток</div>
+            <div class="lp-tc-profit-value">6 687 грн</div>
+          </div>
+          <div class="lp-kpi-row">
+            <div class="lp-kpi"><b>11</b><span>грн/км</span></div>
+            <div class="lp-kpi"><b>3 344</b><span>грн/добу</span></div>
+            <div class="lp-kpi"><b>111</b><span>грн/т</span></div>
+            <div class="lp-kpi"><b>7.4%</b><span>рентабельність</span></div>
+          </div>
+          <div class="lp-be-box">
+            <div class="lp-lbl">Беззбитковість</div>
+            <div class="lp-val">1 381 грн/т</div>
+            <span class="lp-tc-gap-pill">+119 грн/т</span>
+          </div>
+        </div>
+
+        <div class="lp-card lp-card-pad">
+          <div class="lp-card-title">Від доходу до прибутку <small>натисни на рядок</small></div>
+<button type="button" class="lp-tc-cascade-row lp-casc-x" aria-expanded="false" aria-controls="cx-inc"><span><i class="lp-caret">▸</i>Дохід</span><span class="lp-tc-cascade-num">90 000 грн</span></button><div class="lp-casc-det" id="cx-inc" hidden><div class="lp-casc-sub"><span>60 т × 1 500 грн/т</span><span class="lp-tc-cascade-num">90 000 грн</span></div></div><div class="lp-tc-cascade-row"><span>Чистий дохід</span><span class="lp-tc-cascade-num">90 000 грн</span></div><button type="button" class="lp-tc-cascade-row lp-is-muted lp-casc-x" aria-expanded="false" aria-controls="cx-var"><span><i class="lp-caret">▸</i>− Змінні витрати</span><span class="lp-tc-cascade-num">77 913 грн</span></button><div class="lp-casc-det" id="cx-var" hidden><div class="lp-casc-sub"><span>⛽ Пальне (завантажений + порожній + подача)</span><span class="lp-tc-cascade-num">54 977 грн</span></div><div class="lp-casc-sub"><span>💧 Рідина AdBlue</span><span class="lp-tc-cascade-num">1 416 грн</span></div><div class="lp-casc-sub"><span>👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + добові</span><span class="lp-tc-cascade-num">16 276 грн</span></div><div class="lp-casc-sub"><span>🔧 ТО, шини та ремонти</span><span class="lp-tc-cascade-num">5 244 грн</span></div></div><div class="lp-tc-cascade-row lp-is-strong"><span>Маржинальний дохід</span><span class="lp-tc-cascade-num">12 087 грн<span class="lp-tc-cascade-note">на 1 т: 201 грн</span></span></div><button type="button" class="lp-tc-cascade-row lp-is-muted lp-casc-x" aria-expanded="false" aria-controls="cx-ovh"><span><i class="lp-caret">▸</i>− Накладні</span><span class="lp-tc-cascade-num">0 грн</span></button><div class="lp-casc-det" id="cx-ovh" hidden><div class="lp-casc-sub"><span>🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)</span><span class="lp-tc-cascade-num">0 грн</span></div></div><div class="lp-tc-cascade-row lp-is-strong"><span>EBITDA</span><span class="lp-tc-cascade-num">12 087 грн<span class="lp-tc-cascade-note">на 1 т: 201 грн</span></span></div><button type="button" class="lp-tc-cascade-row lp-is-muted lp-casc-x" aria-expanded="false" aria-controls="cx-tax"><span><i class="lp-caret">▸</i>− Амортизація, податки</span><span class="lp-tc-cascade-num">5 400 грн</span></button><div class="lp-casc-det" id="cx-tax" hidden><div class="lp-casc-sub"><span>📉 Амортизація та фінансові витрати</span><span class="lp-tc-cascade-num">0 грн</span></div><div class="lp-casc-sub"><span>🏛️ Податки (ФОП 3 група: 5% + ВЗ 1%)</span><span class="lp-tc-cascade-num">5 400 грн</span></div></div><div class="lp-tc-cascade-row lp-is-profit"><span>Чистий прибуток</span><span class="lp-tc-cascade-num">6 687 грн</span></div>
+        </div>
+
+        <div class="lp-card lp-card-pad">
+          <div class="lp-card-title">Куди йдуть гроші <small>83 313 грн</small></div>
+          <div class="lp-scale-bar" aria-hidden="true">
+            <i style="width:66.0%;background:var(--gold)"></i><i style="width:1.7%;background:var(--accent)"></i><i style="width:19.5%;background:var(--teal)"></i><i style="width:6.3%;background:var(--muted-on-dark)"></i><i style="width:6.5%;background:var(--chart-neutral)"></i>
+          </div>
+          <div class="lp-legend">
+            <span style="--c:var(--gold)">Пальне 66.0%</span><span style="--c:var(--accent)">AdBlue 1.7%</span><span style="--c:var(--teal)">Екіпаж 19.5%</span><span style="--c:var(--muted-on-dark)">ТО 6.3%</span><span style="--c:var(--chart-neutral)">Податки 6.5%</span>
+          </div>
+          <div class="lp-ex-facts">
+            <span class="lp-chip">3 ходки · 60 т</span>
+            <span class="lp-chip">Пробіг 2 760 км</span>
+            <span class="lp-chip">Подача 50 км: 912 грн</span>
+            <span class="lp-chip">Ставка без ПДВ 1 250 грн/т</span>
+          </div>
+        </div>
+
+        <div class="lp-card lp-card-pad lp-cost-table">
+          <div class="lp-card-title">Статті витрат <small>сума · на 1 т · частка</small></div>
+          <table class="lp-ct">
+            <thead><tr><th>Стаття</th><th>Сума</th><th class="lp-hide-sm">На 1 т</th><th>Частка</th></tr></thead>
+            <tbody>
+              <tr><td><span class="lp-dot" style="--c:var(--gold)"></span>Пальне (завантажений + порожній + подача)</td><td class="lp-mono">54 977 грн</td><td class="lp-mono lp-hide-sm">916</td><td class="lp-mono">66.0%</td></tr>
+              <tr><td><span class="lp-dot" style="--c:var(--accent)"></span>Рідина AdBlue</td><td class="lp-mono">1 416 грн</td><td class="lp-mono lp-hide-sm">24</td><td class="lp-mono">1.7%</td></tr>
+              <tr><td><span class="lp-dot" style="--c:var(--teal)"></span>Зарплата екіпажу + ЄСВ (22%) + добові</td><td class="lp-mono">16 276 грн</td><td class="lp-mono lp-hide-sm">271</td><td class="lp-mono">19.5%</td></tr>
+              <tr><td><span class="lp-dot" style="--c:var(--muted-on-dark)"></span>ТО, шини та ремонти</td><td class="lp-mono">5 244 грн</td><td class="lp-mono lp-hide-sm">87</td><td class="lp-mono">6.3%</td></tr>
+              <tr><td><span class="lp-dot" style="--c:var(--chart-neutral)"></span>Податки (ФОП 3 група: 5% + ВЗ 1%)</td><td class="lp-mono">5 400 грн</td><td class="lp-mono lp-hide-sm">90</td><td class="lp-mono">6.5%</td></tr>
+            </tbody>
+            <tfoot><tr><td>Разом витрат</td><td class="lp-mono">83 313 грн</td><td class="lp-mono lp-hide-sm">1 389</td><td class="lp-mono">100%</td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+    <p class="lp-ex-note">Розрахунки орієнтовні: результат залежить від даних, які ти вводиш. Платні дороги, кордон, брокер, зелена карта й паром додаються окремими статтями, у цьому прикладі їх немає.</p>
+    <div class="lp-card lp-try-cta">
+      <p><b style="color:var(--text)">Хочеш на своїх цифрах?</b> Заповни свій рейс, а результат покажемо після реєстрації.</p>
+      <a class="lp-btn lp-btn-primary" href="#try" data-try>Спробувати розрахунок</a>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Можливості -->
+<section id="features" style="padding-top:40px">
+  <div class="lp-wrap">
+    <div class="lp-sec-head">
+      <div class="lp-kicker">Можливості</div>
+      <h2>Усе, що треба, щоб не возити собі в мінус</h2>
+      <p class="lp-lead">Кожен блок нижче зібраний з тих самих елементів, що й кабінет.</p>
+    </div>
+    <div class="lp-feat-grid">
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div class="lp-mini-row"><span>Дохід</span><b>90 000</b></div>
+          <div class="lp-mini-row lp-mut"><span>− Змінні витрати</span><b>77 913</b></div>
+          <div class="lp-mini-row"><span>EBITDA</span><b>12 087</b></div>
+          <div class="lp-mini-row lp-mut"><span>− Амортизація, податки</span><b>5 400</b></div>
+          <div class="lp-mini-row lp-pos"><span><strong>Чистий прибуток</strong></span><b>6 687</b></div>
+        </div>
+        <div class="lp-txt">
+          <h3>Каскад прибутку</h3>
+          <p>Від ставки до чистого прибутку: пальне, AdBlue, водій з ЄСВ і добовими, ТО, шини, накладні, податки. Плюс ставка беззбитковості за тонну.</p>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div class="lp-truck">
+            <div class="lp-truck-head"><span>Тягач №1 · зерновоз</span><span class="lp-warn">⚠ 1 прострочено</span></div>
+            <div class="lp-norms">
+              <div class="lp-norm"><span>З вантажем, л/100</span><b>37</b></div>
+              <div class="lp-norm"><span>Порожнім, л/100</span><b>32</b></div>
+              <div class="lp-norm"><span>AdBlue, л/100</span><b>2.85</b></div>
+            </div>
+            <div class="lp-docs"><span class="lp-doc">ОСЦПВ</span><span class="lp-doc">Зелена карта</span><span class="lp-doc lp-bad">Техогляд</span><span class="lp-doc lp-soon">Тахограф</span><span class="lp-doc">ТО</span></div>
+          </div>
+        </div>
+        <div class="lp-txt">
+          <h3>Автопарк з нормами</h3>
+          <p>Для кожної машини своя витрата з вантажем і порожнім, AdBlue і причіп. Обираєш авто, і норми підставляються в розрахунок. Строки страховок і техогляду теж тут.</p>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div class="lp-map" aria-hidden="true">
+            <svg viewBox="0 0 320 150" preserveAspectRatio="xMidYMid slice">
+              <defs><pattern id="lp-map-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path class="lp-map-gridline" d="M20 0H0V20" fill="none" stroke-width="1"/></pattern></defs>
+              <rect width="320" height="150" fill="url(#lp-map-grid)"/>
+              <path d="M30 118 C 90 110, 110 60, 170 66 S 250 40, 292 30" fill="none" class="lp-map-halo" stroke-width="22" stroke-linecap="round"/>
+              <path d="M30 118 C 90 110, 110 60, 170 66 S 250 40, 292 30" fill="none" class="lp-map-route" stroke-width="3" stroke-linecap="round"/>
+              <circle class="lp-map-pin" cx="30" cy="118" r="9"/><text x="30" y="122" text-anchor="middle" font-size="10" font-weight="800" class="lp-map-pin-label" font-family="Manrope">A</text>
+              <circle class="lp-map-pin" cx="292" cy="30" r="9"/><text x="292" y="34" text-anchor="middle" font-size="10" font-weight="800" class="lp-map-pin-label" font-family="Manrope">B</text>
+              <g font-size="12"><text x="78" y="104">⛽</text><text x="128" y="72">🅿️</text><text x="196" y="56">⛽</text><text x="238" y="52">☕</text><text x="152" y="88">🔧</text><text x="258" y="34">🅿️</text></g>
+            </svg>
+          </div>
+          <div class="lp-poi-legend"><span class="lp-chip">⛽ АЗС</span><span class="lp-chip">🅿️ TIR</span><span class="lp-chip">☕ Кафе</span><span class="lp-chip">🔧 СТО</span></div>
+        </div>
+        <div class="lp-txt">
+          <h3>Маршрут і точки по дорозі</h3>
+          <p>Відстань і подача за картами Google. АЗС, стоянки TIR, кафе й СТО вздовж коридору маршруту з OpenStreetMap.</p>
+          <span class="lp-paid">У ПОВНОМУ ДОСТУПІ</span>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div class="lp-rates"><span class="lp-rate-pill">USD <b>курс НБУ</b></span><span class="lp-rate-pill">EUR <b>курс НБУ</b></span></div>
+          <div style="font-size:12px;color:var(--muted);margin-top:4px">Валюта контракту</div>
+          <div class="lp-ccy"><span>Гривня</span><span>Долар</span><span class="lp-on">Євро</span></div>
+          <div style="font-size:12px;color:var(--muted)">Ставка, простій і супутні витрати перераховуються в гривні за курсом НБУ.</div>
+        </div>
+        <div class="lp-txt">
+          <h3>Курси НБУ</h3>
+          <p>Ставка в EUR чи USD? Курс підтягується з НБУ автоматично, прибуток рахується в гривнях.</p>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div class="lp-hist">
+            <div><div class="lp-t">Зерновоз · 542 км · 60 т</div><div class="lp-s">1 500 грн/т · ФОП</div></div>
+            <span class="lp-p">6 687</span>
+            <span class="lp-tc-status lp-is-accepted">Прийнято</span>
+          </div>
+          <div class="lp-status-row">
+            <span class="lp-tc-status lp-is-draft">Чернетка</span><span class="lp-tc-status lp-is-proposed">Запропоновано</span><span class="lp-tc-status lp-is-accepted">Прийнято</span><span class="lp-tc-status lp-is-rejected">Відхилено</span><span class="lp-tc-status lp-is-done">Виконано</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center"><span class="lp-mini-btn">Факт</span><span style="font-size:12px;color:var(--muted)">фактичний дохід і витрати поруч із планом</span></div>
+        </div>
+        <div class="lp-txt">
+          <h3>Історія рейсів і план/факт</h3>
+          <p>Збережені розрахунки зі статусами. Для прийнятого чи виконаного рейсу вносиш факт і бачиш, де план розійшовся з реальністю.</p>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div style="font-weight:800">Шаблони маршрутів</div>
+          <div class="lp-tpl-in"><span class="lp-x">Назва шаблону</span><span class="lp-mini-btn" style="display:grid;place-items:center">Зберегти</span></div>
+          <div class="lp-check"><i>✓</i>Шаблон компанії</div>
+          <div style="font-size:12px;color:var(--muted)">Повторюваний напрямок відкривається в один клік з усіма параметрами.</div>
+        </div>
+        <div class="lp-txt">
+          <h3>Шаблони маршрутів</h3>
+          <p>Зберігаєш типовий рейс і наступного разу міняєш лише ставку. Власник може зробити шаблон спільним для всієї компанії.</p>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div class="lp-btn-stack"><span>📊 Експорт у Excel</span><span>📄 Експорт у PDF</span><span>📱 Надіслати у Viber</span><span>✈️ Надіслати в Telegram</span></div>
+          <div style="font-size:12px;color:var(--muted)">Історію рейсів за період вивантажуєш в Excel або CSV.</div>
+        </div>
+        <div class="lp-txt">
+          <h3>Експорт і надсилання</h3>
+          <p>Розрахунок у PDF чи Excel, пропозиція у Viber чи Telegram. Історію за період можна вивантажити в Excel або CSV.</p>
+          <span class="lp-paid">У ПОВНОМУ ДОСТУПІ</span>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div class="lp-seats">
+            <div class="lp-seat"><span class="lp-ava">В</span>Власник<span class="lp-r lp-on">керує командою</span></div>
+            <div class="lp-seat"><span class="lp-ava lp-l">Л</span>Логіст<span class="lp-r lp-on">активний</span></div>
+            <div class="lp-seat"><span class="lp-ava lp-l">Л</span>Логіст<span class="lp-r">запрошення на email</span></div>
+            <div class="lp-seat"><span class="lp-ava lp-e">+</span><span style="color:var(--muted)">Вільне місце</span><span class="lp-r">до 3 логістів</span></div>
+          </div>
+        </div>
+        <div class="lp-txt">
+          <h3>Команда</h3>
+          <p>Власник і до 3 логістів в одній компанії. Власник бачить усі рейси команди, логіст свої. Раз на тиждень звіт по рейсах приходить на пошту.</p>
+        </div>
+      </article>
+
+      <article class="lp-card lp-feat">
+        <div class="lp-ui">
+          <div style="font-size:12px;color:var(--muted)">Форма розрахунку</div>
+          <div class="lp-select"><span>Безготівковий (з ПДВ)</span><span class="lp-on">ФОП (3 група: 5% + ВЗ 1%)</span><span>Готівка</span></div>
+        </div>
+        <div class="lp-txt">
+          <h3>ФОП, ПДВ чи готівка</h3>
+          <p>Податки рахуються під твою форму: ФОП 3 групи, безготівковий з ПДВ (ставка без ПДВ показується окремо) або готівка.</p>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- 5. Для кого -->
+<section id="who" style="padding-top:24px">
+  <div class="lp-wrap">
+    <div class="lp-sec-head">
+      <div class="lp-kicker">Для кого</div>
+      <h2>Для тих, хто рахує кожну гривню на тонні</h2>
+    </div>
+    <div class="lp-who-grid">
+      <div class="lp-card lp-who">
+        <div class="lp-ic">🚛</div>
+        <h3>ФОП з власним тягачем</h3>
+        <div class="lp-sub">Сам собі диспетчер і бухгалтер</div>
+        <ul>
+          <li>Бачиш, скільки лишиться після пального, водія й податку 5% + 1%</li>
+          <li>Знаєш мінімальну ставку, нижче якої не варто брати рейс</li>
+          <li>Норми свого авто вводиш один раз</li>
+        </ul>
+      </div>
+      <div class="lp-card lp-who">
+        <div class="lp-ic">📋</div>
+        <h3>Диспетчер і логіст</h3>
+        <div class="lp-sub">Багато заявок, мало часу</div>
+        <ul>
+          <li>Порівнюєш варіанти за хвилину, а не в Excel</li>
+          <li>Шаблони для типових напрямків</li>
+          <li>Ставки в EUR і USD за курсом НБУ</li>
+        </ul>
+      </div>
+      <div class="lp-card lp-who">
+        <div class="lp-ic">🏢</div>
+        <h3>Транспортна компанія</h3>
+        <div class="lp-sub">Директор контролює, які рейси беруть</div>
+        <ul>
+          <li>Власник і до 3 логістів під одним тарифом</li>
+          <li>Усі рейси команди зі статусами й автором</li>
+          <li>План/факт і звіт по рейсах щотижня на пошту</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Тарифи -->
+<section id="pricing">
+  <div class="lp-wrap">
+    <div class="lp-sec-head" style="text-align:center">
+      <div class="lp-kicker">Тарифи</div>
+      <h2>Почни безкоштовно. Плати, коли знадобиться більше</h2>
+      <p class="lp-lead" style="margin:0 auto">Ціна за компанію, а не за людину. Без ПДВ і без автосписань.</p>
+    </div>
+    <div class="lp-bill-toggle" role="tablist" aria-label="Період оплати">
+      <button type="button" role="tab" aria-selected="true" data-period="month" class="lp-on">Місяць</button>
+      <button type="button" role="tab" aria-selected="false" data-period="year">Рік <span class="lp-gift">2 місяці в подарунок</span></button>
+    </div>
+    <div class="lp-price-grid lp-two">
+      <div class="lp-card lp-price">
+        <h3>Демо</h3>
+        <div class="lp-for">Щоб спробувати на своїх рейсах</div>
+        <div class="lp-amt">0 <small>грн</small></div>
+        <div class="lp-save"></div>
+        <ul>
+          <li>5 розрахунків на добу</li>
+          <li>До 3 збережених розрахунків</li>
+          <li>1 шаблон маршруту</li>
+          <li>Підказки адрес і відстань за OpenStreetMap</li>
+          <li class="lp-no">Карта Google і точки по маршруту</li>
+          <li class="lp-no">Експорт і надсилання</li>
+        </ul>
+        <a class="lp-btn lp-btn-ghost" href="#signup" data-auth="signup">Спробувати безкоштовно</a>
+      </div>
+      <div class="lp-card lp-price lp-hl">
+        <span class="lp-badge">Повний доступ</span>
+        <h3 id="lp-plan-name">Місяць</h3>
+        <div class="lp-for">Власник і до 3 логістів, ціна за компанію</div>
+        <div class="lp-amt"><span id="lp-plan-amt">250</span> <small id="lp-plan-unit">грн / міс</small></div>
+        <div class="lp-save" id="lp-plan-save"></div>
+        <ul>
+          <li>Розрахунки без денного ліміту демо</li>
+          <li>Маршрут за картами Google, проміжні зупинки, АЗС, TIR, кафе й СТО по дорозі</li>
+          <li>Експорт у PDF, Excel, CSV</li>
+          <li>Надсилання у Viber і Telegram</li>
+          <li>Команда і звіт по рейсах щотижня</li>
+          <li>Рахунок і акт для ФОП і компаній на запит</li>
+        </ul>
+        <a class="lp-btn lp-btn-primary" href="#signup" data-auth="signup">Зареєструватися</a>
+      </div>
+    </div>
+    <div class="lp-pay-note">
+      <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
+      <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
+      <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
+      <span>Картка, Apple Pay або Google Pay через plata by mono чи WayForPay · Оплачений період продовжується з дати «оплачено до»</span>
+    </div>
+  </div>
+</section>
+
+<!-- 7. FAQ -->
+<section id="faq" style="padding-top:24px">
+  <div class="lp-wrap">
+    <div class="lp-sec-head">
+      <div class="lp-kicker">Питання</div>
+      <h2>Часті питання</h2>
+    </div>
+    <div class="lp-faq">
+      <details open>
+        <summary>Що я отримую в безкоштовному демо?</summary>
+        <p>Демо відкривається одразу після реєстрації та підтвердження email. Можна зробити до 5 розрахунків на добу, зберегти до 3 розрахунків і 1 шаблон маршруту. Підказки адрес і відстань у демо беремо з OpenStreetMap (число можна виправити), а карта Google, проміжні зупинки, пошук АЗС і стоянок, експорт і надсилання відкриваються з повним доступом.</p>
+      </details>
+      <details>
+        <summary>Наскільки точні розрахунки?</summary>
+        <p>Розрахунок орієнтовний і залежить від даних, які ти вводиш: витрати авто, ціна пального, ставки водію, ТО й шини. Це інструмент для рішення, а не бухгалтерська чи податкова консультація.</p>
+      </details>
+      <details>
+        <summary>Скільки людей може працювати в одній компанії?</summary>
+        <p>Один власник і до 3 логістів. Власник запрошує логістів на email, посилання діє 7 днів. Тариф оплачується один раз на всю компанію.</p>
+      </details>
+      <details>
+        <summary>Гроші списуватимуться автоматично?</summary>
+        <p>Ні. Автосписань немає, кожен період оплачуєш сам. Якщо продовжити заздалегідь, новий період додається до чинної дати «оплачено до». За 3 дні до кінця нагадаємо на email.</p>
+      </details>
+      <details>
+        <summary>Що буде з даними, коли оплата закінчиться?</summary>
+        <p>Компанія переходить у демо-режим. Історія рейсів, автопарк і команда зберігаються, повний доступ до них повертається після оплати.</p>
+      </details>
+      <details>
+        <summary>Чи можна повернути гроші?</summary>
+        <p>Так. Повне повернення, якщо звернувся протягом 14 днів з дати оплати і не користувався платними функціями. Для річного тарифу в ці 14 днів повертаємо 2 500 грн мінус 250 грн за кожен розпочатий місяць. Кошти повертаються на ту саму картку. Деталі на сторінці «Оплата та повернення».</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="lp-cta-band">
+  <div class="lp-wrap">
+    <div class="lp-card lp-cta-box">
+      <div>
+        <h2>Наступний рейс порахуй до дзвінка замовнику</h2>
+        <p>Реєстрація займає хвилину. Демо безкоштовне.</p>
+      </div>
+      <div class="lp-hero-ctas" style="margin:0">
+        <a class="lp-btn lp-btn-primary lp-btn-lg" href="#signup" data-auth="signup">Спробувати безкоштовно</a>
+        <a class="lp-btn lp-btn-ghost lp-btn-lg" href="#login" data-auth="login">Увійти</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- 8. Футер: та сама розмітка .tc-legal-footer, що й на екрані входу -->
+<div class="lp-site-foot">
+  <div class="lp-wrap">
+    <div class="lp-foot-brand">
+      <svg class="tc-logo-svg" viewBox="0 0 330 64" aria-hidden="true">
+        <path class="tc-logo-road" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="4.5" stroke-linecap="round"></path>
+        <path class="tc-logo-dash" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+        <circle class="tc-logo-bead" cx="13" cy="49" r="5.5"></circle>
+        <circle class="tc-logo-node" cx="51" cy="15" r="7" stroke-width="3.2"></circle>
+        <circle class="tc-logo-bead" cx="51" cy="15" r="2.4"></circle>
+        <text x="78" y="43" font-family="Manrope, Arial, sans-serif" font-size="27" font-weight="600" letter-spacing="5"><tspan class="tc-logo-trip">TRIP</tspan><tspan class="tc-logo-control">CONTROL</tspan></text>
+      </svg>
+    </div>
+    <footer class="tc-legal-footer">
+      <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+        <a href="/offer" target="_blank" rel="noopener">Публічна оферта</a>
+        <a href="/privacy" target="_blank" rel="noopener">Політика конфіденційності</a>
+        <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
+      </nav>
+      <div class="tc-legal-footer__pay">
+        <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
+        <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
+        <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
+        <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+      </div>
+      <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
+    </footer>
+  </div>
+</div>
+
+
+<!-- Спробувати розрахунок: лише форма й чернетка. У браузері гостя нічого не рахуємо і /api/calculate не викликаємо. -->
+<div class="lp-try" id="try-panel" hidden role="dialog" aria-modal="true" aria-labelledby="try-title">
+  <div class="lp-try-shell">
+    <header class="lp-try-head">
+      <div>
+        <div class="lp-kicker" style="margin:0">Спробувати розрахунок</div>
+        <h2 id="try-title">Твій рейс</h2>
+      </div>
+      <button type="button" class="lp-try-x" data-try-close aria-label="Закрити">×</button>
+    </header>
+    <div class="lp-t-tabs" role="tablist" aria-label="Кроки розрахунку"><button type="button" class="lp-t-tab" role="tab" id="t-tab-1" aria-controls="t-panel-1" data-step="1" aria-selected="true"><i>1</i><b>Маршрут</b></button><button type="button" class="lp-t-tab" role="tab" id="t-tab-2" aria-controls="t-panel-2" data-step="2" aria-selected="false" tabindex="-1"><i>2</i><b>Вантаж і тариф</b></button><button type="button" class="lp-t-tab" role="tab" id="t-tab-3" aria-controls="t-panel-3" data-step="3" aria-selected="false" tabindex="-1"><i>3</i><b>Пальне</b></button><button type="button" class="lp-t-tab" role="tab" id="t-tab-4" aria-controls="t-panel-4" data-step="4" aria-selected="false" tabindex="-1"><i>4</i><b>Додатково</b></button><button type="button" class="lp-t-tab" role="tab" id="t-tab-5" aria-controls="t-panel-5" data-step="5" aria-selected="false" tabindex="-1"><i>5</i><b>Норми авто</b></button></div>
+    <div class="lp-try-body">
+      <form class="lp-try-form lp-card" id="try-form" novalidate autocomplete="off">
+        <div class="lp-t-step-head"><b id="t-step-title">Маршрут</b><span id="t-step-kicker">Крок 1 з 5</span></div>
+        <div class="lp-t-hint" id="t-hint" role="alert" hidden></div>
+        <div class="lp-t-panel" id="t-panel-1" role="tabpanel" aria-labelledby="t-tab-1"><div class="lp-form-row"><label for="t-route-name">Назва / Маршрут заявки</label><div class="lp-in-wrap"><input type="text" id="t-route-name" name="route-name" placeholder="напр. Житомир → Одеса" maxlength="120" autocomplete="off"></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-base">Подача (стоянка, за бажанням)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-base" name="osm-base" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-base-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-base-coords" name="osm-base-coords"><ul class="tc-ac-list" id="t-osm-base-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-from">Пункт A (Завантаження)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-from" name="osm-from" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-from-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-from-coords" name="osm-from-coords"><ul class="tc-ac-list" id="t-osm-from-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-to">Пункт B (Розвантаження)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-to" name="osm-to" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-to-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-to-coords" name="osm-to-coords"><ul class="tc-ac-list" id="t-osm-to-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-t-route-tools"><button type="button" class="lp-btn lp-btn-ghost lp-btn-sm" id="t-swap" aria-label="Поміняти пункти A і B місцями">A ↔ B</button><span class="lp-t-route-status" id="t-route-status" role="status" aria-live="polite"></span></div><p class="lp-t-note lp-osm-only">Обери адресу з підказок: відстань і подачу за дорогами підставимо самі. <small class="lp-osm-attr">© OpenStreetMap contributors</small></p><div class="lp-form-row"><label for="t-podacha-dist">Подача авто (км)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-podacha-dist" name="podacha-dist" placeholder="напр. 40" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-dist">Відстань перевезення (км)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-dist" name="dist" placeholder="напр. 542" autocomplete="off"><span class="lp-unit">км</span></div></div><p class="lp-t-note lp-osm-only" id="t-dist-hint">Відстань за OpenStreetMap, можна виправити</p></div><div class="lp-t-panel" id="t-panel-2" role="tabpanel" aria-labelledby="t-tab-2" hidden><div class="lp-form-row"><label for="t-trailer-type">Тип причепа</label><div class="lp-in-wrap"><select id="t-trailer-type" name="trailer-type"><option value="зерновоз" selected>Зерновоз</option><option value="рефрижератор">Рефрижератор</option><option value="тент">Тент</option><option value="цистерна">Цистерна</option></select></div></div><div class="lp-form-row"><label for="t-return-mode">Логістика повернення</label><div class="lp-in-wrap"><select id="t-return-mode" name="return-mode"><option value="циклічний">🟢 Циклічний вивіз (весь об'єм, з поверненням)</option><option value="разовий" selected>⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option></select></div></div><div class="lp-form-row"><label for="t-volume">Загальний об'єм контракту</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-volume" name="volume" placeholder="напр. 60" autocomplete="off"><span class="lp-unit">т</span></div></div><div class="lp-form-row"><label for="t-norm-weight">Нормативна вага на авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-norm-weight" name="norm-weight" placeholder="напр. 20" autocomplete="off"><span class="lp-unit">т/авто</span></div></div><div class="lp-form-row"><label for="t-cars-count">Кількість залучених авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-cars-count" name="cars-count" placeholder="напр. 1" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-days-per-trip">Кількість діб на ходку</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-days-per-trip" name="days-per-trip" placeholder="напр. 2" autocomplete="off"><span class="lp-unit">діб</span></div></div><div class="lp-form-row"><label for="t-contract-currency">Валюта контракту</label><div class="lp-in-wrap"><select id="t-contract-currency" name="contract-currency"><option value="UAH" selected>Гривня (UAH)</option><option value="USD">Долар (USD)</option><option value="EUR">Євро (EUR)</option></select></div></div><p class="lp-t-note" id="t-fx-note">Розцінка, простій, зворотний вантаж і супутні витрати. Решта витрат компанії лишається в гривні.</p><div class="lp-form-row"><label for="t-rate">Розцінка (з ПДВ / ФОП)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rate" name="rate" placeholder="напр. 1500" autocomplete="off"><span class="lp-unit" id="t-rate-unit">грн/т</span></div></div></div><div class="lp-t-panel" id="t-panel-3" role="tabpanel" aria-labelledby="t-tab-3" hidden><div class="lp-form-row"><label for="t-season-type">Сезон</label><div class="lp-in-wrap"><select id="t-season-type" name="season-type"><option value="літо">Літо (+5% Кондиціонер)</option><option value="стандарт" selected>Норма (0%)</option><option value="зима">Зима (+10% Прогрів/Зима)</option></select></div></div><div class="lp-form-row"><label for="t-fuel-price">Вартість ДП</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-price" name="fuel-price" placeholder="напр. 95" autocomplete="off"><span class="lp-unit">грн/л</span></div></div><div class="lp-form-row"><label for="t-adblue-enable">Використання AdBlue</label><div class="lp-in-wrap"><select id="t-adblue-enable" name="adblue-enable"><option value="on" selected>Увімкнено</option><option value="off">Вимкнено</option></select></div></div></div><div class="lp-t-panel" id="t-panel-4" role="tabpanel" aria-labelledby="t-tab-4" hidden><div class="lp-form-row"><label for="t-calc-type">Форма розрахунку</label><div class="lp-in-wrap"><select id="t-calc-type" name="calc-type"><option value="безготівковий">Безготівковий (з ПДВ)</option><option value="фоп" selected>ФОП (3 група: 5% + ВЗ 1%)</option><option value="готівка">Готівка</option></select></div></div><div class="lp-form-row"><label for="t-road-quality">Якість дорожнього покриття</label><div class="lp-in-wrap"><select id="t-road-quality" name="road-quality"><option value="1.0" selected>🟢 Чудова дорога / Траса (1.0)</option><option value="1.06">🟡 Середня дорога / Вторинна (1.06)</option><option value="1.18">🔴 Погана дорога / Бруківка / Ями (1.18)</option></select></div></div><div class="lp-form-row" data-show="ref"><label for="t-ref-fuel-rate">Витрата рефа (л/год)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ref-fuel-rate" name="ref-fuel-rate" placeholder="напр. 2" autocomplete="off"><span class="lp-unit">л/год</span></div></div><div class="lp-form-row" data-show="ref"><label for="t-ref-hours">Час роботи рефрижератора</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ref-hours" name="ref-hours" placeholder="напр. 10" autocomplete="off"><span class="lp-unit">годин/рейс</span></div></div><div class="lp-form-row" data-show="wash"><label for="t-wash-cost">Вартість промивки цистерни</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-wash-cost" name="wash-cost" placeholder="напр. 3000" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row" data-show="wash"><label for="t-wash-freq">Промивок на рік</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-wash-freq" name="wash-freq" placeholder="напр. 12" autocomplete="off"><span class="lp-unit">раз/рік</span></div></div><div class="lp-form-row"><label for="t-idle-days">Фактичний простій (понад норму)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-idle-days" name="idle-days" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">діб/рейс</span></div></div><div class="lp-form-row"><label for="t-idle-rate">Компенсація за простій від замовника</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-idle-rate" name="idle-rate" placeholder="напр. 2000" autocomplete="off"><span class="lp-unit" id="t-idle-unit">грн/доба</span></div></div><div class="lp-form-row lp-is-green"><label for="t-round-trip-enable">🔄 Режим кругорейсу (зворотний вантаж)</label><div class="lp-in-wrap"><select id="t-round-trip-enable" name="round-trip-enable"><option value="off" selected>Вимкнено (без зворотного вантажу)</option><option value="on">Увімкнено (вантаж назад)</option></select></div></div><div class="lp-t-box" id="t-round-box" hidden><p class="lp-t-note">Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C, звідти <b>вантаженим</b> зворотним вантажем до точки D, і <b>порожнім</b> повертається у пункт A під нове завантаження.</p><div class="lp-form-row"><label for="t-rt-transfer-dist">Плече B→C (порожнім)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-transfer-dist" name="rt-transfer-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-backhaul-dist">Плече C→D (вантаженим)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-backhaul-dist" name="rt-backhaul-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-return-dist">Плече D→A (порожнім)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-return-dist" name="rt-return-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-total-volume">Загальний обсяг зворотного вантажу</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-total-volume" name="rt-total-volume" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">т</span></div></div><div class="lp-form-row"><label for="t-rt-rate">Розцінка зворотного вантажу</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-rate" name="rt-rate" placeholder="напр. 1200" autocomplete="off"><span class="lp-unit" id="t-rt-unit">грн/т</span></div></div></div><div class="lp-form-row lp-is-gold"><label for="t-extras-enable">🌍 Супутні витрати (дороги, кордон, брокер тощо)</label><div class="lp-in-wrap"><select id="t-extras-enable" name="extras-enable"><option value="off" selected>Вимкнено</option><option value="on">Увімкнено</option></select></div></div><div class="lp-t-box" id="t-extras-box" hidden><div class="lp-form-row"><label for="t-toll-cost">Платні дороги (за рейс)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-toll-cost" name="toll-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-toll">грн</span></div></div><div class="lp-form-row"><label for="t-border-cost">Проходження кордону</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-border-cost" name="border-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-border">грн</span></div></div><div class="lp-form-row"><label for="t-broker-cost">Послуги брокера</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-broker-cost" name="broker-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-broker">грн</span></div></div><div class="lp-form-row"><label for="t-green-card-cost">Зелена карта</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-green-card-cost" name="green-card-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-green">грн</span></div></div><div class="lp-form-row"><label for="t-ferry-cost">Паром</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ferry-cost" name="ferry-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-ferry">грн</span></div></div><p class="lp-t-note">Сума за один рейс/ходку: множиться на кількість ходок автоматично.</p></div></div><div class="lp-t-panel" id="t-panel-5" role="tabpanel" aria-labelledby="t-tab-5" hidden><p class="lp-t-note lp-is-info">У застосунку ці норми живуть у кабінеті (вкладки Парк, Пальне, Водій, ТО): вводиш один раз, і вони підставляються в кожен розрахунок. Тут стартові значення нового кабінету.</p><div class="lp-t-group">🚛 Парк і накладні</div><div class="lp-form-row"><label for="t-total-fleet">Всього авто в парку</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-total-fleet" name="total-fleet" placeholder="напр. 1" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-overhead-amort">Амортизація (річна)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-amort" name="overhead-amort" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-admin">Адміністративні витрати (річні)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-admin" name="overhead-admin" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-other-op">Інші операційні витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-other-op" name="overhead-other-op" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-other">Інші витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-other" name="overhead-other" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-repair">Ремонти та інші оп. витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-repair" name="overhead-repair" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-fin">Фінансові витрати (кредити)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-fin" name="overhead-fin" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-t-group">⛽ Пальне та AdBlue</div><div class="lp-form-row"><label for="t-fuel-load">Витрата з вантажем</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-load" name="fuel-load" placeholder="напр. 38" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row"><label for="t-fuel-empty">Витрата порожнім</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-empty" name="fuel-empty" placeholder="напр. 32" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row" data-show="adblue"><label for="t-adblue-consumption">Витрата AdBlue</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-adblue-consumption" name="adblue-consumption" placeholder="напр. 2.85" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row" data-show="adblue"><label for="t-adblue-price">Ціна AdBlue</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-adblue-price" name="adblue-price" placeholder="напр. 18" autocomplete="off"><span class="lp-unit">грн/л</span></div></div><div class="lp-t-group">👤 Водій</div><div class="lp-form-row"><label for="t-driver-pay-mode">Модель оплати</label><div class="lp-in-wrap"><select id="t-driver-pay-mode" name="driver-pay-mode"><option value="km" selected>За км (грн/км)</option><option value="pct">Відсоток від фрахту</option></select></div></div><div class="lp-form-row" data-show="km"><label for="t-driver-rate-load">Ставка з вантажем</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-rate-load" name="driver-rate-load" placeholder="напр. 4.03" autocomplete="off"><span class="lp-unit">грн/км</span></div></div><div class="lp-form-row" data-show="km"><label for="t-driver-rate-empty">Ставка порожнім</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-rate-empty" name="driver-rate-empty" placeholder="напр. 2.3" autocomplete="off"><span class="lp-unit">грн/км</span></div></div><div class="lp-form-row" data-show="pct"><label for="t-driver-pct-val">Відсоток від фрахту</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-pct-val" name="driver-pct-val" placeholder="напр. 12" autocomplete="off"><span class="lp-unit">%</span></div></div><div class="lp-form-row"><label for="t-per-diem">Добові</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-per-diem" name="per-diem" placeholder="напр. 500" autocomplete="off"><span class="lp-unit">грн/день</span></div></div><div class="lp-t-group">🔧 ТО та шини</div><div class="lp-form-row"><label for="t-to-cost">Вартість ТО</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-to-cost" name="to-cost" placeholder="напр. 18000" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-to-period">Пробіг між ТО</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-to-period" name="to-period" placeholder="напр. 50000" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-tire-cost">Ціна однієї шини</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-cost" name="tire-cost" placeholder="напр. 16500" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-tire-count">Кількість шин на авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-count" name="tire-count" placeholder="напр. 14" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-tire-mileage">Ресурс шини</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-mileage" name="tire-mileage" placeholder="напр. 150000" autocomplete="off"><span class="lp-unit">км</span></div></div></div>
+        <div class="lp-t-nav">
+          <button type="button" class="lp-btn lp-btn-ghost" id="t-back" hidden>← Назад</button>
+          <button type="button" class="lp-btn lp-btn-primary" id="t-next">Далі →</button>
+          <button type="submit" class="lp-btn lp-btn-primary" id="t-calc" hidden>▶ Розрахувати</button>
+        </div>
+        <p class="lp-t-draft" id="t-draft">💾 Дані зберігаються в цьому браузері. Після реєстрації підставимо їх у калькулятор.</p>
+      </form>
+      <section class="lp-try-res lp-card" id="try-res" aria-live="polite">
+        <div class="lp-res-empty" id="res-empty">
+          <div class="lp-ico" aria-hidden="true">▤</div>
+          <b>Після розрахунку тут буде шлях від доходу до прибутку</b>
+          <p>Заповни кроки й натисни «Розрахувати».</p>
+        </div>
+        <div class="lp-res-locked" id="res-locked" hidden>
+          <div class="lp-res-blur" aria-hidden="true">
+            <div class="lp-tc-profit-kicker">Чистий прибуток</div>
+            <div class="lp-tc-profit-value"><span class="lp-ph">•• ••• грн</span></div>
+            <div class="lp-kpi-row">
+              <div class="lp-kpi"><b><span class="lp-ph">••,•%</span></b><span>рентабельність</span></div>
+              <div class="lp-kpi"><b><span class="lp-ph">•••</span></b><span>грн/т</span></div>
+              <div class="lp-kpi"><b><span class="lp-ph">•• •••</span></b><span>маржа, грн</span></div>
+            </div>
+            <div class="lp-be-box"><div><div class="lp-lbl">Беззбитковість</div><div class="lp-val"><span class="lp-ph">• ••• грн/т</span></div></div><span class="lp-tc-gap-pill"><span class="lp-ph">••• грн/т</span></span></div>
+            <div class="lp-card-title" style="margin-top:16px">Від доходу до прибутку</div>
+            <div class="lp-tc-cascade-row"><span>Дохід</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div><div class="lp-tc-cascade-row"><span>Чистий дохід</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div><div class="lp-tc-cascade-row lp-is-muted"><span>− Змінні витрати</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div><div class="lp-tc-cascade-row lp-is-strong"><span>Маржинальний дохід</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div><div class="lp-tc-cascade-row lp-is-muted"><span>− Накладні</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div><div class="lp-tc-cascade-row lp-is-strong"><span>EBITDA</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div><div class="lp-tc-cascade-row lp-is-muted"><span>− Амортизація, податки</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div><div class="lp-tc-cascade-row lp-is-profit"><span>Чистий прибуток</span><span class="lp-tc-cascade-num"><span class="lp-ph">•• ••• грн</span></span></div>
+          </div>
+          <div class="lp-res-lock">
+            <div class="lp-ico" aria-hidden="true">🔒</div>
+            <b>Доступно після реєстрації</b>
+            <p>Твої дані збережуться: після реєстрації результат покажемо одразу.</p>
+            <a class="lp-btn lp-btn-primary" href="#signup" data-auth="signup">Зареєструватись</a>
+            <a class="lp-btn lp-btn-ghost" href="#login" data-auth="login">У мене вже є акаунт</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
 
 <!-- Екран авторизації -->
 <div id="auth-screen">
     <div class="auth-card">
+        <button type="button" class="auth-landing-back" id="landing-back-btn" hidden onclick="backToLanding()">← На головну</button>
         <div class="tc-lockup tc-lockup--auth">
             <svg class="tc-logo-svg tc-logo-full" viewBox="0 0 330 64" role="img" aria-label="TRIP-CONTROL">
                 <path class="tc-logo-road" d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke-width="4.5" stroke-linecap="round"></path>
@@ -4095,11 +4724,33 @@
                     <input type="text" id="client-name" maxlength="120" autocomplete="organization" style="text-align: left;" placeholder="Назва компанії">
                 </div>
                 <div id="saved-recent" class="tc-recent"></div>
-                <div id="route-fields-slot"></div>
+                <div id="route-fields-slot">
+                    <!-- Демо: адреси й відстань за OpenStreetMap (/api/poi?mode=geocode|route). Повний доступ — .tc-maps-box з Google. -->
+                    <div class="tc-osm-box demo-only" id="tc-osm-box">
+                        <div class="tc-tools-title">Маршрут</div>
+                        <div class="form-row two-cols">
+                            <label for="osm-demo-base">Подача (стоянка, за бажанням):</label>
+                            <div class="tc-ac"><input type="text" id="osm-demo-base" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="osm-demo-base-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><ul class="tc-ac-list" id="osm-demo-base-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div>
+                        </div>
+                        <div class="form-row two-cols">
+                            <label for="osm-demo-from">Пункт A (Завантаження):</label>
+                            <div class="tc-ac"><input type="text" id="osm-demo-from" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="osm-demo-from-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><ul class="tc-ac-list" id="osm-demo-from-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div>
+                        </div>
+                        <div class="form-row two-cols">
+                            <label for="osm-demo-to">Пункт B (Розвантаження):</label>
+                            <div class="tc-ac"><input type="text" id="osm-demo-to" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="osm-demo-to-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><ul class="tc-ac-list" id="osm-demo-to-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div>
+                        </div>
+                        <div class="tc-osm-tools">
+                            <button type="button" class="preset-btn" onclick="swapDemoOsmEnds()">A ↔ B</button>
+                            <span class="tc-osm-status" id="osm-demo-status" role="status" aria-live="polite"></span>
+                        </div>
+                        <p class="tc-osm-note">Відстань за OpenStreetMap, можна виправити · © OpenStreetMap contributors</p>
+                    </div>
+                </div>
 
                 <div id="tc-demo-fields-note" class="demo-only" style="background: rgba(245, 158, 11, 0.08); border: 1px dashed rgba(245,158,11,0.35); padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; line-height: 1.5;">
                     <div style="font-weight: 600; color: var(--steel); margin-bottom: 4px;">🧪 Що доступно в демо</div>
-                    Відстань, подачу та інші параметри вводьте вручну. Карта Google, підказки міст і пошук АЗС/кафе/СТО — після оплати. Експорт і надсилання теж у повному доступі. У демо можна зберегти до 3 розрахунків.
+                    Адреси підказуємо, а відстань і подачу рахуємо за OpenStreetMap: число можна виправити. Карта Google, проміжні зупинки й пошук АЗС/кафе/СТО — після оплати. Експорт і надсилання теж у повному доступі. У демо можна зберегти до 3 розрахунків.
                 </div>
 
                 
@@ -4318,7 +4969,7 @@
       </div><!-- /tc-work: only trip params -->
 
       <div class="tc-route-tools">
-            <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>🗺️ Автоматичний розрахунок відстані за картами Google, підказки міст</small></div>
+            <div class="lock-ph demo-only"><b>🔒 Карти Google і проміжні зупинки — після оплати</b><small>🗺️ Підказки адрес і відстань у демо — за OpenStreetMap</small></div>
             <div class="tc-maps-box full-only">
                 <div class="tc-tools-title">Маршрут</div>
                 <div id="recent-routes" class="tc-recent"></div>
@@ -5444,6 +6095,9 @@
         const hidden = document.getElementById(hiddenId);
         const wrap = document.getElementById(wrapId);
         if (hidden) hidden.value = value || '';
+        // Демо-блок OSM показує той самий текст; координати від іншого тексту вже не підходять.
+        const demoInput = /^osm-/.test(hiddenId) ? document.getElementById(hiddenId.replace(/^osm-/, 'osm-demo-')) : null;
+        if (demoInput) { demoInput.value = value || ''; demoInput.dataset.coords = ''; }
         if (!wrap) return;
         const el = wrap.querySelector('gmp-place-autocomplete') || wrap.firstElementChild;
         if (!el) return;
@@ -6254,6 +6908,13 @@
         const logoutBtn = document.getElementById('logout-btn');
 
         if (!session) {
+            // Гість на «/» без auth-потоку в URL бачить лендинг, доки сам не відкрив форму входу.
+            if (landingEntry() && !landingAuthOpened) {
+                showLanding();
+                logoutBtn.style.display = 'none';
+                return;
+            }
+            leaveLanding();
             authScreen.style.display = 'flex';
             mainApp.style.display = 'none';
             showAuthForm();
@@ -6263,6 +6924,7 @@
             return;
         }
 
+        leaveLanding();
         if (authUserBlocked(session.user)) {
             showAccountBlocked();
             return;
@@ -6336,17 +6998,22 @@
             await ensureStarterTemplate();
             applySettingsToForm();
             applySampleTripIfEmpty();
+            // Рейс, заповнений на головній до реєстрації, → у форму (не в кабінет); розрахунок не запускаємо.
+            const landingDraftApplied = applyLandingDraft();
 
             // Тепер можна безпечно запускати калькулятор.
             // У демо calculate() всередині нічого не відправляє, доки не натиснуто «Розрахувати».
             onTrailerChange();
             if (isDemo) {
                 loadDemoUsage(profile.org_id);
+                // Адреси й відстань у демо — OpenStreetMap через /api/poi, без Google.
+                initDemoOsmRoute();
             } else {
                 // Google Maps (платні запити) підвантажуємо лише для повного доступу
                 loadGoogleMaps().then(initMap).catch(e => console.warn('Google Maps не завантажився:', e));
             }
             if (inviteNotice) showToast(inviteNotice);
+            else if (landingDraftApplied) showToast('Підставили дані з головної — натисни «Розрахувати»');
         }
     }
 
@@ -6497,7 +7164,55 @@
         if (form) form.hidden = false;
         if (recovery) recovery.hidden = true;
     }
+
+    // ===== Лендинг на «/» (#landing-screen) =====
+    // Перший екран обирає inline-скрипт на початку <body> (html[data-entry]). Інвайт, recovery, блок і помилки з URL
+    // завжди йдуть через #auth-screen, бо для них data-entry = 'app'.
+    let landingAuthOpened = false; // гість сам відкрив вхід / реєстрацію з лендингу
+    function landingEntry() {
+        return document.documentElement.getAttribute('data-entry') === 'landing';
+    }
+    function showLanding() {
+        document.documentElement.setAttribute('data-screen', 'landing');
+        const authScreen = document.getElementById('auth-screen');
+        const mainApp = document.getElementById('main-app');
+        if (authScreen) authScreen.style.display = 'none';
+        if (mainApp) mainApp.style.display = 'none';
+    }
+    function leaveLanding() {
+        document.documentElement.removeAttribute('data-screen');
+    }
+    function openAuthFromLanding(tab) {
+        landingAuthOpened = true;
+        leaveLanding();
+        const authScreen = document.getElementById('auth-screen');
+        authScreen.style.display = 'flex';
+        authScreen.scrollTop = 0;
+        showAuthForm();
+        setAuthTab(tab === 'signup' ? 'signup' : 'login');
+        const back = document.getElementById('landing-back-btn');
+        if (back) back.hidden = false;
+        const email = document.getElementById('auth-email');
+        if (email) email.focus();
+    }
+    function backToLanding() {
+        landingAuthOpened = false;
+        const back = document.getElementById('landing-back-btn');
+        if (back) back.hidden = true;
+        document.getElementById('auth-message').innerText = '';
+        showLanding();
+    }
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape' || !landingAuthOpened) return;
+        const back = document.getElementById('landing-back-btn');
+        const authScreen = document.getElementById('auth-screen');
+        if (back && !back.hidden && authScreen && authScreen.style.display === 'flex' && !document.body.classList.contains('tc-modal-open')) {
+            backToLanding();
+        }
+    });
+
     function showRecoveryForm() {
+        leaveLanding();
         recoveryMode = true;
         const authScreen = document.getElementById('auth-screen');
         const mainApp = document.getElementById('main-app');
@@ -6724,6 +7439,7 @@
             '</div>';
     }
     function showAccountBlocked() {
+        leaveLanding();
         currentSessionToken = null;
         const authScreen = document.getElementById('auth-screen');
         const mainApp = document.getElementById('main-app');
@@ -7988,6 +8704,170 @@
             }
         });
         document.getElementById('trailer-type').value = 'зерновоз';
+    }
+
+    // ===== Чернетка з головної (assets/landing.js, localStorage tc_draft_trip) → форма калькулятора =====
+    // Лише дозволені id з тим самим id у застосунку; порожні, нулі й невідомі значення select пропускаємо.
+    // Пишемо тільки у форму (не в company_settings); після застосування ключ видаляємо. Розрахунок не запускаємо.
+    const LANDING_DRAFT_KEY = 'tc_draft_trip';
+    const LANDING_DRAFT_NUMBERS = [
+        'podacha-dist', 'dist', 'volume', 'norm-weight', 'cars-count', 'days-per-trip', 'rate', 'fuel-price',
+        'ref-fuel-rate', 'ref-hours', 'wash-cost', 'wash-freq', 'idle-days', 'idle-rate',
+        'rt-transfer-dist', 'rt-backhaul-dist', 'rt-return-dist', 'rt-total-volume', 'rt-rate',
+        'toll-cost', 'border-cost', 'broker-cost', 'green-card-cost', 'ferry-cost',
+        'total-fleet', 'overhead-amort', 'overhead-admin', 'overhead-other-op', 'overhead-other', 'overhead-repair', 'overhead-fin',
+        'fuel-load', 'fuel-empty', 'adblue-consumption', 'adblue-price', 'driver-rate-load', 'driver-rate-empty', 'driver-pct-val',
+        'per-diem', 'to-cost', 'to-period', 'tire-cost', 'tire-count', 'tire-mileage'
+    ];
+    const LANDING_DRAFT_SELECTS = [
+        'trailer-type', 'return-mode', 'contract-currency', 'season-type', 'adblue-enable', 'calc-type', 'road-quality',
+        'round-trip-enable', 'extras-enable', 'driver-pay-mode'
+    ];
+    const LANDING_DRAFT_PLACES = ['osm-base', 'osm-from', 'osm-to'];
+    function applyLandingDraft() {
+        let draft = null;
+        try { draft = JSON.parse(localStorage.getItem(LANDING_DRAFT_KEY) || 'null'); } catch (e) { draft = null; }
+        if (!draft || typeof draft !== 'object') return false;
+        const text = function (key) { return String(draft[key] == null ? '' : draft[key]).trim(); };
+        let applied = 0;
+        LANDING_DRAFT_NUMBERS.forEach(function (id) {
+            const el = document.getElementById(id);
+            const n = parseFloat(text(id).replace(',', '.'));
+            if (!el || !(n > 0)) return;
+            el.value = String(n);
+            applied += 1;
+        });
+        LANDING_DRAFT_SELECTS.forEach(function (id) {
+            const el = document.getElementById(id);
+            const v = text(id);
+            if (!el || !v || !Array.from(el.options).some(function (o) { return o.value === v; })) return;
+            el.value = v;
+            applied += 1;
+        });
+        LANDING_DRAFT_PLACES.forEach(function (id) {
+            const v = text(id);
+            if (!v) return;
+            setPlaceText(id + '-wrap', id, v);
+            const demoInput = document.getElementById(id.replace(/^osm-/, 'osm-demo-'));
+            if (demoInput) demoInput.dataset.coords = text(id + '-coords');
+            applied += 1;
+        });
+        const route = document.getElementById('route-name');
+        const typedName = text('route-name');
+        const from = text('osm-from');
+        const to = text('osm-to');
+        if (route && typedName) {
+            route.value = typedName;
+            applied += 1;
+        } else if (route && from && to && (!route.value || route.value === 'Маршрут 1' || route.value === STARTER_TRIP['route-name'])) {
+            route.value = from + ' → ' + to;
+        }
+        try { localStorage.removeItem(LANDING_DRAFT_KEY); } catch (e) {}
+        if (!applied) return false;
+        // Видимість залежних блоків — як при відкритті рейсу з історії (без перерахунку валют).
+        const select = function (id) { const el = document.getElementById(id); return el ? el.value : ''; };
+        contractCurrency = select('contract-currency') || 'UAH';
+        updateContractCurrencyUi();
+        document.getElementById('extras-box').style.display = select('extras-enable') === 'on' ? 'block' : 'none';
+        document.getElementById('round-trip-box').style.display = select('round-trip-enable') === 'on' ? 'block' : 'none';
+        const adblueOn = select('adblue-enable') === 'on';
+        document.getElementById('field-adblue-consumption').classList.toggle('active', adblueOn);
+        document.getElementById('field-adblue-price').classList.toggle('active', adblueOn);
+        const payMode = select('driver-pay-mode');
+        document.getElementById('driver-km-box').style.display = payMode === 'pct' ? 'none' : 'block';
+        document.getElementById('driver-pct-box').style.display = payMode === 'pct' ? 'block' : 'none';
+        updateRouteBar();
+        updateStepSummaries();
+        return true;
+    }
+
+    // ===== Демо: адреси й відстань за OpenStreetMap (assets/osm-geo.js → /api/poi?mode=geocode|route) =====
+    // Лише для демо-акаунтів; Google тут не вантажиться, «Знайти об'єкти» в демо так і лишається під замком.
+    // Координати обраної точки — у data-coords видимого поля; текст — у ті самі hidden #osm-*, що й у повному доступі.
+    let demoOsmReady = false;
+    let demoOsmSeq = 0;
+    const DEMO_OSM_KEYS = ['base', 'from', 'to'];
+    function demoOsmGeo() {
+        return window.TcOsmGeo && window.TcOsmGeo.enabled ? window.TcOsmGeo : null;
+    }
+    function demoOsmPoint(key) {
+        const geo = demoOsmGeo();
+        const input = document.getElementById('osm-demo-' + key);
+        return geo && input ? geo.parsePoint(input.dataset.coords) : null;
+    }
+    function setDemoOsmStatus(text, tone) {
+        const el = document.getElementById('osm-demo-status');
+        if (!el) return;
+        el.textContent = text || '';
+        el.className = 'tc-osm-status' + (tone ? ' is-' + tone : '');
+    }
+    function recomputeDemoOsmRoute() {
+        const geo = demoOsmGeo();
+        const from = demoOsmPoint('from');
+        const to = demoOsmPoint('to');
+        if (!geo || !from || !to) return;
+        const base = demoOsmPoint('base');
+        const seq = ++demoOsmSeq;
+        setDemoOsmStatus('Рахую відстань…', 'wait');
+        geo.route({ from: from, to: to, base: base }).then(function (r) {
+            if (seq !== demoOsmSeq) return;
+            const parts = [];
+            document.getElementById('dist').value = String(r.km);
+            parts.push('Відстань за дорогами: ' + r.km + ' км');
+            if (base && r.podacha_km != null) {
+                document.getElementById('podacha-dist').value = String(r.podacha_km);
+                parts.push('Подача: ' + r.podacha_km + ' км');
+            }
+            setDemoOsmStatus(parts.join(' · '), 'ok');
+            updateRouteBar();
+            updateStepSummaries();
+            calculate();
+        }).catch(function () {
+            if (seq !== demoOsmSeq) return;
+            setDemoOsmStatus(geo.FAIL, 'err');
+        });
+    }
+    function swapDemoOsmEnds() {
+        const a = document.getElementById('osm-demo-from');
+        const b = document.getElementById('osm-demo-to');
+        if (!a || !b) return;
+        const text = a.value;
+        const coords = a.dataset.coords || '';
+        setPlaceText('osm-from-wrap', 'osm-from', b.value);
+        a.dataset.coords = b.dataset.coords || '';
+        setPlaceText('osm-to-wrap', 'osm-to', text);
+        b.dataset.coords = coords;
+        updateRouteBar();
+        recomputeDemoOsmRoute();
+    }
+    function initDemoOsmRoute() {
+        const box = document.getElementById('tc-osm-box');
+        const geo = demoOsmGeo();
+        if (!box) return;
+        box.hidden = !geo; // OSM_GEO = false → лишається ручне введення км, як раніше
+        if (!geo || demoOsmReady) return;
+        demoOsmReady = true; // слухачі вішаємо один раз, навіть якщо checkUserAccess() піде вдруге
+        DEMO_OSM_KEYS.forEach(function (key) {
+            const input = document.getElementById('osm-demo-' + key);
+            const list = document.getElementById('osm-demo-' + key + '-list');
+            const hidden = document.getElementById('osm-' + key);
+            if (!input || !list || !hidden) return;
+            geo.attachAutocomplete({
+                input: input,
+                list: list,
+                onEdit: function () {
+                    input.dataset.coords = '';
+                    hidden.value = input.value.trim();
+                    updateRouteBar();
+                },
+                onPick: function (item) {
+                    hidden.value = item.label;
+                    input.dataset.coords = item.lat + ',' + item.lon;
+                    updateRouteBar();
+                    recomputeDemoOsmRoute();
+                }
+            });
+        });
     }
 
     // Підставляє збережені параметри компанії в поля калькулятора (порожні ключі поля не чіпають)
