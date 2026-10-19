@@ -45,6 +45,8 @@ test('the request handler still wraps the same function and keeps the demo flag'
     assert.match(source, /sumVehicleTrips\(req\.body \|\| \{\}, vehicleSplit\.list\)/);
     assert.match(source, /demo: demoInfo/);
     assert.match(source, /grossIncome \* 0\.06/);
-    assert.match(source, /const workDaysYear = 300/);
+    // Work days per year come from the body (cabinet workDaysYear); empty / invalid → 300.
+    assert.match(source, /export const DEFAULT_WORK_DAYS_YEAR = 300;/);
+    assert.match(source, /const workDaysYear = workDays\.value;/);
     assert.match(source, /const vatDivisor = calcType === 'безготівковий' \? 1\.2 : 1\.0/);
 });

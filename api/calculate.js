@@ -53,6 +53,21 @@ export function calculateTrip(body) {
     return computed.public;
 }
 
+export const DEFAULT_WORK_DAYS_YEAR = 300;
+export const WORK_DAYS_YEAR_MIN = 1;
+export const WORK_DAYS_YEAR_MAX = 366;
+
+// Робочих днів на рік для накладних, ремонтів і промивки цистерни. Порожньо або некоректно (не ціле число) → 300.
+export function workDaysFromBody(raw) {
+    if (raw === undefined || raw === null || String(raw).trim() === '') return { value: DEFAULT_WORK_DAYS_YEAR };
+    const n = Number(String(raw).trim().replace(',', '.'));
+    if (!Number.isFinite(n) || !Number.isInteger(n)) return { value: DEFAULT_WORK_DAYS_YEAR };
+    if (n < WORK_DAYS_YEAR_MIN || n > WORK_DAYS_YEAR_MAX) {
+        return { error: 'Робочих днів на рік: ціле число від ' + WORK_DAYS_YEAR_MIN + ' до ' + WORK_DAYS_YEAR_MAX + '.' };
+    }
+    return { value: n };
+}
+
 function computeTrip(body) {
     body = body || {};
 
@@ -141,7 +156,12 @@ function computeTrip(body) {
     const repairYear = parseFloat(body.repair) || 0;
     const finYear = parseFloat(body.fin) || 0;
     const totalFleet = parseFloat(body.totalFleet);
-    const workDaysYear = 300;
+    // Робочих днів на рік (кабінет, workDaysYear): порожньо чи не число → 300; поза 1–366 → помилка.
+    const workDays = workDaysFromBody(body.workDaysYear);
+    if (workDays.error) {
+        return { status: 400, code: 'BAD_WORK_DAYS', error: workDays.error, fields: ['workDaysYear'] };
+    }
+    const workDaysYear = workDays.value;
 
     // --- ХОДКИ ТА ПРОБІГИ ---
     let tripsCount = 0;
@@ -772,6 +792,12 @@ export default async function handler(req, res) {
                 error: 'Заповніть: ' + missingFields.map(k => REQUIRED_FIELD_LABELS[k]).join(', '),
                 fields: missingFields
             });
+        }
+
+        // Робочих днів на рік поза 1–366 — теж до ліміту демо.
+        const workDaysEarly = workDaysFromBody(reqBody.workDaysYear);
+        if (workDaysEarly.error) {
+            return res.status(400).json({ code: 'BAD_WORK_DAYS', error: workDaysEarly.error, fields: ['workDaysYear'] });
         }
 
         // Курс перевіряємо до ліміту демо, щоб зіпсований запит не з'їдав розрахунок.

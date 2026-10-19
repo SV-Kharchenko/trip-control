@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="/assets/landing.css?v=2026-10-20">
     <link rel="stylesheet" href="/assets/cost-hints.css?v=2026-10-20">
     <script src="/assets/osm-geo.js?v=2026-10-19" defer></script>
-    <script src="/assets/cost-hints.js?v=2026-10-20" defer></script>
+    <script src="/assets/cost-hints.js?v=2026-10-21" defer></script>
     <script src="/assets/landing.js?v=2026-10-20" defer></script>
 <style>
         :root, [data-theme="night"] {
@@ -5104,6 +5104,7 @@
         <input type="number" id="overhead-repair" oninput="calculate()">
         <input type="number" id="overhead-fin" oninput="calculate()">
         <input type="number" id="total-fleet" oninput="calculate()">
+        <input type="number" id="work-days-year" oninput="calculate()">
     </div>
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
@@ -8556,6 +8557,7 @@
     const CAB_SECTIONS = [
         { title: 'Парк і накладні', tab: 'Парк', ico: '🚛', fields: [
             { key: 'totalFleet', id: 'total-fleet', label: 'Всього авто в парку', unit: 'шт' },
+            { key: 'workDaysYear', id: 'work-days-year', label: 'Робочих днів на рік', unit: 'днів', step: '1', min: 1, max: 366, placeholder: '300' },
             { key: 'amort', id: 'overhead-amort', label: 'Амортизація (річна)', unit: 'грн' },
             { key: 'admin', id: 'overhead-admin', label: 'Адміністративні витрати (річні)', unit: 'грн' },
             { key: 'otherOperating', id: 'overhead-other-op', label: 'Інші операційні витрати', unit: 'грн' },
@@ -8623,6 +8625,9 @@
             if (hint) hint.hidden = !empty;
         });
     }
+
+    // Робочих днів на рік за замовчуванням (api/calculate.js: DEFAULT_WORK_DAYS_YEAR). Не в STARTER_SETTINGS.
+    const WORK_DAYS_DEFAULT = 300;
 
     // Стартовий шаблон для нового акаунта (зерновоз). Накладні навмисно порожні — користувач заповнить у кабінеті.
     const STARTER_SETTINGS = {
@@ -8896,6 +8901,9 @@
             const el = document.getElementById(SETTINGS_MAP[key].id);
             if (el && v !== undefined && v !== null && v !== '') el.value = v;
         });
+        // Немає ключа workDaysYear → сервер бере 300; поле калькулятора порожнє, а не попереднє значення.
+        const workDays = companySettings.workDaysYear;
+        document.getElementById('work-days-year').value = workDays !== undefined && workDays !== null ? workDays : '';
         if (companyTax) document.getElementById('calc-type').value = companyTax;
         // Синхронізуємо видимість залежних блоків (без запуску розрахунку — він піде один раз пізніше)
         const mode = document.getElementById('driver-pay-mode').value;
@@ -8966,7 +8974,8 @@
             } else if (f.text) {
                 inner = '<input type="text" id="cab-' + f.key + '" maxlength="' + (f.max || 100) + '">';
             } else {
-                inner = '<input type="number" id="cab-' + f.key + '" min="0" step="' + (f.step || '1') + '">';
+                inner = '<input type="number" id="cab-' + f.key + '" min="' + (f.min || 0) + '"' + (f.max ? ' max="' + f.max + '"' : '') +
+                    ' step="' + (f.step || '1') + '"' + (f.placeholder ? ' placeholder="' + esc(f.placeholder) + '"' : '') + '>';
             }
             const unit = f.unit ? '<span class="cab-unit">' + esc(f.unit) + '</span>' : '';
             const emptyHint = CAB_OPTIONAL_COST_KEYS.indexOf(f.key) >= 0
@@ -10282,6 +10291,18 @@
             const raw = document.getElementById('cab-' + key).value;
             if (f.select) { next[key] = raw; continue; }
             if (raw === '' || raw === null) { delete next[key]; continue; }
+            if (key === 'workDaysYear') {
+                const days = Number(raw);
+                if (!Number.isInteger(days) || days < 1 || days > 366) {
+                    setMsg('Робочих днів на рік: ціле число від 1 до 366.', true);
+                    return;
+                }
+                // 300 — типове значення: не зберігаємо, щоб у налаштуваннях не з'являвся зайвий ключ
+                // (org_has_user_data вважає будь-який інший ключ даними користувача — інвайт-флоу).
+                if (days === WORK_DAYS_DEFAULT) delete next[key];
+                else next[key] = days;
+                continue;
+            }
             const n = parseFloat(raw);
             if (isNaN(n) || n < 0) { setMsg('Некоректне значення в полі «' + f.label + '».', true); return; }
             next[key] = n;
@@ -10462,6 +10483,7 @@
             repair: document.getElementById('overhead-repair').value,
             fin: document.getElementById('overhead-fin').value,
             totalFleet: document.getElementById('total-fleet').value,
+            workDaysYear: document.getElementById('work-days-year').value,
             isRoundTrip: document.getElementById('round-trip-enable').value === 'on',
             rtTransferDist: document.getElementById('rt-transfer-dist').value,
             rtBackhaulDist: document.getElementById('rt-backhaul-dist').value,
@@ -11499,7 +11521,7 @@
         ['washCost', 'wash-cost'], ['washFreq', 'wash-freq'], ['refFuelRate', 'ref-fuel-rate'], ['refHours', 'ref-hours'],
         ['amort', 'overhead-amort'], ['admin', 'overhead-admin'], ['otherOperating', 'overhead-other-op'],
         ['otherExpenses', 'overhead-other'], ['repair', 'overhead-repair'], ['fin', 'overhead-fin'],
-        ['totalFleet', 'total-fleet'], ['rtTransferDist', 'rt-transfer-dist'], ['rtBackhaulDist', 'rt-backhaul-dist'],
+        ['totalFleet', 'total-fleet'], ['workDaysYear', 'work-days-year'], ['rtTransferDist', 'rt-transfer-dist'], ['rtBackhaulDist', 'rt-backhaul-dist'],
         ['rtReturnDist', 'rt-return-dist'], ['rtTotalVolume', 'rt-total-volume'], ['rtRate', 'rt-rate'],
         ['tollCost', 'toll-cost'], ['borderCost', 'border-cost'], ['brokerCost', 'broker-cost'],
         ['greenCardCost', 'green-card-cost'], ['ferryCost', 'ferry-cost'],

@@ -24,7 +24,8 @@ const OVERHEADS = {
 
 test('each of the 6 annual overhead fields has a hint with «Річна»; texts live in one object', () => {
     assert.deepEqual(plain(H.ids), OVERHEADS);
-    assert.deepEqual(Object.keys(H.fields).sort(), Object.values(OVERHEADS).sort());
+    // 6 overhead hints + the cabinet-only «Робочих днів на рік».
+    assert.deepEqual(Object.keys(H.fields).sort(), Object.values(OVERHEADS).concat('workDaysYear').sort());
     for (const key of Object.values(OVERHEADS)) {
         assert.match(H.fields[key], /^Річна сума: /, key);
     }
@@ -32,7 +33,7 @@ test('each of the 6 annual overhead fields has a hint with «Річна»; texts
     assert.match(H.fields.otherExpenses, /Податок з виручки рейсу сюди не вносьте$/);
     assert.equal(H.intro, 'Усі суми в цьому блоці — річні, на весь парк. Паливо, ТО, шини, водія, дороги й податок з виручки сюди не вносьте — їх уже пораховано.');
     // Nothing about 300 days or how the sums are split — neither in the hints nor in the intro.
-    for (const text of [H.intro, ...Object.values(H.fields)]) {
+    for (const text of [H.intro, ...Object.values(OVERHEADS).map((key) => H.fields[key])]) {
         assert.equal(/300|робоч|поділимо|ділимо|віднесемо|на дні рейсу/i.test(text), false, text);
     }
     // One object: the hint texts are nowhere else; the intro only as the cabinet fallback (checked below).
@@ -196,9 +197,8 @@ test('styles in assets/cost-hints.css (cabinet does not depend on landing.css); 
     for (const asset of ['landing.css', 'cost-hints.css']) {
         assert.match(html, new RegExp('<link rel="stylesheet" href="/assets/' + asset.replace('.', '\\.') + '\\?v=2026-10-20">'), asset);
     }
-    for (const asset of ['cost-hints.js', 'landing.js']) {
-        assert.match(html, new RegExp('<script src="/assets/' + asset.replace('.', '\\.') + '\\?v=2026-10-20" defer></script>'), asset);
-    }
+    assert.match(html, /<script src="\/assets\/landing\.js\?v=2026-10-20" defer><\/script>/);
+    assert.match(html, /<script src="\/assets\/cost-hints\.js\?v=2026-10-2\d" defer><\/script>/);
     // Step 5 note on «ви».
     assert.match(html, /\(вкладки Парк, Пальне, Водій, ТО\): вводите один раз, і вони підставляються в кожен розрахунок/);
     assert.equal(html.includes('ТО): вводиш один раз'), false);
