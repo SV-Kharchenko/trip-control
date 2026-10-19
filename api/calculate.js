@@ -163,27 +163,54 @@ function computeTrip(body) {
     }
 
     // --- КРУГОРЕЙС: B→C (порожнім) → C→D (вантаженим) → D→A (порожнім) ---
-    // Довантажуємо стільки порожніх зворотних ходок, скільки реально дозволяє заявлений
-    // обсяг зворотного вантажу (не більше) і скільки їх фізично є (не більше numReturnLegs).
+    // Після розвантаження в B авто їде порожнім до C, вантаженим до D і порожнім назад в A.
+    // Доступні зворотні ходки: разовий — по одній на авто (порожнього повернення в розрахунку
+    // немає, тож контур — нові км); циклічний — усі ходки: наявні порожні повернення B→A
+    // замінюються контуром, а останнє повернення кожного авто теж може бути завантаженим.
+    // Використано = min(доступні, ceil(обсяг зворотного / норма)); неповна ходка — з фактичними тоннами.
     const isRoundTrip = body.isRoundTrip === true;
     const rtTransferDist = isRoundTrip ? (parseFloat(body.rtTransferDist) || 0) : 0;
     const rtBackhaulDist = isRoundTrip ? (parseFloat(body.rtBackhaulDist) || 0) : 0;
     const rtReturnDist = isRoundTrip ? (parseFloat(body.rtReturnDist) || 0) : 0;
     const rtTotalVolumeAvailable = isRoundTrip ? (parseFloat(body.rtTotalVolume) || 0) : 0;
     const rtRate = isRoundTrip ? ((parseFloat(body.rtRate) || 0) * fxRate) : 0;
+    if (isRoundTrip) {
+        const rtMissing = [
+            ['rtTotalVolume', 'Обсяг зворотного вантажу', rtTotalVolumeAvailable],
+            ['rtRate', 'Розцінка зворотного вантажу', rtRate],
+            ['rtBackhaulDist', 'Плече C→D', rtBackhaulDist]
+        ].filter((item) => !(item[2] > 0));
+        if (rtMissing.length) {
+            return {
+                status: 400,
+                code: 'MISSING_FIELDS',
+                error: 'Заповніть: ' + rtMissing.map((item) => item[1]).join(', '),
+                fields: rtMissing.map((item) => item[0])
+            };
+        }
+    }
 
-    const numReturnLegs = (returnMode === 'разовий') ? 0 : Math.max(0, tripsCount - carsCount);
-    const maxLegsByCapacity = normWeight > 0 ? Math.floor(rtTotalVolumeAvailable / normWeight) : 0;
-    const rtLegsUsed = isRoundTrip ? Math.min(numReturnLegs, maxLegsByCapacity) : 0;
+    const emptyReturnsInPlan = returnMode === 'разовий' ? 0 : Math.max(0, tripsCount - carsCount);
+    const numReturnLegs = returnMode === 'разовий' ? carsCount : tripsCount;
+    const legsByVolume = normWeight > 0 ? Math.ceil(rtTotalVolumeAvailable / normWeight - 1e-9) : 0;
+    const rtLegsUsed = isRoundTrip ? Math.min(numReturnLegs, legsByVolume) : 0;
     const rtVolumeTotal = Math.min(rtTotalVolumeAvailable, rtLegsUsed * normWeight);
     const rtIncome = rtVolumeTotal * rtRate;
 
+    // Дні контуру: та сама швидкість, що в основному рейсі (км з вантажем + порожні) / (ходки × діб на ходку).
+    const baseRunKm = totalLoadedKm + totalEmptyKm;
+    const baseRunDays = tripsCount * daysPerTrip;
+    const kmPerDay = baseRunDays > 0 ? baseRunKm / baseRunDays : 0;
+    const rtLoopKm = rtTransferDist + rtBackhaulDist + rtReturnDist;
+    const rtReplacedLegs = Math.min(rtLegsUsed, emptyReturnsInPlan);
+    const rtNewLegs = rtLegsUsed - rtReplacedLegs;
+    let rtExtraKm = 0;
     if (rtLegsUsed > 0) {
-        // Ці ходки більше не їдуть порожняком напряму (dist кожна) — замість цього їдуть
-        // реальним контуром: порожнім до C, вантаженим до D, порожнім назад до A.
-        totalEmptyKm = Math.max(0, totalEmptyKm - rtLegsUsed * dist + rtLegsUsed * (rtTransferDist + rtReturnDist));
+        totalEmptyKm = Math.max(0, totalEmptyKm - rtReplacedLegs * dist + rtLegsUsed * (rtTransferDist + rtReturnDist));
         totalLoadedKm += rtLegsUsed * rtBackhaulDist;
+        rtExtraKm = rtReplacedLegs * (rtLoopKm - dist) + rtNewLegs * rtLoopKm;
     }
+    const rtExtraDays = kmPerDay > 0 ? Math.max(0, rtExtraKm / kmPerDay) : 0;
 
     // --- ДОХІД ---
     const idleCompensationTotal = idleDays * idleRate * (returnMode === 'разовий' ? carsCount : tripsCount);
@@ -215,6 +242,9 @@ function computeTrip(body) {
     let refFuelCost = 0;
     if (trailerType === 'рефрижератор' && refFuelRate > 0) {
         refFuelCost = refFuelRate * refHours * (fuelPrice / vatDivisor) * (returnMode === 'разовий' ? carsCount : tripsCount);
+        if (rtLegsUsed > 0 && dist > 0) {
+            refFuelCost += refFuelRate * refHours * (rtBackhaulDist / dist) * (fuelPrice / vatDivisor) * rtLegsUsed;
+        }
     }
 
     const fuelTotal = fuelLoadCost + fuelEmptyCost + fuelPodachaCost + refFuelCost;
@@ -234,7 +264,7 @@ function computeTrip(body) {
     const esvTotal = salaryTotal * 0.22;
 
     // Загальна кількість "діб у рейсі" по всьому парку разом, з урахуванням простою
-    const totalTripDays = tripsCount * (daysPerTrip + idleDays);
+    const totalTripDays = tripsCount * (daysPerTrip + idleDays) + rtExtraDays;
     const perDiemTotal = totalTripDays * perDiem;
     const driverTotal = salaryTotal + esvTotal + perDiemTotal;
 
@@ -260,7 +290,9 @@ function computeTrip(body) {
 
     // Супутні витрати — разові на рейс/ходку (платні дороги, кордон, брокер, зелена карта, паром)
     const extrasPerTrip = tollCost + borderCost + brokerCost + greenCardCost + ferryCost;
-    const extrasTotal = extrasPerTrip * (returnMode === 'разовий' ? carsCount : tripsCount);
+    // Дороги, кордон, зелена карта, паром прив'язані до маршруту A→B — на C→D не копіюємо.
+    // Брокер (документи на партію вантажу) — на кожну завантажену зворотну ходку.
+    const extrasTotal = extrasPerTrip * (returnMode === 'разовий' ? carsCount : tripsCount) + brokerCost * rtLegsUsed;
 
     const directCostsTotal = fuelTotal + adblueTotal + driverTotal + maintenanceTotal + extrasTotal;
     const marginalIncome = netIncome - directCostsTotal;
@@ -327,15 +359,20 @@ function computeTrip(body) {
         ? `Об'єм разового рейсу: ${actualVolume.toFixed(1)} т (${carsCount} авто по ${normWeight} т)`
         : `Об'єм вивозу: ${tripsCount} ходок (${actualVolume} т)`;
 
+    // Чесна підказка, якщо зворотного вантажу більше, ніж можна довезти цими авто.
+    const rtWarning = isRoundTrip && rtTotalVolumeAvailable - rtVolumeTotal > 0.0005
+        ? `Зворотний вантаж: враховано ${formatCalcTons(rtVolumeTotal)} з ${formatCalcTons(rtTotalVolumeAvailable)} т — на решту не вистачає авто`
+        : '';
+
     if (isRoundTrip) {
-        tripVolumeText += rtLegsUsed > 0
-            ? ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок довантажено (${rtVolumeTotal.toFixed(1)} т)`
-            : ` | 🔄 Кругорейс: недостатньо обсягу/ходок для довантаження`;
+        tripVolumeText += ` | 🔄 Кругорейс: ${rtLegsUsed} з ${numReturnLegs} зворотних ходок (${formatCalcTons(rtVolumeTotal)} т)`;
+        if (rtWarning) tripVolumeText += ' | ⚠️ ' + rtWarning;
     }
 
-    const rtInfoText = numReturnLegs > 0
-        ? `Доступно зворотних ходок: ${numReturnLegs} | Використано: ${rtLegsUsed} (обмежено ${numReturnLegs <= maxLegsByCapacity ? 'кількістю ходок' : 'обсягом вантажу'})`
-        : (isRoundTrip ? 'Немає порожніх зворотних ходок у цьому рейсі' : '');
+    // Без кругорейсу текст лишається колишнім (golden-результати не змінюються).
+    const rtInfoText = isRoundTrip
+        ? `Зворотних ходок: ${rtLegsUsed} з ${numReturnLegs} доступних, ${formatCalcTons(rtVolumeTotal)} т` + (rtWarning ? ' | ⚠️ ' + rtWarning : '')
+        : (emptyReturnsInPlan > 0 ? `Доступно зворотних ходок: ${emptyReturnsInPlan} | Використано: 0 (обмежено обсягом вантажу)` : '');
 
     const podachaText = totalPodachaKm > 0
         ? `Витрати на подачу: ${Math.round(fuelPodachaCost)} грн (${totalPodachaKm} км)`
@@ -375,11 +412,14 @@ function computeTrip(body) {
 
             tripVolumeText,
             rtInfoText,
+            ...(isRoundTrip ? { rtWarning } : {}),
             podachaText,
             fuelSummaryText,
             adblueSummaryText
         },
         raw: {
+            rtVolumeTotal,
+            rtVolumeAvailable: rtTotalVolumeAvailable,
             marginalIncome,
             ebitda,
             postEbitdaTotal
@@ -426,7 +466,7 @@ export function splitTonnageShares(totalTons, weights) {
     return shares;
 }
 
-function vehicleSlicePayload(base, assignment) {
+function vehicleSlicePayload(base, assignment, rtShare) {
     const slice = {};
     Object.keys(base || {}).forEach(function (key) {
         if (key !== 'vehicles' && key !== 'vehicleSplitMode') slice[key] = base[key];
@@ -452,6 +492,11 @@ function vehicleSlicePayload(base, assignment) {
         const capacity = positiveCalcNumber(assignment.payloadTons);
         if (capacity !== null) slice.normWeight = capacity;
     }
+    // Зворотний вантаж ділиться між авто (див. sumVehicleTrips), а не дається кожному повністю.
+    if (slice.isRoundTrip === true && rtShare !== undefined) {
+        if (rtShare > 0) slice.rtTotalVolume = rtShare;
+        else slice.isRoundTrip = false; // цьому авто зворотного вантажу не дісталось
+    }
     return slice;
 }
 
@@ -476,8 +521,11 @@ function weightedVehicleRate(parts, key) {
 // Порожній список сюди не приходить: рейс без авто лишає calculateTrip без змін.
 export function sumVehicleTrips(base, assignments) {
     if (!Array.isArray(assignments) || !assignments.length) return null;
-    const parts = assignments.map(function (assignment) {
-        const payload = vehicleSlicePayload(base, assignment);
+    const rtShares = base && base.isRoundTrip === true
+        ? splitTonnageShares(parseFloat(base.rtTotalVolume) || 0, assignments.map(function (a) { return Number(a.tonnage); }))
+        : [];
+    const parts = assignments.map(function (assignment, index) {
+        const payload = vehicleSlicePayload(base, assignment, base && base.isRoundTrip === true ? (rtShares[index] || 0) : undefined);
         const computed = computeTrip(payload);
         if (computed && computed.status) {
             return { assignment: assignment, payload: payload, result: computed, raw: null };
@@ -567,6 +615,16 @@ export function sumVehicleTrips(base, assignments) {
         combined.tripVolumeText += ' | розкладено ' + formatCalcTons(assigned) + ' з ' + formatCalcTons(contractVolume) + ' т';
     }
     combined.rtInfoText = parts.map(function (part) { return part.result.rtInfoText; }).filter(Boolean).join(' | ');
+    if (base && base.isRoundTrip === true) {
+        combined.rtWarning = '';
+        const rtUsed = parts.reduce(function (sum, part) { return sum + (part.raw ? part.raw.rtVolumeTotal : 0); }, 0);
+        const rtAll = parseFloat(base.rtTotalVolume) || 0;
+        combined.tripVolumeText += ' | 🔄 Кругорейс: ' + formatCalcTons(rtUsed) + ' т';
+        if (rtAll - rtUsed > 0.0005) {
+            combined.rtWarning = 'Зворотний вантаж: враховано ' + formatCalcTons(rtUsed) + ' з ' + formatCalcTons(rtAll) + ' т — на решту не вистачає авто';
+            combined.tripVolumeText += ' | ⚠️ ' + combined.rtWarning;
+        }
+    }
     combined.podachaText = parts.map(function (part) { return part.result.podachaText; }).filter(Boolean).join(' · ');
     const diesel = vehicleRowValue(combined, 'Пальне');
     const adblue = vehicleRowValue(combined, 'AdBlue');
@@ -622,6 +680,26 @@ function vehicleAssignmentsFromBody(body) {
     return { list: list };
 }
 
+// Обов'язкові поля: без них результат був би вигаданим. Разовий рейс: «Обсяг» не потрібен
+// (обсяг = норма × авто). Увімкнений кругорейс: обсяг і розцінка зворотного вантажу та плече C→D.
+export const REQUIRED_FIELD_LABELS = {
+    dist: 'Відстань', volume: 'Обсяг', normWeight: 'Норма завантаження', carsCount: 'Кількість авто',
+    daysPerTrip: 'Днів на рейс', rate: 'Ставка', fuelLoad: 'Витрата з вантажем', fuelEmpty: 'Витрата порожнім',
+    fuelPrice: 'Ціна палива', totalFleet: 'Авто в парку', toPeriod: 'Пробіг між ТО', tireMileage: 'Ресурс шин',
+    rtTotalVolume: 'Обсяг зворотного вантажу', rtRate: 'Розцінка зворотного вантажу', rtBackhaulDist: 'Плече C→D'
+};
+const BASE_REQUIRED = ['dist', 'volume', 'normWeight', 'carsCount', 'daysPerTrip', 'rate', 'fuelLoad', 'fuelEmpty',
+    'fuelPrice', 'totalFleet', 'toPeriod', 'tireMileage'];
+const ROUND_TRIP_REQUIRED = ['rtTotalVolume', 'rtRate', 'rtBackhaulDist'];
+
+export function missingRequiredFields(body) {
+    const b = body || {};
+    const isOneOff = b.returnMode === 'разовий';
+    const keys = BASE_REQUIRED.filter((k) => !(isOneOff && k === 'volume'));
+    if (b.isRoundTrip === true) keys.push(...ROUND_TRIP_REQUIRED);
+    return keys.filter((k) => !(parseFloat(b[k]) > 0));
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
@@ -658,17 +736,11 @@ export default async function handler(req, res) {
 
         // --- Обов'язкові поля: без них результат був би вигаданим, тому відхиляємо ДО зарахування в ліміт демо ---
         const reqBody = req.body || {};
-        const REQUIRED = {
-            dist: 'Відстань', volume: 'Обсяг', normWeight: 'Норма завантаження', carsCount: 'Кількість авто',
-            daysPerTrip: 'Днів на рейс', rate: 'Ставка', fuelLoad: 'Витрата з вантажем', fuelEmpty: 'Витрата порожнім',
-            fuelPrice: 'Ціна палива', totalFleet: 'Авто в парку', toPeriod: 'Пробіг між ТО', tireMileage: 'Ресурс шин'
-        };
-        const isOneOff = reqBody.returnMode === 'разовий'; // разовий рейс: обсяг = норма × кількість авто, поле «Обсяг» не потрібне
-        const missingFields = Object.keys(REQUIRED).filter(k => !(isOneOff && k === 'volume') && !(parseFloat(reqBody[k]) > 0));
+        const missingFields = missingRequiredFields(reqBody);
         if (missingFields.length) {
             return res.status(400).json({
                 code: 'MISSING_FIELDS',
-                error: 'Заповніть: ' + missingFields.map(k => REQUIRED[k]).join(', '),
+                error: 'Заповніть: ' + missingFields.map(k => REQUIRED_FIELD_LABELS[k]).join(', '),
                 fields: missingFields
             });
         }
