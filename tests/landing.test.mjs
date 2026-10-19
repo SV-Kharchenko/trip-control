@@ -360,3 +360,44 @@ test('review fixes: OSM box hidden wins over demo-only; landing hidden without C
     assert.match(landing, /Значення — приклад; у кабінеті вони вже заповнені стартовими нормами\./);
     assert.equal(html.includes('Тут стартові значення нового кабінету'), false);
 });
+
+test('applyLandingDraft: «ТО та шини» go to the calculator only when the guest changed the defaults', () => {
+    const constants = sliceBetween(html, "const LANDING_DRAFT_KEY = 'tc_draft_trip';", 'function applyLandingDraft()');
+    const fn = functionSource(html, 'applyLandingDraft');
+    const DEFAULTS = { 'to-cost': '15000', 'to-period': '50000', 'tire-cost': '16500', 'tire-count': '14', 'tire-mileage': '100000' };
+    // The same defaults as in the landing panel.
+    for (const [name, value] of Object.entries(DEFAULTS)) {
+        assert.match(panel, new RegExp('id="t-' + name + '" name="' + name + '" value="' + value + '"[^>]* data-default="' + value + '"'));
+        assert.match(constants, new RegExp("'" + name + "': " + value + '(,| \\})'));
+    }
+    const cabinet = { 'to-cost': '18000', 'to-period': '60000', 'tire-cost': '17000', 'tire-count': '12', 'tire-mileage': '120000' };
+    const apply = (draft) => {
+        const els = { 'extras-box': fakeElement('x', 'DIV', ''), 'round-trip-box': fakeElement('x', 'DIV', ''),
+            'field-adblue-consumption': fakeElement('x', 'DIV', ''), 'field-adblue-price': fakeElement('x', 'DIV', ''),
+            'driver-km-box': fakeElement('x', 'DIV', ''), 'driver-pct-box': fakeElement('x', 'DIV', ''),
+            'route-name': fakeElement('route-name', 'INPUT', 'Маршрут 1'), dist: fakeElement('dist', 'INPUT', '350') };
+        for (const [id, v] of Object.entries(cabinet)) els[id] = fakeElement(id, 'INPUT', v);
+        const store = { tc_draft_trip: JSON.stringify(draft) };
+        const localStorage = { getItem: (k) => store[k] ?? null, removeItem: (k) => { delete store[k]; } };
+        const noop = () => {};
+        const run = new Function('localStorage', 'document', 'setPlaceText', 'updateContractCurrencyUi', 'updateRouteBar', 'updateStepSummaries', 'STARTER_TRIP',
+            'let contractCurrency = "UAH";\n' + constants + fn + '\nreturn applyLandingDraft();');
+        const applied = run(localStorage, { getElementById: (id) => els[id] || null }, noop, noop, noop, noop, { 'route-name': 'Демо' });
+        return { applied, values: Object.fromEntries(Object.keys(cabinet).map((id) => [id, els[id].value])), dist: els.dist.value, left: 'tc_draft_trip' in store };
+    };
+    // Untouched defaults: cabinet norms stay.
+    const untouched = apply({ ...DEFAULTS, dist: '543' });
+    assert.equal(untouched.applied, true);
+    assert.deepEqual(untouched.values, cabinet);
+    assert.equal(untouched.dist, '543');
+    assert.equal(untouched.left, false);
+    // Only defaults in the draft: nothing applied, the key is still removed.
+    const onlyDefaults = apply({ ...DEFAULTS, 'tire-mileage': '100 000'.replace(' ', '') });
+    assert.equal(onlyDefaults.applied, false);
+    assert.deepEqual(onlyDefaults.values, cabinet);
+    assert.equal(onlyDefaults.left, false);
+    // Changed by the guest: those values go to the calculator, the untouched ones do not.
+    const changed = apply({ ...DEFAULTS, 'to-cost': '21000', 'tire-count': '12,0', 'tire-mileage': '90000' });
+    assert.deepEqual(changed.values, { ...cabinet, 'to-cost': '21000', 'tire-mileage': '90000' });
+    assert.equal(changed.values['tire-count'], '12', '12,0 equals the cabinet value, written as 12');
+});

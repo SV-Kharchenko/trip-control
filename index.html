@@ -8732,6 +8732,9 @@
         'round-trip-enable', 'extras-enable', 'driver-pay-mode'
     ];
     const LANDING_DRAFT_PLACES = ['osm-base', 'osm-from', 'osm-to'];
+    // «ТО та шини» на головній мають значення за замовчуванням (data-default у панелі). Якщо гість їх не змінив,
+    // норми кабінету в калькуляторі не перезаписуємо.
+    const LANDING_DRAFT_DEFAULTS = { 'to-cost': 15000, 'to-period': 50000, 'tire-cost': 16500, 'tire-count': 14, 'tire-mileage': 100000 };
     function applyLandingDraft() {
         let draft = null;
         try { draft = JSON.parse(localStorage.getItem(LANDING_DRAFT_KEY) || 'null'); } catch (e) { draft = null; }
@@ -8742,6 +8745,7 @@
             const el = document.getElementById(id);
             const n = parseFloat(text(id).replace(',', '.'));
             if (!el || !(n > 0)) return;
+            if (LANDING_DRAFT_DEFAULTS[id] === n) return;
             el.value = String(n);
             applied += 1;
         });
