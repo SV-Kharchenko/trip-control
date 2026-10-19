@@ -10290,6 +10290,12 @@
             const f = SETTINGS_MAP[key];
             const raw = document.getElementById('cab-' + key).value;
             if (f.select) { next[key] = raw; continue; }
+            // Нечислове введення в number-полі дає value = '' — це не «порожньо», а помилка.
+            const input = document.getElementById('cab-' + key);
+            if (key === 'workDaysYear' && input && input.validity && input.validity.badInput) {
+                setMsg('Робочих днів на рік: ціле число від 1 до 366.', true);
+                return;
+            }
             if (raw === '' || raw === null) { delete next[key]; continue; }
             if (key === 'workDaysYear') {
                 const days = Number(raw);
@@ -10399,6 +10405,8 @@
         line('Ціна палива', num(p.fuelPrice), 'грн/л');
         line('Витрата палива (вантажем)', num(p.fuelLoad), 'л/100км'); line('Витрата палива (порожнім)', num(p.fuelEmpty), 'л/100км');
         line('Днів на рейс', num(p.daysPerTrip), 'дн');
+        if (p.workDaysYear != null && String(p.workDaysYear).trim() !== '') line('Робочих днів на рік', num(p.workDaysYear), 'днів');
+        else line('Робочих днів на рік', '300 (типово)');
         if (p.isRoundTrip) { line('Зворотний рейс: B→C', num(p.rtTransferDist), 'км'); line('Зворотний рейс: C→D', num(p.rtBackhaulDist), 'км'); line('Зворотний рейс: D→A', num(p.rtReturnDist), 'км'); line('Зворотний обсяг', num(p.rtTotalVolume), 'т'); line('Зворотний обсяг враховано', num(r.rtVolumeUsed), 'т'); if (r.rtWarning) line('Зворотний вантаж', r.rtWarning); line('Зворотна ставка', num(p.rtRate), rateUnit); }
         ws.addRow([]);
         head('Результати');
@@ -12299,7 +12307,8 @@
             const el = document.getElementById(pair[1]);
             if (!el) return;
             if (data[pair[0]] == null || data[pair[0]] === '') {
-                if (pair[0] === 'rate' || pair[0] === 'rtRate' || pair[0] === 'idleRate') el.value = '';
+                // workDaysYear: старі рейси без нього рахуються по 300, а не по поточному значенню кабінету.
+                if (pair[0] === 'rate' || pair[0] === 'rtRate' || pair[0] === 'idleRate' || pair[0] === 'workDaysYear') el.value = '';
                 return;
             }
             el.value = data[pair[0]];

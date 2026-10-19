@@ -19,7 +19,7 @@ test('S0 without the field stays 6687 / 5400; workDaysYear 300 equals empty', ()
     const plain = calculateTrip(S0);
     assert.equal(plain.netProfit, 6687);
     assert.equal(plain.taxesTotal, 5400);
-    for (const value of [300, '300', ' 300 ', '', null, undefined, 'abc', '250.5', '3e2x']) {
+    for (const value of [300, '300', ' 300 ', '', '   ', null, undefined]) {
         assert.deepEqual(calculateTrip({ ...S0, workDaysYear: value }), plain, String(value));
         assert.deepEqual(calculateTrip({ ...S0, ...OVERHEADS, workDaysYear: value }), calculateTrip({ ...S0, ...OVERHEADS }), 'with overheads: ' + value);
     }
@@ -53,7 +53,8 @@ test('250 work days raise the overheads per trip exactly 300/250 times; repairs 
 });
 
 test('outside 1–366 → 400 with a message, before the demo limit', () => {
-    for (const value of [0, '0', -5, 367, '400']) {
+    // Anything but empty must be a whole number 1–366.
+    for (const value of [0, '0', -5, 367, '400', '250.5', 'abc', '1e2', [250], true, 250.5, '1,0', '+250', '-1', {}, NaN]) {
         const result = calculateTrip({ ...S0, workDaysYear: value });
         assert.equal(result.status, 400, String(value));
         assert.equal(result.code, 'BAD_WORK_DAYS');
@@ -62,8 +63,9 @@ test('outside 1–366 → 400 with a message, before the demo limit', () => {
     }
     assert.deepEqual(workDaysFromBody(1), { value: 1 });
     assert.deepEqual(workDaysFromBody('366'), { value: 366 });
-    assert.deepEqual(workDaysFromBody('1,0'), { value: 1 });
-    assert.deepEqual(workDaysFromBody('12.5'), { value: 300 });
+    assert.deepEqual(workDaysFromBody(' 250 '), { value: 250 });
+    assert.deepEqual(workDaysFromBody(''), { value: 300 });
+    assert.deepEqual(workDaysFromBody(undefined), { value: 300 });
     // The handler rejects it before counting a demo calculation.
     const handler = calcSource.slice(calcSource.indexOf('export default async function handler'));
     const early = handler.indexOf('const workDaysEarly = workDaysFromBody(reqBody.workDaysYear);');
@@ -114,4 +116,32 @@ test('calculator sends body.workDaysYear from the hidden field; empty key clears
     assert.equal(/work-days|workDays/.test(read('assets/landing.js')), false);
     const draft = html.slice(html.indexOf("const LANDING_DRAFT_KEY = 'tc_draft_trip';"), html.indexOf('function applyLandingDraft()'));
     assert.equal(draft.includes('work-days'), false);
+});
+
+test('applyTripInputs: a saved trip without workDaysYear clears the field, so it is recalculated with 300', () => {
+    const fn = html.slice(html.indexOf('function applyTripInputs(payload, routeName) {'), html.indexOf("const route = document.getElementById('route-name');", html.indexOf('function applyTripInputs(')));
+    assert.match(fn, /if \(pair\[0\] === 'rate' \|\| pair\[0\] === 'rtRate' \|\| pair\[0\] === 'idleRate' \|\| pair\[0\] === 'workDaysYear'\) el\.value = '';/);
+    const mapSource = html.slice(html.indexOf('const TRIP_FIELD_MAP = ['), html.indexOf('];', html.indexOf('const TRIP_FIELD_MAP = [')) + 2);
+    const TRIP_FIELD_MAP = new Function(mapSource + ' return TRIP_FIELD_MAP;')();
+    const run = (payload) => {
+        const els = {};
+        for (const [, id] of TRIP_FIELD_MAP) els[id] = { value: 'cabinet' };
+        els['work-days-year'].value = '250';
+        const body = fn.slice(fn.indexOf('{') + 1);
+        new Function('payload', 'routeName', 'document', 'TRIP_FIELD_MAP', body)(payload, '', { getElementById: (id) => els[id] || null }, TRIP_FIELD_MAP);
+        return els['work-days-year'].value;
+    };
+    assert.equal(run({}), '', 'old trip without the key → 300 on the server');
+    assert.equal(run({ workDaysYear: '' }), '');
+    assert.equal(run({ workDaysYear: null }), '');
+    assert.equal(run({ workDaysYear: 220 }), 220);
+});
+
+test('cabinet: non-numeric input (validity.badInput) is an error, not a silent delete; Excel shows the days', () => {
+    const save = html.slice(html.indexOf('async function saveCabinet()'), html.indexOf('let lastExport = null;'));
+    const bad = save.indexOf("if (key === 'workDaysYear' && input && input.validity && input.validity.badInput) {");
+    assert.ok(bad > 0 && bad < save.indexOf("if (raw === '' || raw === null) { delete next[key]; continue; }"));
+    assert.match(save.slice(bad), /^[^\n]*\n\s+setMsg\('Робочих днів на рік: ціле число від 1 до 366\.', true\);\n\s+return;/);
+    const excel = html.slice(html.indexOf('async function exportExcel()'), html.indexOf('async function exportExcel()') + 6000);
+    assert.match(excel, /line\('Днів на рейс', num\(p\.daysPerTrip\), 'дн'\);\n\s+if \(p\.workDaysYear != null && String\(p\.workDaysYear\)\.trim\(\) !== ''\) line\('Робочих днів на рік', num\(p\.workDaysYear\), 'днів'\);\n\s+else line\('Робочих днів на рік', '300 \(типово\)'\);/);
 });

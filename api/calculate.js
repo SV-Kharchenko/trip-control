@@ -57,12 +57,16 @@ export const DEFAULT_WORK_DAYS_YEAR = 300;
 export const WORK_DAYS_YEAR_MIN = 1;
 export const WORK_DAYS_YEAR_MAX = 366;
 
-// Робочих днів на рік для накладних, ремонтів і промивки цистерни. Порожньо або некоректно (не ціле число) → 300.
+// Робочих днів на рік для накладних, ремонтів і промивки цистерни. Порожньо або відсутнє → 300.
+// Будь-що інше має бути цілим числом 1–366 (рядок лише з цифр або ціле number), інакше — помилка.
 export function workDaysFromBody(raw) {
-    if (raw === undefined || raw === null || String(raw).trim() === '') return { value: DEFAULT_WORK_DAYS_YEAR };
-    const n = Number(String(raw).trim().replace(',', '.'));
-    if (!Number.isFinite(n) || !Number.isInteger(n)) return { value: DEFAULT_WORK_DAYS_YEAR };
-    if (n < WORK_DAYS_YEAR_MIN || n > WORK_DAYS_YEAR_MAX) {
+    if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+        return { value: DEFAULT_WORK_DAYS_YEAR };
+    }
+    let n = null;
+    if (typeof raw === 'number') n = Number.isInteger(raw) ? raw : null;
+    else if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) n = Number(raw.trim());
+    if (n === null || n < WORK_DAYS_YEAR_MIN || n > WORK_DAYS_YEAR_MAX) {
         return { error: 'Робочих днів на рік: ціле число від ' + WORK_DAYS_YEAR_MIN + ' до ' + WORK_DAYS_YEAR_MAX + '.' };
     }
     return { value: n };
@@ -156,7 +160,7 @@ function computeTrip(body) {
     const repairYear = parseFloat(body.repair) || 0;
     const finYear = parseFloat(body.fin) || 0;
     const totalFleet = parseFloat(body.totalFleet);
-    // Робочих днів на рік (кабінет, workDaysYear): порожньо чи не число → 300; поза 1–366 → помилка.
+    // Робочих днів на рік (кабінет, workDaysYear): порожньо → 300; не ціле 1–366 → помилка.
     const workDays = workDaysFromBody(body.workDaysYear);
     if (workDays.error) {
         return { status: 400, code: 'BAD_WORK_DAYS', error: workDays.error, fields: ['workDaysYear'] };
