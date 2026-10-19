@@ -30,17 +30,19 @@ test('each of the 6 annual overhead fields has a hint with «Річна»; texts
     }
     assert.match(H.fields.fin, /Тіло кредиту не вносьте$/);
     assert.match(H.fields.otherExpenses, /Податок з виручки рейсу сюди не вносьте$/);
-    assert.equal(H.intro, 'Усі суми в цьому блоці — річні, на весь парк. Паливо, ТО, шини, водія, дороги й податок з виручки сюди не вносьте — вони рахуються в окремих полях.');
+    assert.equal(H.intro, 'Усі суми в цьому блоці — річні, на весь парк. Паливо, ТО, шини, водія, дороги й податок з виручки сюди не вносьте — їх уже пораховано.');
     // Nothing about 300 days or how the sums are split — neither in the hints nor in the intro.
     for (const text of [H.intro, ...Object.values(H.fields)]) {
         assert.equal(/300|робоч|поділимо|ділимо|віднесемо|на дні рейсу/i.test(text), false, text);
     }
-    // One object: the texts are nowhere else.
+    // One object: the hint texts are nowhere else; the intro only as the cabinet fallback (checked below).
     for (const source of [html, landingJs]) {
         assert.equal(source.includes('Річна сума'), false);
-        assert.equal(source.includes('вони рахуються в окремих полях'), false);
         assert.equal(source.includes('300 робочих днів'), false);
+        assert.equal(source.includes('розподіляються на рейс'), false);
     }
+    assert.equal(landingJs.includes(H.intro), false);
+    assert.equal(html.split(H.intro).length - 1, 1);
     assert.equal((hintsJs.match(/var COST_HINTS = \{/g) || []).length, 1);
 });
 
@@ -53,7 +55,10 @@ test('cabinet «Витратна частина»: «?» next to each overhead l
     assert.match(fieldHtml, /if \(hints && hints\.fields\[f\.key\]\) \{/);
     assert.match(fieldHtml, /hints\.button\(f\.key, 'cab-hint-', f\.label\)/);
     assert.match(fieldHtml, /hints\.text\(f\.key, 'cab-hint-'\)/);
-    assert.match(html, /\{ n: '1', title: 'Витрати автопарку', note: window\.TcCostHints \? window\.TcCostHints\.intro :/);
+    // Fallback note (if cost-hints.js did not load) is the same intro, no words on how sums are split.
+    const fallback = html.match(/\{ n: '1', title: 'Витрати автопарку', note: window\.TcCostHints \? window\.TcCostHints\.intro : '([^']+)', sec: CAB_SECTIONS\[0\], sum: true \},/);
+    assert.ok(fallback, 'card 1 note');
+    assert.equal(fallback[1], H.intro);
     assert.match(html, /#cabinet-screen \.tc-hint-head > label \{/);
 });
 
