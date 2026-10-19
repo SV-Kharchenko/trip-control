@@ -336,3 +336,28 @@ test('runtime log: only the upstream host, status and duration — no IP, no add
     const geo = source.slice(source.indexOf('// ===== Адреси й відстань за OpenStreetMap'), source.indexOf('export default async function handler'));
     assert.equal(/console\.(log|info|warn|error)\([^)]*(geoClientIp|x-forwarded-for|req\.headers|query\.q|url\b)/.test(geo), false);
 });
+
+test('api/poi.js loads without SUPABASE_* (Preview): geocode / route work, Supabase is created only on the POI path', async () => {
+    const { spawnSync } = await import('node:child_process');
+    const env = { ...process.env };
+    delete env.SUPABASE_URL;
+    delete env.SUPABASE_SERVICE_ROLE_KEY;
+    const script = `
+        const poi = await import(${JSON.stringify(new URL('../api/poi.js', import.meta.url).href)});
+        console.info = () => {};
+        const res = () => ({ h: {}, setHeader(k, v) { this.h[k] = v; }, status(s) { this.s = s; return this; }, json(b) { this.b = b; return this; } });
+        const out = [];
+        let r = res(); await poi.default({ method: 'GET', query: { mode: 'geocode', q: 'ab' }, headers: {} }, r); out.push(r.s, r.b.code);
+        r = res(); await poi.handleGeo({ method: 'GET', query: { mode: 'geocode', q: 'житомир' }, headers: {} }, r,
+            { rateStore: new Map(), budget: { tokens: 2, at: 0 }, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ features: [] }) }) });
+        out.push(r.s);
+        r = res(); await poi.default({ method: 'POST', query: {}, headers: {}, body: {} }, r); out.push(r.s);
+        process.stdout.write(JSON.stringify(out));`;
+    const child = spawnSync(process.execPath, ['--input-type=module', '-e', script], { env, encoding: 'utf8' });
+    assert.equal(child.status, 0, child.stderr);
+    assert.deepEqual(JSON.parse(child.stdout), [400, 'GEO_BAD_INPUT', 200, 401]);
+    const source = read('api/poi.js');
+    assert.equal(/^const supabase = createClient\(/m.test(source), false);
+    assert.match(source, /function supabaseAdmin\(\) \{\n\s+if \(!supabaseClient\) \{\n\s+supabaseClient = createClient\(/);
+    assert.equal((source.match(/supabaseAdmin\(\)/g) || []).length, 5);
+});

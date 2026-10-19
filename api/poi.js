@@ -2,10 +2,18 @@ import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+// Клієнт Supabase створюємо лише на шляху POI (перший виклик), а не при імпорті модуля: режими geocode / route
+// не потребують секретів і працюють навіть там, де SUPABASE_* не задані (напр., Preview на Vercel).
+let supabaseClient = null;
+function supabaseAdmin() {
+    if (!supabaseClient) {
+        supabaseClient = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+    }
+    return supabaseClient;
+}
 
 // Основне дзеркало — overpass-api.de. kumi і private.coffee на довгому таймауті мовчать.
 // Друга спроба лише після 429, 504 або обриву мережі, і лише якщо в бюджеті лишилось щонайменше 30 с.
@@ -347,7 +355,7 @@ function cleanPoints(rawPoints) {
 
 async function readPoiCache(types, segmentKeys) {
     if (!segmentKeys.length) return [];
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin()
         .from('poi_cache')
         .select('poi_type, segment_key, payload, fetched_at')
         .in('poi_type', types)
@@ -361,7 +369,7 @@ async function readPoiCache(types, segmentKeys) {
 
 async function writePoiCache(rows) {
     if (!rows.length) return;
-    const { error } = await supabase
+    const { error } = await supabaseAdmin()
         .from('poi_cache')
         .upsert(rows, { onConflict: 'poi_type,segment_key' });
     if (error) console.warn('poi_cache write:', error.message);
@@ -785,14 +793,14 @@ export default async function handler(req, res) {
             return res.status(401).json({ error: 'Необхідна авторизація.' });
         }
         const token = authHeader.split(' ')[1];
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        const { data: { user }, error: authError } = await supabaseAdmin().auth.getUser(token);
         if (authError || !user) {
             return res.status(401).json({ error: 'Недійсний токен.' });
         }
         if (userIsBlocked(user)) {
             return res.status(403).json(USER_BLOCKED_ERROR);
         }
-        const { data: profile } = await supabase
+        const { data: profile } = await supabaseAdmin()
             .from('profiles')
             .select('is_approved, member_status, organizations(status)')
             .eq('id', user.id)
