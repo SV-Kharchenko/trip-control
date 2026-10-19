@@ -28,6 +28,7 @@
     <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-18">
     <link rel="stylesheet" href="/assets/landing.css?v=2026-10-19">
     <script src="/assets/osm-geo.js?v=2026-10-19" defer></script>
+    <script src="/assets/cost-hints.js?v=2026-10-20" defer></script>
     <script src="/assets/landing.js?v=2026-10-19" defer></script>
 <style>
         :root, [data-theme="night"] {
@@ -867,6 +868,11 @@
         }
         #cabinet-screen .cab-field input[type=number] { text-align: right; }
         #cabinet-screen .cab-unit { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; min-width: 2.5em; }
+        /* Підказки до річних накладних (assets/cost-hints.js): «?» біля підпису, текст під полем. */
+        #cabinet-screen .tc-hint-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        #cabinet-screen .tc-hint-head > label {
+            font-size: 0.68rem; color: var(--text-muted); font-weight: 600; letter-spacing: 0.03em;
+        }
         #cabinet-screen .cab-actions {
             position: sticky; bottom: 0; z-index: 2;
             display: flex; justify-content: flex-end; align-items: center; gap: 10px;
@@ -8965,6 +8971,12 @@
             const emptyHint = CAB_OPTIONAL_COST_KEYS.indexOf(f.key) >= 0
                 ? '<small class="cab-empty-hint" hidden>Порожньо = 0 у розрахунку</small>'
                 : '';
+            const hints = window.TcCostHints;
+            if (hints && hints.fields[f.key]) {
+                return '<div class="cab-field" id="cabrow-' + f.key + '"><div class="tc-hint-head"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>' +
+                    hints.button(f.key, 'cab-hint-', f.label) + '</div>' +
+                    '<div class="cab-input">' + inner + unit + '</div>' + emptyHint + hints.text(f.key, 'cab-hint-') + '</div>';
+            }
             return '<div class="cab-field" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>' +
                 '<div class="cab-input">' + inner + unit + '</div>' + emptyHint + '</div>';
         }
@@ -9026,7 +9038,7 @@
             '</div></div>';
 
         const costCards = [
-            { n: '1', title: 'Витрати автопарку', note: 'Річні накладні — розподіляються на рейс пропорційно до кількості авто.', sec: CAB_SECTIONS[0], sum: true },
+            { n: '1', title: 'Витрати автопарку', note: window.TcCostHints ? window.TcCostHints.intro : 'Річні накладні — розподіляються на рейс пропорційно до кількості авто.', sec: CAB_SECTIONS[0], sum: true },
             { n: '2', title: 'Зарплата', note: 'Оплата водія за рейс. «Відсоток від фрахту» показує поле %.', sec: CAB_SECTIONS[2] },
             { n: '3', title: 'ТО', note: 'Технічне обслуговування та шини.', sec: CAB_SECTIONS[3] }
         ];
