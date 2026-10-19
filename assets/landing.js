@@ -129,6 +129,30 @@
   $('t-back').addEventListener('click', function () { showStep(step - 1); });
   $('t-next').addEventListener('click', function () { showStep(step + 1); });
 
+  // Підказки до річних накладних (крок 5) — ті самі тексти, що й у кабінеті (assets/cost-hints.js).
+  function addCostHints() {
+    var hints = window.TcCostHints;
+    if (!hints) return;
+    Object.keys(hints.ids).forEach(function (id) {
+      var key = hints.ids[id], input = field(id);
+      var row = input ? input.closest('.lp-form-row') : null;
+      var label = row ? row.querySelector('label') : null;
+      if (!label || row.querySelector('.tc-hint-btn')) return;
+      var head = document.createElement('span');
+      head.className = 'lp-hint-head';
+      label.parentNode.insertBefore(head, label);
+      head.appendChild(label);
+      head.insertAdjacentHTML('beforeend', hints.button(key, 'lp-hint-', label.textContent));
+      row.insertAdjacentHTML('afterend', hints.text(key, 'lp-hint-'));
+    });
+    var group = $$('.lp-t-group', panel).filter(function (g) { return /накладні/.test(g.textContent); })[0];
+    if (group && !$('lp-cost-intro')) {
+      group.insertAdjacentHTML('afterend', '<p class="lp-t-note" id="lp-cost-intro"></p>');
+      $('lp-cost-intro').textContent = hints.intro;
+    }
+  }
+  addCostHints();
+
   // Поля, що з'являються залежно від вибору (як у застосунку)
   function syncVisibility() {
     var trailer = field('trailer-type').value, pay = field('driver-pay-mode').value, adblue = field('adblue-enable').value;
