@@ -90,7 +90,7 @@ test('one footer component with the three links, payments and seller on every pa
         for (const footer of footers) {
             assert.equal(normalize(footer), expected, file + ': same markup');
         }
-        assert.match(source, /<link rel="stylesheet" href="\/assets\/legal-footer\.css\?v=[\d-]+">/, file);
+        assert.match(source, /<link rel="stylesheet" href="\/assets\/legal-footer\.css\?v=2026-10-20b">/, file);
     }
     for (const { file } of PAGES) {
         const footer = footersOf(pages[file])[0];
@@ -102,7 +102,8 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(reference, /<a href="\/offer" target="_blank" rel="noopener">Публічна оферта<\/a>/);
     assert.match(reference, /<a href="\/privacy" target="_blank" rel="noopener">Політика конфіденційності<\/a>/);
     assert.match(reference, /<a href="\/payment-refund" target="_blank" rel="noopener">Оплата та повернення<\/a>/);
-    // Official logos: Visa blue on light, white on dark; Mastercard the same for both.
+    // Official logos: plata by mono and Visa dark on light, white on dark; Mastercard the same for both. plata goes first.
+    assert.match(reference, /<div class="tc-legal-footer__pay">\n<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="\/assets\/payments\/plata-by-mono\.svg\?v=2026-10-20b" alt="plata by mono" width="97" height="20">\n<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="\/assets\/payments\/plata-by-mono-white\.svg\?v=2026-10-20b" alt="plata by mono" width="97" height="20">\n<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light"/);
     assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="\/assets\/payments\/visa\.svg" alt="Visa" width="62" height="20">/);
     assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="\/assets\/payments\/visa-white\.svg" alt="Visa" width="62" height="20">/);
     assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--mc" src="\/assets\/payments\/mastercard\.svg" alt="Mastercard" width="32" height="20">/);
@@ -112,12 +113,21 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(css, /\.tc-pay-logo--on-dark \{ display: none; \}/);
     assert.match(css, /\[data-theme="dark"\] \.tc-pay-logo--on-light \{ display: none; \}/);
     assert.match(css, /\[data-theme="dark"\] \.tc-pay-logo--on-dark \{ display: block; \}/);
+    assert.match(css, /\.tc-legal-footer__pay \{\s+display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px;/);
+    // Official monobank brandbook files, as shipped: black letters for light, white for dark, 619:128.
+    for (const [svg, fill] of [['plata-by-mono.svg', 'black'], ['plata-by-mono-white.svg', 'white']]) {
+        const src = read('assets/payments/' + svg);
+        assert.match(src, /^<svg width="619" height="128" viewBox="0 0 619 128" fill="none" xmlns="http:\/\/www\.w3\.org\/2000\/svg">/, svg);
+        assert.deepEqual([...new Set(src.match(/fill="(?!none)[^"]+"/g))], ['fill="' + fill + '"'], svg);
+        assert.equal(/<script|\son\w+=/i.test(src), false, svg);
+    }
     for (const svg of ['visa.svg', 'visa-white.svg', 'mastercard.svg']) {
         assert.match(read('assets/payments/' + svg), /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/, svg);
     }
     // 404 is always dark: white Visa.
     assert.match(read('404.html'), /<html lang="uk" data-theme="dark">/);
-    assert.match(reference, /Оплата карткою через plata by mono \(monobank\) та WayForPay · Apple Pay \/ Google Pay/);
+    assert.match(reference, /Оплата карткою через plata by mono та WayForPay · Apple Pay \/ Google Pay/);
+    assert.equal(reference.includes('monobank'), false);
     assert.match(reference, /ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol\.com@gmail\.com">tripcontrol\.com@gmail\.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
     // Landing, auth screen, menu, bottom of the app, bottom of the cabinet.
     assert.equal(footersOf(html).length, 5);

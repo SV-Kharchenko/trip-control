@@ -73,7 +73,13 @@ test('client: «Тариф і оплата» screen, owner / logist, consent, no
     const modal = html.slice(html.indexOf('<div id="tc-billing-modal"'), html.indexOf('<div id="tc-toast"'));
     assert.match(modal, /value="month" checked/);
     assert.match(modal, /value="year"/);
-    assert.match(modal, /<b>plata by mono<\/b>/);
+    // mono option: the official logo (light / dark by theme) and a caption; no Visa / Mastercard, no «monobank».
+    const mono = modal.slice(modal.indexOf('data-provider="mono"'), modal.indexOf('</label>', modal.indexOf('data-provider="mono"')));
+    assert.match(mono, /<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="\/assets\/payments\/plata-by-mono\.svg\?v=2026-10-20b" alt="plata by mono" width="106" height="22">/);
+    assert.match(mono, /<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="\/assets\/payments\/plata-by-mono-white\.svg\?v=2026-10-20b" alt="plata by mono" width="106" height="22">/);
+    assert.match(mono, /<small>Картка будь-якого банку, Apple Pay, Google Pay<\/small>/);
+    assert.equal(/monobank|visa|mastercard/i.test(mono), false);
+    assert.match(html, /\.tc-billing-logo \.tc-pay-logo \{ height: 22px; \}/);
     assert.match(modal, /<b>WayForPay<\/b>/);
     assert.match(modal, /Apple Pay \/ Google Pay — на сторінці оплати/);
     assert.match(modal, /<input type="checkbox" id="billing-consent">/);
