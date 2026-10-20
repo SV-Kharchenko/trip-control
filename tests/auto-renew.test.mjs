@@ -543,17 +543,60 @@ test('daily cron: STATUS for every auto-renewing company; inactive in WayForPay 
     const w = world();
     const parent = await w.autoRenewOn();
     let res = await w.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
-    assert.deepEqual(res.body.auto_renew, { checked: 1, disabled: 0, failed: 0 });
+    assert.deepEqual(res.body.auto_renew, { checked: 1, disabled: 0, failed: 0, missing_ref: 0 });
     assert.equal(w.sub().auto_renew, true);
 
     w.net.state.regular[parent.provider_order_id] = 'Suspended';
     res = await w.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
-    assert.deepEqual(res.body.auto_renew, { checked: 1, disabled: 1, failed: 0 });
+    assert.deepEqual(res.body.auto_renew, { checked: 1, disabled: 1, failed: 0, missing_ref: 0 });
     assert.equal(w.sub().auto_renew, false);
     assert.equal(w.sub().regular_status, 'Suspended');
     assert.ok(w.net.telegrams().includes(
         '🔁 Автопродовження вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · у WayForPay регулярний платіж неактивний (Suspended) · оплачено до 18.11.2026'));
     assert.equal(w.net.regularCalls().every((c) => c.requestType === 'STATUS'), true);
+});
+
+test('cron STATUS: only reasonCode 4100 counts; one alert per run for failures and rows without a reference; next_charge_at / card synced', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+
+    // Синхронізація з WayForPay: nextPaymentDate (unix-секунди) і card.
+    w.net.state.statusExtra = { nextPaymentDate: Math.floor(Date.parse('2026-11-20T09:00:00Z') / 1000), card: '53****1111' };
+    let res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.auto_renew, { checked: 1, disabled: 0, failed: 0, missing_ref: 0 });
+    assert.equal(w.sub().next_charge_at, '2026-11-20T09:00:00.000Z');
+    assert.equal(w.sub().card_mask, '53****1111');
+    w.net.state.statusExtra = { nextPaymentDate: '25.11.2026' };
+    await w.call('GET', 'cron', CRON);
+    assert.equal(w.sub().next_charge_at, '2026-11-25T09:00:00.000Z');
+    assert.equal(w.sub().card_mask, '53****1111', 'no card in the answer — mask kept');
+
+    // STATUS без 4100 (навіть зі статусом Removed) — помилка, нічого не вимикаємо, один алерт.
+    w.net.state.statusExtra = {};
+    w.net.state.statusCode = 1113;
+    w.net.state.regular[parent.provider_order_id] = 'Removed';
+    const before = w.net.telegrams().length;
+    res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.auto_renew, { checked: 0, disabled: 0, failed: 1, missing_ref: 0 });
+    assert.equal(w.sub().auto_renew, true);
+    assert.deepEqual(w.net.telegrams().slice(before), ['⚠️ Звірка автопродовження: regularApi без відповіді 4100: 1 · перевірте вручну']);
+
+    // Рядок без wfp_regular_order_ref: пропускаємо, у той самий один алерт.
+    w.net.state.statusCode = 4100;
+    w.net.state.regular[parent.provider_order_id] = 'Active';
+    w.store.db.subs['10000000-0000-4000-8000-000000000002'] = { org_id: '10000000-0000-4000-8000-000000000002', paid_until: null, auto_renew: true, wfp_regular_order_ref: null };
+    const calls = w.net.regularCalls().length;
+    const mark = w.net.telegrams().length;
+    res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.auto_renew, { checked: 1, disabled: 0, failed: 0, missing_ref: 1 });
+    assert.equal(w.net.regularCalls().length, calls + 1, 'no regularApi call for the row without a reference');
+    assert.deepEqual(w.net.telegrams().slice(mark), ['⚠️ Звірка автопродовження: без посилання на регулярку: 1 (Інша) · перевірте вручну']);
+
+    // Усе гаразд — алерту немає.
+    delete w.store.db.subs['10000000-0000-4000-8000-000000000002'];
+    const quiet = w.net.telegrams().length;
+    await w.call('GET', 'cron', CRON);
+    assert.equal(w.net.telegrams().length, quiet);
 });
 
 test('3-day reminder: with auto-renew «{date} спишемо {sum} з картки {mask}, скасувати можна тут: {link}»; without — the old text', async () => {
