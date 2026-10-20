@@ -108,6 +108,10 @@ export function memoryStore(clock) {
             if (db.failInsertEvent) throw Object.assign(new Error('db down'), { code: 'EDB' });
             db.events.push(Object.assign({ received_at: iso() }, row));
         },
+        async countEvents({ paymentId, orderReference, status }) {
+            return db.events.filter((e) => (paymentId ? e.payment_id === paymentId : (e.payment_id == null && e.order_reference === orderReference))
+                && (e.status == null ? status == null : e.status === status)).length;
+        },
         // Та сама логіка, що apply_payment_success у міграції.
         async applySuccess(id, modified) {
             const p = db.payments.find((row) => row.id === id);

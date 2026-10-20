@@ -213,6 +213,56 @@ test('renewal: bad signature 401 without a row; unknown parent or wrong amount �
     assert.equal(w.renewals()[0].status, 'pending');
 });
 
+test('unmatched _WFPREG- callbacks (no parent, unknown plan, wrong amount / currency): event with payload + one admin alert', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    const unmatched = () => w.net.telegrams().filter((t) => t.startsWith('❗'));
+
+    // Немає першого платежу.
+    const orphan = 'tc-00000000-0000-4000-8000-00000000dead_WFPREG-1';
+    assert.equal((await w.approve(orphan)).body.status, 'accept');
+    await w.approve(orphan); // повтор — подія є, алерт не дублюється
+    assert.equal(w.renewals().length, 0);
+    const events = w.store.db.events.filter((e) => e.order_reference === orphan);
+    assert.equal(events.length, 2);
+    assert.equal(events[0].payment_id, null);
+    assert.deepEqual([events[0].status, events[0].source, events[0].signature_ok], ['Approved', 'webhook', true]);
+    assert.equal(events[0].payload.orderReference, orphan);
+    assert.equal(events[0].payload.amount, 250);
+    assert.equal(events[0].payload.maskedPan, '41****8217');
+    assert.deepEqual(unmatched(), [
+        '❗ Автосписання не зараховано: — · немає першого платежу регулярки · сума 250 UAH · статус Approved · orderReference ' + orphan + ' · перевірте вручну'
+    ]);
+    // Інший статус того самого orderReference — ще один алерт.
+    await w.decline(orphan);
+    assert.equal(unmatched().length, 2);
+
+    // Невідомий тариф першого платежу.
+    w.store.db.payments.find((p) => p.id === parent.id).plan = 'week';
+    await w.approve(parent.provider_order_id + '_WFPREG-2');
+    assert.equal(w.renewals().length, 0);
+    assert.match(unmatched().at(-1), /^❗ Автосписання не зараховано: ТОВ «Агро» · невідомий тариф першого платежу \(week\) · сума 250 UAH · статус Approved/);
+    w.store.db.payments.find((p) => p.id === parent.id).plan = 'month';
+
+    // Сума / валюта не збігаються: рядок є, не зараховано, подія з payload, один алерт.
+    const ref = parent.provider_order_id + '_WFPREG-3';
+    const until = w.sub().paid_until;
+    await w.approve(ref, { amount: 1 });
+    await w.approve(ref, { amount: 1 });
+    await w.approve(parent.provider_order_id + '_WFPREG-4', { currency: 'USD' });
+    assert.equal(w.sub().paid_until, until);
+    assert.equal(w.renewals().find((p) => p.provider_order_id === ref).status, 'pending');
+    assert.equal(w.store.db.events.filter((e) => e.payment_id === w.renewals()[0].id).length, 2);
+    assert.deepEqual(unmatched().slice(-2), [
+        '❗ Автосписання не зараховано: ТОВ «Агро» · сума або валюта не збігаються (очікували 250 UAH) · сума 1 UAH · статус Approved · orderReference ' + ref + ' · перевірте вручну',
+        '❗ Автосписання не зараховано: ТОВ «Агро» · сума або валюта не збігаються (очікували 250 UAH) · сума 250 USD · статус Approved · orderReference ' + parent.provider_order_id + '_WFPREG-4 · перевірте вручну'
+    ]);
+    // Звичайний (не регулярний) платіж з неправильною сумою — як і раніше, без алерту.
+    const before = unmatched().length;
+    await w.approve((await w.pay()).provider_order_id, { amount: 1 });
+    assert.equal(unmatched().length, before);
+});
+
 test('declined renewal: +1 fail and an admin alert; the second in a row → REMOVE, auto-renew off, mail «оплатіть вручну»', async () => {
     const w = world();
     const parent = await w.autoRenewOn();
@@ -693,6 +743,8 @@ test('auto-renew migration on Postgres (PGlite)', (t) => {
         'renewal credited by apply_payment_success, twice = one month',
         'authenticated cannot read org_subscriptions.card_mask (42501)',
         'authenticated cannot update org_subscriptions.auto_renew (42501)',
-        'owner still reads paid_until of own company'
+        'owner still reads paid_until of own company',
+        'payment_events: unmatched renewal event without payment_id, with order_reference',
+        'payment_events: still no client access (42501)'
     ]) assert.ok(run.stdout.includes('PASS ' + line), line);
 });

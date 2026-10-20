@@ -53,6 +53,25 @@ BEGIN
 END;
 $$;
 
+-- Автосписання, яке не вдалося зіставити (немає першого платежу, невідомий тариф): подія без payment_id,
+-- з order_reference і payload — щоб виправити вручну. Клієнтського доступу до payment_events, як і раніше, немає.
+ALTER TABLE public.payment_events ALTER COLUMN payment_id DROP NOT NULL;
+ALTER TABLE public.payment_events ADD COLUMN IF NOT EXISTS order_reference text NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'payment_events_target_check' AND conrelid = 'public.payment_events'::regclass
+  ) THEN
+    ALTER TABLE public.payment_events
+      ADD CONSTRAINT payment_events_target_check CHECK (payment_id IS NOT NULL OR order_reference IS NOT NULL);
+  END IF;
+END;
+$$;
+CREATE INDEX IF NOT EXISTS payment_events_order_reference_idx
+  ON public.payment_events (order_reference)
+  WHERE order_reference IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS payments_parent_idx
   ON public.payments (parent_payment_id)
   WHERE parent_payment_id IS NOT NULL;

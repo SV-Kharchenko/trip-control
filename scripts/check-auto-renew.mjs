@@ -132,6 +132,15 @@ try {
         VALUES ($1, $2, 'wayforpay', 'month', 25000, 'tc-initial-parent', 'initial', $3)`, [ORG, OWNER, parent]);
     check(!initialWithParent.ok && initialWithParent.code === '23514', 'initial payment with a parent: check violation (23514)');
 
+    const orphanEvent = await attempt(`INSERT INTO public.payment_events (payment_id, order_reference, provider, status, source, payload)
+        VALUES (null, 'tc-x_WFPREG-1', 'wayforpay', 'Approved', 'webhook', '{"amount": 250}'::jsonb)`);
+    check(orphanEvent.ok, 'payment_events: unmatched renewal event without payment_id, with order_reference');
+    const emptyEvent = await attempt(`INSERT INTO public.payment_events (payment_id, provider, status, source)
+        VALUES (null, 'wayforpay', 'Approved', 'webhook')`);
+    check(!emptyEvent.ok && emptyEvent.code === '23514', 'payment_events: neither payment_id nor order_reference → check violation (23514)');
+    const eventsRead = await as(OWNER, `SELECT id FROM public.payment_events`);
+    check(!eventsRead.ok && eventsRead.code === '42501', 'payment_events: still no client access (42501)');
+
     check((await one('SELECT public.record_renewal_failure($1) AS n', [ORG])).n === 1, 'record_renewal_failure: 1');
     check((await one('SELECT public.record_renewal_failure($1) AS n', [ORG])).n === 2, 'record_renewal_failure: 2');
     check((await one('SELECT public.record_renewal_failure($1) AS n', [OTHER_ORG])).n === 0, 'record_renewal_failure: company without a subscription → 0');
