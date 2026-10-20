@@ -2,6 +2,8 @@
 --
 -- * payments.reversal_applied_at — set once, when a credited payment's period has been taken
 --   back from org_subscriptions.paid_until. A repeated refund notification changes nothing.
+--   Payments already reversed / refunded before this migration are marked as handled.
+-- * payments.partial_refund_alerted_at — mono partial refund (success, finalAmount < amount) alerted once.
 -- * apply_payment_reversal() — the only way a refund touches paid_until:
 --     - credited payment, full refund: paid_until -= (period_to - period_from), not below now()
 --       (two months paid ahead, one refunded → the other month stays);
@@ -17,6 +19,18 @@
 
 ALTER TABLE public.payments
   ADD COLUMN IF NOT EXISTS reversal_applied_at timestamptz NULL;
+
+-- mono reports a partial refund as status=success with finalAmount < amount: the admin is told once.
+ALTER TABLE public.payments
+  ADD COLUMN IF NOT EXISTS partial_refund_alerted_at timestamptz NULL;
+
+-- Payments refunded before this migration were already handled (status recorded, alert sent,
+-- paid_until corrected by hand if needed): a repeated old refund notification must not cut the
+-- period again or alert again.
+UPDATE public.payments
+SET reversal_applied_at = coalesce(updated_at, now())
+WHERE status IN ('reversed', 'refunded')
+  AND reversal_applied_at IS NULL;
 
 CREATE OR REPLACE FUNCTION public.apply_payment_reversal(p_payment uuid, p_modified timestamptz, p_partial boolean)
 RETURNS jsonb

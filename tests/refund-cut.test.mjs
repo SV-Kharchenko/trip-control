@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { createBillingHandler, isPartialRefund, paymentAlertText, refundMinor } from '../lib/billing/service.js';
+import { createBillingHandler, isPartialRefund, monoPartialRefundMinor, paymentAlertText, refundMinor } from '../lib/billing/service.js';
 import { LEGAL_VERSION } from '../lib/legal.js';
 import { baseEnv, DAY, fakeNet, memoryStore, monoKeyPair, NOW, ORG, request, response, WFP_MERCHANT, WFP_SECRET } from './billing-fakes.mjs';
 
@@ -25,7 +25,7 @@ function world() {
         assert.equal(res.statusCode, 200, JSON.stringify(res.body));
         return store.db.payments.find((p) => p.id === res.body.payment_id);
     }
-    function wfp(payment, fields) {
+    function signed(payment, fields) {
         const body = Object.assign({
             merchantAccount: WFP_MERCHANT, orderReference: payment.provider_order_id, currency: 'UAH', authCode: '541963',
             cardPan: '41****8217', reasonCode: 1100, processingDate: Math.floor(clock.now / 1000)
@@ -33,8 +33,10 @@ function world() {
         body.merchantSignature = crypto.createHmac('md5', WFP_SECRET).update([
             body.merchantAccount, body.orderReference, body.amount, body.currency, body.authCode, body.cardPan, body.transactionStatus, body.reasonCode
         ].join(';'), 'utf8').digest('hex');
-        return call('POST', 'wayforpay-webhook', { raw: JSON.stringify(body), headers: { 'content-type': 'application/json' } });
+        return body;
     }
+    const wfp = (payment, fields) =>
+        call('POST', 'wayforpay-webhook', { raw: JSON.stringify(signed(payment, fields)), headers: { 'content-type': 'application/json' } });
     async function monoHook(payment, fields) {
         const raw = JSON.stringify(Object.assign({
             invoiceId: payment.provider_invoice_id, reference: payment.id, amount: payment.amount_minor, ccy: 980,
@@ -45,7 +47,8 @@ function world() {
     const approve = (payment) => wfp(payment, { amount: 250, transactionStatus: 'Approved' });
     const until = () => (store.db.subs[ORG] || {}).paid_until || null;
     const refunds = () => net.telegrams().filter((t) => t.startsWith('↩️'));
-    return { clock, store, net, call, pay, wfp, monoHook, approve, until, refunds };
+    const checks = () => net.calls.filter((c) => c.url === 'https://api.wayforpay.com/api' && JSON.parse(c.body).transactionType === 'CHECK_STATUS').length;
+    return { clock, store, net, call, pay, signed, wfp, monoHook, approve, until, refunds, checks };
 }
 
 test('refund of the only monthly payment: access ends (not below now), Telegram says «доступ завершено»', async () => {
@@ -55,7 +58,7 @@ test('refund of the only monthly payment: access ends (not below now), Telegram 
     assert.equal(w.until(), '2026-11-18T09:00:00.000Z');
 
     w.clock.now = NOW + 2 * DAY;
-    const res = await w.wfp(p, { amount: 250, transactionStatus: 'Refunded' });
+    const res = await w.wfp(p, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' });
     assert.equal(res.body.status, 'accept');
     assert.equal(w.until(), new Date(NOW + 2 * DAY).toISOString(), '18.11 − 1 month = 18.10, but not below now');
     const row = w.store.db.payments[0];
@@ -75,7 +78,7 @@ test('two months paid ahead, one refunded: the other month stays', async () => {
     assert.equal(w.until(), '2026-12-18T09:00:00.000Z');
 
     w.clock.now = NOW + 3 * DAY;
-    await w.wfp(first, { amount: 250, transactionStatus: 'Refunded' });
+    await w.wfp(first, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' });
     // The first payment covered 18.10–18.11 = 31 days; 18.12 − 31 days = 17.11: the second period (30 days) stays whole.
     assert.equal(w.until(), '2026-11-17T09:00:00.000Z', 'exactly the refunded period taken back');
     assert.equal(w.store.db.payments.find((p) => p.id === second.id).status, 'success');
@@ -90,7 +93,7 @@ test('the same refund notified again (webhook twice, Voided, status check) chang
     const second = await w.pay();
     await w.approve(second);
     w.clock.now = NOW + DAY;
-    const refund = { amount: 250, transactionStatus: 'Refunded' };
+    const refund = { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' };
     await w.wfp(first, refund);
     const after = w.until();
     const mark = w.store.db.payments.find((p) => p.id === first.id).reversal_applied_at;
@@ -99,7 +102,7 @@ test('the same refund notified again (webhook twice, Voided, status check) chang
     w.clock.now = NOW + 2 * DAY;
     await w.wfp(first, refund);
     await w.wfp(first, { amount: 250, transactionStatus: 'Voided' });
-    w.net.state.wfpCheck = { orderReference: first.provider_order_id, amount: 250, currency: 'UAH', transactionStatus: 'Refunded', processingDate: Math.floor(w.clock.now / 1000) };
+    w.net.state.wfpCheck = w.signed(first, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' });
     await w.call('GET', 'status', { token: 'owner', query: { pid: first.id } });
     assert.equal(w.until(), after);
     assert.equal(w.store.db.payments.find((p) => p.id === first.id).reversal_applied_at, mark);
@@ -176,13 +179,17 @@ test('refund of a payment that was never credited: status reversed, subscription
     assert.equal(v.store.db.subs[ORG], undefined);
 });
 
-test('refund amount: mono amount − finalAmount, WayForPay refundAmount or amount; partial only below the payment', () => {
+test('refund amount: mono amount − finalAmount, WayForPay refundAmount only; partial only below the payment', () => {
     const payment = { amount_minor: 25000 };
     assert.equal(refundMinor('mono', { amount: 25000, finalAmount: 0 }, payment), 25000);
     assert.equal(refundMinor('mono', { amount: 25000, finalAmount: 15000 }, payment), 10000);
     assert.equal(refundMinor('mono', { amount: 10000 }, payment), 10000);
     assert.equal(refundMinor('wayforpay', { amount: 250, refundAmount: '99.5' }, payment), 9950);
-    assert.equal(refundMinor('wayforpay', { amount: '250.00' }, payment), 25000);
+    assert.equal(Number.isNaN(refundMinor('wayforpay', { amount: '250.00' }, payment)), true, 'amount is the payment, not the refund');
+    assert.equal(monoPartialRefundMinor({ amount: 25000, finalAmount: 15000 }, payment), 10000);
+    assert.equal(monoPartialRefundMinor({ amount: 25000, finalAmount: 25000 }, payment), 0);
+    assert.equal(monoPartialRefundMinor({ amount: 25000, finalAmount: 0 }, payment), 0);
+    assert.equal(monoPartialRefundMinor({ amount: 25000 }, payment), 0);
     assert.equal(Number.isNaN(refundMinor('wayforpay', {}, payment)), true);
     assert.equal(isPartialRefund(10000, payment), true);
     assert.equal(isPartialRefund(25000, payment), false);
@@ -228,4 +235,125 @@ test('store: without the refund-cut migration (no function) a refund falls back 
 
     const broken = createSupabaseStore({ async rpc() { return { data: null, error: { code: '57014', message: 'timeout' } }; } });
     await assert.rejects(broken.applyReversal('p1', null, false), (e) => e.code === '57014');
+});
+
+test('migration marks payments refunded before it as handled: an old refund notification neither cuts nor alerts', async () => {
+    const sql = read('supabase/migrations/20261020180000_refund_cut.sql');
+    assert.match(sql, /UPDATE public\.payments\nSET reversal_applied_at = coalesce\(updated_at, now\(\)\)\nWHERE status IN \('reversed', 'refunded'\)\n  AND reversal_applied_at IS NULL;/);
+    // The same state in the service: a credited payment reversed earlier (status only), marked by the migration.
+    const w = world();
+    const first = await w.pay();
+    await w.approve(first);
+    const second = await w.pay();
+    await w.approve(second);
+    const row = w.store.db.payments.find((p) => p.id === first.id);
+    Object.assign(row, { status: 'reversed', reversal_applied_at: row.updated_at });
+    const before = w.until();
+    w.clock.now = NOW + DAY;
+    await w.wfp(first, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' });
+    assert.equal(w.until(), before);
+    assert.deepEqual(w.refunds(), []);
+});
+
+test('WayForPay refund without refundAmount: the amount comes from CHECK_STATUS', async () => {
+    const w = world();
+    const first = await w.pay();
+    await w.approve(first);
+    const second = await w.pay();
+    await w.approve(second);
+    w.clock.now = NOW + DAY;
+    w.net.state.wfpCheck = w.signed(first, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' });
+    await w.wfp(first, { amount: 250, transactionStatus: 'Refunded' });
+    assert.equal(w.checks(), 1);
+    assert.equal(w.until(), '2026-11-17T09:00:00.000Z', 'full refund per CHECK_STATUS: period cut');
+    assert.deepEqual(w.refunds(), ['↩️ Повернення: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · оплачено до 17.11.2026']);
+
+    // CHECK_STATUS says it was partial.
+    const v = world();
+    const p = await v.pay();
+    await v.approve(p);
+    v.net.state.wfpCheck = v.signed(p, { amount: 250, refundAmount: 100, transactionStatus: 'Refunded' });
+    await v.wfp(p, { amount: 250, transactionStatus: 'Voided' });
+    assert.equal(v.until(), '2026-11-18T09:00:00.000Z');
+    assert.match(v.refunds()[0], /повернення часткове \(100 грн\), доступ не змінено · оплачено до 18\.11\.2026$/);
+});
+
+test('WayForPay refund without refundAmount anywhere: period not cut, admin told to check by hand', async () => {
+    for (const check of ['no amount', 'bad signature', 'other order']) {
+        const w = world();
+        const p = await w.pay();
+        await w.approve(p);
+        if (check === 'no amount') w.net.state.wfpCheck = w.signed(p, { amount: 250, transactionStatus: 'Refunded' });
+        if (check === 'bad signature') w.net.state.wfpCheck = Object.assign(w.signed(p, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' }), { merchantSignature: 'f'.repeat(32) });
+        if (check === 'other order') w.net.state.wfpCheck = w.signed({ provider_order_id: 'tc-other' }, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' });
+        w.clock.now = NOW + DAY;
+        const res = await w.wfp(p, { amount: 250, transactionStatus: 'Refunded' });
+        assert.equal(res.body.status, 'accept');
+        assert.equal(w.checks(), 1, check);
+        assert.equal(w.until(), '2026-11-18T09:00:00.000Z', check);
+        assert.equal(w.store.db.payments[0].status, 'reversed');
+        assert.equal(w.store.db.payments[0].reversal_applied_at || null, null, 'a later notification with the amount can still cut');
+        assert.deepEqual(w.refunds(), ['↩️ Повернення: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · суму повернення не вдалося визначити, доступ не змінено — перевірте вручну · оплачено до 18.11.2026'], check);
+    }
+});
+
+test('mono partial refund as success with finalAmount < amount: one alert, subscription unchanged', async () => {
+    const w = world();
+    const p = await w.pay('mono');
+    await w.monoHook(p, { status: 'success', finalAmount: 25000 });
+    assert.deepEqual(w.refunds(), [], 'full success: no refund alert');
+    const until = w.until();
+    w.clock.now = NOW + DAY;
+    await w.monoHook(p, { status: 'success', finalAmount: 15000 });
+    await w.monoHook(p, { status: 'success', finalAmount: 15000 });
+    w.clock.now = NOW + 2 * DAY;
+    await w.monoHook(p, { status: 'success', finalAmount: 10000 });
+    assert.equal(w.until(), until);
+    assert.equal(w.store.db.payments[0].status, 'success');
+    assert.ok(w.store.db.payments[0].partial_refund_alerted_at);
+    assert.deepEqual(w.refunds(), ['↩️ Повернення: ТОВ «Агро» · 1 місяць · 250 грн · plata by mono · повернення часткове (100 грн), доступ не змінено · оплачено до 18.11.2026']);
+    assert.equal(w.net.telegrams().filter((t) => t.startsWith('💳')).length, 1);
+});
+
+test('Telegram: refund ends paid access but the company has a manual is_approved user → «оплату скасовано, ручний доступ лишається»', async () => {
+    const w = world();
+    const logistId = Object.keys(w.store.db.profiles).find((id) => w.store.db.profiles[id].org_role === 'logist');
+    w.store.db.profiles[logistId].is_approved = true;
+    const p = await w.pay();
+    await w.approve(p);
+    w.clock.now = NOW + DAY;
+    await w.wfp(p, { amount: 250, refundAmount: 250, transactionStatus: 'Refunded' });
+    assert.deepEqual(w.refunds(), ['↩️ Повернення: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · оплату скасовано, ручний доступ лишається']);
+    assert.equal(w.store.db.profiles[logistId].is_approved, true, 'is_approved is not touched');
+    assert.equal(paymentAlertText('reversed', { orgName: 'А', plan: 'month', provider: 'mono', paidUntil: null, manualAccess: true }),
+        '↩️ Повернення: А · 1 місяць · 250 грн · plata by mono · оплату скасовано, ручний доступ лишається');
+    assert.equal(paymentAlertText('reversed', { orgName: 'А', plan: 'month', provider: 'mono', paidUntil: '2099-01-01T00:00:00Z', manualAccess: true }),
+        '↩️ Повернення: А · 1 місяць · 250 грн · plata by mono · оплачено до 01.01.2099', 'still paid: the date');
+});
+
+test('store: partial-refund alert is marked only while unmarked; manual access looks for is_approved in the company', async () => {
+    const { createSupabaseStore } = await import('../lib/billing/store.js');
+    const log = [];
+    function builder(table, rows) {
+        const chain = { table, ops: [] };
+        for (const op of ['update', 'eq', 'is', 'select', 'limit']) {
+            chain[op] = (...args) => { chain.ops.push([op, ...args]); return chain; };
+        }
+        chain.then = (resolve) => { log.push(chain); resolve({ data: rows, error: null }); };
+        return chain;
+    }
+    let rows = [{ id: 'p1' }];
+    const store = createSupabaseStore({ from: (table) => builder(table, rows) });
+    assert.equal(await store.markPartialRefundAlerted('p1'), true);
+    rows = [];
+    assert.equal(await store.markPartialRefundAlerted('p1'), false, 'already marked: no row updated');
+    const ops = log[0].ops.map((o) => o[0] + ':' + (typeof o[1] === 'object' ? Object.keys(o[1]).join(',') : o.slice(1).join('=')));
+    assert.deepEqual([log[0].table, ops], ['payments', ['update:partial_refund_alerted_at', 'eq:id=p1', 'is:partial_refund_alerted_at=', 'select:id']]);
+    assert.equal(log[0].ops[2][2], null);
+
+    rows = [{ id: 'u1' }];
+    assert.equal(await store.orgHasManualAccess('org-1'), true);
+    rows = [];
+    assert.equal(await store.orgHasManualAccess('org-1'), false);
+    assert.deepEqual([log[2].table, log[2].ops], ['profiles', [['select', 'id'], ['eq', 'org_id', 'org-1'], ['eq', 'is_approved', true], ['limit', 1]]]);
 });

@@ -46,6 +46,30 @@ INSERT INTO public.profiles (id, org_id, org_role, is_approved) VALUES
 `);
 
 await db.exec(payments);
+
+// Before this migration (production today): a credited payment refunded through apply_payment_status
+// (status only, paid_until corrected by hand), one refunded by hand, one still pending.
+const LEGACY_ORG = '10000000-0000-4000-8000-000000000009';
+await db.exec(`INSERT INTO public.organizations (id, name) VALUES ('${LEGACY_ORG}', 'Стара');`);
+async function legacyPayment(status) {
+    const { rows } = await db.query(
+        `INSERT INTO public.payments (org_id, created_by, provider, plan, amount_minor, status, provider_order_id)
+         VALUES ($1, $2, 'wayforpay', 'month', 25000, 'pending', $3) RETURNING id`, [LEGACY_ORG, OWNER, 'tc-legacy-' + status]);
+    const id = rows[0].id;
+    if (status !== 'pending') {
+        await db.query('SELECT public.apply_payment_success($1, null)', [id]);
+        await db.query(`SELECT public.apply_payment_status($1, 'reversed', null)`, [id]);
+        if (status === 'refunded') await db.query(`UPDATE public.payments SET status = 'refunded' WHERE id = $1`, [id]);
+    }
+    await db.query(`UPDATE public.payments SET updated_at = now() - interval '3 days' WHERE id = $1`, [id]);
+    return id;
+}
+const legacyReversed = await legacyPayment('reversed');
+const legacyRefunded = await legacyPayment('refunded');
+const legacyPending = await legacyPayment('pending');
+// Two credited months, one of them refunded before the migration: paid_until is what it is now.
+await db.exec(`UPDATE public.org_subscriptions SET paid_until = now() + interval '20 days' WHERE org_id = '${LEGACY_ORG}'`);
+
 // Twice: the migration must be idempotent.
 await db.exec(migration);
 await db.exec(migration);
@@ -94,6 +118,24 @@ const near = (a, b) => Math.abs(a - b) < 60 * 1000;
 
 check((await one(`SELECT count(*)::int AS c FROM information_schema.columns
   WHERE table_name = 'payments' AND column_name = 'reversal_applied_at'`)).c === 1, 'payments.reversal_applied_at exists');
+check((await one(`SELECT count(*)::int AS c FROM information_schema.columns
+  WHERE table_name = 'payments' AND column_name = 'partial_refund_alerted_at'`)).c === 1, 'payments.partial_refund_alerted_at exists');
+
+// Backfill: refunds from before the migration are handled; an old refund notification changes nothing.
+{
+    const mark = async (id) => one('SELECT reversal_applied_at, updated_at FROM public.payments WHERE id = $1', [id]);
+    const r = await mark(legacyReversed);
+    const f = await mark(legacyRefunded);
+    const pnd = await mark(legacyPending);
+    check(r.reversal_applied_at !== null && r.reversal_applied_at.getTime() === r.updated_at.getTime(),
+        'backfill: reversed before the migration → reversal_applied_at = updated_at');
+    check(f.reversal_applied_at !== null, 'backfill: refunded by hand → marked');
+    check(pnd.reversal_applied_at === null, 'backfill: pending payment untouched');
+    const before = await paidUntil(LEGACY_ORG);
+    const again = await reverse(legacyReversed, null, false);
+    check(again.changed === false && again.cut === false && (await paidUntil(LEGACY_ORG)) === before,
+        'old refund notified again after the migration: no second cut, no change (so no alert)');
+}
 
 // 1. Only monthly payment refunded: access ends now.
 {

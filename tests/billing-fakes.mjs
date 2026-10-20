@@ -161,6 +161,15 @@ export function memoryStore(clock) {
             });
             return Object.assign(base, { changed: true, cut, status: 'reversed' });
         },
+        async markPartialRefundAlerted(id) {
+            const p = db.payments.find((row) => row.id === id);
+            if (!p || p.partial_refund_alerted_at) return false;
+            p.partial_refund_alerted_at = iso();
+            return true;
+        },
+        async orgHasManualAccess(orgId) {
+            return Object.values(db.profiles).some((p) => p.org_id === orgId && p.is_approved === true);
+        },
         async subscriptionsEndingBetween(fromIso, toIso) {
             return Object.values(db.subs).filter((s) => s.paid_until >= fromIso && s.paid_until < toIso).map((s) => Object.assign({}, s));
         },
