@@ -45,6 +45,10 @@ INSERT INTO public.profiles (id, org_id, org_role) VALUES
   ('${LOGIST}', '${ORG}', 'logist');
 `);
 
+// legal_consents (kind 'auto_renew' додає ця міграція) потребує auth.users.
+await db.exec(`CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, raw_user_meta_data jsonb DEFAULT '{}'::jsonb);
+INSERT INTO auth.users (id, email) VALUES ('${OWNER}', 'owner@agro.ua');`);
+await db.exec(read('20261018100000_legal_consents.sql'));
 await db.exec(read('20261018190000_payments.sql'));
 await db.exec(read('20261020180000_refund_cut.sql'));
 // A payment made before this migration: it becomes kind = 'initial'.
@@ -140,6 +144,16 @@ try {
     check(!emptyEvent.ok && emptyEvent.code === '23514', 'payment_events: neither payment_id nor order_reference → check violation (23514)');
     const eventsRead = await as(OWNER, `SELECT id FROM public.payment_events`);
     check(!eventsRead.ok && eventsRead.code === '42501', 'payment_events: still no client access (42501)');
+
+    const arConsent = await attempt(`INSERT INTO public.legal_consents (user_id, org_id, kind, offer_version, privacy_version, payment_id)
+        VALUES ($1, $2, 'auto_renew', '2026-10-20', '2026-10-20', $3)`, [OWNER, ORG, parent]);
+    check(arConsent.ok, "legal_consents: kind 'auto_renew' with payment_id");
+    const payConsent = await attempt(`INSERT INTO public.legal_consents (user_id, org_id, kind, offer_version, privacy_version, payment_id)
+        VALUES ($1, $2, 'payment', '2026-10-20', '2026-10-20', $3)`, [OWNER, ORG, parent]);
+    check(payConsent.ok, "legal_consents: kind 'payment' still accepted");
+    const badConsent = await attempt(`INSERT INTO public.legal_consents (user_id, kind, offer_version, privacy_version)
+        VALUES ($1, 'other', 'a', 'b')`, [OWNER]);
+    check(!badConsent.ok && badConsent.code === '23514', "legal_consents: other kinds still rejected (23514)");
 
     check((await one('SELECT public.record_renewal_failure($1) AS n', [ORG])).n === 1, 'record_renewal_failure: 1');
     check((await one('SELECT public.record_renewal_failure($1) AS n', [ORG])).n === 2, 'record_renewal_failure: 2');

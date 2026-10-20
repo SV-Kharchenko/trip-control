@@ -116,6 +116,27 @@ test('legal version: both 2026-10-18 and 2026-10-20 accepted during the switch, 
     assert.equal(w.store.db.payments.length, 2);
 });
 
+test('auto-renew consent is also written to legal_consents (kind auto_renew, payment_id); none without the box', async () => {
+    const w = world();
+    const plain = await w.pay();
+    const withBox = await w.pay({ auto_renew: true });
+    const kinds = (id) => w.store.db.consents.filter((c) => c.payment_id === id).map((c) => c.kind).sort();
+    assert.deepEqual(kinds(plain.id), ['payment']);
+    assert.deepEqual(kinds(withBox.id), ['auto_renew', 'payment']);
+    const consent = w.store.db.consents.find((c) => c.kind === 'auto_renew');
+    assert.deepEqual([consent.user_id, consent.org_id, consent.offer_version, consent.privacy_version],
+        [withBox.created_by, ORG, LEGAL_VERSION, LEGAL_VERSION]);
+    // Не вдалося записати згоду — рахунку немає (fail closed).
+    const f = world();
+    f.store.insertConsent = async (row) => { if (row.kind === 'auto_renew') throw Object.assign(new Error('db'), { code: 'EDB' }); f.store.db.consents.push(row); };
+    const res = await f.invoice({ auto_renew: true });
+    assert.equal(res.statusCode, 500);
+    assert.equal(res.body.code, 'CONSENT_NOT_SAVED');
+    assert.equal(f.store.db.payments[0].status, 'failure');
+    assert.equal(f.purchases().length, 0, 'no Purchase without the consent');
+    assert.match(read('supabase/migrations/20261020200000_auto_renew.sql'), /CHECK \(kind IN \('signup', 'payment', 'auto_renew'\)\)/);
+});
+
 test('dateNext counts from the current paid_until when access is still paid', async () => {
     const w = world();
     await w.approve((await w.pay()).provider_order_id);

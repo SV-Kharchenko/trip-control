@@ -72,6 +72,11 @@ CREATE INDEX IF NOT EXISTS payment_events_order_reference_idx
   ON public.payment_events (order_reference)
   WHERE order_reference IS NOT NULL;
 
+-- Згода на автопродовження — окремий рядок legal_consents (kind = 'auto_renew', payment_id першого платежу).
+ALTER TABLE public.legal_consents DROP CONSTRAINT IF EXISTS legal_consents_kind_check;
+ALTER TABLE public.legal_consents
+  ADD CONSTRAINT legal_consents_kind_check CHECK (kind IN ('signup', 'payment', 'auto_renew'));
+
 CREATE INDEX IF NOT EXISTS payments_parent_idx
   ON public.payments (parent_payment_id)
   WHERE parent_payment_id IS NOT NULL;
