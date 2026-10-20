@@ -63,7 +63,7 @@ function world({ flag = true, password = true, net: netOptions = {} } = {}) {
     const sub = () => store.db.subs[ORG] || {};
     const renewals = () => store.db.payments.filter((p) => p.kind === 'renewal');
     const mails = () => net.calls.filter((c) => c.url === 'https://api.resend.com/emails').map((c) => JSON.parse(c.body));
-    return { clock, store, net, env, service, call, invoice, pay, hook, approve, decline, autoRenewOn, purchases, sub, renewals, mails };
+    return { clock, store, net, env, service, call, invoice, pay, signed, hook, approve, decline, autoRenewOn, purchases, sub, renewals, mails };
 }
 
 test('Purchase without the box: no regular fields; with the box: regular fields from the plan on the server', async () => {
@@ -88,6 +88,8 @@ test('Purchase without the box: no regular fields; with the box: regular fields 
     const row = w.store.db.payments.find((p) => p.id === res.body.payment_id);
     assert.equal(row.auto_renew_requested_at, new Date(NOW).toISOString(), 'consent time is written on the server');
 
+    // Попередній рахунок з автопродовженням уже не відкритий (минуло > 75 хв) — новий дозволено.
+    w.clock.now = NOW + 76 * 60 * 1000;
     const year = await w.invoice({ plan: 'year', auto_renew: true });
     assert.equal(year.statusCode, 200);
     assert.equal(w.purchases()[2].get('regularMode'), 'yearly');
@@ -769,6 +771,111 @@ test('cron: an owner without email in the profile is still an owner; a no-owner 
     assert.equal(w.sub().auto_renew, false);
 });
 
+test('old regular in RemovePending, new one credited, REMOVE of the old fails → regular_removals; cron retries exactly the old reference', async () => {
+    const w = world({ net: { removeFails: true } });
+    const oldPay = await w.autoRenewOn();
+    const oldRef = oldPay.provider_order_id;
+    // Власник скасував — WayForPay не підтвердив: стара регулярка чекає REMOVE.
+    assert.equal((await w.call('POST', 'cancel-auto-renew', { token: 'owner' })).statusCode, 502);
+    assert.equal(w.sub().regular_status, 'RemovePending');
+
+    // Нове ввімкнення дозволене (стара лише чекає REMOVE) і зараховане.
+    w.clock.now = NOW + DAY;
+    const newPay = await w.pay({ auto_renew: true });
+    await w.approve(newPay.provider_order_id);
+    const newRef = newPay.provider_order_id;
+    assert.equal(w.sub().auto_renew, true);
+    assert.equal(w.sub().wfp_regular_order_ref, newRef);
+    assert.equal(w.sub().regular_status, 'Active');
+    assert.equal(w.sub().regular_remove_reason, null);
+    // REMOVE старої не вдався — вона не загубилась.
+    assert.deepEqual(w.store.db.removals.map((r) => [r.org_id, r.order_ref, r.reason, r.tries]), [[ORG, oldRef, 'owner', 0]]);
+    assert.ok(w.net.telegrams().includes(
+        '⏳ Стару регулярку не знято: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · замінено новим автопродовженням · WayForPay не підтвердив REMOVE старої регулярки — повторюємо щодня'));
+
+    // Крон: REMOVE знову не вдався — рядок лишається, спроба порахована, один алерт.
+    let mark = w.net.regularCalls().length;
+    let tg = w.net.telegrams().length;
+    let res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.regular_removals, { removed: 0, left: 1 });
+    const removes = (from) => w.net.regularCalls().slice(from).filter((c) => c.requestType === 'REMOVE').map((c) => c.orderReference);
+    assert.deepEqual(removes(mark), [oldRef], 'REMOVE only for the old reference, never for the new one');
+    assert.equal(w.store.db.removals[0].tries, 1);
+    assert.deepEqual(w.net.telegrams().slice(tg).filter((t) => t.startsWith('⚠️ Старі')),
+        ['⚠️ Старі регулярки WayForPay не знято: 1 · ТОВ «Агро» (спроб: 1) · REMOVE повторюємо щодня — перевірте в кабінеті WayForPay']);
+
+    // Крон: WayForPay підтвердив — рядок видалено, нова регулярка не зачеплена, алерту немає.
+    w.net.state.removeFails = false;
+    mark = w.net.regularCalls().length;
+    tg = w.net.telegrams().length;
+    res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.regular_removals, { removed: 1, left: 0 });
+    assert.deepEqual(removes(mark), [oldRef]);
+    assert.equal(w.store.db.removals.length, 0);
+    assert.equal(w.net.state.regular[oldRef], 'Removed');
+    assert.notEqual(w.net.state.regular[newRef], 'Removed');
+    assert.equal(w.sub().auto_renew, true);
+    assert.equal(w.sub().wfp_regular_order_ref, newRef);
+    assert.equal(w.net.telegrams().slice(tg).some((t) => t.startsWith('⚠️ Старі')), false);
+
+    // Наступний крон стару вже не чіпає.
+    mark = w.net.regularCalls().length;
+    await w.call('GET', 'cron', CRON);
+    assert.deepEqual(removes(mark), []);
+});
+
+test('a charge of an old regular from regular_removals: credited, REMOVE now, the row closed when confirmed', async () => {
+    const w = world({ net: { removeFails: true } });
+    const oldPay = await w.autoRenewOn();
+    await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+    w.clock.now = NOW + DAY;
+    await w.approve((await w.pay({ auto_renew: true })).provider_order_id);
+    assert.equal(w.store.db.removals.length, 1);
+    w.net.state.removeFails = false;
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await w.approve(oldPay.provider_order_id + '_WFPREG-1');
+    assert.equal(w.store.db.removals.length, 0);
+    assert.match(w.net.telegrams().find((t) => t.includes('автосписання · автопродовження вже вимкнене')), /REMOVE підтверджено/);
+});
+
+test('create-invoice refuses a second auto-renew invoice while another one is open (asks the provider first)', async () => {
+    const w = world();
+    const first = await w.invoice({ auto_renew: true });
+    assert.equal(first.statusCode, 200);
+    const open = w.store.db.payments[0];
+    assert.equal(open.auto_renew_requested_at, new Date(NOW).toISOString(), 'marked at creation');
+
+    w.clock.now = NOW + 5 * 60 * 1000;
+    const checks = () => w.net.calls.filter((c) => c.url === 'https://api.wayforpay.com/api' && JSON.parse(c.body).transactionType === 'CHECK_STATUS').length;
+    const second = await w.invoice({ auto_renew: true });
+    assert.equal(second.statusCode, 409);
+    assert.equal(second.body.code, 'AUTO_RENEW_INVOICE_OPEN');
+    assert.equal(checks(), 1, 'the open invoice was checked with WayForPay first');
+    assert.equal(w.store.db.payments.length, 1, 'no new invoice');
+    // Без автопродовження — можна.
+    assert.equal((await w.invoice({})).statusCode, 200);
+
+    // Провайдер каже, що перший рахунок прострочений — тепер дозволено.
+    w.net.state.wfpCheck = w.signed(open.provider_order_id, { transactionStatus: 'Expired', reasonCode: 1100 });
+    const third = await w.invoice({ auto_renew: true });
+    assert.equal(third.statusCode, 200);
+    assert.equal(w.store.db.payments.find((p) => p.id === open.id).status, 'expired');
+
+    // Старий pending поза вікном (> 75 хв) не блокує, навіть без відповіді провайдера.
+    const late = world();
+    await late.invoice({ auto_renew: true });
+    late.clock.now = NOW + 76 * 60 * 1000;
+    assert.equal((await late.invoice({ auto_renew: true })).statusCode, 200);
+
+    // Запасний CREATE_INVOICE (разова оплата) не лишає позначки — і не блокує.
+    const fb = world({ net: { wfpOffline: false } });
+    const one = await fb.invoice({ auto_renew: true });
+    assert.equal(one.body.auto_renew, false);
+    assert.equal(fb.store.db.payments[0].auto_renew_requested_at, null);
+    fb.net.state.wfpOffline = true;
+    assert.equal((await fb.invoice({ auto_renew: true })).statusCode, 200);
+});
+
 test('a new activation clears the stop check (regular_stop_check / _at) left from before', async () => {
     const owner = '00000000-0000-4000-8000-000000000001';
     const w = world();
@@ -1142,6 +1249,9 @@ test('auto-renew migration on Postgres (PGlite)', (t) => {
         'payment_events: unmatched renewal event without payment_id, with order_reference',
         'payment_events: still no client access (42501)',
         'payment_events: same alert_key again → unique violation (23505)',
+        'regular_removals: same order_ref twice → unique violation (23505)',
+        'authenticated cannot read regular_removals (42501)',
+        'anon cannot read regular_removals (42501)',
         'anon: SELECT card_mask FROM public.org_subscriptions (42501)'
     ]) assert.ok(run.stdout.includes('PASS ' + line), line);
 });

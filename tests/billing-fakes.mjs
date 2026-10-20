@@ -63,7 +63,10 @@ export function memoryStore(clock) {
         events: [],
         consents: [],
         failInsertEvent: false,
-        failOrgStatus: false
+        failOrgStatus: false,
+        // regular_removals: старі регулярки, REMOVE яких ще не підтверджено.
+        removals: [],
+        removalSeq: 0
     };
     const iso = () => new Date(clock.now).toISOString();
     const store = {
@@ -204,6 +207,21 @@ export function memoryStore(clock) {
         },
         async updateAutoRenew(orgId, patch) {
             if (db.subs[orgId]) Object.assign(db.subs[orgId], patch);
+        },
+        async addRegularRemoval(row) {
+            if (db.removals.some((r) => r.order_ref === row.order_ref)) return;
+            db.removalSeq += 1;
+            db.removals.push(Object.assign({ id: db.removalSeq, created_at: iso(), last_try_at: null, tries: 0 }, row));
+        },
+        async listRegularRemovals() { return db.removals.map((r) => Object.assign({}, r)); },
+        async markRegularRemovalTried(id, tries) {
+            const r = db.removals.find((row) => row.id === id);
+            if (r) Object.assign(r, { tries, last_try_at: iso() });
+        },
+        async deleteRegularRemoval(orderRef) { db.removals = db.removals.filter((r) => r.order_ref !== orderRef); },
+        async openAutoRenewPayments(orgId, sinceIso) {
+            return db.payments.filter((p) => p.org_id === orgId && ['created', 'pending'].includes(p.status)
+                && p.auto_renew_requested_at && p.created_at >= sinceIso).map((p) => Object.assign({}, p));
         },
         async recordRenewalFailure(orgId) {
             const sub = db.subs[orgId];

@@ -10,6 +10,7 @@
 -- * Renewals are credited by the same apply_payment_success(); the unique
 --   (provider, provider_order_id) index stays as it is (every charge has its own reference).
 -- * record_renewal_failure(): fail_count + 1, atomically; the server stops the regular at 2.
+-- * regular_removals: old regulars whose REMOVE is not confirmed yet (the cron retries; server-only).
 -- * Clients keep read access to the old org_subscriptions columns only (paid_until etc.): card mask
 --   and the regular reference are server-only. Clients still cannot write either table.
 --
@@ -103,6 +104,26 @@ GRANT SELECT (org_id, paid_until, last_plan, reminder_sent_for, updated_at) ON p
 REVOKE SELECT (kind, parent_payment_id, auto_renew_requested_at) ON public.payments FROM PUBLIC, anon;
 REVOKE INSERT, UPDATE, DELETE ON public.org_subscriptions FROM PUBLIC, anon, authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.payments FROM PUBLIC, anon, authenticated;
+
+-- Старі регулярки, які треба зняти, але WayForPay ще не підтвердив REMOVE (напр. нове ввімкнення замінило
+-- регулярку, а REMOVE старої не вдався). Поточна регулярка компанії живе в org_subscriptions; ці — лише тут.
+-- Крон повторює REMOVE і видаляє рядок лише після підтвердження. org_id без FK: регулярка може пережити компанію.
+CREATE TABLE IF NOT EXISTS public.regular_removals (
+  id bigserial PRIMARY KEY,
+  org_id uuid NOT NULL,
+  order_ref text NOT NULL,
+  reason text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  last_try_at timestamptz NULL,
+  tries integer NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS regular_removals_order_ref_uidx ON public.regular_removals (order_ref);
+ALTER TABLE public.regular_removals ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.regular_removals FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON SEQUENCE public.regular_removals_id_seq FROM PUBLIC, anon, authenticated;
+GRANT ALL ON public.regular_removals TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE public.regular_removals_id_seq TO service_role;
+-- Політик для authenticated немає: клієнтського доступу немає.
 
 CREATE OR REPLACE FUNCTION public.record_renewal_failure(p_org uuid)
 RETURNS integer

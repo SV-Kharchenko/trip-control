@@ -150,6 +150,25 @@ try {
     const plainTwice = await attempt(`INSERT INTO public.payment_events (payment_id, order_reference, provider, status, source)
         VALUES (null, 'tc-y_WFPREG-1', 'wayforpay', 'Approved', 'webhook'), (null, 'tc-y_WFPREG-1', 'wayforpay', 'Approved', 'webhook')`);
     check(plainTwice.ok, 'payment_events: events without alert_key are not unique (history kept)');
+    const removal = `INSERT INTO public.regular_removals (org_id, order_ref, reason) VALUES ('${ORG}', 'tc-old', 'replaced')`;
+    check((await attempt(removal)).ok, 'regular_removals: old regular recorded');
+    const removalAgain = await attempt(removal);
+    check(!removalAgain.ok && removalAgain.code === '23505', 'regular_removals: same order_ref twice → unique violation (23505)');
+    const removalRow = await one(`SELECT tries, last_try_at, created_at FROM public.regular_removals WHERE order_ref = 'tc-old'`);
+    check(removalRow.tries === 0 && removalRow.last_try_at === null && removalRow.created_at instanceof Date, 'regular_removals: tries 0, last_try_at empty, created_at set');
+    for (const [label, sql] of [
+        ['read regular_removals', `SELECT id FROM public.regular_removals`],
+        ['insert regular_removals', `INSERT INTO public.regular_removals (org_id, order_ref, reason) VALUES ('${ORG}', 'tc-client', 'x')`],
+        ['delete regular_removals', `DELETE FROM public.regular_removals`]
+    ]) {
+        const res = await as(OWNER, sql);
+        check(!res.ok && res.code === '42501', 'authenticated cannot ' + label + ' (42501)');
+    }
+    await db.exec('RESET ROLE');
+    await db.exec('SET ROLE anon');
+    const anonRemovals = await db.query('SELECT id FROM public.regular_removals').then(() => ({ ok: true }), (error) => ({ ok: false, code: error.code }));
+    await db.exec('RESET ROLE');
+    check(!anonRemovals.ok && anonRemovals.code === '42501', 'anon cannot read regular_removals (42501)');
     const eventsRead = await as(OWNER, `SELECT id FROM public.payment_events`);
     check(!eventsRead.ok && eventsRead.code === '42501', 'payment_events: still no client access (42501)');
 
