@@ -20,7 +20,7 @@
 .tc-legal-footer__pay {
     display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px;
 }
-/* Логотипи платіжних систем (assets/payments/*.svg, файли не змінюємо). Visa: синій у світлій темі, білий у темній. */
+/* Логотипи платіжних систем (assets/payments/*.svg, файли не змінюємо). plata by mono: чорний у світлій темі, білий у темній; Visa: синій / білий. */
 .tc-pay-logo { display: block; height: 20px; width: auto; flex: none; }
 .tc-pay-logo--on-dark { display: none; }
 [data-theme="dark"] .tc-pay-logo--on-light { display: none; }

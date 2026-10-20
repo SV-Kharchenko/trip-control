@@ -67,13 +67,24 @@ test('api/calculate.js: only the demo check changes; 5 per day limit and formula
     assert.equal(s0.taxesTotal, 5400);
 });
 
+const sliceProviders = (modal) => modal.slice(modal.indexOf('<div class="tc-billing-options" id="billing-providers">'), modal.indexOf('</fieldset>', modal.indexOf('id="billing-providers"')));
+
 test('client: «Тариф і оплата» screen, owner / logist, consent, no amount sent, polling, banner, footer', () => {
     assert.match(html, /onclick="menuGo\('billing'\)">Тариф і оплата<\/button>/);
     assert.match(html, /else if \(action === 'billing'\) openBillingModal\(\);/);
     const modal = html.slice(html.indexOf('<div id="tc-billing-modal"'), html.indexOf('<div id="tc-toast"'));
     assert.match(modal, /value="month" checked/);
     assert.match(modal, /value="year"/);
-    assert.match(modal, /<b>plata by mono<\/b>/);
+    // mono option: the official logo (light / dark by theme) and a caption; no Visa / Mastercard, no «monobank».
+    const mono = modal.slice(modal.indexOf('data-provider="mono"'), modal.indexOf('</label>', modal.indexOf('data-provider="mono"')));
+    assert.match(mono, /<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="\/assets\/payments\/plata-by-mono\.svg\?v=[\w.-]+" alt="plata by mono" width="106" height="22">/);
+    assert.match(mono, /<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="\/assets\/payments\/plata-by-mono-white\.svg\?v=[\w.-]+" alt="plata by mono" width="106" height="22">/);
+    assert.match(mono, /<small>Картка будь-якого банку, Apple Pay, Google Pay<\/small>/);
+    assert.equal(/monobank|visa|mastercard/i.test(mono), false);
+    assert.match(html, /\.tc-billing-logo \.tc-pay-logo \{ height: 22px; \}/);
+    // mono brandbook: no Visa / Mastercard next to the mono option, WayForPay included.
+    assert.match(modal, /<b>WayForPay<\/b><small>Картка будь-якого банку<\/small>/);
+    assert.equal(/visa|mastercard/i.test(sliceProviders(modal)), false);
     assert.match(modal, /<b>WayForPay<\/b>/);
     assert.match(modal, /Apple Pay \/ Google Pay — на сторінці оплати/);
     assert.match(modal, /<input type="checkbox" id="billing-consent">/);

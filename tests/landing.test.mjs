@@ -64,6 +64,12 @@ test('landing lives in index.html on «/»: no new rewrites, styles and scripts 
     assert.equal(landing.includes('data:image'), false);
 });
 
+test('pricing pay note: plata by mono logo (light / dark) before Visa and Mastercard', () => {
+    const note = sliceBetween(html, '<div class="lp-pay-note">', '</div>');
+    assert.match(note, /<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="\/assets\/payments\/plata-by-mono\.svg\?v=[\w.-]+" alt="plata by mono" width="97" height="20">\n\s*<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="\/assets\/payments\/plata-by-mono-white\.svg\?v=[\w.-]+" alt="plata by mono" width="97" height="20">\n\s*<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light"/);
+    assert.match(note, /alt="Mastercard"/);
+});
+
 test('entry script: session key or an auth flow in the URL → app, otherwise landing', () => {
     const script = sliceBetween(html, '<body class="layout-studio" data-theme="light">\n<script>', '</script>');
     assert.match(script, /localStorage\.getItem\('sb-qkfqjorzsxcajcneohoy-auth-token'\)/);

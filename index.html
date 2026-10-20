@@ -25,7 +25,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-18">
+    <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-20b">
     <link rel="stylesheet" href="/assets/landing.css?v=2026-10-20">
     <link rel="stylesheet" href="/assets/cost-hints.css?v=2026-10-20">
     <script src="/assets/osm-geo.js?v=2026-10-19" defer></script>
@@ -1838,6 +1838,8 @@
         }
         .tc-billing-option b { font-size: 0.95rem; }
         .tc-billing-option small { font-size: 0.8rem; color: var(--muted); }
+        .tc-billing-logo { display: flex; align-items: center; min-height: 24px; }
+        .tc-billing-logo .tc-pay-logo { height: 22px; }
         .tc-billing-option input:checked + span { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
         .tc-billing-option input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
         .tc-billing-option[hidden] { display: none !important; }
@@ -4211,6 +4213,8 @@
       </div>
     </div>
     <div class="lp-pay-note">
+      <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="/assets/payments/plata-by-mono.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
+      <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="/assets/payments/plata-by-mono-white.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
       <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
       <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
       <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
@@ -4292,10 +4296,12 @@
         <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
       </nav>
       <div class="tc-legal-footer__pay">
+        <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="/assets/payments/plata-by-mono.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
+        <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="/assets/payments/plata-by-mono-white.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
         <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
         <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
         <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
-        <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+        <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono та WayForPay · Apple Pay / Google Pay</span>
       </div>
       <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
     </footer>
@@ -4483,10 +4489,12 @@
                     <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
                 </nav>
                 <div class="tc-legal-footer__pay">
+                    <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="/assets/payments/plata-by-mono.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
+                    <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="/assets/payments/plata-by-mono-white.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
                     <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
                     <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
                     <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
-                    <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+                    <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono та WayForPay · Apple Pay / Google Pay</span>
                 </div>
                 <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
             </footer>
@@ -4578,10 +4586,12 @@
                                     <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
                                 </nav>
                                 <div class="tc-legal-footer__pay">
+                                    <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="/assets/payments/plata-by-mono.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
+                                    <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="/assets/payments/plata-by-mono-white.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
                                     <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
                                     <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
                                     <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
-                                    <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+                                    <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono та WayForPay · Apple Pay / Google Pay</span>
                                 </div>
                                 <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
                             </footer>
@@ -5332,10 +5342,12 @@
             <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
         </nav>
         <div class="tc-legal-footer__pay">
+            <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="/assets/payments/plata-by-mono.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
+            <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="/assets/payments/plata-by-mono-white.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
             <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
             <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
             <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
-            <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+            <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono та WayForPay · Apple Pay / Google Pay</span>
         </div>
         <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
     </footer>
@@ -5370,10 +5382,12 @@
                 <a href="/payment-refund" target="_blank" rel="noopener">Оплата та повернення</a>
             </nav>
             <div class="tc-legal-footer__pay">
+                <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="/assets/payments/plata-by-mono.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
+                <img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="/assets/payments/plata-by-mono-white.svg?v=2026-10-20b" alt="plata by mono" width="97" height="20">
                 <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="/assets/payments/visa.svg" alt="Visa" width="62" height="20">
                 <img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="/assets/payments/visa-white.svg" alt="Visa" width="62" height="20">
                 <img class="tc-pay-logo tc-pay-logo--mc" src="/assets/payments/mastercard.svg" alt="Mastercard" width="32" height="20">
-                <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono (monobank) та WayForPay · Apple Pay / Google Pay</span>
+                <span class="tc-legal-footer__paytext">Оплата карткою через plata by mono та WayForPay · Apple Pay / Google Pay</span>
             </div>
             <p class="tc-legal-footer__seller">ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol.com@gmail.com">tripcontrol.com@gmail.com</a> · <a href="tel:+380730888252">+380730888252</a></p>
         </footer>
@@ -5459,8 +5473,8 @@
             <fieldset class="tc-billing-fieldset">
                 <legend>Спосіб оплати</legend>
                 <div class="tc-billing-options" id="billing-providers">
-                    <label class="tc-billing-option" data-provider="mono"><input type="radio" name="billing-provider" value="mono"><span><b>plata by mono</b><small>monobank</small></span></label>
-                    <label class="tc-billing-option" data-provider="wayforpay"><input type="radio" name="billing-provider" value="wayforpay"><span><b>WayForPay</b><small>картка Visa / Mastercard</small></span></label>
+                    <label class="tc-billing-option" data-provider="mono"><input type="radio" name="billing-provider" value="mono"><span><span class="tc-billing-logo"><img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="/assets/payments/plata-by-mono.svg?v=2026-10-20b" alt="plata by mono" width="106" height="22"><img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="/assets/payments/plata-by-mono-white.svg?v=2026-10-20b" alt="plata by mono" width="106" height="22"></span><small>Картка будь-якого банку, Apple Pay, Google Pay</small></span></label>
+                    <label class="tc-billing-option" data-provider="wayforpay"><input type="radio" name="billing-provider" value="wayforpay"><span><b>WayForPay</b><small>Картка будь-якого банку</small></span></label>
                 </div>
             </fieldset>
             <p class="tc-billing-note">Apple Pay / Google Pay — на сторінці оплати. Автосписань немає: кожен період оплачується окремо.</p>
