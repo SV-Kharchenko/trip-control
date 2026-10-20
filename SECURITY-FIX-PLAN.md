@@ -11,7 +11,7 @@
 5. `org_company_profiles` + audit + RLS admin  
 6. Auth hardening (клієнт + Dashboard)  
 7. Секрети docs  
-8. `api/billing-webhook.js`
+8. Оплата: `api/billing/[route].js` (plata by mono, WayForPay) — `docs/PAYMENTS.md`
 
 ### Далі — бажано
 9. **CSP / headers** — ✅ `vercel.json` (HSTS, CSP, X-Frame-Options…)  
@@ -25,6 +25,6 @@
 - [x] Week-2 SQL
 - [x] Maps referrer
 - [x] Confirm email / Site URL / MFA TOTP
-- [ ] Vercel env `BILLING_WEBHOOK_SECRET` (коли підключите платіжку)
+- [ ] Vercel env для оплати (`MONO_TOKEN`, `WAYFORPAY_*`, `PUBLIC_BASE_URL`, `PAYMENTS_ENABLED`) — `docs/PAYMENTS.md`
 - [ ] Уточнити реквізити в `legal/offer.html` (ФОП/ТОВ, IBAN, email підтримки)
 - [ ] Переконатись, що ваш акаунт має `profiles.role = 'admin'` (інакше кнопка CRM не з’явиться)

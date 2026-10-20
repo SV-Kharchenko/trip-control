@@ -27,6 +27,6 @@ RLS на `profiles`, `organizations`, `company_settings`, `calculations`, `usage
 
 Auth / MFA / Confirm email: `docs/AUTH-HARDENING.md`.  
 Секрети: `docs/SECRETS.md`.  
-Webhook оплати: `api/billing-webhook.js` + env `BILLING_WEBHOOK_SECRET`.
+Оплата: `api/billing/[route].js`, міграція `20261018190000_payments.sql` — `docs/PAYMENTS.md`.
 
 `service_role` (Vercel `SUPABASE_SERVICE_ROLE_KEY`) — лише `/api/*`, ніколи фронт.

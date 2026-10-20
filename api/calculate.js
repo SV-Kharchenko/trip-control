@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
+import { isDemoAccess, loadPaidUntil } from '../lib/billing/access.js';
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -796,8 +797,9 @@ export default async function handler(req, res) {
             });
         }
 
-        // --- Демо-режим: ліміт лише з профілю в БД (is_approved). Клієнтський isDemo / ?preview ігнорується. ---
-        const isDemo = !profile.is_approved;
+        // --- Демо-режим: ручне схвалення (is_approved) або оплачена компанія (org_subscriptions.paid_until). ---
+        // Клієнтський isDemo / ?preview ігнорується. Без таблиці оплат (міграція не застосована) — як раніше.
+        const isDemo = isDemoAccess(profile, profile.is_approved ? null : await loadPaidUntil(supabase, profile.org_id));
         let demoInfo = null;
         if (isDemo) {
             // Лічильник атомарний на рівні бази (RPC bump_calc_usage); паралельними запитами ліміт не обійти
