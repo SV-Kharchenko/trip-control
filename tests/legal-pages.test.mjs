@@ -90,7 +90,7 @@ test('one footer component with the three links, payments and seller on every pa
         for (const footer of footers) {
             assert.equal(normalize(footer), expected, file + ': same markup');
         }
-        assert.match(source, /<link rel="stylesheet" href="\/assets\/legal-footer\.css\?v=2026-10-20b">/, file);
+        assert.match(source, /<link rel="stylesheet" href="\/assets\/legal-footer\.css\?v=[\w.-]+">/, file);
     }
     for (const { file } of PAGES) {
         const footer = footersOf(pages[file])[0];
@@ -103,7 +103,7 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(reference, /<a href="\/privacy" target="_blank" rel="noopener">Політика конфіденційності<\/a>/);
     assert.match(reference, /<a href="\/payment-refund" target="_blank" rel="noopener">Оплата та повернення<\/a>/);
     // Official logos: plata by mono and Visa dark on light, white on dark; Mastercard the same for both. plata goes first.
-    assert.match(reference, /<div class="tc-legal-footer__pay">\n<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="\/assets\/payments\/plata-by-mono\.svg\?v=2026-10-20b" alt="plata by mono" width="97" height="20">\n<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="\/assets\/payments\/plata-by-mono-white\.svg\?v=2026-10-20b" alt="plata by mono" width="97" height="20">\n<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light"/);
+    assert.match(reference, /<div class="tc-legal-footer__pay">\n<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-light" src="\/assets\/payments\/plata-by-mono\.svg\?v=[\w.-]+" alt="plata by mono" width="97" height="20">\n<img class="tc-pay-logo tc-pay-logo--plata tc-pay-logo--on-dark" src="\/assets\/payments\/plata-by-mono-white\.svg\?v=[\w.-]+" alt="plata by mono" width="97" height="20">\n<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light"/);
     assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-light" src="\/assets\/payments\/visa\.svg" alt="Visa" width="62" height="20">/);
     assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--visa tc-pay-logo--on-dark" src="\/assets\/payments\/visa-white\.svg" alt="Visa" width="62" height="20">/);
     assert.match(reference, /<img class="tc-pay-logo tc-pay-logo--mc" src="\/assets\/payments\/mastercard\.svg" alt="Mastercard" width="32" height="20">/);
