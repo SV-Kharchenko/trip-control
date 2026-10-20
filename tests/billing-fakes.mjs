@@ -62,7 +62,8 @@ export function memoryStore(clock) {
         payments: [],
         events: [],
         consents: [],
-        failInsertEvent: false
+        failInsertEvent: false,
+        failOrgStatus: false
     };
     const iso = () => new Date(clock.now).toISOString();
     const store = {
@@ -181,7 +182,10 @@ export function memoryStore(clock) {
         async activeOwners(orgId) {
             return Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active').map((p) => p.email);
         },
-        async orgStatus(orgId) { return db.orgs[orgId] ? { name: db.orgs[orgId].name, status: db.orgs[orgId].status } : null; },
+        async orgStatus(orgId) {
+            if (db.failOrgStatus) throw Object.assign(new Error('db down'), { code: 'EDB' });
+            return db.orgs[orgId] ? { name: db.orgs[orgId].name, status: db.orgs[orgId].status } : null;
+        },
         async markReminderSent(orgId, paidUntil) {
             if (db.subs[orgId] && db.subs[orgId].paid_until === paidUntil) db.subs[orgId].reminder_sent_for = paidUntil;
         },

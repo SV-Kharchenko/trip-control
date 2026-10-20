@@ -622,7 +622,7 @@ test('cron STATUS: only reasonCode 4100 counts; one alert per run for failures a
     res = (await w.call('GET', 'cron', CRON)).body;
     assert.deepEqual(res.auto_renew, { checked: 0, disabled: 0, failed: 1, missing_ref: 0 });
     assert.equal(w.sub().auto_renew, true);
-    assert.deepEqual(w.net.telegrams().slice(before), ['⚠️ Звірка автопродовження: regularApi без відповіді 4100: 1 · перевірте вручну']);
+    assert.deepEqual(w.net.telegrams().slice(before), ['⚠️ Звірка автопродовження: не вдалося перевірити (regularApi без 4100 або помилка бази): 1 · перевірте вручну']);
 
     // Рядок без wfp_regular_order_ref: пропускаємо, у той самий один алерт.
     w.net.state.statusCode = 4100;
@@ -680,6 +680,41 @@ test('cron stops the regular of a blocked or missing company and of a company wi
         assert.deepEqual(w.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', parent.provider_order_id]], label);
         assert.ok(w.net.telegrams().at(-1).includes(' · ' + reason), label + ': ' + w.net.telegrams().at(-1));
     }
+});
+
+test('database error on the company lookup is not «company missing»: no REMOVE, row counted as failed, one alert', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    w.store.db.failOrgStatus = true;
+    const before = w.net.telegrams().length;
+    const res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.auto_renew, { checked: 0, disabled: 0, failed: 1, missing_ref: 0 });
+    assert.equal(w.net.regularCalls().some((c) => c.requestType === 'REMOVE'), false, 'no irreversible REMOVE');
+    assert.equal(w.sub().auto_renew, true);
+    assert.equal(w.sub().regular_status, 'Active');
+    assert.deepEqual(w.net.telegrams().slice(before),
+        ['⚠️ Звірка автопродовження: не вдалося перевірити (regularApi без 4100 або помилка бази): 1 · перевірте вручну']);
+
+    // Нагадування за 3 дні: помилка бази — лист не шлемо й не позначаємо, решта крону працює.
+    w.clock.now = Date.parse('2026-11-15T07:00:00Z');
+    const mails = w.mails().length;
+    const cron = (await w.call('GET', 'cron', CRON));
+    assert.equal(cron.statusCode, 200);
+    assert.equal(cron.body.reminders.failed, 1);
+    assert.equal(w.mails().length, mails);
+    assert.equal(w.sub().reminder_sent_for, null);
+
+    // Автосписання при помилці бази: зараховано, автопродовження обліковано як зазвичай.
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await w.approve(parent.provider_order_id + '_WFPREG-1');
+    assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z');
+    assert.equal(w.sub().next_charge_at, '2026-12-18T09:00:00.000Z');
+    assert.equal(w.sub().auto_renew, true);
+
+    // Компанії справді немає (успішний запит без рядка) — це org_missing.
+    w.store.db.failOrgStatus = false;
+    delete w.store.db.orgs[ORG];
+    assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.disabled, 1);
 });
 
 test('renewal for a blocked company: credited (money taken), regular stopped, admin told', async () => {
