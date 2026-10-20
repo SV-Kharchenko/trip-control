@@ -738,7 +738,7 @@ test('cron: an owner without email in the profile is still an owner; a no-owner 
         assert.deepEqual([res.auto_renew.deferred, res.auto_renew.disabled, res.auto_renew.checked], [0, 0, 1], 'run ' + i);
     }
     assert.equal(w.sub().auto_renew, true);
-    assert.equal(w.sub().regular_stop_check, undefined);
+    assert.equal(w.sub().regular_stop_check, null);
 
     // Власника тимчасово немає (один прогін) — потім знову є: позначку скинуто, REMOVE не було.
     const saved = w.store.db.profiles[owner];
@@ -767,6 +767,38 @@ test('cron: an owner without email in the profile is still an owner; a no-owner 
     w.clock.now = restart + 39 * 60 * 60 * 1000;
     assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.disabled, 1);
     assert.equal(w.sub().auto_renew, false);
+});
+
+test('a new activation clears the stop check (regular_stop_check / _at) left from before', async () => {
+    const owner = '00000000-0000-4000-8000-000000000001';
+    const w = world();
+    await w.autoRenewOn();
+    // Власника на мить «не було» (напр. збій синхронізації профілю): крон почав відлік.
+    const saved = w.store.db.profiles[owner];
+    delete w.store.db.profiles[owner];
+    await w.call('GET', 'cron', CRON);
+    assert.equal(w.sub().regular_stop_check, 'no_owner');
+    w.store.db.profiles[owner] = saved;
+
+    // Власник скасовує і вмикає наново — до наступного крону.
+    await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+    w.store.db.subs[ORG].regular_stop_check = 'no_owner';
+    w.store.db.subs[ORG].regular_stop_check_at = new Date(NOW).toISOString();
+    w.store.db.subs[ORG].regular_remove_reason = 'owner';
+    w.clock.now = NOW + DAY;
+    const again = await w.pay({ auto_renew: true });
+    await w.approve(again.provider_order_id);
+    assert.equal(w.sub().auto_renew, true);
+    assert.equal(w.sub().wfp_regular_order_ref, again.provider_order_id);
+    assert.equal(w.sub().regular_stop_check, null);
+    assert.equal(w.sub().regular_stop_check_at, null);
+    assert.equal(w.sub().regular_remove_reason, null);
+
+    // Далі власника знову «немає» — відлік з нуля, без REMOVE одразу.
+    delete w.store.db.profiles[owner];
+    assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.deferred, 1);
+    assert.equal(w.sub().regular_stop_check_at, new Date(w.clock.now).toISOString());
+    assert.equal(w.sub().auto_renew, true);
 });
 
 test('database error on the company lookup is not «company missing»: no REMOVE, row counted as failed, one alert', async () => {
