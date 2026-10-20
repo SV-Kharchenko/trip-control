@@ -10734,10 +10734,15 @@
                     const orgBtn = c.status === 'blocked'
                         ? '<button type="button" class="ok" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'active\')">Розблокувати</button>'
                         : '<button type="button" class="bad" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'blocked\')">Блок org</button>';
+                    // Автопродовження (WayForPay): стан і скасування за запитом клієнта (листом).
+                    const ar = c.auto_renew && c.auto_renew.enabled ? c.auto_renew : null;
+                    const arBadge = ar ? '<br><span class="adm-badge">' + (ar.removing ? 'автопродовження скасовується' : 'автопродовження') +
+                        (ar.next_charge_at ? ' · ' + escAdm(billingDate(ar.next_charge_at)) : '') + '</span>' : '';
+                    const arBtn = ar ? '<button type="button" class="bad" onclick="adminCancelAutoRenew(\'' + c.org_id + '\')">Скасувати автопродовження</button>' : '';
                     html += '<tr><td><b>' + escAdm(c.name || '—') + '</b><br>' + st +
-                        (c.tax ? '<br><span class="adm-badge">' + escAdm(c.tax) + '</span>' : '') +
+                        (c.tax ? '<br><span class="adm-badge">' + escAdm(c.tax) + '</span>' : '') + arBadge +
                         '</td><td>' + contacts + '</td><td>' + users + '</td><td><div class="adm-actions">' +
-                        orgBtn + '</div></td></tr>';
+                        orgBtn + arBtn + '</div></td></tr>';
                 });
                 html += '</tbody></table>';
                 box.innerHTML = html;
@@ -10795,12 +10800,35 @@
         }
     }
 
+    const ADMIN_AUTO_RENEW_RESULT = {
+        removed: ' Автопродовження вимкнено (WayForPay підтвердив).',
+        pending: ' Автопродовження: WayForPay ще не підтвердив зняття — крон повторюватиме щодня.',
+        error: ' Автопродовження: не вдалося зупинити — перевірте в кабінеті WayForPay.',
+        none: ''
+    };
     async function adminSetOrgStatus(orgId, status) {
         const msg = document.getElementById('adm-msg');
         try {
-            await adminApi('POST', { action: 'set_org_status', org_id: orgId, status: status });
-            msg.textContent = status === 'blocked' ? 'Організацію заблоковано.' : 'Організацію розблоковано.';
+            const res = await adminApi('POST', { action: 'set_org_status', org_id: orgId, status: status });
+            msg.textContent = (status === 'blocked' ? 'Організацію заблоковано.' : 'Організацію розблоковано.') +
+                (ADMIN_AUTO_RENEW_RESULT[res.auto_renew] || '');
             msg.style.color = 'var(--success)';
+            await loadAdminCrm();
+        } catch (e) {
+            msg.textContent = e.message || String(e);
+            msg.style.color = 'var(--danger)';
+        }
+    }
+
+    // Скасування автопродовження адміністратором (запит клієнта листом, оферта 4.13).
+    async function adminCancelAutoRenew(orgId) {
+        const msg = document.getElementById('adm-msg');
+        if (!window.confirm('Скасувати автопродовження цієї компанії?\n\nНаступних списань не буде; оплачений період діє до кінця.')) return;
+        try {
+            const res = await adminApi('POST', { action: 'cancel_auto_renew', org_id: orgId });
+            msg.textContent = res.auto_renew === 'removed' ? 'Автопродовження скасовано.'
+                : (res.auto_renew === 'pending' ? 'WayForPay ще не підтвердив зняття — крон повторюватиме щодня.' : 'Автопродовження вже вимкнене.');
+            msg.style.color = res.auto_renew === 'pending' ? 'var(--danger)' : 'var(--success)';
             await loadAdminCrm();
         } catch (e) {
             msg.textContent = e.message || String(e);

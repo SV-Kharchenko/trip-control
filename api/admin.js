@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { userAccessStatus, userIsBlocked } from '../lib/account-block.js';
 import { setUserStatus, UserStatusError, writeAudit } from '../lib/user-status.js';
+import { createBillingService } from '../lib/billing/service.js';
+import { createSupabaseStore } from '../lib/billing/store.js';
 
 /**
  * Admin CRM API — лише platform admin (profiles.role = 'admin').
@@ -10,7 +12,8 @@ import { setUserStatus, UserStatusError, writeAudit } from '../lib/user-status.j
  * POST /api/admin — { action, ... }
  *   set_approved: { user_id, approved: bool }
  *   set_user_status: { user_id, status: 'full'|'demo'|'blocked' } — блок одного юзера (бан у Auth), не всієї org
- *   set_org_status: { org_id, status: 'active'|'blocked' }
+ *   set_org_status: { org_id, status: 'active'|'blocked' } — блок також зупиняє автопродовження (REMOVE у WayForPay)
+ *   cancel_auto_renew: { org_id } — скасування автопродовження за запитом клієнта (листом)
  */
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -41,6 +44,30 @@ async function requireAdmin(req, res) {
     return { user, profile };
 }
 
+// Та сама логіка автопродовження, що й у /api/billing (REMOVE, RemovePending, алерти).
+const billing = createBillingService({ store: createSupabaseStore(supabase), fetch: globalThis.fetch, env: process.env });
+
+// Автопродовження по компаніях для CRM; без міграції 20261020200000_auto_renew.sql — порожньо.
+async function autoRenewByOrg() {
+    const { data, error } = await supabase
+        .from('org_subscriptions')
+        .select('org_id, auto_renew, regular_status, next_charge_at')
+        .or('auto_renew.eq.true,regular_status.eq.RemovePending');
+    if (error) return {};
+    const out = {};
+    (data || []).forEach(r => {
+        out[r.org_id] = { enabled: !!r.auto_renew, removing: r.regular_status === 'RemovePending', next_charge_at: r.next_charge_at || null };
+    });
+    return out;
+}
+
+// { removed } / { pending } / { none } → коротка відповідь адміну.
+function autoRenewResult(result) {
+    if (result.removed) return 'removed';
+    if (result.pending) return 'pending';
+    return 'none';
+}
+
 function audit(actor, action, entity, entityId, orgId, detail) {
     return writeAudit(supabase, actor, action, entity, entityId, orgId, detail);
 }
@@ -51,11 +78,12 @@ export default async function handler(req, res) {
 
     try {
         if (req.method === 'GET') {
-            const [{ data: orgs }, { data: profiles }, { data: cps }, usersRes] = await Promise.all([
+            const [{ data: orgs }, { data: profiles }, { data: cps }, usersRes, autoRenew] = await Promise.all([
                 supabase.from('organizations').select('id, name, status, default_tax_mode').order('name'),
                 supabase.from('profiles').select('id, org_id, is_approved, role'),
                 supabase.from('org_company_profiles').select('*'),
-                supabase.auth.admin.listUsers({ perPage: 200 })
+                supabase.auth.admin.listUsers({ perPage: 200 }),
+                autoRenewByOrg()
             ]);
             const emailById = {};
             const authById = {};
@@ -80,7 +108,8 @@ export default async function handler(req, res) {
                 status: o.status,
                 tax: o.default_tax_mode,
                 profile: cpByOrg[o.id] || null,
-                users: profilesByOrg[o.id] || []
+                users: profilesByOrg[o.id] || [],
+                auto_renew: autoRenew[o.id] || null
             }));
             const { data: auditRows } = await supabase
                 .from('security_audit_log')
@@ -138,8 +167,26 @@ export default async function handler(req, res) {
                     .update({ status })
                     .eq('id', orgId);
                 if (error) throw error;
-                await audit(admin.user.id, 'set_org_status', 'organizations', orgId, orgId, { status });
-                return res.status(200).json({ ok: true, org_id: orgId, status });
+                // Заблоковану компанію не списуємо: REMOVE регулярки (не підтверджено — RemovePending, крон повторить).
+                let autoRenewStop = 'none';
+                if (status === 'blocked') {
+                    try {
+                        autoRenewStop = autoRenewResult(await billing.orgBlocked(orgId));
+                    } catch (e) {
+                        autoRenewStop = 'error';
+                        console.warn('admin: auto-renew stop on block failed', e && e.code);
+                    }
+                }
+                await audit(admin.user.id, 'set_org_status', 'organizations', orgId, orgId, { status, auto_renew: autoRenewStop });
+                return res.status(200).json({ ok: true, org_id: orgId, status, auto_renew: autoRenewStop });
+            }
+
+            if (action === 'cancel_auto_renew') {
+                const orgId = body.org_id;
+                if (!orgId) return res.status(400).json({ error: 'org_id required' });
+                const result = autoRenewResult(await billing.adminCancelAutoRenew(orgId));
+                await audit(admin.user.id, 'cancel_auto_renew', 'org_subscriptions', orgId, orgId, { result });
+                return res.status(200).json({ ok: true, org_id: orgId, auto_renew: result });
             }
 
             return res.status(400).json({ error: 'Unknown action' });

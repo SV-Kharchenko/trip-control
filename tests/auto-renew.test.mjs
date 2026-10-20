@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { createBillingHandler } from '../lib/billing/service.js';
+import { createBillingHandler, createBillingService } from '../lib/billing/service.js';
 import { buildReminderEmail } from '../lib/billing/mail.js';
 import { parseRegularOrderReference, wayforpayDate } from '../lib/billing/wayforpay.js';
 import { LEGAL_VERSION } from '../lib/legal.js';
@@ -24,6 +24,7 @@ function world({ flag = true, password = true, net: netOptions = {} } = {}) {
     if (password) extra.WAYFORPAY_MERCHANT_PASSWORD = WFP_PASSWORD;
     const env = baseEnv(extra);
     const handler = createBillingHandler({ store, fetch: net.fetch, env, now: () => clock.now });
+    const service = createBillingService({ store, fetch: net.fetch, env, now: () => clock.now });
     async function call(method, route, options) {
         const res = response();
         await handler(request(method, route, options), res);
@@ -62,7 +63,7 @@ function world({ flag = true, password = true, net: netOptions = {} } = {}) {
     const sub = () => store.db.subs[ORG] || {};
     const renewals = () => store.db.payments.filter((p) => p.kind === 'renewal');
     const mails = () => net.calls.filter((c) => c.url === 'https://api.resend.com/emails').map((c) => JSON.parse(c.body));
-    return { clock, store, net, env, call, invoice, pay, hook, approve, decline, autoRenewOn, purchases, sub, renewals, mails };
+    return { clock, store, net, env, service, call, invoice, pay, hook, approve, decline, autoRenewOn, purchases, sub, renewals, mails };
 }
 
 test('Purchase without the box: no regular fields; with the box: regular fields from the plan on the server', async () => {
@@ -618,6 +619,69 @@ test('cron STATUS: only reasonCode 4100 counts; one alert per run for failures a
     const quiet = w.net.telegrams().length;
     await w.call('GET', 'cron', CRON);
     assert.equal(w.net.telegrams().length, quiet);
+});
+
+test('admin cancel (request by email) and blocking the company: REMOVE; unconfirmed → RemovePending', async () => {
+    const w = world();
+    await w.autoRenewOn();
+    w.clock.now = NOW + DAY;
+    assert.deepEqual(await w.service.adminCancelAutoRenew(ORG), { removed: true, paid_until: '2026-11-18T09:00:00.000Z' });
+    assert.equal(w.sub().auto_renew, false);
+    assert.equal(w.sub().auto_renew_cancelled_at, new Date(NOW + DAY).toISOString());
+    assert.equal(w.net.telegrams().at(-1), '🔁 Автопродовження вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · скасовано адміністратором · оплачено до 18.11.2026');
+    assert.deepEqual(await w.service.adminCancelAutoRenew(ORG), { none: true, paid_until: '2026-11-18T09:00:00.000Z' });
+
+    const b = world({ net: { removeFails: true } });
+    await b.autoRenewOn();
+    b.store.db.orgs[ORG].status = 'blocked';
+    assert.equal((await b.service.orgBlocked(ORG)).pending, true);
+    assert.equal(b.sub().auto_renew, true);
+    assert.equal(b.sub().regular_remove_reason, 'org_blocked');
+    assert.match(b.net.telegrams().at(-1), /^⏳ Автопродовження не вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · компанію заблоковано · WayForPay не підтвердив REMOVE/);
+    b.net.state.removeFails = false;
+    await b.call('GET', 'cron', CRON);
+    assert.equal(b.sub().auto_renew, false);
+    assert.equal(b.sub().auto_renew_cancelled_at, null);
+});
+
+test('cron stops the regular of a blocked or missing company and of a company with no active owner (deleted account)', async () => {
+    for (const [label, change, reason] of [
+        ['blocked', (w) => { w.store.db.orgs[ORG].status = 'blocked'; }, 'компанію заблоковано'],
+        ['no owner', (w) => { delete w.store.db.profiles['00000000-0000-4000-8000-000000000001']; }, 'у компанії немає активного власника'],
+        ['missing', (w) => { delete w.store.db.orgs[ORG]; }, 'компанії немає']
+    ]) {
+        const w = world();
+        const parent = await w.autoRenewOn();
+        change(w);
+        const res = (await w.call('GET', 'cron', CRON)).body;
+        assert.equal(res.auto_renew.disabled, 1, label);
+        assert.equal(w.sub().auto_renew, false, label);
+        assert.deepEqual(w.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', parent.provider_order_id]], label);
+        assert.ok(w.net.telegrams().at(-1).includes(' · ' + reason), label + ': ' + w.net.telegrams().at(-1));
+    }
+});
+
+test('renewal for a blocked company: credited (money taken), regular stopped, admin told', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    w.store.db.orgs[ORG].status = 'blocked';
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await w.approve(parent.provider_order_id + '_WFPREG-1');
+    assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z');
+    assert.equal(w.sub().auto_renew, false);
+    assert.equal(w.net.telegrams().at(-1), '💳 Оплата: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · автосписання · компанію заблоковано — REMOVE підтверджено · оплачено до 18.12.2026');
+});
+
+test('admin API and CRM: cancel_auto_renew action, block stops auto-renew, state per company', () => {
+    const admin = read('api/admin.js');
+    assert.match(admin, /const billing = createBillingService\(\{ store: createSupabaseStore\(supabase\), fetch: globalThis\.fetch, env: process\.env \}\);/);
+    assert.match(admin, /if \(action === 'cancel_auto_renew'\) \{[\s\S]*?billing\.adminCancelAutoRenew\(orgId\)[\s\S]*?audit\(admin\.user\.id, 'cancel_auto_renew'/);
+    assert.match(admin, /if \(status === 'blocked'\) \{[\s\S]*?billing\.orgBlocked\(orgId\)/);
+    assert.match(admin, /auto_renew: autoRenew\[o\.id\] \|\| null/);
+    const html = read('index.html');
+    assert.match(html, /onclick="adminCancelAutoRenew\(\\'' \+ c\.org_id \+ '\\'\)">Скасувати автопродовження<\/button>/);
+    assert.match(html, /adminApi\('POST', \{ action: 'cancel_auto_renew', org_id: orgId \}\)/);
+    assert.match(html, /\(ADMIN_AUTO_RENEW_RESULT\[res\.auto_renew\] \|\| ''\)/);
 });
 
 test('3-day reminder: with auto-renew «{date} спишемо {sum} з картки {mask}, скасувати можна тут: {link}»; without — the old text', async () => {
