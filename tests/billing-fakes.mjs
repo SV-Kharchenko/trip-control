@@ -217,6 +217,10 @@ export function fakeNet(options = {}) {
         // regularApi: стан регулярок за orderReference; removeFails — REMOVE відповідає помилкою.
         regular: {},
         removeFails: false,
+        // removeCode — reasonCode відповіді REMOVE (напр. 4101 «вже видалено»); statusCode / statusExtra — відповідь STATUS.
+        removeCode: null,
+        statusCode: 4100,
+        statusExtra: {},
         telegramFails: false,
         resendFails: false,
         invoiceSeq: 0
@@ -244,12 +248,14 @@ export function fakeNet(options = {}) {
         if (u === 'https://api.wayforpay.com/regularApi') {
             const body = JSON.parse(init.body);
             if (body.requestType === 'REMOVE') {
+                if (state.removeCode != null) return json(200, { reasonCode: state.removeCode, reason: 'Code ' + state.removeCode });
                 if (state.removeFails) return json(200, { reasonCode: 4102, reason: 'Error' });
                 state.regular[body.orderReference] = 'Removed';
                 return json(200, { reasonCode: 4100, reason: 'Ok' });
             }
             if (body.requestType === 'STATUS') {
-                return json(200, { reasonCode: 4100, reason: 'Ok', orderReference: body.orderReference, status: state.regular[body.orderReference] || 'Active' });
+                return json(200, Object.assign({ reasonCode: state.statusCode, reason: 'Ok', orderReference: body.orderReference,
+                    status: state.regular[body.orderReference] || 'Active' }, state.statusExtra));
             }
         }
         if (u.startsWith('https://api.telegram.org/')) {

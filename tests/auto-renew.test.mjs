@@ -315,6 +315,24 @@ test('cancel when WayForPay does not confirm REMOVE: 502, auto-renew stays on (n
     assert.equal(w.sub().auto_renew, false);
 });
 
+test('REMOVE answering «already removed» (4101 / 4106 / 4107) counts as removed: cancel does not fail forever with 502', async () => {
+    for (const code of [4101, 4106, 4107]) {
+        const w = world({ net: { removeCode: code } });
+        await w.autoRenewOn();
+        const res = await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+        assert.equal(res.statusCode, 200, String(code));
+        assert.equal(w.sub().auto_renew, false, String(code));
+        assert.equal(w.sub().regular_status, 'Removed', String(code));
+        assert.deepEqual(w.net.regularCalls().map((c) => c.requestType), ['REMOVE'], 'no STATUS needed for ' + code);
+    }
+    // Інший код і STATUS без 4100 — не підтверджено.
+    const w = world({ net: { removeCode: 4102, statusCode: 1113 } });
+    await w.autoRenewOn();
+    w.net.state.regular[w.sub().wfp_regular_order_ref] = 'Removed';
+    assert.equal((await w.call('POST', 'cancel-auto-renew', { token: 'owner' })).statusCode, 502);
+    assert.equal(w.sub().auto_renew, true);
+});
+
 test('refund of the first payment or of a renewal: REMOVE and auto-renew off (period cut as before)', async () => {
     const w = world();
     const parent = await w.autoRenewOn();
