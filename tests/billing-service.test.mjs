@@ -179,7 +179,7 @@ test('mono webhook: older modifiedDate after a newer one is ignored; amount/ccy 
     assert.deepEqual(m.net.telegrams(), []);
 });
 
-test('mono webhook: invalid signature → 401, nothing written; reversed → recorded, alert, paid_until kept', async () => {
+test('mono webhook: invalid signature → 401, nothing written; reversed → recorded, alert, paid period taken back once', async () => {
     const w = world();
     await w.pay(Object.assign({ plan: 'month', provider: 'mono' }, w.consent));
     const p = monoPayment(w);
@@ -198,8 +198,8 @@ test('mono webhook: invalid signature → 401, nothing written; reversed → rec
     await w.monoHook(Object.assign({}, hook, { status: 'reversed', modifiedDate: '2026-10-19T10:00:00Z' }));
     await w.monoHook(Object.assign({}, hook, { status: 'reversed', modifiedDate: '2026-10-19T10:00:00Z' }));
     assert.equal(w.store.db.payments[0].status, 'reversed');
-    assert.equal(w.store.db.subs[ORG].paid_until, until, 'not shortened automatically');
-    assert.deepEqual(w.net.telegrams().slice(1), ['↩️ Повернення: ТОВ «Агро» · 1 місяць · 250 грн · plata by mono · оплачено до 18.11.2026']);
+    assert.equal(w.store.db.subs[ORG].paid_until, new Date(NOW).toISOString(), 'one month refunded: access ends now');
+    assert.deepEqual(w.net.telegrams().slice(1), ['↩️ Повернення: ТОВ «Агро» · 1 місяць · 250 грн · plata by mono · доступ завершено']);
 });
 
 test('WayForPay webhook: accept JSON always on a valid request; Approved credits once; form-urlencoded body; bad signature 401', async () => {

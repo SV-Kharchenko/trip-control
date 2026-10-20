@@ -137,6 +137,30 @@ export function memoryStore(clock) {
             Object.assign(p, { status, provider_modified_at: modified || p.provider_modified_at });
             return { changed: true, previous, status };
         },
+        // Та сама логіка, що apply_payment_reversal (20261020180000_refund_cut.sql).
+        async applyReversal(id, modified, partial) {
+            const p = db.payments.find((row) => row.id === id);
+            const sub = db.subs[p.org_id];
+            const base = { previous: p.status, credited: !!p.credited_at, partial: !!partial, paid_until: sub ? sub.paid_until : null };
+            if (p.status === 'refunded' || (modified && p.provider_modified_at && Date.parse(modified) < Date.parse(p.provider_modified_at))) {
+                return Object.assign(base, { changed: false, cut: false, status: p.status });
+            }
+            const statusChanged = p.status !== 'reversed';
+            const cut = !!(p.credited_at && !p.reversal_applied_at && !partial && p.period_from && p.period_to);
+            if (!statusChanged && !cut) return Object.assign(base, { changed: false, cut: false, status: p.status });
+            if (cut && sub && sub.paid_until) {
+                const until = Date.parse(sub.paid_until);
+                const next = Math.min(until, Math.max(clock.now, until - (Date.parse(p.period_to) - Date.parse(p.period_from))));
+                Object.assign(sub, { paid_until: new Date(next).toISOString(), reminder_sent_for: null });
+                base.paid_until = sub.paid_until;
+            }
+            Object.assign(p, {
+                status: 'reversed',
+                reversal_applied_at: cut ? iso() : (p.reversal_applied_at || null),
+                provider_modified_at: modified || p.provider_modified_at
+            });
+            return Object.assign(base, { changed: true, cut, status: 'reversed' });
+        },
         async subscriptionsEndingBetween(fromIso, toIso) {
             return Object.values(db.subs).filter((s) => s.paid_until >= fromIso && s.paid_until < toIso).map((s) => Object.assign({}, s));
         },
