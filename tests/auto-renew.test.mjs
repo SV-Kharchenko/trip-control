@@ -861,6 +861,56 @@ test('client: the box is separate, unchecked, WayForPay only, sends auto_renew o
         /document\.getElementById\('billing-autorenew'\)\.checked = false;/);
 });
 
+test('client: CREATE_INVOICE fallback (auto_renew false) — owner is told it is one-off; redirect only on a second click', async () => {
+    const html = read('index.html');
+    const src = html.slice(html.indexOf('async function startBillingPayment()'), html.indexOf('function showBillingReturn('));
+    const els = {
+        'billing-consent': { checked: true },
+        'billing-pay-btn': { disabled: false, textContent: 'Оплатити 250 грн' },
+        'billing-msg': { textContent: '', className: '' }
+    };
+    const location = { href: '/app' };
+    const sent = [];
+    const ctx = {
+        document: {
+            getElementById: (id) => els[id],
+            querySelector: () => ({ value: 'wayforpay' })
+        },
+        location,
+        uiPreview: false,
+        LEGAL_VERSION: '2026-10-20',
+        BILLING_PROVIDER_LABEL: {},
+        billingOneOffUrl: null,
+        billingAutoRenewTicked: () => true,
+        selectedBillingPlan: () => 'month',
+        setBillingMessage: (text, tone) => { els['billing-msg'].textContent = text; els['billing-msg'].className = tone || ''; },
+        billingFetch: async (path, init) => { sent.push(JSON.parse(init.body)); return { payment_id: 'p1', url: 'https://secure.wayforpay.com/invoice/i123', auto_renew: false }; }
+    };
+    const vm = await import('node:vm');
+    vm.createContext(ctx);
+    vm.runInContext(src + '\nthis.startBillingPayment = startBillingPayment;', ctx);
+    await ctx.startBillingPayment();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].auto_renew, true);
+    assert.equal(location.href, '/app', 'no redirect yet');
+    assert.equal(els['billing-pay-btn'].textContent, 'Перейти до разової оплати');
+    assert.equal(els['billing-pay-btn'].disabled, false);
+    assert.match(els['billing-msg'].textContent, /^Автопродовження зараз не ввімкнулося — це буде разова оплата без автосписань\./);
+    await ctx.startBillingPayment();
+    assert.equal(sent.length, 1, 'no second invoice');
+    assert.equal(location.href, 'https://secure.wayforpay.com/invoice/i123');
+
+    // Автопродовження ввімкнулося (auto_renew true) — одразу на сторінку оплати.
+    ctx.billingOneOffUrl = null;
+    location.href = '/app';
+    ctx.billingFetch = async () => ({ payment_id: 'p2', url: 'https://secure.wayforpay.com/page?vkh=1', auto_renew: true });
+    await ctx.startBillingPayment();
+    assert.equal(location.href, 'https://secure.wayforpay.com/page?vkh=1');
+    // Зміна тарифу / способу скидає разовий рахунок.
+    assert.match(html.slice(html.indexOf('function syncBillingPayButton()'), html.indexOf('function syncBillingAutoRenew()')), /billingOneOffUrl = null;/);
+    assert.match(html, /if \(providers\) providers\.addEventListener\('change', syncBillingPayButton\);/);
+});
+
 test('client: cabinet shows the status and the cancel button to the owner only', () => {
     const html = read('index.html');
     const cabinet = html.slice(html.indexOf('<div id="cabinet-screen">'), html.indexOf('<div id="admin-screen">'));

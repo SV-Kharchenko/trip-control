@@ -7197,6 +7197,8 @@
     let billingEnabled = false;
     // Автопродовження ввімкнене (summary.auto_renew): банер не пропонує платити вручну.
     let billingAutoRenewOn = false;
+    // Створений разовий рахунок, коли автопродовження не ввімкнулося: перехід — лише другим натисканням.
+    let billingOneOffUrl = null;
     const BILLING_PLAN_LABEL = { month: '1 місяць', year: '1 рік' };
     const BILLING_PLAN_EVERY = { month: 'кожен місяць', year: 'кожен рік' };
     const BILLING_PROVIDER_LABEL = { mono: 'plata by mono', wayforpay: 'WayForPay' };
@@ -7276,6 +7278,8 @@
         if (!btn) return;
         const plan = selectedBillingPlan();
         const price = billingSummary && (billingSummary.prices || []).find(function (p) { return p.plan === plan; });
+        // Інший тариф / спосіб / нове відкриття — попередній разовий рахунок більше не пропонуємо.
+        billingOneOffUrl = null;
         btn.textContent = price ? 'Оплатити ' + price.uah + ' грн' : 'Оплатити';
         syncBillingAutoRenew();
     }
@@ -7302,7 +7306,7 @@
     }
     (function () {
         const providers = document.getElementById('billing-providers');
-        if (providers) providers.addEventListener('change', syncBillingAutoRenew);
+        if (providers) providers.addEventListener('change', syncBillingPayButton);
     })();
     function setBillingMessage(text, tone) {
         const msg = document.getElementById('billing-msg');
@@ -7448,6 +7452,14 @@
             return;
         }
         const btn = document.getElementById('billing-pay-btn');
+        // Рахунок уже створено як разовий (автопродовження не ввімкнулося) — власник погодився перейти.
+        if (billingOneOffUrl) {
+            const url = billingOneOffUrl;
+            billingOneOffUrl = null;
+            setBillingMessage('Переходимо на сторінку оплати…', 'ok');
+            location.href = url;
+            return;
+        }
         btn.disabled = true;
         setBillingMessage('Створюємо рахунок…');
         try {
@@ -7460,6 +7472,16 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+            // Сервер не зміг увімкнути автопродовження (запасний CREATE_INVOICE): кажемо, що оплата разова,
+            // і переходимо лише після явного натискання.
+            if (autoRenew && res.auto_renew === false) {
+                billingOneOffUrl = res.url;
+                btn.disabled = false;
+                btn.textContent = 'Перейти до разової оплати';
+                setBillingMessage('Автопродовження зараз не ввімкнулося — це буде разова оплата без автосписань. ' +
+                    'Натисніть «Перейти до разової оплати» або закрийте вікно.', 'error');
+                return;
+            }
             setBillingMessage('Переходимо на сторінку оплати…', 'ok');
             location.href = res.url;
         } catch (e) {
