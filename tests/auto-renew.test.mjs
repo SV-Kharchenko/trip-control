@@ -795,6 +795,9 @@ test('admin API and CRM: cancel_auto_renew action, block stops auto-renew, state
     const admin = read('api/admin.js');
     assert.match(admin, /const billing = createBillingService\(\{ store: createSupabaseStore\(supabase\), fetch: globalThis\.fetch, env: process\.env \}\);/);
     assert.match(admin, /if \(action === 'cancel_auto_renew'\) \{[\s\S]*?billing\.adminCancelAutoRenew\(orgId\)[\s\S]*?audit\(admin\.user\.id, 'cancel_auto_renew'/);
+    // org_id — лише UUID, до будь-якого звернення до бази чи WayForPay.
+    assert.match(admin, /import \{ createBillingService, isUuid \} from '\.\.\/lib\/billing\/service\.js';/);
+    assert.match(admin, /if \(action === 'cancel_auto_renew'\) \{\n\s+const orgId = body\.org_id;\n\s+if \(!isUuid\(orgId\)\) return res\.status\(400\)\.json\(\{ error: 'org_id must be a UUID' \}\);\n\s+const result = autoRenewResult\(await billing\.adminCancelAutoRenew\(orgId\)\);/);
     assert.match(admin, /if \(status === 'blocked'\) \{[\s\S]*?billing\.orgBlocked\(orgId\)/);
     assert.match(admin, /auto_renew: autoRenew\[o\.id\] \|\| null/);
     const html = read('index.html');

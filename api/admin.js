@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { userAccessStatus, userIsBlocked } from '../lib/account-block.js';
 import { setUserStatus, UserStatusError, writeAudit } from '../lib/user-status.js';
-import { createBillingService } from '../lib/billing/service.js';
+import { createBillingService, isUuid } from '../lib/billing/service.js';
 import { createSupabaseStore } from '../lib/billing/store.js';
 
 /**
@@ -183,7 +183,7 @@ export default async function handler(req, res) {
 
             if (action === 'cancel_auto_renew') {
                 const orgId = body.org_id;
-                if (!orgId) return res.status(400).json({ error: 'org_id required' });
+                if (!isUuid(orgId)) return res.status(400).json({ error: 'org_id must be a UUID' });
                 const result = autoRenewResult(await billing.adminCancelAutoRenew(orgId));
                 await audit(admin.user.id, 'cancel_auto_renew', 'org_subscriptions', orgId, orgId, { result });
                 return res.status(200).json({ ok: true, org_id: orgId, auto_renew: result });
