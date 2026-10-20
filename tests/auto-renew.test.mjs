@@ -704,15 +704,25 @@ test('cron: blocked company → REMOVE at once; no active owner / company missin
         const parent = await w.autoRenewOn();
         change(w);
         if (runs === 2) {
+            const seenAt = w.clock.now;
             const first = (await w.call('GET', 'cron', CRON)).body;
             assert.deepEqual([first.auto_renew.deferred, first.auto_renew.disabled], [1, 0], label);
+            assert.equal(w.sub().regular_stop_check_at, new Date(seenAt).toISOString(), label);
+            // Повторні запуски того ж дня (і через 19:59) — час, а не кількість запусків: REMOVE ще немає.
+            for (const later of [0, 60 * 60 * 1000, 20 * 60 * 60 * 1000 - 60 * 1000]) {
+                w.clock.now = seenAt + later;
+                assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.deferred, 1, label + ' +' + later);
+            }
+            assert.equal(w.sub().regular_stop_check_at, new Date(seenAt).toISOString(), label + ': first observation kept');
             assert.equal(w.sub().auto_renew, true, label);
-            assert.equal(w.net.regularCalls().some((c) => c.requestType === 'REMOVE'), false, label + ': no REMOVE on the first run');
+            assert.equal(w.net.regularCalls().some((c) => c.requestType === 'REMOVE'), false, label + ': no REMOVE before 20 h');
+            w.clock.now = seenAt + 20 * 60 * 60 * 1000;
         }
         const res = (await w.call('GET', 'cron', CRON)).body;
         assert.equal(res.auto_renew.disabled, 1, label);
         assert.equal(w.sub().auto_renew, false, label);
         assert.equal(w.sub().regular_stop_check, null, label);
+        assert.equal(w.sub().regular_stop_check_at, null, label);
         assert.deepEqual(w.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', parent.provider_order_id]], label);
         assert.ok(w.net.telegrams().at(-1).includes(' · ' + reason), label + ': ' + w.net.telegrams().at(-1));
     }
@@ -736,12 +746,27 @@ test('cron: an owner without email in the profile is still an owner; a no-owner 
     assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.deferred, 1);
     assert.equal(w.sub().regular_stop_check, 'no_owner');
     w.store.db.profiles[owner] = saved;
+    w.clock.now += 21 * 60 * 60 * 1000;
     assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.checked, 1);
     assert.equal(w.sub().regular_stop_check, null);
+    assert.equal(w.sub().regular_stop_check_at, null);
     delete w.store.db.profiles[owner];
+    const restart = w.clock.now;
     assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.deferred, 1, 'the count starts over');
+    assert.equal(w.sub().regular_stop_check_at, new Date(restart).toISOString(), 'time starts over too');
     assert.equal(w.net.regularCalls().some((c) => c.requestType === 'REMOVE'), false);
     assert.equal(w.sub().auto_renew, true);
+
+    // Причина змінилась (no_owner → org_missing) — новий відлік 20 год.
+    w.clock.now = restart + 19 * 60 * 60 * 1000;
+    delete w.store.db.orgs[ORG];
+    assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.deferred, 1);
+    assert.deepEqual([w.sub().regular_stop_check, w.sub().regular_stop_check_at], ['org_missing', new Date(w.clock.now).toISOString()]);
+    w.clock.now = restart + 21 * 60 * 60 * 1000;
+    assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.deferred, 1, '2 h after the new reason: still waiting');
+    w.clock.now = restart + 39 * 60 * 60 * 1000;
+    assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.disabled, 1);
+    assert.equal(w.sub().auto_renew, false);
 });
 
 test('database error on the company lookup is not «company missing»: no REMOVE, row counted as failed, one alert', async () => {
@@ -777,6 +802,7 @@ test('database error on the company lookup is not «company missing»: no REMOVE
     w.store.db.failOrgStatus = false;
     delete w.store.db.orgs[ORG];
     assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.deferred, 1);
+    w.clock.now += 20 * 60 * 60 * 1000;
     assert.equal((await w.call('GET', 'cron', CRON)).body.auto_renew.disabled, 1);
 });
 
@@ -1062,7 +1088,7 @@ test('migration: columns, kind / parent, unique order reference kept, clients re
     assert.match(sql, /GRANT SELECT \(org_id, paid_until, last_plan, reminder_sent_for, updated_at\) ON public\.org_subscriptions TO authenticated;/);
     assert.match(sql, /REVOKE ALL ON FUNCTION public\.record_renewal_failure\(uuid\) FROM PUBLIC, anon, authenticated;/);
     assert.match(sql, /REVOKE SELECT ON public\.org_subscriptions FROM PUBLIC, anon, authenticated;/);
-    assert.match(sql, /REVOKE SELECT \(auto_renew, wfp_regular_order_ref, card_mask, next_charge_at, regular_status, regular_remove_reason,\n\s+regular_stop_check, fail_count, auto_renew_consent_at, auto_renew_cancelled_at\) ON public\.org_subscriptions FROM PUBLIC, anon, authenticated;/);
+    assert.match(sql, /REVOKE SELECT \(auto_renew, wfp_regular_order_ref, card_mask, next_charge_at, regular_status, regular_remove_reason,\n\s+regular_stop_check, regular_stop_check_at, fail_count, auto_renew_consent_at, auto_renew_cancelled_at\) ON public\.org_subscriptions FROM PUBLIC, anon, authenticated;/);
     assert.match(sql, /Not applied to production by this PR\./);
 });
 
