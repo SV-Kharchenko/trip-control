@@ -90,7 +90,9 @@ URL вебхуків у кабінетах провайдерів:
 - `org_has_paid_access()` викликає лише сервер і SECURITY DEFINER-функції (EXECUTE тільки `service_role`);
 - `org_has_user_data()` рахує `payments` і `org_subscriptions` як дані: компанію, що платила, прийняття запрошення не видаляє.
 
-Перевірка: `node scripts/check-payments-rls.mjs` (PGlite), `npm test`.
+Перевірка: `node scripts/check-payments-rls.mjs` і `node scripts/check-payments-invite-compat.mjs` (усі перевірки флоу запрошень і starter-шаблону з `org_has_user_data` цієї міграції; PGlite), `npm test`.
+
+Повний доступ (ручне `is_approved` або оплачена компанія) однаково рахують `api/calculate.js` і пошук POI в `api/poi.js` (`isDemoAccess` + `loadPaidUntil`).
 
 ## Env (лише Vercel → Settings → Environment Variables)
 
@@ -106,6 +108,11 @@ URL вебхуків у кабінетах провайдерів:
 | вже є | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `REPORT_FROM_EMAIL`, `CRON_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 
 Без `SUPABASE_*` / `PUBLIC_BASE_URL` / env провайдера цей провайдер недоступний (summary його не показує, create-invoice → 503).
+На старті вмикаємо лише WayForPay: `MONO_*` не задаємо — plata by mono на екрані не з’являється.
+
+Без `PAYMENTS_ENABLED=1` екрана оплати немає: клієнт після входу питає `GET /api/billing/summary` і показує пункт меню
+«Тариф і оплата», банер «Продовжити» та `?billing=pay|return` лише коли `payments_enabled: true` (помилка summary = вимкнено).
+Нагадування за 3 дні до кінця — лише email (Resend); Telegram отримує тільки адмін про оплату / повернення.
 Секрети не логуються й не повертаються в помилках. У коді, чаті й на скрінах їх не буває.
 
 ## Тестування в sandbox

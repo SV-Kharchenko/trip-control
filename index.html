@@ -4567,7 +4567,7 @@
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Історія і шаблони</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('defaults')">Значення за замовчуванням</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
-                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('billing')">Тариф і оплата</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-billing" hidden onclick="menuGo('billing')">Тариф і оплата</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('help')">Довідка і підтримка</button>
                         <button type="button" role="menuitem" class="tc-menu-item is-danger" onclick="menuGo('logout')">Вийти</button>
                         <div class="tc-menu-foot">
@@ -7127,8 +7127,7 @@
             }
             if (inviteNotice) showToast(inviteNotice);
             else if (landingDraftApplied) showToast('Підставили дані з головної — натисни «Розрахувати»');
-            syncBillingBanner();
-            handleBillingParams();
+            refreshBillingAvailability().then(handleBillingParams);
         }
     }
 
@@ -7159,6 +7158,8 @@
     let billingSummary = null;
     let billingReturnFocus = null;
     let billingPolling = false;
+    // Екран оплати є лише з PAYMENTS_ENABLED=1 на сервері (summary.payments_enabled); інакше пункт меню, банер і ?billing= сховані.
+    let billingEnabled = false;
     const BILLING_PLAN_LABEL = { month: '1 місяць', year: '1 рік' };
     const BILLING_PROVIDER_LABEL = { mono: 'plata by mono', wayforpay: 'WayForPay' };
     const BILLING_STATUS_LABEL = {
@@ -7293,9 +7294,27 @@
         const source = document.querySelector('#main-app > .tc-legal-footer');
         if (source) slot.appendChild(source.cloneNode(true));
     }
+    function setBillingEnabled(on) {
+        billingEnabled = !!on;
+        const item = document.getElementById('tc-menu-billing');
+        if (item) item.hidden = !billingEnabled;
+        syncBillingBanner();
+    }
+    async function refreshBillingAvailability() {
+        if (uiPreview) {
+            setBillingEnabled(true);
+            return;
+        }
+        try {
+            const summary = await billingFetch('summary');
+            setBillingEnabled(summary.payments_enabled === true);
+        } catch (e) {
+            setBillingEnabled(false);
+        }
+    }
     async function openBillingModal() {
         const modal = document.getElementById('tc-billing-modal');
-        if (!modal) return;
+        if (!modal || !billingEnabled) return;
         closeUserMenu();
         ensureBillingFooter();
         billingReturnFocus = document.activeElement;
@@ -7420,6 +7439,7 @@
             const rest = params.toString();
             history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
         }
+        if (!billingEnabled) return;
         if (mode === 'pay') openBillingModal();
         else if (mode === 'return') {
             openBillingModal();
@@ -7432,7 +7452,7 @@
         if (!banner) return;
         const until = Date.parse(billingPaidUntil || '');
         const left = until - Date.now();
-        const show = !billingManualAccess && Number.isFinite(until) && left > 0 && left <= 3 * 24 * 3600 * 1000;
+        const show = billingEnabled && !billingManualAccess && Number.isFinite(until) && left > 0 && left <= 3 * 24 * 3600 * 1000;
         banner.hidden = !show;
         if (!show) return;
         const owner = currentOrgRole === 'owner';
@@ -14069,7 +14089,7 @@
         const billingStateQ = previewParams.get('billing_state');
         if (billingStateQ === 'soon') billingPaidUntil = new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString();
         if (previewParams.get('billing_role') === 'logist') currentOrgRole = 'logist';
-        syncBillingBanner();
+        setBillingEnabled(true);
         handleBillingParams();
     }
 

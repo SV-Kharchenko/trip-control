@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
+import { isDemoAccess, loadPaidUntil } from '../lib/billing/access.js';
 
 // Клієнт Supabase створюємо лише на шляху POI (перший виклик), а не при імпорті модуля: режими geocode / route
 // не потребують секретів і працюють навіть там, де SUPABASE_* не задані (напр., Preview на Vercel).
@@ -809,15 +810,17 @@ export default async function handler(req, res) {
         if (userIsBlocked(user)) {
             return res.status(403).json(USER_BLOCKED_ERROR);
         }
-        const { data: profile } = await supabaseAdmin()
+        const admin = supabaseAdmin();
+        const { data: profile } = await admin
             .from('profiles')
-            .select('is_approved, member_status, organizations(status)')
+            .select('is_approved, org_id, member_status, organizations(status)')
             .eq('id', user.id)
             .single();
         if (profile?.member_status === 'disabled') {
             return res.status(403).json({ code: 'MEMBER_DISABLED', error: 'Доступ до компанії відключено.' });
         }
-        if (!profile || !profile.is_approved) {
+        // Повний доступ: ручне схвалення (is_approved) або оплачена компанія — як у api/calculate.js.
+        if (!profile || isDemoAccess(profile, profile.is_approved ? null : await loadPaidUntil(admin, profile.org_id))) {
             return res.status(403).json({ error: 'Акаунт очікує підтвердження адміністратора.' });
         }
         if (profile.organizations && profile.organizations.status === 'blocked') {
