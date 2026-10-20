@@ -908,6 +908,8 @@ test('migration: columns, kind / parent, unique order reference kept, clients re
     assert.equal(/payments_provider_order_uidx/.test(sql), false, 'unique index untouched');
     assert.match(sql, /GRANT SELECT \(org_id, paid_until, last_plan, reminder_sent_for, updated_at\) ON public\.org_subscriptions TO authenticated;/);
     assert.match(sql, /REVOKE ALL ON FUNCTION public\.record_renewal_failure\(uuid\) FROM PUBLIC, anon, authenticated;/);
+    assert.match(sql, /REVOKE SELECT ON public\.org_subscriptions FROM PUBLIC, anon, authenticated;/);
+    assert.match(sql, /REVOKE SELECT \(auto_renew, wfp_regular_order_ref, card_mask, next_charge_at, regular_status, regular_remove_reason,\n\s+fail_count, auto_renew_consent_at, auto_renew_cancelled_at\) ON public\.org_subscriptions FROM PUBLIC, anon, authenticated;/);
     assert.match(sql, /Not applied to production by this PR\./);
 });
 
@@ -927,6 +929,7 @@ test('auto-renew migration on Postgres (PGlite)', (t) => {
         'authenticated cannot update org_subscriptions.auto_renew (42501)',
         'owner still reads paid_until of own company',
         'payment_events: unmatched renewal event without payment_id, with order_reference',
-        'payment_events: still no client access (42501)'
+        'payment_events: still no client access (42501)',
+        'anon: SELECT card_mask FROM public.org_subscriptions (42501)'
     ]) assert.ok(run.stdout.includes('PASS ' + line), line);
 });

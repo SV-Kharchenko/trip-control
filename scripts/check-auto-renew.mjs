@@ -168,6 +168,19 @@ try {
         const res = await as(OWNER, `SELECT ${column} FROM public.org_subscriptions`);
         check(!res.ok && res.code === '42501', 'authenticated cannot read org_subscriptions.' + column + ' (42501)');
     }
+    // anon (без входу): ні нових колонок, ні старих.
+    for (const sql of [
+        'SELECT card_mask FROM public.org_subscriptions',
+        'SELECT auto_renew FROM public.org_subscriptions',
+        'SELECT paid_until FROM public.org_subscriptions',
+        'SELECT kind FROM public.payments'
+    ]) {
+        await db.exec('RESET ROLE');
+        await db.exec('SET ROLE anon');
+        const res = await db.query(sql).then(() => ({ ok: true }), (error) => ({ ok: false, code: error.code }));
+        await db.exec('RESET ROLE');
+        check(!res.ok && res.code === '42501', 'anon: ' + sql + ' (42501)');
+    }
     const star = await as(OWNER, `SELECT * FROM public.org_subscriptions`);
     check(!star.ok && star.code === '42501', 'authenticated cannot SELECT * from org_subscriptions (42501)');
     for (const [label, sql] of [

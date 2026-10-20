@@ -86,8 +86,11 @@ CREATE INDEX IF NOT EXISTS org_subscriptions_auto_renew_idx
 
 -- Members read paid_until of their company (RLS org_subscriptions_select_own_org stays);
 -- the auto-renewal columns are read by the server only.
-REVOKE SELECT ON public.org_subscriptions FROM authenticated;
+REVOKE SELECT ON public.org_subscriptions FROM PUBLIC, anon, authenticated;
+REVOKE SELECT (auto_renew, wfp_regular_order_ref, card_mask, next_charge_at, regular_status, regular_remove_reason,
+  fail_count, auto_renew_consent_at, auto_renew_cancelled_at) ON public.org_subscriptions FROM PUBLIC, anon, authenticated;
 GRANT SELECT (org_id, paid_until, last_plan, reminder_sent_for, updated_at) ON public.org_subscriptions TO authenticated;
+REVOKE SELECT (kind, parent_payment_id, auto_renew_requested_at) ON public.payments FROM PUBLIC, anon;
 REVOKE INSERT, UPDATE, DELETE ON public.org_subscriptions FROM PUBLIC, anon, authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.payments FROM PUBLIC, anon, authenticated;
 
