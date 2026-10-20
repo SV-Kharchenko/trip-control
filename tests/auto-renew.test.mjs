@@ -88,8 +88,8 @@ test('Purchase without the box: no regular fields; with the box: regular fields 
     const row = w.store.db.payments.find((p) => p.id === res.body.payment_id);
     assert.equal(row.auto_renew_requested_at, new Date(NOW).toISOString(), 'consent time is written on the server');
 
-    // Попередній рахунок з автопродовженням уже не відкритий (минуло > 75 хв) — новий дозволено.
-    w.clock.now = NOW + 76 * 60 * 1000;
+    // Попередній рахунок з автопродовженням уже не відкритий (минула година — orderLifetime) — новий дозволено.
+    w.clock.now = NOW + 61 * 60 * 1000;
     const year = await w.invoice({ plan: 'year', auto_renew: true });
     assert.equal(year.statusCode, 200);
     assert.equal(w.purchases()[2].get('regularMode'), 'yearly');
@@ -569,7 +569,9 @@ test('renewal for a company with auto_renew=false: credited, REMOVE right away, 
     f.clock.now = Date.parse('2026-11-18T07:00:00Z');
     await f.approve(p.provider_order_id + '_WFPREG-9');
     assert.equal(f.sub().paid_until, '2026-12-18T09:00:00.000Z');
-    assert.match(f.net.telegrams().at(-1), /автосписання · автопродовження вже вимкнене — REMOVE не вдався — вимкніть регулярний платіж у кабінеті WayForPay · оплачено до 18\.12\.2026$/);
+    // REMOVE не вдався — регулярка записана в regular_removals, крон повторює.
+    assert.match(f.net.telegrams().at(-1), /автосписання · автопродовження вже вимкнене — WayForPay не підтвердив REMOVE — повторюємо щодня · оплачено до 18\.12\.2026$/);
+    assert.deepEqual(f.store.db.removals.map((r) => r.reason), ['after_off']);
 });
 
 test('renewal of an old (replaced) regular or one waiting for REMOVE: credited, REMOVE now; a «failed charges» pending is undone by a success', async () => {
@@ -824,6 +826,71 @@ test('old regular in RemovePending, new one credited, REMOVE of the old fails �
     assert.deepEqual(removes(mark), []);
 });
 
+// Спільна перевірка крону для запису в regular_removals: REMOVE повторюється (tries+1, last_try_at, алерт),
+// запис видаляється на 4100, поточна регулярка (якщо є) не чіпається.
+async function cronRetriesRemoval(w, oldRef, reason, keepRef) {
+    assert.deepEqual(w.store.db.removals.map((r) => [r.order_ref, r.reason, r.tries]), [[oldRef, reason, 0]], 'recorded: ' + reason);
+    const removes = (from) => w.net.regularCalls().slice(from).filter((c) => c.requestType === 'REMOVE').map((c) => c.orderReference);
+
+    w.clock.now += DAY;
+    let mark = w.net.regularCalls().length;
+    let tg = w.net.telegrams().length;
+    let res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.regular_removals, { removed: 0, left: 1 }, reason);
+    assert.deepEqual(removes(mark), [oldRef], reason + ': REMOVE repeated for the old reference only');
+    assert.equal(w.store.db.removals[0].tries, 1, reason);
+    assert.equal(w.store.db.removals[0].last_try_at, new Date(w.clock.now).toISOString(), reason);
+    assert.deepEqual(w.net.telegrams().slice(tg).filter((t) => t.startsWith('⚠️ Старі')),
+        ['⚠️ Старі регулярки WayForPay не знято: 1 · ТОВ «Агро» (спроб: 1) · REMOVE повторюємо щодня — перевірте в кабінеті WayForPay'], reason);
+
+    w.net.state.removeFails = false;
+    w.clock.now += DAY;
+    mark = w.net.regularCalls().length;
+    tg = w.net.telegrams().length;
+    res = (await w.call('GET', 'cron', CRON)).body;
+    assert.deepEqual(res.regular_removals, { removed: 1, left: 0 }, reason + ': deleted on 4100');
+    assert.deepEqual(removes(mark), [oldRef], reason);
+    assert.equal(w.store.db.removals.length, 0, reason);
+    assert.equal(w.net.telegrams().slice(tg).some((t) => t.startsWith('⚠️ Старі')), false, reason + ': no alert once empty');
+    if (keepRef) assert.notEqual(w.net.state.regular[keepRef], 'Removed', reason + ': the current regular is untouched');
+}
+
+test('regular_removals in all three cases (new activation, refund of an old regular, charge after cancel): cron retries, deletes on 4100, alerts', async () => {
+    // 1) Нове ввімкнення замінює регулярку; REMOVE старої не вдався.
+    const a = world();
+    const oldA = await a.autoRenewOn();
+    a.net.state.removeFails = true;
+    a.store.db.subs[ORG].regular_status = 'RemovePending';
+    a.store.db.subs[ORG].regular_remove_reason = 'owner';
+    a.clock.now = NOW + DAY;
+    const newA = await a.pay({ auto_renew: true });
+    await a.approve(newA.provider_order_id);
+    assert.equal(a.sub().wfp_regular_order_ref, newA.provider_order_id);
+    await cronRetriesRemoval(a, oldA.provider_order_id, 'owner', newA.provider_order_id);
+
+    // 2) Повернення платежу регулярки, яка вже не поточна (автопродовження вимкнене); REMOVE не вдався.
+    const b = world();
+    const oldB = await b.autoRenewOn();
+    b.store.db.subs[ORG].auto_renew = false;
+    b.net.state.removeFails = true;
+    b.clock.now = NOW + DAY;
+    await b.hook(oldB.provider_order_id, { transactionStatus: 'Refunded', refundAmount: 250 });
+    assert.ok(b.net.telegrams().includes(
+        '⏳ Стару регулярку не знято: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · повернення платежу · WayForPay не підтвердив REMOVE старої регулярки — повторюємо щодня'));
+    await cronRetriesRemoval(b, oldB.provider_order_id, 'refund');
+
+    // 3) Списання після скасування (автопродовження вимкнене): зараховано, REMOVE не вдався.
+    const c = world();
+    const oldC = await c.autoRenewOn();
+    c.store.db.subs[ORG].auto_renew = false;
+    c.net.state.removeFails = true;
+    c.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await c.approve(oldC.provider_order_id + '_WFPREG-1');
+    assert.equal(c.sub().paid_until, '2026-12-18T09:00:00.000Z', 'money taken: credited');
+    assert.match(c.net.telegrams().at(-1), /автосписання · автопродовження вже вимкнене — WayForPay не підтвердив REMOVE — повторюємо щодня/);
+    await cronRetriesRemoval(c, oldC.provider_order_id, 'after_off');
+});
+
 test('a charge of an old regular from regular_removals: credited, REMOVE now, the row closed when confirmed', async () => {
     const w = world({ net: { removeFails: true } });
     const oldPay = await w.autoRenewOn();
@@ -861,11 +928,18 @@ test('create-invoice refuses a second auto-renew invoice while another one is op
     assert.equal(third.statusCode, 200);
     assert.equal(w.store.db.payments.find((p) => p.id === open.id).status, 'expired');
 
-    // Старий pending поза вікном (> 75 хв) не блокує, навіть без відповіді провайдера.
+    // Старий pending поза вікном (> 1 год, orderLifetime 3600 с) не блокує, навіть без відповіді провайдера; за 59 хв — ще блокує.
     const late = world();
     await late.invoice({ auto_renew: true });
-    late.clock.now = NOW + 76 * 60 * 1000;
+    late.clock.now = NOW + 59 * 60 * 1000;
+    assert.equal((await late.invoice({ auto_renew: true })).body.code, 'AUTO_RENEW_INVOICE_OPEN');
+    late.clock.now = NOW + 61 * 60 * 1000;
     assert.equal((await late.invoice({ auto_renew: true })).statusCode, 200);
+    // Лише WayForPay: незакритий mono-рахунок з позначкою (не буває в коді, але й не блокує).
+    const mono = world();
+    await mono.invoice({});
+    Object.assign(mono.store.db.payments[0], { provider: 'mono', auto_renew_requested_at: new Date(NOW).toISOString() });
+    assert.equal((await mono.invoice({ auto_renew: true })).statusCode, 200);
 
     // Запасний CREATE_INVOICE (разова оплата) не лишає позначки — і не блокує.
     const fb = world({ net: { wfpOffline: false } });

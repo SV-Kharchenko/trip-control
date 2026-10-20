@@ -220,7 +220,7 @@ export function memoryStore(clock) {
         },
         async deleteRegularRemoval(orderRef) { db.removals = db.removals.filter((r) => r.order_ref !== orderRef); },
         async openAutoRenewPayments(orgId, sinceIso) {
-            return db.payments.filter((p) => p.org_id === orgId && ['created', 'pending'].includes(p.status)
+            return db.payments.filter((p) => p.org_id === orgId && p.provider === 'wayforpay' && ['created', 'pending'].includes(p.status)
                 && p.auto_renew_requested_at && p.created_at >= sinceIso).map((p) => Object.assign({}, p));
         },
         async recordRenewalFailure(orgId) {
