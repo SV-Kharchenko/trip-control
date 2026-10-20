@@ -1,6 +1,7 @@
 # Оплата тарифу (plata by mono, WayForPay)
 
-Тариф — на організацію; платить лише власник (`org_role = 'owner'`). Автосписань немає: кожна оплата — окремий рахунок.
+Тариф — на організацію; платить лише власник (`org_role = 'owner'`). Кожна оплата — окремий рахунок; автосписання — лише
+з автопродовженням WayForPay, яке власник вмикає окремою галочкою (див. «Автопродовження»).
 
 | Тариф | Ціна | mono (`amount`, `ccy`) | WayForPay (`amount`, `currency`) |
 |-------|------|------------------------|----------------------------------|
@@ -45,6 +46,8 @@ api/billing/[route].js  ── JWT, власник, активна компан�
 - лист «Trip Control: доступ діє до DD.MM.YYYY» власникам, у яких `paid_until` за Києвом = сьогодні + 3 дні
   (один раз на кожне `paid_until`, `reminder_sent_for`); без `RESEND_API_KEY` / `REPORT_FROM_EMAIL` — не шле і не позначає;
 - звірка: платежі `created` / `pending` віком від 10 хв до 48 год → той самий status-check;
+- автопродовження (якщо задано `WAYFORPAY_MERCHANT_PASSWORD`): regularApi `STATUS` для кожної компанії з `auto_renew = true`;
+  `Removed` / `Suspended` / `Completed` → `auto_renew = false` і Telegram «🔁 Автопродовження вимкнено: …»;
 - нічого не видаляє.
 
 ## Маршрути (одна функція `api/billing/[route].js`)
@@ -56,7 +59,8 @@ api/billing/[route].js  ── JWT, власник, активна компан�
 | POST | `/api/billing/mono-webhook` | `x-sign` (ECDSA SHA-256, сире тіло); 401 без запису при невалідному |
 | POST | `/api/billing/wayforpay-webhook` | HMAC_MD5; на валідний (і повтор) — `{orderReference, status:'accept', time, signature}`; 401 при невалідному |
 | GET | `/api/billing/status?pid=` | власник своєї компанії; питає провайдера для `created`/`pending` |
-| GET | `/api/billing/summary` | `paid_until`, ціни, доступні провайдери, останні 20 платежів (власнику) |
+| GET | `/api/billing/summary` | `paid_until`, ціни, доступні провайдери, останні 20 платежів (власнику); `auto_renew_available` (лише з `AUTO_RENEW_ENABLED=1`) і `auto_renew` (власнику, якщо ввімкнене) |
+| POST | `/api/billing/cancel-auto-renew` | власник: regularApi `REMOVE`, потім `auto_renew = false`, `auto_renew_cancelled_at`; 502, якщо WayForPay не підтвердив |
 | GET | `/api/billing/cron` | нагадування й звірка |
 
 URL вебхуків у кабінетах провайдерів:
@@ -108,6 +112,8 @@ URL вебхуків у кабінетах провайдерів:
 | `WAYFORPAY_MERCHANT_DOMAIN` | `trip-control.com` |
 | `PUBLIC_BASE_URL` | `https://trip-control.com` |
 | `PAYMENTS_ENABLED` | `1`, коли готові приймати оплату |
+| `WAYFORPAY_MERCHANT_PASSWORD` | пароль мерчанта для regularApi (STATUS / REMOVE автопродовження); без нього галочки немає |
+| `AUTO_RENEW_ENABLED` | `1` — галочка автопродовження на екрані оплати; вмикати не раніше 30.10.2026 (набрання чинності редакцією оферти від 20.10.2026) |
 | вже є | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `REPORT_FROM_EMAIL`, `CRON_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
 
 Без `SUPABASE_*` / `PUBLIC_BASE_URL` / env провайдера цей провайдер недоступний (summary його не показує, create-invoice → 503).
@@ -127,6 +133,39 @@ URL вебхуків у кабінетах провайдерів:
   і додайте bypass-параметр до URL вебхука.
 - Сценарій: власник → меню → «Тариф і оплата» → тариф, спосіб, згода → «Оплатити» → тестова картка → повернення
   на `/?billing=return&pid=…` → «Оплату зараховано. Доступ діє до …».
+
+## Автопродовження (WayForPay regular)
+
+Міграція `supabase/migrations/20261020200000_auto_renew.sql` (на прод — лише після перевірки; `node scripts/check-auto-renew.mjs`).
+
+- **Увімкнення.** На екрані «Тариф і оплата» для WayForPay — окрема, не відмічена галочка «Автоматично продовжувати: {сума} грн
+  кожен {місяць/рік}. Скасувати можна будь-коли в кабінеті». Є лише з `AUTO_RENEW_ENABLED=1`, `WAYFORPAY_MERCHANT_PASSWORD` і коли
+  автопродовження ще не ввімкнене. Клієнт шле лише `auto_renew: true`; сервер додає в Purchase `regularMode` (`monthly` / `yearly`),
+  `regularAmount` (з плану), `dateNext` (нове «оплачено до», dd.mm.yyyy за Києвом), `regularOn=1`, `regularBehavior=preset`.
+  Регулярні поля працюють лише з `behavior=offline`; якщо WayForPay відповів не так і рахунок пішов через `CREATE_INVOICE` — це
+  звичайна разова оплата (`auto_renew: false` у відповіді).
+- **Згода.** `payments.auto_renew_requested_at` = час на сервері; після зарахування цього платежу він переходить в
+  `org_subscriptions.auto_renew_consent_at`, а `auto_renew = true`, `wfp_regular_order_ref` (orderReference першого платежу),
+  `card_mask`, `next_charge_at`. Нове ввімкнення при вже активному — 409; нова регулярка замінює стару (REMOVE старої).
+- **Автосписання.** WayForPay шле сповіщення на той самий `serviceUrl` з `orderReference = <початковий>_WFPREG-<цифри>` (цифри нові
+  для кожного списання). Підпис — як завжди. Сервер знаходить перший платіж за префіксом, створює рядок `payments`
+  (`kind = 'renewal'`, `parent_payment_id`) і зараховує тим самим `apply_payment_success()`; повтор того самого orderReference
+  нічого не змінює. Успіх: `fail_count = 0`, нова `next_charge_at`, Telegram «💳 Оплата: … · автосписання · оплачено до …».
+  Якщо автосписання прийшло, коли в нас автопродовження вже вимкнене, — зараховуємо (гроші списані) і пишемо адміну.
+- **Невдале списання** (`Declined`): `fail_count + 1` (раз на списання), Telegram «⚠️ Автосписання не пройшло: … · спроба N».
+  На другому поспіль: regularApi `REMOVE`, `auto_renew = false`, лист власникам «Автосписання не пройшло, оплатіть вручну».
+  Якщо `REMOVE` не підтверджено — в алерті «REMOVE не вдався — вимкніть регулярний платіж у кабінеті WayForPay».
+- **Скасування** — кабінет власника («Скасувати автопродовження»), `POST /api/billing/cancel-auto-renew`. Доступ лишається до `paid_until`.
+  Логісти блоку не бачать. Посилання з листа: `/?billing=auto-renew` відкриває кабінет.
+- **Повернення** першого платежу регулярки або автосписання (`apply_payment_reversal`, як і раніше) додатково робить `REMOVE` і
+  вимикає автопродовження.
+- **Нагадування за 3 дні**: з увімкненим автопродовженням — «{дата} спишемо {сума} грн з картки {маска}, скасувати можна тут: {посилання}».
+- **Без `AUTO_RENEW_ENABLED=1`** галочки немає і Purchase, summary, cron — як раніше; уже ввімкнене автопродовження (автосписання,
+  скасування, повернення, звірка STATUS) однаково обробляється.
+- Клієнти читають з `org_subscriptions` лише `org_id, paid_until, last_plan, reminder_sent_for, updated_at`; поля автопродовження й
+  `payments` пише тільки сервер.
+- Видалення акаунта власника з увімкненим автопродовженням: адмін робить `REMOVE` (кабінет WayForPay) і
+  `UPDATE org_subscriptions SET auto_renew = false` (п. 12.2 оферти).
 
 ## Повернення коштів
 

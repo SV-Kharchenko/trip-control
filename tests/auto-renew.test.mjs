@@ -1,0 +1,567 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { createBillingHandler } from '../lib/billing/service.js';
+import { buildReminderEmail } from '../lib/billing/mail.js';
+import { parseRegularOrderReference, wayforpayDate } from '../lib/billing/wayforpay.js';
+import { LEGAL_VERSION } from '../lib/legal.js';
+import { baseEnv, DAY, fakeNet, memoryStore, NOW, ORG, request, response, WFP_MERCHANT, WFP_SECRET } from './billing-fakes.mjs';
+
+const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const WFP_PASSWORD = 'test-wfp-merchant-password';
+const OFFLINE = 'https://secure.wayforpay.com/pay?behavior=offline';
+
+function world({ flag = true, password = true, net: netOptions = {} } = {}) {
+    const clock = { now: NOW };
+    const net = fakeNet(netOptions);
+    const store = memoryStore(clock);
+    const extra = {};
+    if (flag) extra.AUTO_RENEW_ENABLED = '1';
+    if (password) extra.WAYFORPAY_MERCHANT_PASSWORD = WFP_PASSWORD;
+    const env = baseEnv(extra);
+    const handler = createBillingHandler({ store, fetch: net.fetch, env, now: () => clock.now });
+    async function call(method, route, options) {
+        const res = response();
+        await handler(request(method, route, options), res);
+        return res;
+    }
+    const invoice = (body, token = 'owner') => call('POST', 'create-invoice', {
+        token, body: Object.assign({ plan: 'month', provider: 'wayforpay', consent: true, legal_version: LEGAL_VERSION }, body)
+    });
+    async function pay(body = {}) {
+        const res = await invoice(body);
+        assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+        return store.db.payments.find((p) => p.id === res.body.payment_id);
+    }
+    function signed(orderReference, fields) {
+        const body = Object.assign({
+            merchantAccount: WFP_MERCHANT, orderReference, amount: 250, currency: 'UAH', authCode: '541963',
+            cardPan: '41****8217', reasonCode: 1100, processingDate: Math.floor(clock.now / 1000)
+        }, fields);
+        body.merchantSignature = crypto.createHmac('md5', WFP_SECRET).update([
+            body.merchantAccount, body.orderReference, body.amount, body.currency, body.authCode, body.cardPan, body.transactionStatus, body.reasonCode
+        ].join(';'), 'utf8').digest('hex');
+        return body;
+    }
+    const hook = (orderReference, fields) =>
+        call('POST', 'wayforpay-webhook', { raw: JSON.stringify(signed(orderReference, fields)), headers: { 'content-type': 'application/json' } });
+    const approve = (orderReference, fields) => hook(orderReference, Object.assign({ transactionStatus: 'Approved' }, fields));
+    const decline = (orderReference, fields) => hook(orderReference, Object.assign({ transactionStatus: 'Declined', reasonCode: 1101 }, fields));
+    // Перший платіж з галочкою, зарахований: автопродовження увімкнене.
+    async function autoRenewOn(plan = 'month') {
+        const p = await pay({ plan, auto_renew: true });
+        await approve(p.provider_order_id, { amount: plan === 'year' ? 2500 : 250 });
+        net.state.regular[p.provider_order_id] = 'Active';
+        return p;
+    }
+    const purchases = () => net.calls.filter((c) => c.url === OFFLINE).map((c) => new URLSearchParams(c.body));
+    const sub = () => store.db.subs[ORG] || {};
+    const renewals = () => store.db.payments.filter((p) => p.kind === 'renewal');
+    const mails = () => net.calls.filter((c) => c.url === 'https://api.resend.com/emails').map((c) => JSON.parse(c.body));
+    return { clock, store, net, env, call, invoice, pay, hook, approve, decline, autoRenewOn, purchases, sub, renewals, mails };
+}
+
+test('Purchase without the box: no regular fields; with the box: regular fields from the plan on the server', async () => {
+    const w = world();
+    await w.pay();
+    const plain = w.purchases()[0];
+    for (const key of ['regularMode', 'regularAmount', 'dateNext', 'regularOn', 'regularBehavior']) assert.equal(plain.has(key), false, key);
+    assert.equal(w.store.db.payments[0].auto_renew_requested_at, null);
+
+    // Ціну / суму від клієнта ігноруємо.
+    const res = await w.invoice({ auto_renew: true, price: 1, amount: 1, regularAmount: 1, regularMode: 'daily' });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.auto_renew, true);
+    const regular = w.purchases()[1];
+    assert.equal(regular.get('regularMode'), 'monthly');
+    assert.equal(regular.get('regularAmount'), '250');
+    assert.equal(regular.get('amount'), '250');
+    assert.equal(regular.get('regularOn'), '1');
+    assert.equal(regular.get('regularBehavior'), 'preset');
+    // dateNext — нове «оплачено до» після цієї оплати (18.10 + 1 місяць), за Києвом.
+    assert.equal(regular.get('dateNext'), '18.11.2026');
+    const row = w.store.db.payments.find((p) => p.id === res.body.payment_id);
+    assert.equal(row.auto_renew_requested_at, new Date(NOW).toISOString(), 'consent time is written on the server');
+
+    const year = await w.invoice({ plan: 'year', auto_renew: true });
+    assert.equal(year.statusCode, 200);
+    assert.equal(w.purchases()[2].get('regularMode'), 'yearly');
+    assert.equal(w.purchases()[2].get('regularAmount'), '2500');
+    assert.equal(w.purchases()[2].get('dateNext'), '18.10.2027');
+});
+
+test('dateNext counts from the current paid_until when access is still paid', async () => {
+    const w = world();
+    await w.approve((await w.pay()).provider_order_id);
+    await w.invoice({ auto_renew: true });
+    assert.equal(w.purchases()[1].get('dateNext'), '18.12.2026');
+});
+
+test('auto_renew only with WayForPay and the flag; behavior=offline only; one active regular per company', async () => {
+    const w = world();
+    const mono = await w.invoice({ provider: 'mono', auto_renew: true });
+    assert.equal(mono.statusCode, 400);
+    assert.equal(mono.body.code, 'AUTO_RENEW_UNAVAILABLE');
+    assert.equal(w.store.db.payments.length, 0);
+    // auto_renew лише true (не "true", не 1).
+    await w.invoice({ auto_renew: 'true' });
+    assert.equal(w.purchases()[0].has('regularMode'), false);
+
+    const noPassword = world({ password: false });
+    assert.equal((await noPassword.invoice({ auto_renew: true })).body.code, 'AUTO_RENEW_UNAVAILABLE');
+
+    // Без behavior=offline (CREATE_INVOICE) регулярки немає: звичайна разова оплата.
+    const fallback = world({ net: { wfpOffline: false } });
+    const res = await fallback.invoice({ auto_renew: true });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.auto_renew, false);
+    const created = fallback.net.calls.find((c) => c.url === 'https://api.wayforpay.com/api' && JSON.parse(c.body).transactionType === 'CREATE_INVOICE');
+    for (const key of ['regularMode', 'regularAmount', 'dateNext', 'regularOn', 'regularBehavior']) assert.equal(key in JSON.parse(created.body), false, key);
+    assert.equal(fallback.store.db.payments[0].auto_renew_requested_at, null);
+
+    await w.autoRenewOn();
+    const again = await w.invoice({ auto_renew: true });
+    assert.equal(again.statusCode, 409);
+    assert.equal(again.body.code, 'AUTO_RENEW_ACTIVE');
+    assert.equal((await w.invoice({})).statusCode, 200, 'a one-off payment is still possible');
+});
+
+test('credited first payment with the box turns auto-renew on: reference, card mask, next charge, consent time', async () => {
+    const w = world();
+    const p = await w.autoRenewOn();
+    const sub = w.sub();
+    assert.equal(sub.auto_renew, true);
+    assert.equal(sub.wfp_regular_order_ref, p.provider_order_id);
+    assert.equal(sub.card_mask, '41****8217');
+    assert.equal(sub.next_charge_at, '2026-11-18T09:00:00.000Z');
+    assert.equal(sub.paid_until, '2026-11-18T09:00:00.000Z');
+    assert.equal(sub.regular_status, 'Active');
+    assert.equal(sub.fail_count, 0);
+    assert.equal(sub.auto_renew_consent_at, new Date(NOW).toISOString());
+
+    const summary = (await w.call('GET', 'summary', { token: 'owner' })).body;
+    assert.deepEqual(summary.auto_renew, { enabled: true, next_charge_at: '2026-11-18T09:00:00.000Z', card_mask: '41****8217', plan: 'month', amount_uah: 250 });
+    assert.equal(summary.auto_renew_available, true);
+    // Логіст не бачить ні стану, ні галочки.
+    const logist = (await w.call('GET', 'summary', { token: 'logist' })).body;
+    assert.equal('auto_renew' in logist, false);
+    assert.equal(logist.auto_renew_available, false);
+
+    // Оплата без галочки автопродовження не вмикає.
+    const plain = world();
+    await plain.approve((await plain.pay()).provider_order_id);
+    assert.equal(plain.sub().auto_renew, undefined);
+});
+
+test('renewal callback (<ref>_WFPREG-<digits>) is credited once: own row, parent, same crediting; a duplicate is ignored', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    assert.deepEqual(parseRegularOrderReference(parent.provider_order_id + '_WFPREG-1234567'), { parent: parent.provider_order_id, seq: '1234567' });
+
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    const ref = parent.provider_order_id + '_WFPREG-1234567';
+    const first = await w.approve(ref, { cardPan: '41****9999' });
+    assert.equal(first.statusCode, 200);
+    assert.equal(first.body.orderReference, ref);
+    assert.equal(first.body.status, 'accept');
+    assert.equal(w.renewals().length, 1);
+    const row = w.renewals()[0];
+    assert.equal(row.parent_payment_id, parent.id);
+    assert.equal(row.org_id, ORG);
+    assert.equal(row.plan, 'month');
+    assert.equal(row.amount_minor, 25000);
+    assert.equal(row.status, 'success');
+    assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z', 'max(now, paid_until) + 1 month');
+    assert.equal(w.sub().next_charge_at, '2026-12-18T09:00:00.000Z');
+    assert.equal(w.sub().card_mask, '41****9999');
+
+    // Той самий orderReference ще раз (повтор WayForPay) — нічого не змінюється.
+    const again = await w.approve(ref);
+    assert.equal(again.body.status, 'accept');
+    assert.equal(w.renewals().length, 1);
+    assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z');
+    const credited = w.net.telegrams().filter((t) => t.includes('автосписання'));
+    assert.deepEqual(credited, ['💳 Оплата: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · автосписання · оплачено до 18.12.2026']);
+
+    // Наступне списання — нові цифри, новий рядок, ще один період.
+    w.clock.now = Date.parse('2026-12-18T07:00:00Z');
+    await w.approve(parent.provider_order_id + '_WFPREG-7654321');
+    assert.equal(w.renewals().length, 2);
+    assert.equal(w.sub().paid_until, '2027-01-18T09:00:00.000Z');
+});
+
+test('renewal: bad signature 401 without a row; unknown parent or wrong amount — accept, nothing credited', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    const ref = parent.provider_order_id + '_WFPREG-1';
+    const body = Object.assign({ transactionStatus: 'Approved' }, { merchantAccount: WFP_MERCHANT, orderReference: ref, amount: 250, currency: 'UAH', merchantSignature: 'x' });
+    const forged = await w.call('POST', 'wayforpay-webhook', { raw: JSON.stringify(body) });
+    assert.equal(forged.statusCode, 401);
+    assert.equal(w.renewals().length, 0);
+
+    const unknown = await w.approve('tc-00000000-0000-4000-8000-000000000000_WFPREG-1');
+    assert.equal(unknown.body.status, 'accept');
+    assert.equal(w.renewals().length, 0);
+
+    const until = w.sub().paid_until;
+    await w.approve(ref, { amount: 1 });
+    assert.equal(w.sub().paid_until, until, 'amount from the plan only');
+    assert.equal(w.renewals()[0].status, 'pending');
+});
+
+test('declined renewal: +1 fail and an admin alert; the second in a row → REMOVE, auto-renew off, mail «оплатіть вручну»', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    const first = parent.provider_order_id + '_WFPREG-100';
+    await w.decline(first);
+    await w.decline(first); // повтор того самого сповіщення не рахується
+    assert.equal(w.sub().fail_count, 1);
+    assert.equal(w.sub().auto_renew, true);
+    assert.equal(w.net.regularCalls().length, 0, 'no REMOVE after one failure');
+    assert.equal(w.renewals()[0].status, 'failure');
+
+    w.clock.now += DAY;
+    await w.decline(parent.provider_order_id + '_WFPREG-101');
+    assert.equal(w.sub().fail_count, 2);
+    assert.equal(w.sub().auto_renew, false);
+    assert.equal(w.sub().regular_status, 'Removed');
+    const removes = w.net.regularCalls().filter((c) => c.requestType === 'REMOVE');
+    assert.equal(removes.length, 1);
+    assert.equal(removes[0].orderReference, parent.provider_order_id);
+    assert.equal(removes[0].merchantAccount, WFP_MERCHANT);
+    assert.equal(removes[0].merchantPassword, WFP_PASSWORD);
+    assert.equal(w.sub().paid_until, '2026-11-18T09:00:00.000Z', 'access stays until paid_until');
+
+    const alerts = w.net.telegrams().filter((t) => t.startsWith('⚠️'));
+    assert.deepEqual(alerts, [
+        '⚠️ Автосписання не пройшло: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · спроба 1',
+        '⚠️ Автосписання не пройшло: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · спроба 2 · автопродовження вимкнено'
+    ]);
+    const mail = w.mails().find((m) => m.subject === 'Trip Control: автосписання не пройшло, оплатіть вручну');
+    assert.ok(mail);
+    assert.deepEqual(mail.to, ['owner@agro.ua']);
+    assert.match(mail.text, /^Автосписання не пройшло, оплатіть вручну\./);
+    assert.match(mail.text, /Оплатити: https:\/\/trip-control\.com\/\?billing=pay/);
+    assert.equal(mail.text.includes('41****'), false);
+});
+
+test('a successful renewal resets fail_count; REMOVE failing still turns auto-renew off and tells the admin', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await w.decline(parent.provider_order_id + '_WFPREG-1');
+    assert.equal(w.sub().fail_count, 1);
+    w.clock.now += DAY;
+    await w.approve(parent.provider_order_id + '_WFPREG-2');
+    assert.equal(w.sub().fail_count, 0);
+    assert.equal(w.sub().auto_renew, true);
+
+    const broken = world({ net: { removeFails: true } });
+    const p = await broken.autoRenewOn();
+    broken.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await broken.decline(p.provider_order_id + '_WFPREG-1');
+    await broken.decline(p.provider_order_id + '_WFPREG-2');
+    assert.equal(broken.sub().auto_renew, false);
+    assert.equal(broken.sub().regular_status, 'Active', 'not marked Removed when WayForPay did not confirm');
+    assert.match(broken.net.telegrams().at(-1), /спроба 2 · автопродовження вимкнено · REMOVE не вдався — вимкніть регулярний платіж у кабінеті WayForPay$/);
+});
+
+test('cancel: owner only; REMOVE, then auto_renew=false and cancelled_at; access stays until paid_until', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    const logist = await w.call('POST', 'cancel-auto-renew', { token: 'logist' });
+    assert.equal(logist.statusCode, 403);
+    assert.equal(w.sub().auto_renew, true);
+    assert.equal(w.net.regularCalls().length, 0);
+
+    w.clock.now = NOW + 2 * DAY;
+    const res = await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(res.body, { auto_renew: false, paid_until: '2026-11-18T09:00:00.000Z' });
+    assert.deepEqual(w.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', parent.provider_order_id]]);
+    assert.equal(w.sub().auto_renew, false);
+    assert.equal(w.sub().regular_status, 'Removed');
+    assert.equal(w.sub().auto_renew_cancelled_at, new Date(NOW + 2 * DAY).toISOString());
+    assert.equal(w.sub().paid_until, '2026-11-18T09:00:00.000Z');
+    assert.equal((await w.call('GET', 'summary', { token: 'owner' })).body.paid, true);
+    assert.equal('auto_renew' in (await w.call('GET', 'summary', { token: 'owner' })).body, false);
+    assert.deepEqual(w.net.telegrams().filter((t) => t.startsWith('🔁')),
+        ['🔁 Автопродовження вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · скасовано власником · оплачено до 18.11.2026']);
+
+    // Повторне скасування — нічого не робить.
+    const again = await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+    assert.equal(again.statusCode, 200);
+    assert.equal(w.net.regularCalls().length, 1);
+    // Після скасування можна знову ввімкнути.
+    assert.equal((await w.invoice({ auto_renew: true })).statusCode, 200);
+});
+
+test('cancel when WayForPay does not confirm REMOVE: 502, auto-renew stays on (no cancel on screen only)', async () => {
+    const w = world({ net: { removeFails: true } });
+    await w.autoRenewOn();
+    const res = await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+    assert.equal(res.statusCode, 502);
+    assert.equal(res.body.code, 'AUTO_RENEW_CANCEL_FAILED');
+    assert.equal(w.sub().auto_renew, true);
+    assert.equal(w.sub().auto_renew_cancelled_at, null);
+    // Регулярка вже знята в WayForPay (STATUS = Removed) — скасування вдається.
+    w.net.state.regular[w.sub().wfp_regular_order_ref] = 'Removed';
+    assert.equal((await w.call('POST', 'cancel-auto-renew', { token: 'owner' })).statusCode, 200);
+    assert.equal(w.sub().auto_renew, false);
+});
+
+test('refund of the first payment or of a renewal: REMOVE and auto-renew off (period cut as before)', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    w.clock.now = NOW + 2 * DAY;
+    await w.hook(parent.provider_order_id, { transactionStatus: 'Refunded', refundAmount: 250 });
+    assert.equal(w.sub().auto_renew, false);
+    assert.equal(w.sub().regular_status, 'Removed');
+    assert.deepEqual(w.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', parent.provider_order_id]]);
+    assert.equal(w.sub().paid_until, new Date(NOW + 2 * DAY).toISOString(), 'refund cut unchanged');
+    assert.ok(w.net.telegrams().includes('🔁 Автопродовження вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · повернення платежу'));
+
+    const r = world();
+    const p = await r.autoRenewOn();
+    r.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    const renewal = p.provider_order_id + '_WFPREG-55';
+    await r.approve(renewal);
+    assert.equal(r.sub().paid_until, '2026-12-18T09:00:00.000Z');
+    await r.hook(renewal, { transactionStatus: 'Refunded', refundAmount: 250 });
+    assert.equal(r.renewals()[0].status, 'reversed');
+    assert.equal(r.sub().auto_renew, false);
+    assert.deepEqual(r.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', p.provider_order_id]]);
+
+    // Повернення разового платежу (без галочки) регулярку не чіпає.
+    const one = world();
+    const a = await one.autoRenewOn();
+    one.clock.now = NOW + DAY;
+    const plain = await one.pay();
+    await one.approve(plain.provider_order_id);
+    await one.hook(plain.provider_order_id, { transactionStatus: 'Refunded', refundAmount: 250 });
+    assert.equal(one.sub().auto_renew, true);
+    assert.equal(one.sub().wfp_regular_order_ref, a.provider_order_id);
+    assert.equal(one.net.regularCalls().length, 0);
+});
+
+test('renewal charged after auto-renew was turned off: credited (money taken) and the admin is warned', async () => {
+    const w = world({ net: { removeFails: true } });
+    const parent = await w.autoRenewOn();
+    w.store.db.subs[ORG].auto_renew = false;
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await w.approve(parent.provider_order_id + '_WFPREG-9');
+    assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z');
+    assert.match(w.net.telegrams().at(-1), /автосписання · автопродовження вже вимкнене — перевірте регулярний платіж у кабінеті WayForPay · оплачено до 18\.12\.2026$/);
+});
+
+test('daily cron: STATUS for every auto-renewing company; inactive in WayForPay → off + admin alert', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    let res = await w.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
+    assert.deepEqual(res.body.auto_renew, { checked: 1, disabled: 0, failed: 0 });
+    assert.equal(w.sub().auto_renew, true);
+
+    w.net.state.regular[parent.provider_order_id] = 'Suspended';
+    res = await w.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
+    assert.deepEqual(res.body.auto_renew, { checked: 1, disabled: 1, failed: 0 });
+    assert.equal(w.sub().auto_renew, false);
+    assert.equal(w.sub().regular_status, 'Suspended');
+    assert.ok(w.net.telegrams().includes(
+        '🔁 Автопродовження вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · у WayForPay регулярний платіж неактивний (Suspended) · оплачено до 18.11.2026'));
+    assert.equal(w.net.regularCalls().every((c) => c.requestType === 'STATUS'), true);
+});
+
+test('3-day reminder: with auto-renew «{date} спишемо {sum} з картки {mask}, скасувати можна тут: {link}»; without — the old text', async () => {
+    const w = world();
+    await w.autoRenewOn();
+    w.clock.now = Date.parse('2026-11-15T07:00:00Z');
+    await w.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
+    const mail = w.mails().at(-1);
+    assert.equal(mail.subject, 'Trip Control: 18.11.2026 автоматичне продовження');
+    assert.equal(mail.text.split('\n')[0], '18.11.2026 спишемо 250 грн з картки 41****8217, скасувати можна тут: https://trip-control.com/?billing=auto-renew');
+
+    const plain = world();
+    await plain.approve((await plain.pay()).provider_order_id);
+    plain.clock.now = Date.parse('2026-11-15T07:00:00Z');
+    await plain.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
+    assert.equal(plain.mails().at(-1).subject, 'Trip Control: доступ діє до 18.11.2026');
+    assert.deepEqual(buildReminderEmail({ paidUntil: '2026-11-18T09:00:00Z', baseUrl: 'https://trip-control.com', orgName: 'А' }),
+        buildReminderEmail({ paidUntil: '2026-11-18T09:00:00Z', baseUrl: 'https://trip-control.com', orgName: 'А', autoRenew: null }));
+});
+
+test('amount in summary / reminder / alerts comes from the regular\'s first payment, not from a later one-off of another plan', async () => {
+    const w = world();
+    await w.autoRenewOn('month');
+    w.clock.now = NOW + DAY;
+    await w.approve((await w.pay({ plan: 'year' })).provider_order_id, { amount: 2500 });
+    assert.equal(w.sub().last_plan, 'year');
+    const summary = (await w.call('GET', 'summary', { token: 'owner' })).body;
+    assert.equal(summary.auto_renew.plan, 'month');
+    assert.equal(summary.auto_renew.amount_uah, 250);
+    // Нагадування за 3 дні до next_charge_at (18.11), хоча paid_until уже 18.11.2027.
+    w.store.db.subs[ORG].paid_until = '2026-11-18T09:00:00.000Z';
+    w.clock.now = Date.parse('2026-11-15T07:00:00Z');
+    await w.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
+    assert.match(w.mails().at(-1).text, /^18\.11\.2026 спишемо 250 грн з картки/);
+    await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+    assert.match(w.net.telegrams().at(-1), /^🔁 Автопродовження вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · скасовано власником/);
+});
+
+test('client: with auto-renew on, the 3-day banner does not offer a manual payment', () => {
+    const html = read('index.html');
+    const banner = html.slice(html.indexOf('function syncBillingBanner()'), html.indexOf('async function loadCabinetAutoRenew()'));
+    assert.match(banner, /owner && billingAutoRenewOn \? ' Автопродовження увімкнено: продовжимо автоматично\.'/);
+    assert.match(banner, /document\.getElementById\('billing-banner-btn'\)\.hidden = !owner \|\| billingAutoRenewOn;/);
+    assert.match(html, /billingAutoRenewOn = !!\(summary\.auto_renew && summary\.auto_renew\.enabled\);\n\s+setBillingEnabled\(summary\.payments_enabled === true\);/);
+});
+
+test('without AUTO_RENEW_ENABLED nothing changes: same Purchase, same summary, box refused', async () => {
+    const off = world({ flag: false, password: false });
+    const on = world();
+    await off.pay();
+    await on.pay();
+    const strip = (params) => { const o = Object.fromEntries(params); delete o.orderReference; delete o.returnUrl; delete o.merchantSignature; return o; };
+    assert.deepEqual(strip(off.purchases()[0]), strip(on.purchases()[0]), 'Purchase without the box is the same with and without the flag');
+
+    const refused = await off.invoice({ auto_renew: true });
+    assert.equal(refused.statusCode, 400);
+    assert.equal(refused.body.code, 'AUTO_RENEW_UNAVAILABLE');
+    const summary = (await off.call('GET', 'summary', { token: 'owner' })).body;
+    assert.deepEqual(Object.keys(summary).sort(), ['can_pay', 'legal_version', 'manual_full_access', 'paid', 'paid_until', 'payments_enabled', 'payments', 'prices', 'providers'].sort());
+    assert.deepEqual(summary.prices, [{ plan: 'month', label: '1 місяць', uah: 250 }, { plan: 'year', label: '1 рік', uah: 2500 }]);
+    const cron = (await off.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } })).body;
+    assert.deepEqual(Object.keys(cron).sort(), ['reconcile_failed', 'reconciled', 'reminders']);
+    assert.equal(off.net.regularCalls().length, 0);
+
+    // Регулярка, ввімкнена раніше, лишається під контролем і з вимкненим прапорцем: автосписання, скасування.
+    const later = world();
+    const parent = await later.autoRenewOn();
+    const handler = createBillingHandler({ store: later.store, fetch: later.net.fetch, env: baseEnv({ WAYFORPAY_MERCHANT_PASSWORD: WFP_PASSWORD }), now: () => later.clock.now });
+    const res = response();
+    await handler(request('GET', 'summary', { token: 'owner' }), res);
+    assert.equal(res.body.auto_renew.enabled, true);
+    assert.equal('auto_renew_available' in res.body, false);
+    const cancel = response();
+    await handler(request('POST', 'cancel-auto-renew', { token: 'owner' }), cancel);
+    assert.equal(cancel.statusCode, 200);
+    assert.equal(later.sub().auto_renew, false);
+    assert.equal(later.net.regularCalls()[0].orderReference, parent.provider_order_id);
+});
+
+test('merchant password is sent only to regularApi and never logged or returned', async () => {
+    const logged = [];
+    const original = { warn: console.warn, error: console.error, log: console.log };
+    for (const name of Object.keys(original)) console[name] = (...args) => { logged.push(args.map(String).join(' ')); };
+    try {
+        const w = world({ net: { removeFails: true } });
+        await w.autoRenewOn();
+        const res = await w.call('POST', 'cancel-auto-renew', { token: 'owner' });
+        w.net.state.telegramFails = true;
+        await w.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } });
+        assert.equal(JSON.stringify(res.body).includes(WFP_PASSWORD), false);
+        const elsewhere = w.net.calls.filter((c) => c.url !== 'https://api.wayforpay.com/regularApi');
+        assert.equal(elsewhere.some((c) => String(c.body || '').includes(WFP_PASSWORD)), false);
+    } finally {
+        Object.assign(console, original);
+    }
+    assert.equal(logged.some((line) => line.includes(WFP_PASSWORD)), false, logged.join('\n'));
+});
+
+test('wayforpayDate: Kyiv calendar date as dd.mm.yyyy', () => {
+    assert.equal(wayforpayDate(Date.parse('2026-11-17T22:30:00Z')), '18.11.2026');
+    assert.equal(wayforpayDate(Date.parse('2026-12-31T21:59:00Z')), '31.12.2026');
+});
+
+test('client: the box is separate, unchecked, WayForPay only, sends auto_renew only when ticked', () => {
+    const html = read('index.html');
+    const modal = html.slice(html.indexOf('<div id="tc-billing-modal"'), html.indexOf('<div id="tc-toast"'));
+    assert.match(modal, /<label class="tc-billing-consent tc-billing-autorenew" id="billing-autorenew-box" hidden><input type="checkbox" id="billing-autorenew"><span id="billing-autorenew-text">/);
+    assert.equal(/id="billing-autorenew"[^>]*checked/.test(modal), false);
+    // Текст: сума й період з summary.prices, «скасувати будь-коли в кабінеті».
+    assert.match(html, /'Автоматично продовжувати: ' \+ price\.uah \+ ' грн ' \+ \(BILLING_PLAN_EVERY\[plan\] \|\| ''\) \+ '\. Скасувати можна будь-коли в кабінеті'/);
+    assert.match(html, /const BILLING_PLAN_EVERY = \{ month: 'кожен місяць', year: 'кожен рік' \};/);
+    const sync = html.slice(html.indexOf('function syncBillingAutoRenew()'), html.indexOf('function setBillingMessage('));
+    assert.match(sync, /billingSummary\.auto_renew_available === true/);
+    assert.match(sync, /provider && provider\.value === 'wayforpay'/);
+    assert.match(sync, /!\(billingSummary\.auto_renew && billingSummary\.auto_renew\.enabled\)/);
+    assert.match(sync, /if \(!show\) box\.querySelector\('input'\)\.checked = false;/);
+    const start = html.slice(html.indexOf('async function startBillingPayment()'), html.indexOf('function showBillingReturn('));
+    assert.match(start, /const autoRenew = billingAutoRenewTicked\(providerEl\.value\);/);
+    assert.match(start, /if \(autoRenew\) payload\.auto_renew = true;/);
+    assert.equal(/price|amount/.test(start.slice(start.indexOf('const payload'), start.indexOf('JSON.stringify(payload)'))), false);
+    // Кожне відкриття — галочку знято.
+    assert.match(html.slice(html.indexOf('function renderBilling(summary)'), html.indexOf('function ensureBillingFooter()')),
+        /document\.getElementById\('billing-autorenew'\)\.checked = false;/);
+});
+
+test('client: cabinet shows the status and the cancel button to the owner only', () => {
+    const html = read('index.html');
+    const cabinet = html.slice(html.indexOf('<div id="cabinet-screen">'), html.indexOf('<div id="admin-screen">'));
+    assert.match(cabinet, /<div class="cab-autorenew" id="cab-autorenew" hidden>/);
+    assert.match(cabinet, /<button type="button" class="btn cab-autorenew-cancel" id="cab-autorenew-cancel" onclick="cancelAutoRenew\(\)">Скасувати автопродовження<\/button>/);
+    const load = html.slice(html.indexOf('async function loadCabinetAutoRenew()'), html.indexOf('async function cancelAutoRenew()'));
+    assert.match(load, /box\.hidden = true;/);
+    assert.match(load, /if \(currentOrgRole !== 'owner' \|\| !billingEnabled\) return;/);
+    assert.match(html, /'Автопродовження увімкнено, наступне списання ' \+ billingDate\(ar\.next_charge_at\) \+ \(ar\.card_mask \? ', картка ' \+ ar\.card_mask : ''\)/);
+    const cancel = html.slice(html.indexOf('async function cancelAutoRenew()'), html.indexOf('// ===== Демо-режим ====='));
+    assert.match(cancel, /billingFetch\('cancel-auto-renew', \{ method: 'POST' \}\)/);
+    assert.match(html.slice(html.indexOf('function openCabinet()'), html.indexOf('function openCabinet()') + 4000), /loadCabinetAutoRenew\(\);/);
+    assert.match(html, /else if \(mode === 'auto-renew'\) showCabinetAutoRenew\(\);/);
+});
+
+test('offer and /payment-refund describe auto-renewal: sum, period, how to cancel, failed charge', () => {
+    const offer = read('legal/offer.html');
+    assert.equal(offer.includes('Автоматичного продовження та автоматичних списань немає'), false);
+    assert.match(offer, /<p>4\.4\. <strong>Автоматичні списання здійснюються лише тоді, коли Власник Організації сам увімкнув Автопродовження<\/strong> \(пункти 4\.9–4\.16\)\./);
+    for (const n of ['4.9', '4.10', '4.11', '4.12', '4.13', '4.14', '4.15', '4.16']) assert.ok(offer.includes('<p>' + n + '. '), n);
+    assert.match(offer, /<strong>250 грн щомісяця<\/strong> \(тариф «1 місяць»\) або <strong>2 500 грн щороку<\/strong> \(тариф «1 рік»\)/);
+    assert.match(offer, /окремою позначкою \(за замовчуванням не встановлена\)/);
+    assert.match(offer, /Особистий кабінет → «Скасувати автопродовження»/);
+    assert.match(offer, /Після двох невдалих спроб поспіль Автопродовження вимикається/);
+    const refund = read('legal/payment-refund.html');
+    assert.match(refund, /<h2>Автопродовження<\/h2>/);
+    assert.match(refund, /250 грн щомісяця \(тариф «1 місяць»\) або 2 500 грн щороку \(тариф «1 рік»\)/);
+    assert.match(refund, /кнопка «Скасувати автопродовження»/);
+    assert.match(refund, /Після двох невдалих спроб поспіль автопродовження вимикається/);
+    assert.equal(refund.includes('<strong>Автоматичних списань немає.</strong>'), false);
+    // Footer CSS did not change: its ?v= stays.
+    assert.match(refund, /\/assets\/legal-footer\.css\?v=2026-10-20b/);
+});
+
+test('migration: columns, kind / parent, unique order reference kept, clients read paid_until only', () => {
+    const sql = read('supabase/migrations/20261020200000_auto_renew.sql');
+    for (const column of [
+        'auto_renew boolean NOT NULL DEFAULT false', 'wfp_regular_order_ref text NULL', 'card_mask text NULL',
+        'next_charge_at timestamptz NULL', 'regular_status text NULL', 'fail_count integer NOT NULL DEFAULT 0',
+        'auto_renew_consent_at timestamptz NULL', 'auto_renew_cancelled_at timestamptz NULL',
+        "kind text NOT NULL DEFAULT 'initial'", 'parent_payment_id uuid NULL REFERENCES public.payments (id)'
+    ]) assert.ok(sql.includes('ADD COLUMN IF NOT EXISTS ' + column), column);
+    assert.match(sql, /CHECK \(kind IN \('initial', 'renewal'\)\)/);
+    assert.equal(/payments_provider_order_uidx/.test(sql), false, 'unique index untouched');
+    assert.match(sql, /GRANT SELECT \(org_id, paid_until, last_plan, reminder_sent_for, updated_at\) ON public\.org_subscriptions TO authenticated;/);
+    assert.match(sql, /REVOKE ALL ON FUNCTION public\.record_renewal_failure\(uuid\) FROM PUBLIC, anon, authenticated;/);
+    assert.match(sql, /Not applied to production by this PR\./);
+});
+
+test('auto-renew migration on Postgres (PGlite)', (t) => {
+    try {
+        createRequire(import.meta.url).resolve('@electric-sql/pglite');
+    } catch (error) {
+        t.skip('npm i --no-save @electric-sql/pglite@0.2.17 to run');
+        return;
+    }
+    const run = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/check-auto-renew.mjs', import.meta.url))], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    for (const line of [
+        'same _WFPREG- reference twice: unique violation (23505)',
+        'renewal credited by apply_payment_success, twice = one month',
+        'authenticated cannot read org_subscriptions.card_mask (42501)',
+        'authenticated cannot update org_subscriptions.auto_renew (42501)',
+        'owner still reads paid_until of own company'
+    ]) assert.ok(run.stdout.includes('PASS ' + line), line);
+});

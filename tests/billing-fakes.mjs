@@ -83,7 +83,8 @@ export function memoryStore(clock) {
             }
             const payment = Object.assign({
                 currency: 'UAH', provider_invoice_id: null, provider_modified_at: null, credited_at: null,
-                period_from: null, period_to: null, refund_note: null, created_at: iso(), updated_at: iso()
+                period_from: null, period_to: null, refund_note: null, created_at: iso(), updated_at: iso(),
+                kind: 'initial', parent_payment_id: null, auto_renew_requested_at: null
             }, row);
             db.payments.push(payment);
             return Object.assign({}, payment);
@@ -180,6 +181,23 @@ export function memoryStore(clock) {
         async markReminderSent(orgId, paidUntil) {
             if (db.subs[orgId] && db.subs[orgId].paid_until === paidUntil) db.subs[orgId].reminder_sent_for = paidUntil;
         },
+        // Автопродовження (20261020200000_auto_renew.sql): поля org_subscriptions з тими ж значеннями за замовчуванням.
+        async getAutoRenew(orgId) {
+            const sub = db.subs[orgId];
+            return sub ? Object.assign({ auto_renew: false, fail_count: 0 }, sub) : null;
+        },
+        async updateAutoRenew(orgId, patch) {
+            if (db.subs[orgId]) Object.assign(db.subs[orgId], patch);
+        },
+        async recordRenewalFailure(orgId) {
+            const sub = db.subs[orgId];
+            if (!sub) return 0;
+            sub.fail_count = (sub.fail_count || 0) + 1;
+            return sub.fail_count;
+        },
+        async autoRenewSubscriptions() {
+            return Object.values(db.subs).filter((sub) => sub.auto_renew === true).map((sub) => Object.assign({ fail_count: 0 }, sub));
+        },
         async openPaymentsBetween(fromIso, toIso) {
             return db.payments.filter((p) => ['created', 'pending'].includes(p.status) && p.created_at >= fromIso && p.created_at <= toIso)
                 .map((p) => Object.assign({}, p));
@@ -196,6 +214,9 @@ export function fakeNet(options = {}) {
         monoStatus: null,
         wfpOffline: true,
         wfpCheck: null,
+        // regularApi: стан регулярок за orderReference; removeFails — REMOVE відповідає помилкою.
+        regular: {},
+        removeFails: false,
         telegramFails: false,
         resendFails: false,
         invoiceSeq: 0
@@ -220,6 +241,17 @@ export function fakeNet(options = {}) {
             if (body.transactionType === 'CREATE_INVOICE') return json(200, { invoiceUrl: 'https://secure.wayforpay.com/invoice/i123', reasonCode: 1100 });
             if (body.transactionType === 'CHECK_STATUS') return json(200, state.wfpCheck || {});
         }
+        if (u === 'https://api.wayforpay.com/regularApi') {
+            const body = JSON.parse(init.body);
+            if (body.requestType === 'REMOVE') {
+                if (state.removeFails) return json(200, { reasonCode: 4102, reason: 'Error' });
+                state.regular[body.orderReference] = 'Removed';
+                return json(200, { reasonCode: 4100, reason: 'Ok' });
+            }
+            if (body.requestType === 'STATUS') {
+                return json(200, { reasonCode: 4100, reason: 'Ok', orderReference: body.orderReference, status: state.regular[body.orderReference] || 'Active' });
+            }
+        }
         if (u.startsWith('https://api.telegram.org/')) {
             if (state.telegramFails) throw Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
             return json(200, { ok: true });
@@ -227,7 +259,8 @@ export function fakeNet(options = {}) {
         if (u === 'https://api.resend.com/emails') return state.resendFails ? json(500, {}) : json(200, { id: 'mail_1' });
         return json(404, {});
     }
-    return { fetch, calls, state, telegrams: () => calls.filter((c) => c.url.startsWith('https://api.telegram.org/')).map((c) => JSON.parse(c.body).text) };
+    const regularCalls = () => calls.filter((c) => c.url === 'https://api.wayforpay.com/regularApi').map((c) => JSON.parse(c.body));
+    return { fetch, calls, state, regularCalls, telegrams: () => calls.filter((c) => c.url.startsWith('https://api.telegram.org/')).map((c) => JSON.parse(c.body).text) };
 }
 
 export function request(method, route, { token, body, raw, headers = {}, query = {} } = {}) {

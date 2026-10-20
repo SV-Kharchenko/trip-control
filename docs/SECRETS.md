@@ -13,6 +13,8 @@
 | `WAYFORPAY_MERCHANT_ACCOUNT` | Vercel env, лише `/api/billing/*` | **Ні** |
 | `WAYFORPAY_SECRET_KEY` | Vercel env, лише `/api/billing/*` (HMAC_MD5 підписи) | **Ні** |
 | `WAYFORPAY_MERCHANT_DOMAIN` | Vercel env (`trip-control.com`) | — |
+| `WAYFORPAY_MERCHANT_PASSWORD` | Vercel env, лише `/api/billing/*`: regularApi WayForPay (STATUS / REMOVE автопродовження). Не логується, не повертається | **Ні** |
+| `AUTO_RENEW_ENABLED` | Vercel env: `1` — галочка автопродовження (WayForPay) на екрані оплати; інше — галочки немає, вже ввімкнене автопродовження однаково обробляється й скасовується | — |
 | `RESEND_API_KEY` | Vercel env, лише сервер: `/api/weekly-report`, листи-запрошення `/api/team`, нагадування про оплату `/api/billing/cron` | **Ні** |
 | `REPORT_FROM_EMAIL` | Vercel env, відправник листів звіту (`Name <mail@domain>`) | **Ні** |
 | `INVITE_FROM_EMAIL` | Vercel env, відправник листів-запрошень (`Name <mail@domain>`). Порожньо — береться `REPORT_FROM_EMAIL`; без обох лист не йде, власник копіює посилання в «Команді» | **Ні** |

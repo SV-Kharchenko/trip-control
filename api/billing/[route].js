@@ -9,12 +9,14 @@ import { createSupabaseStore } from '../../lib/billing/store.js';
  *   POST /api/billing/mono-webhook      — x-sign (ECDSA), сире тіло
  *   POST /api/billing/wayforpay-webhook — HMAC_MD5, відповідь accept
  *   GET  /api/billing/status?pid=       — запасна перевірка у провайдера
- *   GET  /api/billing/summary           — paid_until, ціни, доступні провайдери, історія
- *   GET  /api/billing/cron              — щоденно (Bearer CRON_SECRET): нагадування, звірка
+ *   GET  /api/billing/summary           — paid_until, ціни, доступні провайдери, історія, автопродовження
+ *   POST /api/billing/cancel-auto-renew — власник: REMOVE регулярки WayForPay, auto_renew=false
+ *   GET  /api/billing/cron              — щоденно (Bearer CRON_SECRET): нагадування, звірка, STATUS автопродовження
  *
  * Env (лише Vercel): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PUBLIC_BASE_URL, PAYMENTS_ENABLED,
  * MONO_TOKEN [, MONO_PUBKEY], WAYFORPAY_MERCHANT_ACCOUNT, WAYFORPAY_SECRET_KEY,
- * WAYFORPAY_MERCHANT_DOMAIN, RESEND_API_KEY, REPORT_FROM_EMAIL, CRON_SECRET, TELEGRAM_*.
+ * WAYFORPAY_MERCHANT_DOMAIN [, WAYFORPAY_MERCHANT_PASSWORD, AUTO_RENEW_ENABLED],
+ * RESEND_API_KEY, REPORT_FROM_EMAIL, CRON_SECRET, TELEGRAM_*.
  * Див. docs/PAYMENTS.md. req.body не читаємо: підпис mono рахується по сирих байтах.
  */
 const env = process.env;

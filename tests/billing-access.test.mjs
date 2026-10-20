@@ -98,8 +98,8 @@ test('client: «Тариф і оплата» screen, owner / logist, consent, no
     assert.match(modal, /id="billing-footer-slot"/);
     // The same legal footer: cloned from the page, not a second copy in the HTML.
     assert.match(html, /const source = document\.querySelector\('#main-app > \.tc-legal-footer'\);\n\s+if \(source\) slot\.appendChild\(source\.cloneNode\(true\)\);/);
-    // Only plan / provider / consent go to the server; never a price.
-    assert.match(html, /JSON\.stringify\(\{ plan: selectedBillingPlan\(\), provider: providerEl\.value, consent: true, legal_version: LEGAL_VERSION \}\)/);
+    // Only plan / provider / consent (and the auto-renew box) go to the server; never a price.
+    assert.match(html, /const payload = \{ plan: selectedBillingPlan\(\), provider: providerEl\.value, consent: true, legal_version: LEGAL_VERSION \};\n\s+if \(autoRenew\) payload\.auto_renew = true;\n[\s\S]{0,200}body: JSON\.stringify\(payload\)/);
     assert.match(html, /if \(!consent \|\| !consent\.checked\) \{\n\s+setBillingMessage\('Потрібна згода з Публічною офертою та Політикою конфіденційності\.', 'error'\);/);
     assert.match(html, /location\.href = res\.url;/);
     // isDemo for the UI.
