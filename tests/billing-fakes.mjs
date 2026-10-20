@@ -109,9 +109,12 @@ export function memoryStore(clock) {
             if (db.failInsertEvent) throw Object.assign(new Error('db down'), { code: 'EDB' });
             db.events.push(Object.assign({ received_at: iso() }, row));
         },
-        async countEvents({ paymentId, orderReference, status }) {
-            return db.events.filter((e) => (paymentId ? e.payment_id === paymentId : (e.payment_id == null && e.order_reference === orderReference))
-                && (e.status == null ? status == null : e.status === status)).length;
+        // Як унікальний індекс payment_events_alert_key_uidx: перевірка й вставка в одному кроці.
+        async insertEventOnce(row) {
+            if (db.failInsertEvent) throw Object.assign(new Error('db down'), { code: 'EDB' });
+            if (row.alert_key && db.events.some((e) => e.alert_key === row.alert_key)) return false;
+            db.events.push(Object.assign({ received_at: iso() }, row));
+            return true;
         },
         // Та сама логіка, що apply_payment_success у міграції.
         async applySuccess(id, modified) {

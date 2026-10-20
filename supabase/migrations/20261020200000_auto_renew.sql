@@ -70,6 +70,12 @@ BEGIN
   END IF;
 END;
 $$;
+-- Один алерт на незараховане автосписання навіть при паралельних однакових сповіщеннях: подія з alert_key
+-- вставляється лише раз (унікальний індекс), алерт шле той запит, чия вставка пройшла.
+ALTER TABLE public.payment_events ADD COLUMN IF NOT EXISTS alert_key text NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS payment_events_alert_key_uidx
+  ON public.payment_events (alert_key)
+  WHERE alert_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS payment_events_order_reference_idx
   ON public.payment_events (order_reference)
   WHERE order_reference IS NOT NULL;

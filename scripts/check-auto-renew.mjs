@@ -142,6 +142,14 @@ try {
     const emptyEvent = await attempt(`INSERT INTO public.payment_events (payment_id, provider, status, source)
         VALUES (null, 'wayforpay', 'Approved', 'webhook')`);
     check(!emptyEvent.ok && emptyEvent.code === '23514', 'payment_events: neither payment_id nor order_reference → check violation (23514)');
+    const keyed = `INSERT INTO public.payment_events (payment_id, order_reference, provider, status, source, alert_key)
+        VALUES (null, 'tc-y_WFPREG-1', 'wayforpay', 'Approved', 'webhook', 'renewal_unmatched:tc-y_WFPREG-1:Approved')`;
+    check((await attempt(keyed)).ok, 'payment_events: first event with an alert_key inserted');
+    const keyedAgain = await attempt(keyed);
+    check(!keyedAgain.ok && keyedAgain.code === '23505', 'payment_events: same alert_key again → unique violation (23505)');
+    const plainTwice = await attempt(`INSERT INTO public.payment_events (payment_id, order_reference, provider, status, source)
+        VALUES (null, 'tc-y_WFPREG-1', 'wayforpay', 'Approved', 'webhook'), (null, 'tc-y_WFPREG-1', 'wayforpay', 'Approved', 'webhook')`);
+    check(plainTwice.ok, 'payment_events: events without alert_key are not unique (history kept)');
     const eventsRead = await as(OWNER, `SELECT id FROM public.payment_events`);
     check(!eventsRead.ok && eventsRead.code === '42501', 'payment_events: still no client access (42501)');
 

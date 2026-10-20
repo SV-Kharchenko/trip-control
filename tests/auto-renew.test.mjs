@@ -306,6 +306,34 @@ test('unmatched _WFPREG- callbacks (no parent, unknown plan, wrong amount / curr
     assert.equal(unmatched().length, before);
 });
 
+test('parallel identical unmatched / mismatched callbacks: one alert (alert_key unique), every callback kept in history', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    const unmatched = () => w.net.telegrams().filter((t) => t.startsWith('❗'));
+
+    const orphan = 'tc-00000000-0000-4000-8000-00000000beef_WFPREG-7';
+    const results = await Promise.all([w.approve(orphan), w.approve(orphan), w.approve(orphan)]);
+    assert.deepEqual(results.map((r) => r.body.status), ['accept', 'accept', 'accept']);
+    assert.equal(unmatched().length, 1);
+    const orphanEvents = w.store.db.events.filter((e) => e.order_reference === orphan);
+    assert.equal(orphanEvents.length, 3, 'all three callbacks recorded');
+    assert.equal(orphanEvents.filter((e) => e.alert_key).length, 1);
+    assert.equal(orphanEvents.find((e) => e.alert_key).alert_key, 'renewal_unmatched:' + orphan + ':Approved');
+
+    const ref = parent.provider_order_id + '_WFPREG-8';
+    await w.approve(ref, { amount: 1 }); // рядок автосписання створено
+    await Promise.all([w.approve(ref, { amount: 1 }), w.approve(ref, { amount: 1 })]);
+    assert.equal(unmatched().length, 2, 'one alert for the mismatch');
+    const row = w.renewals().find((p) => p.provider_order_id === ref);
+    assert.equal(w.store.db.events.filter((e) => e.payment_id === row.id).length, 3);
+    assert.equal(w.store.db.events.filter((e) => e.payment_id === row.id && e.alert_key).length, 1);
+
+    // Помилка бази при вставці — алерт однаково (краще зайвий, ніж жодного).
+    w.store.db.failInsertEvent = true;
+    await w.approve('tc-00000000-0000-4000-8000-00000000f00d_WFPREG-1');
+    assert.equal(unmatched().length, 3);
+});
+
 test('declined renewal: +1 fail and an admin alert; the second in a row → REMOVE, auto-renew off, mail «оплатіть вручну»', async () => {
     const w = world();
     const parent = await w.autoRenewOn();
@@ -1050,6 +1078,7 @@ test('auto-renew migration on Postgres (PGlite)', (t) => {
         'owner still reads paid_until of own company',
         'payment_events: unmatched renewal event without payment_id, with order_reference',
         'payment_events: still no client access (42501)',
+        'payment_events: same alert_key again → unique violation (23505)',
         'anon: SELECT card_mask FROM public.org_subscriptions (42501)'
     ]) assert.ok(run.stdout.includes('PASS ' + line), line);
 });
