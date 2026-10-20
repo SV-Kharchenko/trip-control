@@ -62,7 +62,11 @@ export function memoryStore(clock) {
         payments: [],
         events: [],
         consents: [],
-        failInsertEvent: false
+        failInsertEvent: false,
+        failOrgStatus: false,
+        // regular_removals: старі регулярки, REMOVE яких ще не підтверджено.
+        removals: [],
+        removalSeq: 0
     };
     const iso = () => new Date(clock.now).toISOString();
     const store = {
@@ -83,7 +87,8 @@ export function memoryStore(clock) {
             }
             const payment = Object.assign({
                 currency: 'UAH', provider_invoice_id: null, provider_modified_at: null, credited_at: null,
-                period_from: null, period_to: null, refund_note: null, created_at: iso(), updated_at: iso()
+                period_from: null, period_to: null, refund_note: null, created_at: iso(), updated_at: iso(),
+                kind: 'initial', parent_payment_id: null, auto_renew_requested_at: null
             }, row);
             db.payments.push(payment);
             return Object.assign({}, payment);
@@ -106,6 +111,13 @@ export function memoryStore(clock) {
         async insertEvent(row) {
             if (db.failInsertEvent) throw Object.assign(new Error('db down'), { code: 'EDB' });
             db.events.push(Object.assign({ received_at: iso() }, row));
+        },
+        // Як унікальний індекс payment_events_alert_key_uidx: перевірка й вставка в одному кроці.
+        async insertEventOnce(row) {
+            if (db.failInsertEvent) throw Object.assign(new Error('db down'), { code: 'EDB' });
+            if (row.alert_key && db.events.some((e) => e.alert_key === row.alert_key)) return false;
+            db.events.push(Object.assign({ received_at: iso() }, row));
+            return true;
         },
         // Та сама логіка, що apply_payment_success у міграції.
         async applySuccess(id, modified) {
@@ -173,12 +185,52 @@ export function memoryStore(clock) {
         async subscriptionsEndingBetween(fromIso, toIso) {
             return Object.values(db.subs).filter((s) => s.paid_until >= fromIso && s.paid_until < toIso).map((s) => Object.assign({}, s));
         },
+        // Як у store.js: лише непорожні email.
         async activeOwners(orgId) {
-            return Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active').map((p) => p.email);
+            return Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active')
+                .map((p) => p.email).filter(Boolean);
         },
-        async orgStatus(orgId) { return db.orgs[orgId] ? { name: db.orgs[orgId].name, status: db.orgs[orgId].status } : null; },
+        async countActiveOwners(orgId) {
+            return Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active').length;
+        },
+        async orgStatus(orgId) {
+            if (db.failOrgStatus) throw Object.assign(new Error('db down'), { code: 'EDB' });
+            return db.orgs[orgId] ? { name: db.orgs[orgId].name, status: db.orgs[orgId].status } : null;
+        },
         async markReminderSent(orgId, paidUntil) {
             if (db.subs[orgId] && db.subs[orgId].paid_until === paidUntil) db.subs[orgId].reminder_sent_for = paidUntil;
+        },
+        // Автопродовження (20261020200000_auto_renew.sql): поля org_subscriptions з тими ж значеннями за замовчуванням.
+        async getAutoRenew(orgId) {
+            const sub = db.subs[orgId];
+            return sub ? Object.assign({ auto_renew: false, fail_count: 0 }, sub) : null;
+        },
+        async updateAutoRenew(orgId, patch) {
+            if (db.subs[orgId]) Object.assign(db.subs[orgId], patch);
+        },
+        async addRegularRemoval(row) {
+            if (db.removals.some((r) => r.order_ref === row.order_ref)) return;
+            db.removalSeq += 1;
+            db.removals.push(Object.assign({ id: db.removalSeq, created_at: iso(), last_try_at: null, tries: 0 }, row));
+        },
+        async listRegularRemovals() { return db.removals.map((r) => Object.assign({}, r)); },
+        async markRegularRemovalTried(id, tries) {
+            const r = db.removals.find((row) => row.id === id);
+            if (r) Object.assign(r, { tries, last_try_at: iso() });
+        },
+        async deleteRegularRemoval(orderRef) { db.removals = db.removals.filter((r) => r.order_ref !== orderRef); },
+        async openAutoRenewPayments(orgId, sinceIso) {
+            return db.payments.filter((p) => p.org_id === orgId && p.provider === 'wayforpay' && ['created', 'pending'].includes(p.status)
+                && p.auto_renew_requested_at && p.created_at >= sinceIso).map((p) => Object.assign({}, p));
+        },
+        async recordRenewalFailure(orgId) {
+            const sub = db.subs[orgId];
+            if (!sub) return 0;
+            sub.fail_count = (sub.fail_count || 0) + 1;
+            return sub.fail_count;
+        },
+        async autoRenewSubscriptions() {
+            return Object.values(db.subs).filter((sub) => sub.auto_renew === true || sub.regular_status === 'RemovePending').map((sub) => Object.assign({ fail_count: 0 }, sub));
         },
         async openPaymentsBetween(fromIso, toIso) {
             return db.payments.filter((p) => ['created', 'pending'].includes(p.status) && p.created_at >= fromIso && p.created_at <= toIso)
@@ -196,6 +248,13 @@ export function fakeNet(options = {}) {
         monoStatus: null,
         wfpOffline: true,
         wfpCheck: null,
+        // regularApi: стан регулярок за orderReference; removeFails — REMOVE відповідає помилкою.
+        regular: {},
+        removeFails: false,
+        // removeCode — reasonCode відповіді REMOVE (напр. 4101 «вже видалено»); statusCode / statusExtra — відповідь STATUS.
+        removeCode: null,
+        statusCode: 4100,
+        statusExtra: {},
         telegramFails: false,
         resendFails: false,
         invoiceSeq: 0
@@ -220,6 +279,19 @@ export function fakeNet(options = {}) {
             if (body.transactionType === 'CREATE_INVOICE') return json(200, { invoiceUrl: 'https://secure.wayforpay.com/invoice/i123', reasonCode: 1100 });
             if (body.transactionType === 'CHECK_STATUS') return json(200, state.wfpCheck || {});
         }
+        if (u === 'https://api.wayforpay.com/regularApi') {
+            const body = JSON.parse(init.body);
+            if (body.requestType === 'REMOVE') {
+                if (state.removeCode != null) return json(200, { reasonCode: state.removeCode, reason: 'Code ' + state.removeCode });
+                if (state.removeFails) return json(200, { reasonCode: 4102, reason: 'Error' });
+                state.regular[body.orderReference] = 'Removed';
+                return json(200, { reasonCode: 4100, reason: 'Ok' });
+            }
+            if (body.requestType === 'STATUS') {
+                return json(200, Object.assign({ reasonCode: state.statusCode, reason: 'Ok', orderReference: body.orderReference,
+                    status: state.regular[body.orderReference] || 'Active' }, state.statusExtra));
+            }
+        }
         if (u.startsWith('https://api.telegram.org/')) {
             if (state.telegramFails) throw Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
             return json(200, { ok: true });
@@ -227,7 +299,8 @@ export function fakeNet(options = {}) {
         if (u === 'https://api.resend.com/emails') return state.resendFails ? json(500, {}) : json(200, { id: 'mail_1' });
         return json(404, {});
     }
-    return { fetch, calls, state, telegrams: () => calls.filter((c) => c.url.startsWith('https://api.telegram.org/')).map((c) => JSON.parse(c.body).text) };
+    const regularCalls = () => calls.filter((c) => c.url === 'https://api.wayforpay.com/regularApi').map((c) => JSON.parse(c.body));
+    return { fetch, calls, state, regularCalls, telegrams: () => calls.filter((c) => c.url.startsWith('https://api.telegram.org/')).map((c) => JSON.parse(c.body).text) };
 }
 
 export function request(method, route, { token, body, raw, headers = {}, query = {} } = {}) {

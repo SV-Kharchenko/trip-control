@@ -1437,6 +1437,20 @@
         .auth-legal input[type="checkbox"] { margin-top: 2px; }
         .tc-footer a { color: var(--text-muted); text-decoration: underline; }
         #cab-message { font-size: 0.85rem; margin: 8px 18px 0; min-height: 1.2em; }
+        /* Автопродовження (лише власник) */
+        #cabinet-screen .cab-autorenew {
+            display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+            margin: 10px 22px 4px; padding: 12px 14px; border-radius: var(--radius-control);
+            border: 1px solid var(--border); background: var(--surface); color: var(--text);
+        }
+        #cabinet-screen .cab-autorenew[hidden] { display: none; }
+        #cabinet-screen .cab-autorenew-text { margin: 0; flex: 1 1 240px; font-size: 0.9rem; line-height: 1.45; }
+        #cabinet-screen .cab-autorenew-cancel {
+            flex: none; width: auto; min-width: 0;
+            background: var(--surface); color: var(--text); border: 1px solid var(--border);
+        }
+        #cabinet-screen .cab-autorenew-msg { margin: 0; flex-basis: 100%; font-size: 0.82rem; color: var(--muted); }
+        #cabinet-screen .cab-autorenew-msg:empty { display: none; }
         @media (max-width: 900px) {
             #cabinet-screen .cab-grid.cab-company-grid { grid-template-columns: 1fr; }
             #cabinet-screen .tc-member-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -5368,6 +5382,11 @@
             </div>
             <button type="button" class="cab-close" title="Закрити" onclick="closeCabinet()" aria-label="Закрити">✕</button>
         </div>
+        <div class="cab-autorenew" id="cab-autorenew" hidden>
+            <p class="cab-autorenew-text" id="cab-autorenew-text"></p>
+            <button type="button" class="btn cab-autorenew-cancel" id="cab-autorenew-cancel" onclick="cancelAutoRenew()">Скасувати автопродовження</button>
+            <p class="cab-autorenew-msg" id="cab-autorenew-msg" role="status" aria-live="polite"></p>
+        </div>
         <div id="cabinet-fields"></div>
         <div id="cab-message"></div>
         <div class="cab-actions">
@@ -5477,7 +5496,9 @@
                     <label class="tc-billing-option" data-provider="wayforpay"><input type="radio" name="billing-provider" value="wayforpay"><span><b>WayForPay</b><small>Картка будь-якого банку</small></span></label>
                 </div>
             </fieldset>
-            <p class="tc-billing-note">Apple Pay / Google Pay — на сторінці оплати. Автосписань немає: кожен період оплачується окремо.</p>
+            <label class="tc-billing-consent tc-billing-autorenew" id="billing-autorenew-box" hidden><input type="checkbox" id="billing-autorenew"><span id="billing-autorenew-text">Автоматично продовжувати. Скасувати можна будь-коли в кабінеті</span></label>
+            <p class="tc-billing-note" id="billing-autorenew-active" hidden></p>
+            <p class="tc-billing-note" id="billing-note">Apple Pay / Google Pay — на сторінці оплати. Автосписань немає: кожен період оплачується окремо.</p>
             <label class="tc-billing-consent"><input type="checkbox" id="billing-consent"><span>Погоджуюсь з <a href="/offer" target="_blank" rel="noopener">Публічною офертою</a> та <a href="/privacy" target="_blank" rel="noopener">Політикою конфіденційності</a></span></label>
             <button type="button" class="btn btn-success tc-billing-pay" id="billing-pay-btn" onclick="startBillingPayment()">Оплатити</button>
             <p class="tc-billing-msg" id="billing-msg" role="status" aria-live="polite"></p>
@@ -7174,7 +7195,12 @@
     let billingPolling = false;
     // Екран оплати є лише з PAYMENTS_ENABLED=1 на сервері (summary.payments_enabled); інакше пункт меню, банер і ?billing= сховані.
     let billingEnabled = false;
+    // Автопродовження ввімкнене (summary.auto_renew): банер не пропонує платити вручну.
+    let billingAutoRenewOn = false;
+    // Створений разовий рахунок, коли автопродовження не ввімкнулося: перехід — лише другим натисканням.
+    let billingOneOffUrl = null;
     const BILLING_PLAN_LABEL = { month: '1 місяць', year: '1 рік' };
+    const BILLING_PLAN_EVERY = { month: 'кожен місяць', year: 'кожен рік' };
     const BILLING_PROVIDER_LABEL = { mono: 'plata by mono', wayforpay: 'WayForPay' };
     const BILLING_STATUS_LABEL = {
         created: 'Створено', pending: 'Очікує оплати', success: 'Оплачено', failure: 'Не оплачено',
@@ -7222,7 +7248,8 @@
     }
     function billingPreviewSummary() {
         const params = new URLSearchParams(location.search);
-        const paid = params.get('billing_state') === 'paid';
+        const autoRenew = params.get('billing_state') === 'autorenew';
+        const paid = params.get('billing_state') === 'paid' || autoRenew;
         const owner = params.get('billing_role') !== 'logist';
         const until = new Date(Date.now() + (paid ? 41 : -3) * 24 * 3600 * 1000).toISOString();
         return {
@@ -7231,6 +7258,8 @@
             manual_full_access: false,
             can_pay: owner,
             payments_enabled: true,
+            auto_renew_available: owner,
+            auto_renew: owner && autoRenew ? { enabled: true, next_charge_at: until, card_mask: '41****8217', plan: 'month', amount_uah: 250 } : undefined,
             providers: ['mono', 'wayforpay'],
             prices: [{ plan: 'month', label: '1 місяць', uah: 250 }, { plan: 'year', label: '1 рік', uah: 2500 }],
             legal_version: LEGAL_VERSION,
@@ -7249,8 +7278,36 @@
         if (!btn) return;
         const plan = selectedBillingPlan();
         const price = billingSummary && (billingSummary.prices || []).find(function (p) { return p.plan === plan; });
+        // Інший тариф / спосіб / нове відкриття — попередній разовий рахунок більше не пропонуємо.
+        billingOneOffUrl = null;
         btn.textContent = price ? 'Оплатити ' + price.uah + ' грн' : 'Оплатити';
+        syncBillingAutoRenew();
     }
+    // Автопродовження: окрема галочка, лише WayForPay, лише коли сервер її дозволяє (AUTO_RENEW_ENABLED=1)
+    // і автопродовження ще не ввімкнене. Сума й період — з summary.prices; сервер однаково бере їх з плану.
+    function syncBillingAutoRenew() {
+        const box = document.getElementById('billing-autorenew-box');
+        if (!box) return;
+        const provider = document.querySelector('input[name="billing-provider"]:checked');
+        const plan = selectedBillingPlan();
+        const price = billingSummary && (billingSummary.prices || []).find(function (p) { return p.plan === plan; });
+        const show = !!(billingSummary && billingSummary.auto_renew_available === true
+            && !(billingSummary.auto_renew && billingSummary.auto_renew.enabled)
+            && provider && provider.value === 'wayforpay' && price);
+        box.hidden = !show;
+        if (!show) box.querySelector('input').checked = false;
+        else document.getElementById('billing-autorenew-text').textContent =
+            'Автоматично продовжувати: ' + price.uah + ' грн ' + (BILLING_PLAN_EVERY[plan] || '') + '. Скасувати можна будь-коли в кабінеті';
+    }
+    function billingAutoRenewTicked(provider) {
+        const box = document.getElementById('billing-autorenew-box');
+        const input = document.getElementById('billing-autorenew');
+        return provider === 'wayforpay' && !!box && !box.hidden && !!input && input.checked;
+    }
+    (function () {
+        const providers = document.getElementById('billing-providers');
+        if (providers) providers.addEventListener('change', syncBillingPayButton);
+    })();
     function setBillingMessage(text, tone) {
         const msg = document.getElementById('billing-msg');
         if (!msg) return;
@@ -7283,6 +7340,17 @@
         if (firstAvailable && !document.querySelector('input[name="billing-provider"]:checked')) firstAvailable.checked = true;
         const payBtn = document.getElementById('billing-pay-btn');
         payBtn.disabled = !providers.length;
+        // Галочка автопродовження щоразу знята; примітка про автосписання — лише коли воно можливе.
+        document.getElementById('billing-autorenew').checked = false;
+        const ar = summary.auto_renew && summary.auto_renew.enabled ? summary.auto_renew : null;
+        billingAutoRenewOn = !!ar;
+        const arNote = document.getElementById('billing-autorenew-active');
+        arNote.hidden = !ar;
+        arNote.textContent = ar ? 'Автопродовження увімкнено, наступне списання ' + billingDate(ar.next_charge_at) +
+            '. Скасувати можна в кабінеті.' : '';
+        document.getElementById('billing-note').textContent = summary.auto_renew_available === true || ar
+            ? 'Apple Pay / Google Pay — на сторінці оплати. Автосписання — лише з автопродовженням, яке ви вмикаєте самі (WayForPay).'
+            : 'Apple Pay / Google Pay — на сторінці оплати. Автосписань немає: кожен період оплачується окремо.';
         syncBillingPayButton();
         if (owner && !providers.length) setBillingMessage('Оплата тимчасово недоступна. Спробуйте пізніше.', 'error');
         const rows = summary.payments || [];
@@ -7321,6 +7389,7 @@
         }
         try {
             const summary = await billingFetch('summary');
+            billingAutoRenewOn = !!(summary.auto_renew && summary.auto_renew.enabled);
             setBillingEnabled(summary.payments_enabled === true);
         } catch (e) {
             setBillingEnabled(false);
@@ -7383,15 +7452,36 @@
             return;
         }
         const btn = document.getElementById('billing-pay-btn');
+        // Рахунок уже створено як разовий (автопродовження не ввімкнулося) — власник погодився перейти.
+        if (billingOneOffUrl) {
+            const url = billingOneOffUrl;
+            billingOneOffUrl = null;
+            setBillingMessage('Переходимо на сторінку оплати…', 'ok');
+            location.href = url;
+            return;
+        }
         btn.disabled = true;
         setBillingMessage('Створюємо рахунок…');
         try {
-            // Лише код тарифу й провайдера: суму сервер бере з плану.
+            // Лише код тарифу й провайдера (і галочка автопродовження): суму й період сервер бере з плану.
+            const autoRenew = billingAutoRenewTicked(providerEl.value);
+            const payload = { plan: selectedBillingPlan(), provider: providerEl.value, consent: true, legal_version: LEGAL_VERSION };
+            if (autoRenew) payload.auto_renew = true;
             const res = await billingFetch('create-invoice', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ plan: selectedBillingPlan(), provider: providerEl.value, consent: true, legal_version: LEGAL_VERSION })
+                body: JSON.stringify(payload)
             });
+            // Сервер не зміг увімкнути автопродовження (запасний CREATE_INVOICE): кажемо, що оплата разова,
+            // і переходимо лише після явного натискання.
+            if (autoRenew && res.auto_renew === false) {
+                billingOneOffUrl = res.url;
+                btn.disabled = false;
+                btn.textContent = 'Перейти до разової оплати';
+                setBillingMessage('Автопродовження зараз не ввімкнулося — це буде разова оплата без автосписань. ' +
+                    'Натисніть «Перейти до разової оплати» або закрийте вікно.', 'error');
+                return;
+            }
             setBillingMessage('Переходимо на сторінку оплати…', 'ok');
             location.href = res.url;
         } catch (e) {
@@ -7455,6 +7545,7 @@
         }
         if (!billingEnabled) return;
         if (mode === 'pay') openBillingModal();
+        else if (mode === 'auto-renew') showCabinetAutoRenew();
         else if (mode === 'return') {
             openBillingModal();
             if (/^[0-9a-f-]{36}$/i.test(pid) && !uiPreview) pollBillingStatus(pid);
@@ -7471,8 +7562,61 @@
         if (!show) return;
         const owner = currentOrgRole === 'owner';
         document.getElementById('billing-banner-text').textContent = 'Доступ діє до ' + billingDate(billingPaidUntil) + '.' +
-            (owner ? '' : ' Оплату здійснює власник компанії.');
-        document.getElementById('billing-banner-btn').hidden = !owner;
+            (owner && billingAutoRenewOn ? ' Автопродовження увімкнено: продовжимо автоматично.'
+                : (owner ? '' : ' Оплату здійснює власник компанії.'));
+        document.getElementById('billing-banner-btn').hidden = !owner || billingAutoRenewOn;
+    }
+
+    // Автопродовження в кабінеті: стан і «Скасувати» — лише власнику (логісти не бачать).
+    async function loadCabinetAutoRenew() {
+        const box = document.getElementById('cab-autorenew');
+        if (!box) return;
+        box.hidden = true;
+        document.getElementById('cab-autorenew-msg').textContent = '';
+        if (currentOrgRole !== 'owner' || !billingEnabled) return;
+        let summary = null;
+        try {
+            summary = uiPreview ? billingPreviewSummary() : await billingFetch('summary');
+        } catch (e) {
+            return;
+        }
+        const ar = summary && summary.auto_renew && summary.auto_renew.enabled ? summary.auto_renew : null;
+        if (!ar) return;
+        document.getElementById('cab-autorenew-text').textContent = ar.removing
+            ? 'Автопродовження скасовується: чекаємо підтвердження WayForPay (повторюємо щодня). Наступне списання ' + billingDate(ar.next_charge_at) + '.'
+            : 'Автопродовження увімкнено, наступне списання ' + billingDate(ar.next_charge_at) + (ar.card_mask ? ', картка ' + ar.card_mask : '');
+        document.getElementById('cab-autorenew-cancel').hidden = false;
+        document.getElementById('cab-autorenew-cancel').disabled = false;
+        box.hidden = false;
+    }
+    function showCabinetAutoRenew() {
+        if (currentOrgRole !== 'owner') return;
+        openCabinet();
+        const box = document.getElementById('cab-autorenew');
+        if (box && typeof box.scrollIntoView === 'function') box.scrollIntoView({ block: 'start' });
+    }
+    async function cancelAutoRenew() {
+        const btn = document.getElementById('cab-autorenew-cancel');
+        const msg = document.getElementById('cab-autorenew-msg');
+        if (!window.confirm('Скасувати автопродовження?\n\nНаступних списань не буде. Доступ діє до кінця оплаченого періоду.')) return;
+        if (uiPreview) {
+            msg.textContent = 'Прев’ю: тут автопродовження було б скасовано.';
+            return;
+        }
+        btn.disabled = true;
+        msg.textContent = 'Скасовуємо…';
+        try {
+            const res = await billingFetch('cancel-auto-renew', { method: 'POST' });
+            document.getElementById('cab-autorenew-text').textContent = 'Автопродовження скасовано.' +
+                (billingPaidActive(res.paid_until) ? ' Доступ діє до ' + billingDate(res.paid_until) + '.' : '');
+            btn.hidden = true;
+            msg.textContent = '';
+            billingAutoRenewOn = false;
+            syncBillingBanner();
+        } catch (e) {
+            btn.disabled = false;
+            msg.textContent = e.message;
+        }
     }
 
     // ===== Демо-режим =====
@@ -7913,7 +8057,7 @@
 
     // Редакція оферти й політики конфіденційності (дата в legal/*.html). Та сама в lib/legal.js і в
     // дозволеному списку public.record_signup_consent(); оновлюйте всі три разом, коли змінюється редакція.
-    const LEGAL_VERSION = '2026-10-18';
+    const LEGAL_VERSION = '2026-10-20';
     async function handleAuth(type) {
         const authMsg = document.getElementById('auth-message');
         const email = document.getElementById('auth-email').value.trim();
@@ -10131,6 +10275,7 @@
         if (modeBtn) modeBtn.hidden = currentOrgRole !== 'owner';
         const reportBox = document.getElementById('weekly-report-box');
         if (reportBox) reportBox.hidden = currentOrgRole !== 'owner';
+        loadCabinetAutoRenew();
         const saveBtn = document.getElementById('cab-save-btn');
         if (saveBtn) {
             saveBtn.hidden = currentOrgRole === 'logist';
@@ -10611,10 +10756,15 @@
                     const orgBtn = c.status === 'blocked'
                         ? '<button type="button" class="ok" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'active\')">Розблокувати</button>'
                         : '<button type="button" class="bad" onclick="adminSetOrgStatus(\'' + c.org_id + '\', \'blocked\')">Блок org</button>';
+                    // Автопродовження (WayForPay): стан і скасування за запитом клієнта (листом).
+                    const ar = c.auto_renew && c.auto_renew.enabled ? c.auto_renew : null;
+                    const arBadge = ar ? '<br><span class="adm-badge">' + (ar.removing ? 'автопродовження скасовується' : 'автопродовження') +
+                        (ar.next_charge_at ? ' · ' + escAdm(billingDate(ar.next_charge_at)) : '') + '</span>' : '';
+                    const arBtn = ar ? '<button type="button" class="bad" onclick="adminCancelAutoRenew(\'' + c.org_id + '\')">Скасувати автопродовження</button>' : '';
                     html += '<tr><td><b>' + escAdm(c.name || '—') + '</b><br>' + st +
-                        (c.tax ? '<br><span class="adm-badge">' + escAdm(c.tax) + '</span>' : '') +
+                        (c.tax ? '<br><span class="adm-badge">' + escAdm(c.tax) + '</span>' : '') + arBadge +
                         '</td><td>' + contacts + '</td><td>' + users + '</td><td><div class="adm-actions">' +
-                        orgBtn + '</div></td></tr>';
+                        orgBtn + arBtn + '</div></td></tr>';
                 });
                 html += '</tbody></table>';
                 box.innerHTML = html;
@@ -10672,12 +10822,35 @@
         }
     }
 
+    const ADMIN_AUTO_RENEW_RESULT = {
+        removed: ' Автопродовження вимкнено (WayForPay підтвердив).',
+        pending: ' Автопродовження: WayForPay ще не підтвердив зняття — крон повторюватиме щодня.',
+        error: ' Автопродовження: не вдалося зупинити — перевірте в кабінеті WayForPay.',
+        none: ''
+    };
     async function adminSetOrgStatus(orgId, status) {
         const msg = document.getElementById('adm-msg');
         try {
-            await adminApi('POST', { action: 'set_org_status', org_id: orgId, status: status });
-            msg.textContent = status === 'blocked' ? 'Організацію заблоковано.' : 'Організацію розблоковано.';
+            const res = await adminApi('POST', { action: 'set_org_status', org_id: orgId, status: status });
+            msg.textContent = (status === 'blocked' ? 'Організацію заблоковано.' : 'Організацію розблоковано.') +
+                (ADMIN_AUTO_RENEW_RESULT[res.auto_renew] || '');
             msg.style.color = 'var(--success)';
+            await loadAdminCrm();
+        } catch (e) {
+            msg.textContent = e.message || String(e);
+            msg.style.color = 'var(--danger)';
+        }
+    }
+
+    // Скасування автопродовження адміністратором (запит клієнта листом, оферта 4.13).
+    async function adminCancelAutoRenew(orgId) {
+        const msg = document.getElementById('adm-msg');
+        if (!window.confirm('Скасувати автопродовження цієї компанії?\n\nНаступних списань не буде; оплачений період діє до кінця.')) return;
+        try {
+            const res = await adminApi('POST', { action: 'cancel_auto_renew', org_id: orgId });
+            msg.textContent = res.auto_renew === 'removed' ? 'Автопродовження скасовано.'
+                : (res.auto_renew === 'pending' ? 'WayForPay ще не підтвердив зняття — крон повторюватиме щодня.' : 'Автопродовження вже вимкнене.');
+            msg.style.color = res.auto_renew === 'pending' ? 'var(--danger)' : 'var(--success)';
             await loadAdminCrm();
         } catch (e) {
             msg.textContent = e.message || String(e);

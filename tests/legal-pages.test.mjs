@@ -172,14 +172,18 @@ test('signUp sends consent_* = LEGAL_VERSION for both branches; one version ever
     assert.match(inviteBranch, /invite_id: invite\.info\.invite_id/);
     assert.match(ownerBranch, /company_name: company/);
     const version = html.match(/const LEGAL_VERSION = '([\d-]+)';/)[1];
-    assert.equal(version, '2026-10-18');
+    assert.equal(version, '2026-10-20');
     assert.match(read('lib/legal.js'), new RegExp("export const LEGAL_VERSION = '" + version + "';"));
-    const migration = read('supabase/migrations/20261018100000_legal_consents.sql');
-    assert.match(migration, new RegExp("v_allowed constant text\\[\\] := ARRAY\\['" + version + "'\\]"));
-    // Edition date in the documents matches.
+    assert.match(read('lib/legal.js'), /export const ACCEPTED_LEGAL_VERSIONS = Object\.freeze\(\['2026-10-18', LEGAL_VERSION\]\);/);
+    // The latest migration with record_signup_consent() accepts the new edition and keeps the previous one.
+    const migration = read('supabase/migrations/20261020190000_legal_version_2026_10_20.sql');
+    assert.match(migration, new RegExp("v_allowed constant text\\[\\] := ARRAY\\['2026-10-18', '" + version + "'\\]"));
+    assert.match(read('supabase/migrations/20261018100000_legal_consents.sql'), /v_allowed constant text\[\] := ARRAY\['2026-10-18'\]/);
+    // Edition date in the documents matches; it takes effect 10 days later (offer 14.1).
     for (const file of ['legal/offer.html', 'legal/privacy.html']) {
-        assert.match(read(file), /Редакція від 18\.10\.2026/);
+        assert.match(read(file), /<strong>Редакція від 20\.10\.2026\. Набирає чинності: 30\.10\.2026\.<\/strong> До цієї дати діє редакція від 18\.10\.2026\./);
     }
+    assert.match(read('legal/payment-refund.html'), /<strong>Редакція від 20\.10\.2026, набирає чинності 30\.10\.2026\.<\/strong>/);
 });
 
 test('legal_consents migration: new table, RLS, no IP, separate trigger, handle_new_tripcontrol_user untouched', () => {
@@ -233,7 +237,9 @@ test('legal_consents on Postgres (PGlite)', async (t) => {
         'signup without versions: no row, insert does not fail',
         'consent insert error: signup and profile still created',
         'authenticated sees only own consent rows',
-        'authenticated cannot insert / update / delete (42501)'
+        'authenticated cannot insert / update / delete (42501)',
+        'edition 2026-10-20: signup consent recorded',
+        'edition 2026-10-18 still accepted during the switch'
     ]) {
         assert.ok(run.stdout.includes('PASS ' + line), line);
     }

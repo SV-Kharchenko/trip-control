@@ -149,6 +149,23 @@ await db.exec('DROP TRIGGER boom ON public.legal_consents; DROP FUNCTION public.
     check(rows.length === 0, 'no IP column');
 }
 
+// 7. Edition 2026-10-20 (20261020190000_legal_version_2026_10_20.sql, twice): both editions accepted.
+{
+    const next = fs.readFileSync(new URL('../supabase/migrations/20261020190000_legal_version_2026_10_20.sql', import.meta.url), 'utf8');
+    const beforeNext = await signup({ company_name: 'До нової', consent_offer_version: '2026-10-20', consent_privacy_version: '2026-10-20' });
+    check(beforeNext.ok && (await consentsOf(beforeNext.id)).length === 0, 'before the edition migration: 2026-10-20 is not recorded');
+    await db.exec(next);
+    await db.exec(next);
+    const fresh = await signup({ company_name: 'Нова', consent_offer_version: '2026-10-20', consent_privacy_version: '2026-10-20' });
+    const freshRows = await consentsOf(fresh.id);
+    check(fresh.ok && freshRows.length === 1 && freshRows[0].offer_version === '2026-10-20' && freshRows[0].privacy_version === '2026-10-20',
+        'edition 2026-10-20: signup consent recorded');
+    const old = await signup({ company_name: 'Стара сторінка', ...consent });
+    check(old.ok && (await consentsOf(old.id)).length === 1, 'edition 2026-10-18 still accepted during the switch');
+    const unknown = await signup({ consent_offer_version: '2026-10-19', consent_privacy_version: '2026-10-19' });
+    check(unknown.ok && (await consentsOf(unknown.id)).length === 0, 'edition 2026-10-19: no row, insert does not fail');
+}
+
 if (failed) {
     console.log(failed + ' check(s) failed');
     process.exit(1);
