@@ -592,6 +592,39 @@ test('amount in summary / reminder / alerts comes from the regular\'s first paym
     assert.match(w.net.telegrams().at(-1), /^🔁 Автопродовження вимкнено: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · скасовано власником/);
 });
 
+test('renewal price comes from the first payment (offer 4.15), not from the current PLANS; period from parent.plan', async () => {
+    const w = world();
+    const parent = await w.autoRenewOn();
+    // Регулярку ввімкнули, коли місяць коштував 200 грн (зараз 250).
+    w.store.db.payments.find((p) => p.id === parent.id).amount_minor = 20000;
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+
+    // Поточна ціна (250) для цієї регулярки — не та сума: не зараховано, алерт.
+    await w.approve(parent.provider_order_id + '_WFPREG-1', { amount: 250 });
+    assert.equal(w.sub().paid_until, '2026-11-18T09:00:00.000Z');
+    assert.match(w.net.telegrams().at(-1), /^❗ Автосписання не зараховано: ТОВ «Агро» · сума або валюта не збігаються \(очікували 200 UAH\) · сума 250 UAH/);
+
+    // 200 — зараховано на місяць (parent.plan).
+    await w.approve(parent.provider_order_id + '_WFPREG-2', { amount: 200 });
+    const row = w.renewals().find((p) => p.provider_order_id === parent.provider_order_id + '_WFPREG-2');
+    assert.equal(row.amount_minor, 20000);
+    assert.equal(row.plan, 'month');
+    assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z');
+    assert.equal(w.net.telegrams().at(-1), '💳 Оплата: ТОВ «Агро» · 1 місяць · 200 грн · WayForPay · автосписання · оплачено до 18.12.2026');
+
+    // Summary, нагадування, невдале списання — 200 грн.
+    assert.equal((await w.call('GET', 'summary', { token: 'owner' })).body.auto_renew.amount_uah, 200);
+    w.clock.now = Date.parse('2026-12-15T07:00:00Z');
+    await w.call('GET', 'cron', CRON);
+    assert.match(w.mails().at(-1).text, /^18\.12\.2026 спишемо 200 грн з картки/);
+    w.clock.now = Date.parse('2026-12-18T07:00:00Z');
+    await w.decline(parent.provider_order_id + '_WFPREG-3', { amount: 200 });
+    assert.equal(w.net.telegrams().at(-1), '⚠️ Автосписання не пройшло: ТОВ «Агро» · 1 місяць · 200 грн · WayForPay · спроба 1');
+    w.clock.now += DAY;
+    await w.decline(parent.provider_order_id + '_WFPREG-4', { amount: 200 });
+    assert.match(w.mails().at(-1).text, /Двічі не вдалося списати 200 грн/);
+});
+
 test('client: with auto-renew on, the 3-day banner does not offer a manual payment', () => {
     const html = read('index.html');
     const banner = html.slice(html.indexOf('function syncBillingBanner()'), html.indexOf('async function loadCabinetAutoRenew()'));
