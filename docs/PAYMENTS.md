@@ -29,7 +29,8 @@ api/billing/[route].js  ── JWT, власник, активна компан�
   │     підпис → payment_events → статус (лише новіший за provider_modified_at)
   │     success → apply_payment_success() → org_subscriptions.paid_until (+1 міс / +1 рік)
   │                 + Telegram «💳 Оплата: …» (лише при фактичному зарахуванні)
-  │     reversed  → статус + подія + Telegram «↩️ Повернення: …» (paid_until не скорочуємо)
+  │     reversed  → apply_payment_reversal(): статус + подія; повне повернення зарахованого платежу
+  │                 скорочує paid_until на його період (один раз) + Telegram «↩️ Повернення: …»
   │
   └─► повернення клієнта → /api/billing/return?pid= → 303 /?billing=return&pid=
         клієнт поллить GET /api/billing/status?pid= кожні 3 с до 60 с
@@ -76,7 +77,7 @@ URL вебхуків у кабінетах провайдерів:
 
 **Обидва**
 - Повторні сповіщення й status-check нічого не змінюють і не дублюють Telegram-алерт.
-- `success` зараховується лише при точному збігу суми й валюти. Повернення (`reversed` / `Refunded` / `Voided`) фіксується завжди — навіть якщо сума інша (часткове повернення); розбіжність лише пишеться в лог.
+- `success` зараховується лише при точному збігу суми й валюти. Повернення (`reversed` / `Refunded` / `Voided`) фіксується завжди — навіть якщо сума інша (часткове повернення); розбіжність лише пишеться в лог. Що робить повернення з `paid_until` — див. «Повернення коштів».
 
 ## Дані
 
@@ -90,7 +91,9 @@ URL вебхуків у кабінетах провайдерів:
 - `org_has_paid_access()` викликає лише сервер і SECURITY DEFINER-функції (EXECUTE тільки `service_role`);
 - `org_has_user_data()` рахує `payments` і `org_subscriptions` як дані: компанію, що платила, прийняття запрошення не видаляє.
 
-Перевірка: `node scripts/check-payments-rls.mjs` і `node scripts/check-payments-invite-compat.mjs` (усі перевірки флоу запрошень і starter-шаблону з `org_has_user_data` цієї міграції; PGlite), `npm test`.
+Міграція `supabase/migrations/20261020180000_refund_cut.sql`: `payments.reversal_applied_at` і `apply_payment_reversal()` (див. «Повернення коштів»).
+
+Перевірка: `node scripts/check-payments-rls.mjs`, `node scripts/check-refund-cut.mjs` і `node scripts/check-payments-invite-compat.mjs` (усі перевірки флоу запрошень і starter-шаблону з `org_has_user_data` цієї міграції; PGlite), `npm test`.
 
 Повний доступ (ручне `is_approved` або оплачена компанія) однаково рахують `api/calculate.js` і пошук POI в `api/poi.js` (`isDemoAccess` + `loadPaidUntil`).
 
@@ -125,10 +128,41 @@ URL вебхуків у кабінетах провайдерів:
 - Сценарій: власник → меню → «Тариф і оплата» → тариф, спосіб, згода → «Оплатити» → тестова картка → повернення
   на `/?billing=return&pid=…` → «Оплату зараховано. Доступ діє до …».
 
-## Повернення коштів (вручну)
+## Повернення коштів
 
-1. Оформити повернення в кабінеті провайдера (mono / WayForPay).
-2. У нас — SQL від `service_role`:
+Повернення оформлюється в кабінеті провайдера (mono / WayForPay). Далі автоматично — вебхук `reversed` (mono) /
+`Refunded`, `Voided` (WayForPay) або status-check → `apply_payment_reversal()`
+(`supabase/migrations/20261020180000_refund_cut.sql`, рядки блокуються FOR UPDATE):
+
+| Платіж | Повернення | Що відбувається |
+|---|---|---|
+| зарахований (`credited_at`) | повне | `status = reversed`; `paid_until -= period_to − period_from` цього платежу, але не нижче `now()` (і ніколи не пізніше, ніж було); `reversal_applied_at = now()` |
+| зарахований | часткове | `status = reversed`; `paid_until` не змінюється; `reversal_applied_at` порожній — пізніше повне повернення ще скоротить період один раз |
+| не зарахований (pending тощо) | будь-яке | лише `status = reversed`, підписка не змінюється |
+| `refunded` (вручну) | будь-яке | нічого |
+
+- Повторне сповіщення про те саме повернення (вебхук ще раз, `Voided` після `Refunded`, status-check) нічого не змінює і не шле другий алерт.
+- Скорочення — рівно на тривалість періоду цього платежу. Два місяці наперед (18.10–18.11 і 18.11–18.12), повернули перший (31 день):
+  18.12 − 31 день = 17.11, тобто другий оплачений період (30 днів) лишається повністю.
+- Сума повернення:
+  - mono — `amount − finalAmount` (якщо є `finalAmount`), інакше `amount`;
+  - WayForPay — лише `refundAmount` (`amount` у сповіщенні — сума платежу). Якщо в `Refunded` / `Voided` його немає, сервер
+    робить `CHECK_STATUS` (підписана відповідь) і бере `refundAmount` звідти. Якщо й там немає (або підпис / замовлення не збігаються),
+    період не ріжемо (`reversal_applied_at` порожній — пізніше сповіщення з сумою ще скоротить), а адміну:
+    «суму повернення не вдалося визначити, доступ не змінено — перевірте вручну».
+  Часткове — лише коли сума відома й менша за суму платежу.
+- mono часткове повернення приходить як `status=success` з `finalAmount < amount`: для зарахованого платежу адміну один раз
+  (`payments.partial_refund_alerted_at`) «повернення часткове (N грн), доступ не змінено»; підписка й статус не змінюються.
+- Telegram адміну: «↩️ Повернення: компанія · тариф · сума · провайдер · …» і в кінці нове «оплачено до DD.MM.YYYY», а коли
+  оплачений доступ скінчився — «доступ завершено» або, якщо в компанії є користувач з ручним `is_approved`,
+  «оплату скасовано, ручний доступ лишається». Часткове: «повернення часткове (N грн), доступ не змінено»;
+  незарахований платіж: «платіж не був зарахований, доступ не змінено».
+- Ручний `profiles.is_approved` повернення не чіпає: такий доступ лишається безстроковим.
+- Міграція позначає платежі, уже повернені до неї (`reversed` / `refunded`), як оброблені
+  (`reversal_applied_at = coalesce(updated_at, now())`): старе повторне сповіщення не ріже період і не шле алерт.
+- Поки `20261020180000_refund_cut.sql` не застосована, сервер падає назад на `apply_payment_status()`: лише статус, `paid_until` не змінюється.
+
+Ручна корекція (напр., повернення поза провайдером) — SQL від `service_role`:
 
 ```sql
 UPDATE public.payments
@@ -136,9 +170,6 @@ SET status = 'refunded', refund_note = 'Повернення за запитом
 WHERE id = '<payment id>';
 INSERT INTO public.payment_events (payment_id, provider, status, source, payload)
 SELECT id, provider, 'refunded', 'manual', '{}'::jsonb FROM public.payments WHERE id = '<payment id>';
+UPDATE public.org_subscriptions SET paid_until = '<нова дата>', updated_at = now() WHERE org_id = '<org id>';
 ```
 
-3. Скорочення `paid_until` — теж вручну, якщо потрібно:
-   `UPDATE public.org_subscriptions SET paid_until = '<нова дата>', updated_at = now() WHERE org_id = '<org id>';`
-
-Вебхук `reversed` (mono) / `Refunded`, `Voided` (WayForPay) лише фіксує статус і шле Telegram-алерт; `paid_until` автоматично не скорочується.
