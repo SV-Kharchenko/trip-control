@@ -1034,6 +1034,8 @@ test('offer and /payment-refund describe auto-renewal: sum, period, how to cance
     assert.match(offer, /окремою позначкою \(за замовчуванням не встановлена\)/);
     assert.match(offer, /Особистий кабінет → «Скасувати автопродовження»/);
     assert.match(offer, /Після двох невдалих спроб поспіль Автопродовження вимикається/);
+    assert.match(offer, /<p>4\.14\. [^\n]*Якщо до вимкнення списання все ж пройшло, Автопродовження зберігається\. /);
+    assert.match(read('legal/payment-refund.html'), /Якщо до вимкнення списання все ж пройшло, автопродовження зберігається\./);
     const refund = read('legal/payment-refund.html');
     assert.match(refund, /<h2>Автопродовження<\/h2>/);
     assert.match(refund, /250 грн щомісяця \(тариф «1 місяць»\) або 2 500 грн щороку \(тариф «1 рік»\)/);
