@@ -196,7 +196,7 @@ export function memoryStore(clock) {
             return sub.fail_count;
         },
         async autoRenewSubscriptions() {
-            return Object.values(db.subs).filter((sub) => sub.auto_renew === true).map((sub) => Object.assign({ fail_count: 0 }, sub));
+            return Object.values(db.subs).filter((sub) => sub.auto_renew === true || sub.regular_status === 'RemovePending').map((sub) => Object.assign({ fail_count: 0 }, sub));
         },
         async openPaymentsBetween(fromIso, toIso) {
             return db.payments.filter((p) => ['created', 'pending'].includes(p.status) && p.created_at >= fromIso && p.created_at <= toIso)

@@ -7560,8 +7560,9 @@
         }
         const ar = summary && summary.auto_renew && summary.auto_renew.enabled ? summary.auto_renew : null;
         if (!ar) return;
-        document.getElementById('cab-autorenew-text').textContent =
-            'Автопродовження увімкнено, наступне списання ' + billingDate(ar.next_charge_at) + (ar.card_mask ? ', картка ' + ar.card_mask : '');
+        document.getElementById('cab-autorenew-text').textContent = ar.removing
+            ? 'Автопродовження скасовується: чекаємо підтвердження WayForPay (повторюємо щодня). Наступне списання ' + billingDate(ar.next_charge_at) + '.'
+            : 'Автопродовження увімкнено, наступне списання ' + billingDate(ar.next_charge_at) + (ar.card_mask ? ', картка ' + ar.card_mask : '');
         document.getElementById('cab-autorenew-cancel').hidden = false;
         document.getElementById('cab-autorenew-cancel').disabled = false;
         box.hidden = false;

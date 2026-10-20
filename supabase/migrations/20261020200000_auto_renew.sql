@@ -21,6 +21,9 @@ ALTER TABLE public.org_subscriptions
   ADD COLUMN IF NOT EXISTS card_mask text NULL,
   ADD COLUMN IF NOT EXISTS next_charge_at timestamptz NULL,
   ADD COLUMN IF NOT EXISTS regular_status text NULL,
+  -- regular_status = 'RemovePending': REMOVE ще не підтверджено, auto_renew лишається true, крон повторює REMOVE.
+  -- Причина (renewal_failed / refund / owner / admin / org_blocked / no_owner / org_missing) — що робити після підтвердження.
+  ADD COLUMN IF NOT EXISTS regular_remove_reason text NULL,
   ADD COLUMN IF NOT EXISTS fail_count integer NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS auto_renew_consent_at timestamptz NULL,
   ADD COLUMN IF NOT EXISTS auto_renew_cancelled_at timestamptz NULL;
