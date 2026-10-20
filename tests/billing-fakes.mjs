@@ -179,8 +179,13 @@ export function memoryStore(clock) {
         async subscriptionsEndingBetween(fromIso, toIso) {
             return Object.values(db.subs).filter((s) => s.paid_until >= fromIso && s.paid_until < toIso).map((s) => Object.assign({}, s));
         },
+        // Як у store.js: лише непорожні email.
         async activeOwners(orgId) {
-            return Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active').map((p) => p.email);
+            return Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active')
+                .map((p) => p.email).filter(Boolean);
+        },
+        async countActiveOwners(orgId) {
+            return Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active').length;
         },
         async orgStatus(orgId) {
             if (db.failOrgStatus) throw Object.assign(new Error('db down'), { code: 'EDB' });
