@@ -428,14 +428,65 @@ test('refund of the first payment or of a renewal: REMOVE and auto-renew off (pe
     assert.equal(one.net.regularCalls().length, 0);
 });
 
-test('renewal charged after auto-renew was turned off: credited (money taken) and the admin is warned', async () => {
-    const w = world({ net: { removeFails: true } });
+test('renewal for a company with auto_renew=false: credited, REMOVE right away, the REMOVE result in the alert', async () => {
+    const w = world();
     const parent = await w.autoRenewOn();
     w.store.db.subs[ORG].auto_renew = false;
     w.clock.now = Date.parse('2026-11-18T07:00:00Z');
     await w.approve(parent.provider_order_id + '_WFPREG-9');
+    assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z', 'money taken: credited');
+    assert.deepEqual(w.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', parent.provider_order_id]]);
+    assert.equal(w.net.telegrams().at(-1),
+        '💳 Оплата: ТОВ «Агро» · 1 місяць · 250 грн · WayForPay · автосписання · автопродовження вже вимкнене — REMOVE підтверджено · оплачено до 18.12.2026');
+    assert.equal(w.sub().auto_renew, false);
+
+    const f = world({ net: { removeFails: true } });
+    const p = await f.autoRenewOn();
+    f.store.db.subs[ORG].auto_renew = false;
+    f.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await f.approve(p.provider_order_id + '_WFPREG-9');
+    assert.equal(f.sub().paid_until, '2026-12-18T09:00:00.000Z');
+    assert.match(f.net.telegrams().at(-1), /автосписання · автопродовження вже вимкнене — REMOVE не вдався — вимкніть регулярний платіж у кабінеті WayForPay · оплачено до 18\.12\.2026$/);
+});
+
+test('renewal of an old (replaced) regular or one waiting for REMOVE: credited, REMOVE now; a «failed charges» pending is undone by a success', async () => {
+    // Регулярка чекала REMOVE через скасування власником: списання зараховано, REMOVE підтвердив — вимкнено.
+    const w = world({ net: { removeFails: true } });
+    const parent = await w.autoRenewOn();
+    assert.equal((await w.call('POST', 'cancel-auto-renew', { token: 'owner' })).statusCode, 502);
+    w.net.state.removeFails = false;
+    w.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await w.approve(parent.provider_order_id + '_WFPREG-1');
     assert.equal(w.sub().paid_until, '2026-12-18T09:00:00.000Z');
-    assert.match(w.net.telegrams().at(-1), /автосписання · автопродовження вже вимкнене — перевірте регулярний платіж у кабінеті WayForPay · оплачено до 18\.12\.2026$/);
+    assert.equal(w.sub().auto_renew, false);
+    assert.equal(w.sub().regular_status, 'Removed');
+    assert.equal(w.sub().auto_renew_cancelled_at, new Date(w.clock.now).toISOString());
+    assert.match(w.net.telegrams().at(-1), /автопродовження вже вимкнене — REMOVE підтверджено/);
+
+    // RemovePending через невдалі списання, а потім успішне: картка працює — автопродовження лишається.
+    const s = world({ net: { removeFails: true } });
+    const p = await s.autoRenewOn();
+    s.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await s.decline(p.provider_order_id + '_WFPREG-1');
+    s.clock.now += DAY;
+    await s.decline(p.provider_order_id + '_WFPREG-2');
+    assert.equal(s.sub().regular_status, 'RemovePending');
+    s.clock.now += DAY;
+    await s.approve(p.provider_order_id + '_WFPREG-3');
+    assert.equal(s.sub().auto_renew, true);
+    assert.equal(s.sub().regular_status, 'Active');
+    assert.equal(s.sub().regular_remove_reason, null);
+    assert.equal(s.sub().fail_count, 0);
+
+    // Списання старої регулярки, яку замінила нова: зараховано, стару знято, нова не зачеплена.
+    const o = world();
+    const old = await o.autoRenewOn();
+    o.store.db.subs[ORG].wfp_regular_order_ref = 'tc-newer';
+    o.clock.now = Date.parse('2026-11-18T07:00:00Z');
+    await o.approve(old.provider_order_id + '_WFPREG-5');
+    assert.deepEqual(o.net.regularCalls().map((c) => [c.requestType, c.orderReference]), [['REMOVE', old.provider_order_id]]);
+    assert.equal(o.sub().auto_renew, true);
+    assert.equal(o.sub().wfp_regular_order_ref, 'tc-newer');
 });
 
 test('daily cron: STATUS for every auto-renewing company; inactive in WayForPay → off + admin alert', async () => {
