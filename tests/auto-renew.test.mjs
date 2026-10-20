@@ -94,6 +94,27 @@ test('Purchase without the box: no regular fields; with the box: regular fields 
     assert.equal(w.purchases()[2].get('dateNext'), '18.10.2027');
 });
 
+test('legal version: both 2026-10-18 and 2026-10-20 accepted during the switch, consent records the one sent; auto-renew needs the new one', async () => {
+    const w = world();
+    const old = await w.invoice({ legal_version: '2026-10-18' });
+    assert.equal(old.statusCode, 200, 'a tab opened before the deploy does not get CONSENT_REQUIRED');
+    const fresh = await w.invoice({ legal_version: '2026-10-20' });
+    assert.equal(fresh.statusCode, 200);
+    const consentOf = (id) => w.store.db.consents.find((c) => c.payment_id === id && c.kind === 'payment');
+    assert.deepEqual([consentOf(old.body.payment_id).offer_version, consentOf(old.body.payment_id).privacy_version], ['2026-10-18', '2026-10-18']);
+    assert.deepEqual([consentOf(fresh.body.payment_id).offer_version, consentOf(fresh.body.payment_id).privacy_version], ['2026-10-20', '2026-10-20']);
+    for (const bad of ['2026-10-19', '2020-01-01', '', undefined]) {
+        const res = await w.invoice({ legal_version: bad });
+        assert.equal(res.statusCode, 400, String(bad));
+        assert.equal(res.body.code, 'CONSENT_REQUIRED', String(bad));
+    }
+    const oldWithBox = await w.invoice({ legal_version: '2026-10-18', auto_renew: true });
+    assert.equal(oldWithBox.statusCode, 400);
+    assert.equal(oldWithBox.body.code, 'CONSENT_REQUIRED');
+    assert.match(oldWithBox.body.error, /Оновіть сторінку/);
+    assert.equal(w.store.db.payments.length, 2);
+});
+
 test('dateNext counts from the current paid_until when access is still paid', async () => {
     const w = world();
     await w.approve((await w.pay()).provider_order_id);
