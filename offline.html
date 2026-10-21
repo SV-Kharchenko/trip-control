@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Немає зʼєднання — Trip Control</title>
+  <meta name="theme-color" content="#F4EFE4">
+  <!-- Показує service worker замість сторінки, коли немає мережі. Усе вбудоване: без мережі нічого не завантажиться. -->
+  <style>
+    :root { --bg: #F4EFE4; --surface: #FFFDF8; --text: #0D2A28; --muted: #5A6B66; --border: #E2D9C6; --accent: #0D2A29; --on-accent: #F4EFE5; }
+    :root[data-theme="dark"] { --bg: #0E1117; --surface: #161B24; --text: #E8EAF0; --muted: #8B93A3; --border: #262D3A; --accent: #7C9CFF; --on-accent: #0B0E14; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px;
+      background: var(--bg); color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    }
+    main {
+      width: 100%; max-width: 420px; text-align: center; padding: 32px 28px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+    }
+    svg { display: block; width: 56px; height: 56px; margin: 0 auto 16px; }
+    h1 { font-size: 1.3rem; line-height: 1.35; margin-bottom: 10px; }
+    p { color: var(--muted); font-size: 0.95rem; line-height: 1.5; margin-bottom: 22px; }
+    button {
+      min-height: 46px; padding: 0 24px; border: 0; border-radius: 12px; cursor: pointer;
+      background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700;
+    }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  </style>
+  <script>
+    try { if (localStorage.getItem('tc_theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+  </script>
+</head>
+<body>
+  <main>
+    <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <path d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"></path>
+      <path d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke="#F4EFE4" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+      <circle cx="13" cy="49" r="5.5" fill="#D8C3A0"></circle>
+      <circle cx="51" cy="15" r="7" fill="#F4EFE4" stroke="currentColor" stroke-width="3.2"></circle>
+      <circle cx="51" cy="15" r="2.4" fill="#D8C3A0"></circle>
+    </svg>
+    <h1>Немає зʼєднання з інтернетом</h1>
+    <p>Trip Control працює онлайн, перевір мережу.</p>
+    <button type="button" onclick="location.reload()">Спробувати ще</button>
+  </main>
+</body>
+</html>
