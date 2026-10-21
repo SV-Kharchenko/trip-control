@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Syne:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Manrope:wght@600&family=Syne:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-20b">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,12 +45,29 @@
     a.home:hover { filter: brightness(1.08); }
     .tc-legal-footer { width: 100%; max-width: 560px; color: #8b9bb4; border-top-color: rgba(184,151,90,0.3); }
     .tc-legal-footer__links { color: #e8edf5; }
+    /* Телефон 360–430px: той самий горизонтальний логотип і відступи, що на картці входу
+       (.tc-lockup--auth: висота 52px, 14px під ним; картка — поле 20px, внутрішній відступ 28px). */
+    .brand-lockup { display: none; }
+    @media (min-width: 360px) and (max-width: 430px) {
+      body { padding: 24px 20px; }
+      main { padding: 28px; }
+      main img, p.brand { display: none; }
+      .brand-lockup { display: block; height: 52px; width: auto; max-width: 100%; margin: 0 auto 14px; }
+    }
   </style>
 </head>
 <body>
   <main>
     <img src="/assets/brand/symbol-dark.svg" alt="" width="56" height="56">
     <p class="brand">TRIP-CONTROL</p>
+    <svg class="brand-lockup" viewBox="0 0 330 64" role="img" aria-label="TRIP-CONTROL">
+      <path d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke="#f2ede4" stroke-width="4.5" stroke-linecap="round"></path>
+      <path d="M13 49C27 49 22 30 35 30S44 18 51 15" fill="none" stroke="#0a0a0a" stroke-width="1.2" stroke-dasharray="2.5 3.5"></path>
+      <circle cx="13" cy="49" r="5.5" fill="#d8c3a0"></circle>
+      <circle cx="51" cy="15" r="7" fill="#0a0a0a" stroke="#f2ede4" stroke-width="3.2"></circle>
+      <circle cx="51" cy="15" r="2.4" fill="#d8c3a0"></circle>
+      <text x="78" y="43" font-family="Manrope, Arial, sans-serif" font-size="27" font-weight="600" letter-spacing="5"><tspan fill="#f2ede4">TRIP</tspan><tspan fill="#d8c3a0">CONTROL</tspan></text>
+    </svg>
     <h1>Сторінку не знайдено</h1>
     <p class="lead">Такої адреси немає. Можливо, посилання застаріло або в ньому друкарська помилка.</p>
     <a class="home" href="/">На головну</a>
