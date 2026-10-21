@@ -30,3 +30,16 @@ Auth / MFA / Confirm email: `docs/AUTH-HARDENING.md`.
 Оплата: `api/billing/[route].js`, міграція `20261018190000_payments.sql` — `docs/PAYMENTS.md`.
 
 `service_role` (Vercel `SUPABASE_SERVICE_ROLE_KEY`) — лише `/api/*`, ніколи фронт.
+
+## Права на функції (`20261021090000_security_grants.sql`)
+
+- Тригерні функції (`audit_org_company_profiles`, `calculations_enforce_owner_and_demo_limit`, `enforce_demo_save_limit`) —
+  без EXECUTE для `anon` / `authenticated` (тригери працюють: право перевіряється при створенні тригера).
+- Хелпери з RLS-політик (`current_org_id`, `is_org_owner`, `is_platform_admin`, `is_user_blocked`, `org_logists_see_all`) —
+  лише `authenticated` і `service_role`; не потрібні клієнту (`current_org_role`, `current_is_approved`, `is_admin`,
+  `my_org_id`) — лише `service_role`. Перед змінами міграція перевіряє, що закриті хелпери не використовує жодна політика,
+  view чи SECURITY INVOKER-функція, і інакше зупиняється, нічого не змінивши.
+- `touch_route_template`, `is_service_role`, `tc_num`, `ua_today` — `search_path = ''`.
+- Перевірка: `node scripts/check-security-grants.mjs` — усі міграції по черзі на заглушці базової схеми прод (PGlite),
+  потім ця міграція і сценарії: демо й ліміти, власник + логіст, шаблони, профіль компанії, оплата, блокування.
+  Таблиці й функції, яких немає в репо, але є на прод, заглушка лише імітує: міграцію на прод — лише після перевірки.
