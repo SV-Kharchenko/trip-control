@@ -8277,8 +8277,12 @@
     syncAppWindow();
     (function registerServiceWorker() {
         if (!('serviceWorker' in navigator)) return;
-        const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-        if (location.protocol !== 'https:' && !local) return;
+        // Локальна розробка: без SW (і знімаємо вже зареєстрований), щоб кеш не підміняв файли.
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); }).catch(function () {});
+            return;
+        }
+        if (location.protocol !== 'https:') return;
         navigator.serviceWorker.addEventListener('controllerchange', function () {
             if (pwaUpdateRequested) location.reload();
         });

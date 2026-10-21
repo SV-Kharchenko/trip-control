@@ -174,6 +174,10 @@ test('vercel.json: sw.js no-cache, manifest content type, CSP not weakened', () 
 test('client: SW registration, update banner without alert / confirm, install item, standalone title', () => {
     const pwa = html.slice(html.indexOf('// ПРОГРАМА (PWA)'), html.indexOf('// ЛОГІКА КАЛЬКУЛЯТОРА'));
     assert.match(pwa, /navigator\.serviceWorker\.register\('\/sw\.js', \{ scope: '\/', updateViaCache: 'none' \}\)/);
+    // localhost / 127.0.0.1: не реєструємо, уже зареєстрований SW знімаємо; далі лише https (прод і *.vercel.app).
+    const reg = pwa.slice(pwa.indexOf('(function registerServiceWorker() {'));
+    assert.match(reg, /if \(location\.hostname === 'localhost' \|\| location\.hostname === '127\.0\.0\.1'\) \{\n\s+navigator\.serviceWorker\.getRegistrations\(\)\.then\(function \(rs\) \{ rs\.forEach\(function \(r\) \{ r\.unregister\(\); \}\); \}\)\.catch\(function \(\) \{\}\);\n\s+return;\n\s+\}\n\s+if \(location\.protocol !== 'https:'\) return;/);
+    assert.ok(reg.indexOf("location.hostname === 'localhost'") < reg.indexOf("register('/sw.js'"));
     assert.equal(/\balert\(|\bconfirm\(/.test(pwa), false);
     // Оновлення: лише після кліку (SKIP_WAITING), перезавантаження — після controllerchange, а не при першому встановленні.
     assert.match(pwa, /pwaWaitingWorker\.postMessage\(\{ type: 'SKIP_WAITING' \}\)/);
