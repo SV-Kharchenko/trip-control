@@ -3740,6 +3740,43 @@
             body.layout-studio #cabinet-screen .tc-fleet-docs { grid-template-columns: minmax(0, 1fr); }
             body.layout-studio #cabinet-screen .cab-tabs { overflow-x: auto; overscroll-behavior-x: contain; }
         }
+
+        /* ===== Програма (PWA) ===== */
+        /* Плашка «Є оновлення — Оновити»: без alert / confirm, закривається. */
+        .tc-update-bar {
+            position: fixed; right: 18px; bottom: 18px; z-index: 13500;
+            display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 36px);
+            padding: 10px 10px 10px 16px; border-radius: 14px;
+            background: var(--surface, #FFFDF8); color: var(--text, #0D2A28); border: 1px solid var(--border, #E2D9C6);
+            box-shadow: 0 12px 32px rgba(13, 42, 40, 0.18); font-size: 0.9rem;
+        }
+        .tc-update-bar[hidden] { display: none; }
+        .tc-update-bar button { flex: none; min-height: 36px; border-radius: 10px; cursor: pointer; font: inherit; font-weight: 700; }
+        .tc-update-bar .tc-update-go { padding: 0 14px; border: 0; background: var(--accent, #0D2A29); color: var(--on-accent, #F4EFE5); }
+        .tc-update-bar .tc-update-close { width: 36px; padding: 0; border: 1px solid var(--border, #E2D9C6); background: transparent; color: var(--muted, #5A6B66); }
+        @media (max-width: 720px) {
+            /* Знизу на телефоні — панель результату: плашка зверху. */
+            .tc-update-bar { right: 12px; left: 12px; bottom: auto; top: 12px; max-width: none; }
+        }
+        /* Вікно з Window Controls Overlay (Chrome / Edge, якщо користувач сховав рядок заголовка): смуга назви
+           для перетягування вікна, увесь вміст і повноекранні шари — під нею, кнопки вікна нічого не закривають. */
+        .tc-wco-title { display: none; }
+        @media (display-mode: window-controls-overlay) {
+            :root { --tc-wco-h: env(titlebar-area-height, 33px); }
+            html { padding-top: var(--tc-wco-h); }
+            .tc-wco-title {
+                display: flex; align-items: center; gap: 8px; position: fixed; z-index: 20000;
+                left: env(titlebar-area-x, 0); top: env(titlebar-area-y, 0);
+                width: env(titlebar-area-width, 100%); height: var(--tc-wco-h); padding: 0 12px;
+                background: var(--bg-color, #F4EFE4); color: var(--text, #0D2A28);
+                font: 600 12px/1 Manrope, system-ui, sans-serif; user-select: none;
+                -webkit-app-region: drag; app-region: drag;
+            }
+            .tc-wco-title img { width: 16px; height: 16px; }
+            #sticky-top, #landing-screen .lp-site-head { top: var(--tc-wco-h); }
+            #cabinet-screen, #admin-screen, #auth-screen, .tc-modal, body.tc-map-fs::before, #landing-screen .lp-try { top: var(--tc-wco-h); }
+            .tc-map-frame.tc-map-expanded { top: calc(var(--tc-wco-h) + 18px); }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -3773,6 +3810,14 @@
         if (theme === 'dark' || theme === 'control') document.body.setAttribute('data-theme', 'dark');
     })();
 </script>
+
+<!-- Смуга назви програми: видно лише в режимі Window Controls Overlay (встановлена програма). -->
+<div class="tc-wco-title" aria-hidden="true"><img src="/assets/brand/icon-192.png" alt="" width="16" height="16">Trip Control</div>
+<div class="tc-update-bar" id="tc-update-bar" role="status" aria-live="polite" hidden>
+    <span>Є оновлення</span>
+    <button type="button" class="tc-update-go" onclick="applyAppUpdate()">Оновити</button>
+    <button type="button" class="tc-update-close" aria-label="Закрити" onclick="dismissAppUpdate()">✕</button>
+</div>
 
 <!-- Лендинг для гостя (той самий URL «/»). Видно лише при html[data-screen="landing"]. -->
 <div id="landing-screen" hidden>
@@ -4590,6 +4635,7 @@
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('defaults')">Значення за замовчуванням</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-billing" hidden onclick="menuGo('billing')">Тариф і оплата</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-install" hidden onclick="installApp()">Встановити як програму</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('help')">Довідка і підтримка</button>
                         <button type="button" role="menuitem" class="tc-menu-item is-danger" onclick="menuGo('logout')">Вийти</button>
                         <div class="tc-menu-foot">
@@ -8148,6 +8194,122 @@
         resetUserScopedState();
         location.reload();
     }
+
+    // ==========================================
+    // ПРОГРАМА (PWA): service worker, оновлення, встановлення
+    // ==========================================
+    // sw.js кешує лише публічну статику (без /api, Supabase, оплат, HTML) — вихід з акаунта в кеші SW нічого не лишає.
+    let pwaWaitingWorker = null;
+    let pwaUpdateRequested = false;
+    let pwaInstallPrompt = null;
+    let pwaDeployTag = null;
+    let pwaUpdateDismissed = false;
+    function isStandaloneApp() {
+        return window.matchMedia('(display-mode: standalone)').matches
+            || window.matchMedia('(display-mode: window-controls-overlay)').matches
+            || navigator.standalone === true;
+    }
+    // Вікно програми: заголовок «Trip Control» (у браузері — звичайний заголовок сторінки).
+    function syncAppWindow() {
+        if (isStandaloneApp()) document.title = 'Trip Control';
+        syncInstallMenuItem();
+    }
+    function syncInstallMenuItem() {
+        const item = document.getElementById('tc-menu-install');
+        if (item) item.hidden = !pwaInstallPrompt || isStandaloneApp();
+    }
+    function showAppUpdate(worker) {
+        if (worker) pwaWaitingWorker = worker;
+        if (pwaUpdateDismissed && !worker) return;
+        const bar = document.getElementById('tc-update-bar');
+        if (bar) bar.hidden = false;
+    }
+    function dismissAppUpdate() {
+        pwaUpdateDismissed = true;
+        const bar = document.getElementById('tc-update-bar');
+        if (bar) bar.hidden = true;
+    }
+    function applyAppUpdate() {
+        // Новий SW чекає: активуємо його, перезавантаження — після controllerchange. Інакше — просто нова сторінка.
+        if (pwaWaitingWorker) {
+            pwaUpdateRequested = true;
+            pwaWaitingWorker.postMessage({ type: 'SKIP_WAITING' });
+            setTimeout(function () { location.reload(); }, 3000);
+        } else {
+            location.reload();
+        }
+    }
+    // Новий деплой без зміни sw.js: HTML не кешується, тож досить перезавантажити. ETag «/» змінюється з кожним деплоєм.
+    async function checkAppDeploy() {
+        try {
+            const res = await fetch('/', { method: 'HEAD', cache: 'no-store', credentials: 'omit' });
+            const tag = res.ok ? res.headers.get('ETag') : null;
+            if (!tag) return;
+            if (pwaDeployTag && tag !== pwaDeployTag) showAppUpdate(null);
+            else pwaDeployTag = tag;
+        } catch (e) { /* немає мережі */ }
+    }
+    async function installApp() {
+        closeUserMenu();
+        const prompt = pwaInstallPrompt;
+        if (!prompt) return;
+        pwaInstallPrompt = null;
+        syncInstallMenuItem();
+        try {
+            prompt.prompt();
+            await prompt.userChoice;
+        } catch (e) { /* користувач закрив вікно */ }
+    }
+    window.addEventListener('beforeinstallprompt', function (event) {
+        // Без автоматичних попапів: кнопка лише в меню аватара.
+        event.preventDefault();
+        pwaInstallPrompt = event;
+        syncInstallMenuItem();
+    });
+    window.addEventListener('appinstalled', function () {
+        pwaInstallPrompt = null;
+        syncInstallMenuItem();
+    });
+    ['(display-mode: standalone)', '(display-mode: window-controls-overlay)'].forEach(function (query) {
+        const mq = window.matchMedia(query);
+        if (mq.addEventListener) mq.addEventListener('change', syncAppWindow);
+    });
+    syncAppWindow();
+    (function registerServiceWorker() {
+        if (!('serviceWorker' in navigator)) return;
+        const local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (location.protocol !== 'https:' && !local) return;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (pwaUpdateRequested) location.reload();
+        });
+        window.addEventListener('load', async function () {
+            let reg = null;
+            try {
+                reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
+            } catch (e) {
+                return;
+            }
+            const watch = function (worker) {
+                if (!worker) return;
+                worker.addEventListener('statechange', function () {
+                    // Перше встановлення (ще немає controller) — не оновлення.
+                    if (worker.state === 'installed' && navigator.serviceWorker.controller) showAppUpdate(worker);
+                });
+            };
+            if (reg.waiting && navigator.serviceWorker.controller) showAppUpdate(reg.waiting);
+            watch(reg.installing);
+            reg.addEventListener('updatefound', function () { watch(reg.installing); });
+            checkAppDeploy();
+            const recheck = function () {
+                reg.update().catch(function () {});
+                checkAppDeploy();
+            };
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') recheck();
+            });
+            setInterval(recheck, 30 * 60 * 1000);
+        });
+    })();
 
 
     // ==========================================
