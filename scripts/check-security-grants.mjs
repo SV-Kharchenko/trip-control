@@ -55,6 +55,9 @@ CREATE FUNCTION public.enforce_demo_save_limit() RETURNS trigger LANGUAGE plpgsq
   $$ BEGIN RETURN NEW; END $$;
 CREATE FUNCTION public.ua_today() RETURNS date LANGUAGE sql STABLE AS
   $$ SELECT (now() AT TIME ZONE 'Europe/Kyiv')::date $$;
+-- An overload with arguments: the migration builds its signature with pg_get_function_identity_arguments().
+CREATE FUNCTION public.ua_today(p_tz text) RETURNS date LANGUAGE sql STABLE AS
+  $$ SELECT (now() AT TIME ZONE p_tz)::date $$;
 `);
 
 let failed = 0;
@@ -89,6 +92,13 @@ console.log('PASS all ' + before.length + ' earlier migrations applied');
     const { rows } = await copy.query(`SELECT has_function_privilege('authenticated', 'public.current_org_role()', 'EXECUTE') AS role_ok,
       has_function_privilege('authenticated', 'public.audit_org_company_profiles()', 'EXECUTE') AS trg_ok`);
     check(rows[0].role_ok === true && rows[0].trg_ok === true, 'guard: nothing was changed before it stopped');
+    // A SECURITY INVOKER function with arguments: named as schema.name(arguments).
+    await copy.exec(`DROP POLICY legacy_demo_select ON public.usage_counters;
+      CREATE FUNCTION public.legacy_role_of(p_user uuid, p_strict boolean) RETURNS text LANGUAGE sql STABLE AS
+        $$ SELECT public.current_org_role() $$;`);
+    const invoker = await copy.exec(migration).then(() => ({ ok: true }), (error) => ({ ok: false, message: String(error.message) }));
+    check(!invoker.ok && invoker.message.includes('current_org_role() is still used by: security invoker function public.legacy_role_of(p_user uuid, p_strict boolean)'),
+        'guard: a security invoker function is named schema.name(arguments) (' + (invoker.message || 'applied') + ')');
 }
 
 // Twice: the migration must be idempotent.
@@ -145,7 +155,7 @@ check(publicAcl.n === 0, 'no EXECUTE for PUBLIC on any of the listed functions')
 // ---------------------------------------------------------------------------
 // search_path
 // ---------------------------------------------------------------------------
-for (const fn of ['public.is_service_role()', 'public.tc_num(jsonb,text)', 'public.ua_today()', 'public.touch_route_template(uuid)']) {
+for (const fn of ['public.is_service_role()', 'public.tc_num(jsonb,text)', 'public.ua_today()', 'public.ua_today(text)', 'public.touch_route_template(uuid)']) {
     const row = await one(`SELECT proconfig FROM pg_proc WHERE oid = $1::regprocedure`, [fn]);
     check(Array.isArray(row.proconfig) && row.proconfig.includes('search_path=""'), 'd) ' + fn + ': search_path = \'\'');
 }

@@ -48,7 +48,8 @@ BEGIN
       FROM pg_catalog.pg_views AS v
       WHERE v.schemaname NOT IN ('pg_catalog', 'information_schema') AND v.definition ~ v_pattern
       UNION ALL
-      SELECT format('security invoker function %s', f.oid::pg_catalog.regprocedure)
+      SELECT format('security invoker function %s',
+        format('%I.%I(%s)', n.nspname, f.proname, pg_catalog.pg_get_function_identity_arguments(f.oid)))
       FROM pg_catalog.pg_proc AS f
       JOIN pg_catalog.pg_namespace AS n ON n.oid = f.pronamespace
       WHERE n.nspname = 'public' AND NOT f.prosecdef AND f.proname <> v_fn AND f.prosrc ~ v_pattern
@@ -197,7 +198,7 @@ DECLARE
   v_check date;
 BEGIN
   FOR v_fn IN
-    SELECT f.oid::pg_catalog.regprocedure AS sig, f.pronargs
+    SELECT format('%I.%I(%s)', n.nspname, f.proname, pg_catalog.pg_get_function_identity_arguments(f.oid)) AS sig, f.pronargs
     FROM pg_catalog.pg_proc AS f
     JOIN pg_catalog.pg_namespace AS n ON n.oid = f.pronamespace
     WHERE n.nspname = 'public' AND f.proname = 'ua_today'

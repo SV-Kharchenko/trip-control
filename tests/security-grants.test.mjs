@@ -41,6 +41,9 @@ test('migration: a) trigger functions, b) helpers kept / closed, c) touch_route_
         assert.match(body.slice(0, 300), /SET search_path = ''/, fn);
     }
     assert.match(code, /EXECUTE format\('ALTER FUNCTION %s SET search_path = %L', v_fn\.sig, ''\);/);
+    // Signatures built as schema.name(arguments), not oid::regprocedure.
+    assert.equal(/::(pg_catalog\.)?regprocedure/.test(code), false);
+    assert.equal((code.match(/format\('%I\.%I\(%s\)', n\.nspname, f\.proname, pg_catalog\.pg_get_function_identity_arguments\(f\.oid\)\)/g) || []).length, 2);
     assert.match(code, /EXECUTE 'SELECT public\.ua_today\(\)::date' INTO v_check;/);
 });
 
@@ -127,4 +130,9 @@ test('privacy: Google Fonts sees the visitor IP', () => {
     const privacy = read('legal/privacy.html');
     assert.match(privacy, /<td>Google LLC \(Google Fonts\)<\/td>\n<td>шрифти сторінок сайту<\/td>\n<td>IP-адреса й технічні дані браузера \(запит до fonts\.googleapis\.com і fonts\.gstatic\.com під час відкриття сторінки\)<\/td>/);
     assert.match(privacy, /Шрифти сторінок завантажуються з Google Fonts \(fonts\.googleapis\.com, fonts\.gstatic\.com\), тому під час відкриття сторінки Google отримує IP-адресу вашого пристрою та технічні дані браузера\./);
+    // Rows of the recipients table alternate odd / even.
+    const table = privacy.slice(privacy.indexOf('<td>Supabase Inc.</td>') - 40, privacy.indexOf('</tbody>', privacy.indexOf('<td>Supabase Inc.</td>')));
+    const classes = table.match(/<tr class="(odd|even)">/g).map((tr) => tr.slice(11, -2));
+    assert.ok(classes.length >= 9);
+    classes.forEach((c, i) => assert.equal(c, i % 2 ? 'even' : 'odd', 'row ' + (i + 1)));
 });
