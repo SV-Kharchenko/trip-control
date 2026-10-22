@@ -1,0 +1,5 @@
+# Окремий Vercel-проєкт Контроль+ (Root Directory = apps/kontrol-plus): свій .vercelignore замість кореневого.
+node_modules
+.env*
+db/
+tests/
