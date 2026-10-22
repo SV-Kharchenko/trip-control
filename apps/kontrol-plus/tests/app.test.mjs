@@ -110,6 +110,18 @@ test('no inline scripts or innerHTML with data', () => {
     assert.doesNotMatch(read('src/ui.js').replace(/^\s*\/\/.*$/gm, ''), /innerHTML/);
 });
 
+test('root .vercelignore hides repo internals from trip-control.com but keeps the site', () => {
+    const lines = fs.readFileSync(new URL('../../.vercelignore', APP), 'utf8').split('\n')
+        .map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+    assert.deepEqual(lines.sort(), ['/SECURITY-FIX-PLAN.md', '/apps/', '/docs/', '/scripts/', '/supabase/', '/tests/']);
+    const site = ['api', 'lib', 'assets', 'legal', 'index.html', '404.html', 'offline.html', 'sw.js', 'site.webmanifest',
+        'favicon.ico', 'favicon-32.png', 'apple-touch-icon.png', 'robots.txt', 'sitemap.xml', 'package.json', 'vercel.json'];
+    for (const path of site) {
+        assert.ok(fs.existsSync(new URL('../../' + path, APP)), path + ' exists');
+        assert.ok(!lines.some((rule) => ('/' + path + '/').startsWith(rule.replace(/\/?$/, '/'))), path + ' is not ignored');
+    }
+});
+
 test('no secrets: keys only from env, .env files ignored', () => {
     const ignore = read('.gitignore');
     assert.match(ignore, /^\.env$/m);

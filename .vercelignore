@@ -1,0 +1,8 @@
+# Не публікувати на trip-control.com: вихідники Контроль+ (окремий Vercel-проєкт), міграції, документацію, тести, скрипти.
+# Сайт (index.html, api/, lib/, assets/, legal/, sw.js, site.webmanifest, іконки, robots, sitemap) публікується як і раніше.
+/apps/
+/supabase/
+/docs/
+/tests/
+/scripts/
+/SECURITY-FIX-PLAN.md

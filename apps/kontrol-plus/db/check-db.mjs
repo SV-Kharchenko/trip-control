@@ -322,6 +322,28 @@ check(!badGroup.ok && /BAD_GROUP/.test(badGroup.message) && !badPeriod.ok && /BA
 const anonReport = await as('anon', null, `SELECT * FROM public.report_plan_fact('2026-10-01', '2026-10-31', 'logist')`);
 check(!anonReport.ok && anonReport.code === '42501', 'report: anon cannot call');
 
+// Авто без тоннажу. Зараз calc_vehicles.tonnage NOT NULL і > 0, тож цей випадок захисний: обмеження знімаємо лише
+// в цій одноразовій БД, щоб перевірити, що рейс тоді ділиться порівну, а не випадає зі звіту.
+await db.exec(`ALTER TABLE public.calc_vehicles ALTER COLUMN tonnage DROP NOT NULL, DROP CONSTRAINT calc_vehicles_tonnage_positive`);
+const V1 = '20000000-0000-4000-8000-000000000001', V2 = '20000000-0000-4000-8000-000000000002';
+const tNull = await trip(OA, 'Без тоннажу', 60000, 9000, 0, 'accepted', '2026-11-02');
+const tZero = await trip(OA, 'Нульовий тоннаж', 30000, 3000, 0, 'accepted', '2026-11-03');
+const tMixed = await trip(OA, 'Частковий тоннаж', 40000, 4000, 0, 'accepted', '2026-11-04');
+const noTonnage = await service(`INSERT INTO public.calc_vehicles (calc_id, vehicle_id, tonnage) VALUES ($1, $3, NULL), ($1, $4, NULL),
+  ($2, $3, 0), ($2, $4, 0), ($5, $3, 20), ($5, $4, NULL)`, [tNull, tZero, V1, V2, tMixed]);
+if (!noTonnage.ok) throw new Error(noTonnage.message);
+const vehicleDay = async (day) => byLabel((await user(OA)(`SELECT * FROM public.report_plan_fact($1, $1, 'vehicle')`, [day])).rows);
+const vNull = await vehicleDay('2026-11-02');
+check(num(vNull.AA1111AA.plan_revenue) === 30000 && num(vNull.BB2222BB.plan_revenue) === 30000
+    && num(vNull.AA1111AA.plan_profit) === 4500 && vNull.AA1111AA.trips === 1 && vNull.BB2222BB.trips === 1,
+'report vehicle: tonnage NULL on every vehicle — split equally', JSON.stringify(vNull));
+const vZero = await vehicleDay('2026-11-03');
+check(num(vZero.AA1111AA.plan_revenue) === 15000 && num(vZero.BB2222BB.plan_revenue) === 15000, 'report vehicle: tonnage 0 — split equally');
+const vMixed = await vehicleDay('2026-11-04');
+const mixedTotal = Object.values(vMixed).reduce((s, r) => s + num(r.plan_revenue), 0);
+check(num(vMixed.AA1111AA.plan_revenue) === 40000 && mixedTotal === 40000, 'report vehicle: partly missing tonnage — by known tonnage, total kept');
+await db.query(`DELETE FROM public.calculations WHERE id = ANY($1)`, [[tNull, tZero, tMixed]]);
+
 // Відключення плану — доступ зникає одразу.
 await service(`SELECT public.set_org_plan($1, 'company')`, [A]);
 check((await user(DIR1)(`SELECT id FROM public.clients`)).rows.length === 0 && !(await ctx(OA)).control_plus, 'gating: plan back to company — clients hidden, no context');

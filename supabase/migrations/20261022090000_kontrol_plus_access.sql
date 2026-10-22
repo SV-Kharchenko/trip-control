@@ -33,6 +33,20 @@ BEGIN
 END;
 $$;
 
+-- Запит від клієнта API: PostgREST робить SET ROLE anon / authenticated за перевіреним JWT. Гарди Контроль+ дивляться
+-- на роль сесії, а не лише на claim: навіть якщо в такій сесії claims кажуть service_role, вона лишається клієнтом.
+CREATE OR REPLACE FUNCTION public.kp_is_client_role()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SET search_path = ''
+AS $$
+  SELECT coalesce(current_setting('role', true), 'none') IN ('anon', 'authenticated');
+$$;
+
+REVOKE ALL ON FUNCTION public.kp_is_client_role() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.kp_is_client_role() TO service_role;
+
 -- Клієнтські ролі API (PostgREST робить SET ROLE anon / authenticated) не змінюють план; service_role і пряме
 -- підключення до БД (SQL Editor) — можуть. Нова організація від клієнта завжди починає з 'company'.
 CREATE OR REPLACE FUNCTION public.kp_guard_org_plan()
@@ -42,8 +56,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_client boolean := coalesce(current_setting('role', true), 'none') IN ('anon', 'authenticated')
-    AND NOT public.is_service_role();
+  v_client boolean := public.kp_is_client_role();
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF v_client THEN
@@ -73,7 +86,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NOT public.is_service_role() THEN
+  IF NOT public.is_service_role() OR public.kp_is_client_role() THEN
     RAISE EXCEPTION 'SERVICE_ROLE_REQUIRED' USING ERRCODE = '42501';
   END IF;
   IF p_plan IS NULL OR p_plan NOT IN ('company', 'control_plus') THEN
@@ -148,7 +161,7 @@ AS $$
 DECLARE
   v_count integer;
 BEGIN
-  IF NOT public.is_service_role() AND coalesce(current_setting('role', true), 'none') IN ('anon', 'authenticated') THEN
+  IF public.kp_is_client_role() THEN
     RAISE EXCEPTION 'DIRECTORS_SERVICE_ROLE_ONLY' USING ERRCODE = '42501';
   END IF;
 

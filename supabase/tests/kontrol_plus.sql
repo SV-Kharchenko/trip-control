@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(24);
+SELECT plan(35);
 
 SELECT set_config(
   'request.jwt.claims',
@@ -182,6 +182,106 @@ SELECT throws_ok(
   'foreign org: cannot add a client into another org'
 );
 RESET ROLE;
+
+-- Spoofed claims. A user can put anything into user_metadata (auth.updateUser), and app_metadata is shown in the
+-- JWT too: neither makes is_service_role() true; only the top-level role of a JWT signed by Supabase does.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated","user_role":"service_role",'
+  '"user_metadata":{"role":"service_role"},"app_metadata":{"role":"service_role","claims_admin":true}}', true);
+SET LOCAL ROLE authenticated;
+SELECT is(public.is_service_role(), false, 'spoofed claims: metadata role does not make service role');
+SELECT throws_ok(
+  $$UPDATE public.organizations SET plan = 'company' WHERE id = '40000000-0000-0000-0000-00000000000a'$$,
+  '42501',
+  NULL,
+  'spoofed claims: owner still cannot change the plan'
+);
+RESET ROLE;
+-- Even a top-level service_role claim inside an authenticated session (PostgREST never does this: it switches the
+-- role from the verified JWT) does not pass the Контроль+ guards — they check the session role.
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"service_role"}', true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$UPDATE public.organizations SET plan = 'company' WHERE id = '40000000-0000-0000-0000-00000000000a'$$,
+  '42501',
+  NULL,
+  'service_role claim in an authenticated session: plan guard holds'
+);
+SELECT throws_ok(
+  $$INSERT INTO public.org_directors (org_id, user_id)
+    VALUES ('40000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c3')$$,
+  '42501',
+  NULL,
+  'service_role claim in an authenticated session: directors guard holds'
+);
+SELECT throws_ok(
+  $$SELECT public.set_org_plan('40000000-0000-0000-0000-00000000000b', 'control_plus')$$,
+  '42501',
+  NULL,
+  'service_role claim in an authenticated session: set_org_plan refused'
+);
+RESET ROLE;
+
+-- Site flows on the company plan work as before: signup, accepting an invite (old org removed), deleting an org.
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"service_role"}', true);
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+)
+VALUES
+  ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-0000000000c7', 'authenticated', 'authenticated',
+   'invitee.kp@example.com', '', now(), '{"provider":"email","providers":["email"]}', '{"company_name":"KP 7"}', now(), now()),
+  ('00000000-0000-0000-0000-000000000000', '00000000-0000-0000-0000-0000000000c8', 'authenticated', 'authenticated',
+   'cp-invitee.kp@example.com', '', now(), '{"provider":"email","providers":["email"]}', '{"company_name":"KP 8"}', now(), now());
+SELECT is(
+  (SELECT o.plan FROM public.profiles AS p JOIN public.organizations AS o ON o.id = p.org_id
+   WHERE p.id = '00000000-0000-0000-0000-0000000000c7'),
+  'company',
+  'signup: new company starts on the company plan'
+);
+CREATE TEMP TABLE kp_old_orgs AS
+SELECT id AS user_id, org_id FROM public.profiles
+WHERE id IN ('00000000-0000-0000-0000-0000000000c7', '00000000-0000-0000-0000-0000000000c8');
+INSERT INTO public.org_invites (org_id, email, token_hash, invited_by, expires_at)
+VALUES ('40000000-0000-0000-0000-00000000000a', 'invitee.kp@example.com', 'kp-test-token-7',
+        '00000000-0000-0000-0000-0000000000c1', now() + interval '1 day'),
+       ('40000000-0000-0000-0000-00000000000a', 'cp-invitee.kp@example.com', 'kp-test-token-8',
+        '00000000-0000-0000-0000-0000000000c1', now() + interval '1 day');
+SELECT lives_ok(
+  $$SELECT * FROM public.accept_org_invite('kp-test-token-7', '00000000-0000-0000-0000-0000000000c7', 'invitee.kp@example.com')$$,
+  'accept invite: user from a company-plan org joins'
+);
+SELECT is(
+  (SELECT count(*)::integer FROM public.organizations
+   WHERE id = (SELECT org_id FROM kp_old_orgs WHERE user_id = '00000000-0000-0000-0000-0000000000c7')),
+  0,
+  'accept invite: the empty company-plan org is removed as before'
+);
+INSERT INTO public.organizations (id, name, work_mode)
+VALUES ('40000000-0000-0000-0000-00000000000d', 'KP delete me', 'solo');
+INSERT INTO public.org_directors (org_id, user_id)
+VALUES ('40000000-0000-0000-0000-00000000000d', '00000000-0000-0000-0000-0000000000c5');
+SELECT lives_ok(
+  $$DELETE FROM public.organizations WHERE id = '40000000-0000-0000-0000-00000000000d'$$,
+  'delete org: a company-plan org (with a director row) is deleted as before'
+);
+-- Documented limit (ON DELETE RESTRICT): an org that has clients is not deleted silently.
+SELECT public.set_org_plan((SELECT org_id FROM kp_old_orgs WHERE user_id = '00000000-0000-0000-0000-0000000000c8'), 'control_plus');
+INSERT INTO public.clients (org_id, name)
+SELECT org_id, 'Client of an old org' FROM kp_old_orgs WHERE user_id = '00000000-0000-0000-0000-0000000000c8';
+SELECT throws_ok(
+  $$SELECT * FROM public.accept_org_invite('kp-test-token-8', '00000000-0000-0000-0000-0000000000c8', 'cp-invitee.kp@example.com')$$,
+  '23503',
+  NULL,
+  'accept invite: refused while the old Контроль+ org has clients'
+);
+SELECT throws_ok(
+  format('DELETE FROM public.organizations WHERE id = %L',
+         (SELECT org_id FROM kp_old_orgs WHERE user_id = '00000000-0000-0000-0000-0000000000c8')),
+  '23503',
+  NULL,
+  'delete org: refused while it has clients'
+);
 
 SELECT * FROM finish();
 ROLLBACK;

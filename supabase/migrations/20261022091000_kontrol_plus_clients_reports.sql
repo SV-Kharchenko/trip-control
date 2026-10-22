@@ -185,7 +185,7 @@ BEGIN
     RAISE EXCEPTION 'CLIENT_LINK_ORG_MISMATCH' USING ERRCODE = '42501';
   END IF;
   NEW.org_id := v_calc_org;
-  IF NOT public.is_service_role() THEN
+  IF public.kp_is_client_role() OR NOT public.is_service_role() THEN
     IF NOT public.kp_can_link(NEW.calculation_id) THEN
       RAISE EXCEPTION 'CLIENT_LINK_FORBIDDEN' USING ERRCODE = '42501';
     END IF;
@@ -350,7 +350,8 @@ GRANT EXECUTE ON FUNCTION public.client_history(uuid) TO authenticated, service_
 -- Відхилення — лише по рейсах з фактом: fact_profit − plan_profit_with_fact (і у % від |plan_profit_with_fact|).
 -- Групи:
 --   logist    — автор рейсу (email);
---   vehicle   — авто рейсу (calc_vehicles); кілька авто — суми діляться пропорційно тоннажу; без авто — «Без авто»;
+--   vehicle   — авто рейсу (calc_vehicles); кілька авто — суми діляться пропорційно тоннажу
+--               (тоннаж не вказано — порівну); без авто — «Без авто»;
 --   client    — клієнт (calculation_clients); без — «Без клієнта»;
 --   direction — шаблон маршруту: назва рейсу (без « (копія)») = назва шаблону організації; без збігу — «Без шаблону».
 
@@ -401,10 +402,12 @@ BEGIN
     LEFT JOIN public.profiles AS p ON p.id = t.user_id
     WHERE p_group = 'logist'
     UNION ALL
-    -- vehicle: share by tonnage
+    -- vehicle: share by tonnage; no tonnage on the trip (NULL / 0) → equal shares
     SELECT t.*, coalesce(cv.vehicle_id::text, 'unlinked:' || cv.id::text),
            coalesce(fv.label, nullif(cv.snapshot ->> 'label', ''), 'Авто без картки'),
-           cv.tonnage / nullif(sum(cv.tonnage) OVER (PARTITION BY t.id), 0)
+           CASE WHEN coalesce(sum(cv.tonnage) OVER (PARTITION BY t.id), 0) > 0
+                THEN coalesce(cv.tonnage, 0) / sum(cv.tonnage) OVER (PARTITION BY t.id)
+                ELSE 1::numeric / count(*) OVER (PARTITION BY t.id) END
     FROM trips AS t
     JOIN public.calc_vehicles AS cv ON cv.calc_id = t.id
     LEFT JOIN public.fleet_vehicles AS fv ON fv.id = cv.vehicle_id

@@ -50,7 +50,8 @@ test('migration: a) trigger functions, b) helpers kept / closed, c) touch_route_
 test('earlier migrations are not edited by this change', () => {
     let changed = '';
     try {
-        changed = execFileSync('git', ['diff', '--name-only', 'origin/main', '--', 'supabase/migrations'], { cwd: root, encoding: 'utf8' });
+        // New migration files are fine; edited, renamed or deleted earlier ones are not.
+        changed = execFileSync('git', ['diff', '--name-only', '--diff-filter=a', 'origin/main', '--', 'supabase/migrations'], { cwd: root, encoding: 'utf8' });
     } catch (e) {
         return; // no git / no origin in this checkout
     }
@@ -66,7 +67,8 @@ test('no service_role key, secret key or JWT secret in anything the browser gets
         files = ['index.html', '404.html', 'legal/offer.html', 'legal/privacy.html', 'legal/payment-refund.html'];
     }
     // Served as static files: everything outside the server code, tests, scripts, SQL and docs.
-    const client = files.filter((f) => !/^(api|lib|tests|scripts|supabase|docs|node_modules)\//.test(f)
+    // apps/ is a separate Vercel project (.vercelignore keeps it off the site) with its own secrets test.
+    const client = files.filter((f) => !/^(api|lib|tests|scripts|supabase|docs|apps|node_modules)\//.test(f)
         && /\.(html|js|mjs|css|json|webmanifest|txt|xml|svg)$/.test(f) && f !== 'package.json' && f !== 'package-lock.json' && f !== 'vercel.json');
     assert.ok(client.includes('index.html') && client.some((f) => f.startsWith('assets/')));
     for (const file of client) {
