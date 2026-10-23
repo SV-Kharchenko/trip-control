@@ -177,7 +177,40 @@ test('saved v2 fact reopens with its values', async () => {
     assert.equal(h.nodes['fact-idle-rate'].value, '800');
     assert.equal(h.nodes['fact-extra-note'].value, 'Мийка');
     assert.equal(h.nodes['fact-note-count'].textContent, '5 / 500');
-    assert.equal(h.calls.fetch[0].body.fact.tripDays, '7.5');
+    assert.equal(h.calls.fetch[0].body.fact.tripDays, 7.5, 'unchanged field → the exact saved number');
+});
+
+test('round trip: open, change nothing, save → deviation exactly 0 (shown days are rounded, sent days are exact)', async () => {
+    const round = { ...inputs, calcType: 'безготівковий', returnMode: 'циклічний', volume: 154, normWeight: 22, carsCount: 3,
+        daysPerTrip: 2.35, idleDays: 0.75, idleRate: 0, isRoundTrip: true, rtTotalVolume: 70, rtRate: 950,
+        rtBackhaulDist: 830, rtTransferDist: 45, rtReturnDist: 190 };
+    const roundPlan = buildTripFact(round, {}, null);
+    const exactDays = roundPlan.basis.tripDays;
+    assert.ok(!Number.isInteger(exactDays * 100), 'plan days per trip are not a round number: ' + exactDays);
+    const h = harness([trip('t7', { inputs: round, revenue: roundPlan.planNow.revenue, profit: roundPlan.planNow.profit })], {});
+    h.api.openFactEditor('t7');
+    await flush(); await flush();
+    assert.equal(h.nodes['fact-days'].value, String(Math.round(exactDays * 100) / 100), 'the field shows the rounded value');
+    assert.match(h.nodes['fact-preview'].text, /Прибуток \| [^|]+ \| [^|]+ \| 0 грн · 0%/);
+    await h.api.saveTripActual();
+    const payload = h.calls.upsert[0];
+    assert.equal(payload.revenue, roundPlan.planNow.revenue);
+    assert.equal(payload.profit, roundPlan.planNow.profit, 'fact profit = plan profit');
+    assert.equal(payload.fact_days, exactDays, 'stores the exact plan days, not the rounded field');
+    await h.api.runFactPreview(false);
+    const sent = h.calls.fetch[h.calls.fetch.length - 1].body.fact;
+    assert.equal(sent.tripDays, exactDays, 'the unchanged (rounded-looking) field sends the exact plan value');
+    assert.match(h.nodes['fact-preview'].text, /Різниця діб: 0/);
+    // Нічого не змінено → повторне відкриття знову дає 0.
+    const again = harness([trip('t7', { inputs: round, revenue: payload.revenue, profit: payload.profit })], { t7: h.context.tripActuals.t7 });
+    again.api.openFactEditor('t7');
+    await flush(); await flush();
+    await again.api.saveTripActual();
+    assert.equal(again.calls.upsert[0].profit, roundPlan.planNow.profit);
+    // Користувач увів саме те, що бачить (округлене), — це вже зміна, рахується як введено.
+    h.nodes['fact-days'].value = h.nodes['fact-days'].value + '1';
+    await h.api.runFactPreview(false);
+    assert.equal(h.calls.fetch[h.calls.fetch.length - 1].body.fact.tripDays, h.nodes['fact-days'].value);
 });
 
 test('a trip without calculator inputs keeps the manual fact (old payload)', async () => {

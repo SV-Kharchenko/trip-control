@@ -52,7 +52,7 @@ test('fact = plan for a round trip (exact plan days) and for a fleet split', () 
     assert.ok(basis.planDays > basis.tripsCount * round.daysPerTrip, 'the loop adds days to the plan');
     const exact = { ...asPlan(round), tripDays: basis.planDays / basis.tripsCount };
     assert.equal(calculateTripFact(round, exact).netProfit, calculateTrip(round).netProfit);
-    assert.equal(basis.tripDays, Math.round(basis.planDays / basis.tripsCount * 100) / 100, 'default: loop days spread per trip');
+    assert.equal(basis.tripDays, basis.planDays / basis.tripsCount, 'default: loop days spread per trip, not rounded');
     assert.ok(basis.loadedKm > round.dist * basis.tripsCount, 'plan loaded km include C→D');
 
     const vehicles = [{ id: 'a', label: 'AA', tonnage: 40 }, { id: 'b', label: 'BB', tonnage: 26, payloadTons: 26 }];
@@ -61,6 +61,75 @@ test('fact = plan for a round trip (exact plan days) and for a fleet split', () 
     const more = calculateTripFact(fleet, { ...asPlan(fleet), loadedKm: tripFactBasis(fleet).loadedKm + 100 });
     assert.ok(more.netProfit < sumVehicleTrips(fleet, vehicles).netProfit, 'more km on a fleet split costs more');
     assert.equal(more.vehicleBreakdown.length, 2);
+});
+
+test('nothing changed in the editor → fact = plan to the kopiyka (round trips, fleets, non-integer days; 300+ cases)', () => {
+    let seed = 20261023;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const pick = (list) => list[Math.floor(rnd() * list.length)];
+    const num = (lo, hi, digits) => Number((lo + rnd() * (hi - lo)).toFixed(digits || 0));
+    let cases = 0;
+    let loopCases = 0;
+    let fractionalLoop = 0;
+    let fleets = 0;
+    let caughtByRounding = 0;
+    for (let i = 0; i < 360; i++) {
+        const p = {
+            ...pick(fixtures).payload,
+            calcType: pick(['фоп', 'безготівковий', 'готівка']),
+            returnMode: pick(['циклічний', 'разовий']),
+            driverPayMode: pick(['km', 'pct']),
+            driverPctVal: 11,
+            trailerType: pick(['зерновоз', 'цистерна', 'рефрижератор', 'тент']),
+            contractCurrency: 'UAH', fxRate: 1,
+            dist: num(80, 1400), volume: num(20, 900, 1), normWeight: num(18, 26, 1), carsCount: num(1, 5),
+            daysPerTrip: num(0.5, 5, 2), idleDays: pick([0, 0.5, 1.25, 2.75]), idleRate: 0,
+            podachaDist: pick([0, 35]), rate: num(300, 2500),
+            washCost: 5000, washFreq: 20, refFuelRate: 2, refHours: 9,
+            admin: 1500000, amort: 800000, fin: 200000, repair: 500000, otherOperating: 90000, otherExpenses: 40000,
+            isRoundTrip: rnd() < 0.8
+        };
+        if (p.isRoundTrip) Object.assign(p, { rtTotalVolume: num(10, 300, 1), rtRate: num(200, 1500), rtBackhaulDist: num(100, 1500), rtTransferDist: num(0, 150), rtReturnDist: num(0, 400) });
+        const vehicles = rnd() < 0.3 ? [{ id: 'a', label: 'AA', tonnage: num(10, 300, 1) }, { id: 'b', label: 'BB', tonnage: num(10, 300, 1), payloadTons: 25 }] : null;
+        const body = vehicles ? { ...p, vehicles } : p;
+        const planResult = vehicles ? sumVehicleTrips(p, vehicles) : calculateTrip(p);
+        const basis = tripFactBasis(body);
+        cases += 1;
+        if (vehicles) fleets += 1;
+        if (basis.planDays !== basis.tripsCount * (p.daysPerTrip + p.idleDays)) {
+            loopCases += 1;
+            if (!Number.isInteger(basis.tripDays * 100)) fractionalLoop += 1;
+        }
+        // 1) Поля порожні (редактор щойно відкрито).
+        const blank = buildTripFact(body, {}, null);
+        // 2) Клієнт надсилає незмінені значення, які показав у полях (точні числа з першої відповіді).
+        const shown = buildTripFact(body, blank.fact, null);
+        for (const built of [blank, shown]) {
+            assert.equal(built.actual.profit, built.planNow.profit, 'profit #' + i);
+            assert.equal(built.actual.revenue, built.planNow.revenue, 'revenue #' + i);
+            assert.equal(built.deviation.profit.abs, 0);
+            assert.equal(built.deviation.days.abs, 0);
+            assert.equal(built.deviation.km.abs, 0);
+            assert.equal(built.row.fact_days, basis.tripDays, 'stores the exact plan days per trip');
+            assert.deepEqual(built.asPlan, { tripDays: true, loadedKm: true, emptyKm: true });
+        }
+        const exact = calculateTripFact(body, { tripDays: null, loadedKm: null, emptyKm: null, paidIdleDays: 0, idleRate: 0, extraCosts: 0 });
+        assert.deepEqual(exact, planResult, 'the whole result equals the calculator #' + i);
+        // Колишня поведінка (доби округлено до сотих) — на кругорейсах давала відхилення.
+        const rounded = calculateTripFact(body, { tripDays: Math.round(basis.tripDays * 100) / 100, loadedKm: basis.loadedKm, emptyKm: basis.emptyKm, paidIdleDays: 0, idleRate: 0, extraCosts: 0 });
+        if (rounded.netProfit !== planResult.netProfit) caughtByRounding += 1;
+    }
+    assert.ok(cases >= 300 && loopCases >= 200 && fractionalLoop >= 150 && fleets >= 50, JSON.stringify({ cases, loopCases, fractionalLoop, fleets }));
+    assert.ok(caughtByRounding > 0, 'the old rounding would fail this test');
+});
+
+test('a changed value is used as typed, even close to the plan', () => {
+    const round = { ...oneTrip, volume: 44, isRoundTrip: true, rtTotalVolume: 22, rtRate: 900, rtBackhaulDist: 600, rtTransferDist: 40, rtReturnDist: 60 };
+    const basis = tripFactBasis(round);
+    const typed = buildTripFact(round, { tripDays: '5,67' }, null);
+    assert.equal(typed.asPlan.tripDays, false);
+    assert.equal(typed.row.fact_days, 5.67);
+    assert.ok(Math.abs(typed.deviation.days.abs - (5.67 * basis.tripsCount - basis.planDays)) < 1e-9);
 });
 
 test('example: plan 5 days, fact 8, paid idle 3 × 1000 грн, 1 trip', () => {
@@ -179,7 +248,11 @@ test('validation: blanks take the plan, bad values are refused, comma decimals w
     });
     assert.equal(normalizeTripFact({ tripDays: '5,5', extraCosts: ' 1 200 ' }, basis).value.tripDays, 5.5);
     assert.equal(normalizeTripFact({ extraCosts: ' 1 200 ' }, basis).value.extraCosts, 1200);
-    for (const bad of [{ tripDays: 0 }, { tripDays: -1 }, { tripDays: 'abc' }, { loadedKm: -1 }, { emptyKm: -0.5 },
+    for (const bad of [{ tripDays: '0x10' }, { tripDays: '1e3' }, { loadedKm: '1e3' }, { tripDays: [5] }, { tripDays: ['5'] },
+        { tripDays: { v: 5 } }, { tripDays: true }, { tripDays: 'Infinity' }, { tripDays: Infinity }, { tripDays: NaN },
+        { extraCosts: '5.' }, { extraCosts: '1.2.3' }, { extraCosts: '+5' }, { extraCostsNote: 123 }, { extraCostsNote: ['x'] },
+        { extraCostsNote: { text: 'x' } }, { extraCostsNote: true },
+        { tripDays: 0 }, { tripDays: -1 }, { tripDays: 'abc' }, { loadedKm: -1 }, { emptyKm: -0.5 },
         { paidIdleDays: -1 }, { idleRate: -5 }, { extraCosts: -1 }, { tripDays: 400 }, { extraCostsNote: 'x'.repeat(501) }]) {
         const res = normalizeTripFact(bad, basis);
         assert.equal(res.code, 'BAD_FACT', JSON.stringify(bad).slice(0, 40));
@@ -188,6 +261,11 @@ test('validation: blanks take the plan, bad values are refused, comma decimals w
     assert.equal(zero.value.loadedKm, 0);
     assert.equal(normalizeTripFact({ extraCostsNote: 'я'.repeat(500) }, basis).value.extraCostsNote.length, 500);
     assert.equal(normalizeTripFact({ extraCostsNote: '   ' }, basis).value.extraCostsNote, '');
+    assert.equal(normalizeTripFact({ extraCostsNote: null }, basis).value.extraCostsNote, '');
+    assert.equal(normalizeTripFact({ tripDays: 6 }, basis).value.tripDays, 6, 'a number is a number');
+    assert.equal(normalizeTripFact({ tripDays: ' 6,25 ' }, basis).value.tripDays, 6.25);
+    assert.equal(normalizeTripFact({ loadedKm: '1 250' }, basis).value.loadedKm, 1250);
+    assert.equal(normalizeTripFact({ loadedKm: '1\u00a0250,5' }, basis).value.loadedKm, 1250.5);
     const zeroKm = calculateTripFact(oneTrip, { ...asPlan(oneTrip), loadedKm: 0, emptyKm: 0 });
     assert.ok(Number.isFinite(zeroKm.netProfit));
 });

@@ -12893,11 +12893,21 @@
         const el = document.getElementById(id);
         if (el) el.textContent = text;
     }
+    // Поле показує округлене до сотих, а незмінене поле надсилає точне число, яке в нього підставили
+    // (план або збережений факт). Сервер упізнає план і рахує рівно планові доби / км: без змін факт = план.
+    let factFilled = {};
+    function rememberFactField(key, el, exact) {
+        if (!el) return;
+        const n = Number(exact);
+        if (el.value !== '' && Number.isFinite(n)) factFilled[key] = { shown: el.value, exact: n };
+        else delete factFilled[key];
+    }
     function factFormValues() {
         const out = {};
         FACT_FIELDS.forEach(function (pair) {
             const el = document.getElementById(pair[1]);
-            out[pair[0]] = el ? el.value : '';
+            const filled = factFilled[pair[0]];
+            out[pair[0]] = !el ? '' : (filled && el.value === filled.shown ? filled.exact : el.value);
         });
         const note = document.getElementById('fact-extra-note');
         out.extraCostsNote = note ? note.value : '';
@@ -12907,9 +12917,11 @@
         return n === null || n === undefined || !Number.isFinite(Number(n)) ? '' : String(Math.round(Number(n) * 100) / 100);
     }
     function setFactFormValues(values) {
+        factFilled = {};
         FACT_FIELDS.forEach(function (pair) {
             const el = document.getElementById(pair[1]);
             if (el) el.value = factInputValue(values[pair[0]]);
+            rememberFactField(pair[0], el, values[pair[0]]);
         });
         const note = document.getElementById('fact-extra-note');
         if (note) note.value = values.extraCostsNote || '';
@@ -13044,16 +13056,18 @@
             if (fillDefaults) {
                 FACT_FIELDS.forEach(function (pair) {
                     const el = document.getElementById(pair[1]);
-                    if (el && el.value === '') el.value = factInputValue(json.fact[pair[0]]);
+                    if (el && el.value === '') {
+                        el.value = factInputValue(json.fact[pair[0]]);
+                        rememberFactField(pair[0], el, json.fact[pair[0]]);
+                    }
                 });
             }
-            // Підставлені значення округлено до сотих: якщо це щось змінило — рахуємо ще раз із тим, що видно в полях.
-            factPreviewKey = fillDefaults && JSON.stringify(factFormValues()) !== JSON.stringify(values) ? '' : JSON.stringify(values);
+            // Порожні поля й підставлені точні значення сервер рахує однаково — повторний запит не потрібен.
+            factPreviewKey = JSON.stringify(factFormValues());
             setFactError('');
             renderFactHints(json);
             renderFactPreview(json);
             if (save) save.disabled = false;
-            if (fillDefaults && !factPreviewKey) return runFactPreview(false);
             return json;
         } catch (e) {
             if (seq === factPreviewSeq) {

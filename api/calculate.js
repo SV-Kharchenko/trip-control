@@ -215,9 +215,10 @@ function computeTrip(body, fact) {
     // Факт: пробіг на все замовлення (з вантажем / порожнім, уже з кругорейсом). Подача лишається плановою.
     const planLoadedKm = totalLoadedKm;
     const planEmptyKm = totalEmptyKm;
+    // null — «як у плані»: плановий пробіг без жодного перерахунку (факт = план до копійки).
     if (fact) {
-        totalLoadedKm = fact.loadedKm;
-        totalEmptyKm = fact.emptyKm;
+        if (fact.loadedKm !== null) totalLoadedKm = fact.loadedKm;
+        if (fact.emptyKm !== null) totalEmptyKm = fact.emptyKm;
     }
 
     // --- ДОХІД ---
@@ -275,7 +276,8 @@ function computeTrip(body, fact) {
     // Загальна кількість "діб у рейсі" по всьому парку разом, з урахуванням простою
     const planTripDays = tripsCount * (daysPerTrip + idleDays) + rtExtraDays;
     // Факт: фактичні доби на ходку × ходки; контур кругорейсу й простій уже всередині фактичного часу.
-    const totalTripDays = fact ? tripsCount * fact.tripDays : planTripDays;
+    // null — «як у плані»: рівно планові доби (з контуром кругорейсу), без ділення й множення на ходки.
+    const totalTripDays = fact && fact.tripDays !== null ? tripsCount * fact.tripDays : planTripDays;
     const perDiemTotal = totalTripDays * perDiem;
     const driverTotal = salaryTotal + esvTotal + perDiemTotal;
 
@@ -548,7 +550,8 @@ function vehicleSlicePayloads(base, assignments, rtShares) {
 
 // Факт на все замовлення → частки авто. Км — пропорційно плановим км авто (план 0 — пропорційно ходкам),
 // незаплановані витрати — пропорційно ходкам; доби на ходку, оплачений простій і ставка — однакові для всіх.
-// Факт = план → кожне авто отримує рівно свій плановий пробіг.
+// Факт = план → кожне авто отримує рівно свій плановий пробіг. null («як у плані») лишається null для кожного
+// авто: тоді авто рахує власні планові км і доби, а не частку середнього.
 function vehicleFactShares(payloads, fact) {
     const plans = [];
     for (let i = 0; i < payloads.length; i++) {
@@ -557,8 +560,10 @@ function vehicleFactShares(payloads, fact) {
         plans.push(computed.raw);
     }
     const trips = plans.map(function (raw) { return raw.tripsCount; });
-    const loaded = shareAmong(fact.loadedKm, plans.map(function (raw) { return raw.planLoadedKm; }), trips);
-    const empty = shareAmong(fact.emptyKm, plans.map(function (raw) { return raw.planEmptyKm; }), trips);
+    const loaded = fact.loadedKm === null ? trips.map(function () { return null; })
+        : shareAmong(fact.loadedKm, plans.map(function (raw) { return raw.planLoadedKm; }), trips);
+    const empty = fact.emptyKm === null ? trips.map(function () { return null; })
+        : shareAmong(fact.emptyKm, plans.map(function (raw) { return raw.planEmptyKm; }), trips);
     const extra = shareAmong(fact.extraCosts, trips, trips);
     return plans.map(function (raw, i) {
         return {
@@ -821,13 +826,15 @@ export function tripFactBasis(body) {
         daysPerTrip,
         idleDays,
         // Типові доби на ходку для факту: план (з простоєм); кругорейс — ще й контур, рівномірно на ходку.
-        tripDays: withLoop && tripsCount > 0 ? Math.round(planDays / tripsCount * 100) / 100 : daysPerTrip + idleDays,
+        // Без округлення: поле показує округлене, а незмінене значення означає «як у плані» (lib/trip-fact.js).
+        tripDays: withLoop && tripsCount > 0 ? planDays / tripsCount : daysPerTrip + idleDays,
         idleRate: parseFloat(b.idleRate) || 0
     };
 }
 
 // Факт рейсу: той самий розрахунок, що й POST /api/calculate, з фактичними км, добами на ходку,
-// оплаченим простоєм і незапланованими витратами. fact — перевірений lib/trip-fact.js.
+// оплаченим простоєм і незапланованими витратами. fact — перевірений lib/trip-fact.js;
+// tripDays / loadedKm / emptyKm = null — «як у плані» (рівно планові доби й пробіг кожного авто).
 // Без fact — рівно результат калькулятора для цих вхідних даних.
 export function calculateTripFact(body, fact) {
     const b = body || {};

@@ -168,6 +168,10 @@ check(v2.ok && v2row.fact_version === 'v2' && Number(v2row.fact_days) === 8 && v
 check(Number(v2row.planned_overhead) === 0 && Number(v2row.profit) === 8000,
     'v2: planned_overhead forced to 0 (plan overhead is 4 000), profit = revenue − costs = 8 000');
 
+const exactDays = 3.9308080808080805; // планові доби на ходку з кругорейсу, без округлення
+const exact = await v2Upsert(LA, tNew, { ...sample, days: exactDays });
+check(exact.ok && Number(exact.rows[0].fact_days) === exactDays && (await one('SELECT pg_typeof(fact_days)::text AS t, fact_days::text AS v FROM public.trip_actuals WHERE calculation_id = $1', [tNew])).v === String(exactDays),
+    'v2: fact_days keeps the exact plan value (numeric without precision limit)', exact.message);
 const v2again = await v2Upsert(LA, tNew, { ...sample, revenue: 84000 });
 check(v2again.ok && v2again.rows[0].fact_version === 'v2' && Number(v2again.rows[0].profit) === 9000,
     'v2: re-save with the same details but new totals (new site) stays v2');
