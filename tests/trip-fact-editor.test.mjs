@@ -167,6 +167,41 @@ test('old manual fact is shown and replaced only after «Внести новий
     assert.equal(h.calls.upsert[0].fact_version, 'v2');
 });
 
+test('plan with idle: the field shows the planned idle, unchanged save → deviation 0; explicit 0 → no compensation', async () => {
+    const idle = { ...inputs, idleDays: 2.5, idleRate: 1200 };
+    const idlePlan = buildTripFact(idle, {}, null);
+    const h = harness([trip('t8', { inputs: idle, revenue: idlePlan.planNow.revenue, profit: idlePlan.planNow.profit })], {});
+    h.api.openFactEditor('t8');
+    await flush(); await flush();
+    assert.equal(h.nodes['fact-paid-idle'].value, '2.5', 'planned idle is filled in');
+    assert.match(h.nodes['fact-paid-idle-hint'].textContent, /^план: 2\.5 діб · 0 — компенсації немає$/);
+    assert.match(h.nodes['fact-preview'].text, /Дохід \| [^|]+ \| [^|]+ \| 0 грн · 0%/);
+    assert.match(h.nodes['fact-preview'].text, /Прибуток \| [^|]+ \| [^|]+ \| 0 грн · 0%/);
+    await h.api.saveTripActual();
+    assert.equal(h.calls.upsert[0].paid_idle_days, 2.5);
+    assert.equal(h.calls.upsert[0].revenue, idlePlan.planNow.revenue);
+    assert.equal(h.calls.upsert[0].profit, idlePlan.planNow.profit);
+    h.nodes['fact-paid-idle'].value = '0';
+    await h.api.saveTripActual();
+    const zero = h.calls.upsert[1];
+    assert.equal(zero.paid_idle_days, 0);
+    assert.equal(idlePlan.planNow.revenue - zero.revenue, 2.5 * 1200 * idlePlan.basis.tripsCount);
+});
+
+test('an old v2 fact with paid idle 0 on a plan with idle keeps its 0 (not replaced by the plan)', async () => {
+    const idle = { ...inputs, idleDays: 3, idleRate: 1000 };
+    const plan3 = buildTripFact(idle, {}, null);
+    const saved = { revenue: 1, costs: 1, plannedOverhead: 0, profit: 0, version: 'v2', days: plan3.basis.tripDays,
+        loadedKm: plan3.basis.loadedKm, emptyKm: plan3.basis.emptyKm, paidIdleDays: 0, idleRate: 1000, extraCosts: 0, extraNote: '' };
+    const h = harness([trip('t9', { inputs: idle, revenue: plan3.planNow.revenue, profit: plan3.planNow.profit })], { t9: saved });
+    h.api.openFactEditor('t9');
+    await flush(); await flush();
+    assert.equal(h.nodes['fact-paid-idle'].value, '0', 'shows the saved 0');
+    assert.equal(h.calls.fetch[0].body.fact.paidIdleDays, 0, 'sends the saved 0, not empty');
+    assert.ok(h.nodes['fact-preview'].text.includes('| −' + (3 * 1000 * plan3.basis.tripsCount) + ' грн'), 'revenue lower by 3 × 1000 × trips');
+    assert.equal(h.calls.upsert.length, 0, 'opening does not write anything');
+});
+
 test('saved v2 fact reopens with its values', async () => {
     const actuals = { t3: { revenue: 1, costs: 1, plannedOverhead: 0, profit: 0, version: 'v2', days: 7.5, loadedKm: 1234, emptyKm: 99, paidIdleDays: 2, idleRate: 800, extraCosts: 150, extraNote: 'Мийка' } };
     const h = harness([trip('t3')], actuals);

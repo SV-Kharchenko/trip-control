@@ -1,4 +1,4 @@
-// Checks supabase/migrations/20261023090000_trip_fact_v2.sql on a real Postgres (PGlite, in memory):
+// Checks supabase/migrations/20261023091124_trip_fact_v2.sql on a real Postgres (PGlite, in memory):
 // all earlier migrations on the stub of the production base schema, an old (manual) fact, then this migration twice,
 // then the scenarios as authenticated: v2 save, a cached old site writing the old way, limits, access rules,
 // and what report_plan_fact / client_history / kp_trips return. Nothing touches Supabase.
@@ -9,7 +9,7 @@ import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 
 const DIR = new URL('../supabase/migrations/', import.meta.url);
-const TARGET = '20261023090000_trip_fact_v2.sql';
+const TARGET = '20261023091124_trip_fact_v2.sql';
 const all = fs.readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort();
 const before = all.filter((f) => f < TARGET);
 const after = all.filter((f) => f > TARGET);

@@ -146,15 +146,68 @@ test('example: plan 5 days, fact 8, paid idle 3 × 1000 грн, 1 trip', () => {
     assert.ok(unpaid.netProfit < plan.netProfit);
 });
 
-test('paid idle 0 → no idle compensation, even when the plan had idle days', () => {
+test('paid idle: empty field = planned idle, explicit 0 = no compensation', () => {
     const withIdle = { ...oneTrip, idleDays: 2, idleRate: 1500 };
     const plan = calculateTrip(withIdle);
-    const fact = calculateTripFact(withIdle, asPlan(withIdle));
-    assert.equal(plan.grossIncome - fact.grossIncome, 3000, 'planned idle compensation is not carried into the fact');
+    const zero = calculateTripFact(withIdle, asPlan(withIdle));
+    assert.equal(plan.grossIncome - zero.grossIncome, 3000, 'paid idle 0 → the planned idle compensation is gone');
     assert.equal(asPlan(withIdle).tripDays, 7, 'default fact days = days per trip + planned idle');
-    const built = buildTripFact(withIdle, { paidIdleDays: '' , idleRate: '' }, null);
-    assert.equal(built.fact.paidIdleDays, 0);
-    assert.equal(built.fact.idleRate, 1500, 'idle rate defaults to the plan');
+    const blank = buildTripFact(withIdle, { paidIdleDays: '', idleRate: '' }, null);
+    assert.equal(blank.fact.paidIdleDays, 2, 'empty → planned idle days per trip');
+    assert.equal(blank.fact.idleRate, 1500, 'idle rate defaults to the plan');
+    assert.deepEqual(blank.actual, blank.planNow, 'empty → fact = plan');
+    const explicit = buildTripFact(withIdle, { paidIdleDays: '0' }, null);
+    assert.equal(explicit.fact.paidIdleDays, 0, 'explicit 0 stays 0');
+    assert.equal(explicit.row.paid_idle_days, 0);
+    assert.equal(explicit.deviation.revenue.abs, -3000);
+    assert.equal(buildTripFact(withIdle, { paidIdleDays: 0 }, null).fact.paidIdleDays, 0, 'number 0 too');
+    assert.equal(buildTripFact(oneTrip, {}, null).fact.paidIdleDays, 0, 'no planned idle → 0, as before');
+});
+
+test('plan with idle: unchanged fact = plan (revenue, costs, profit) — cyclic, one-off, round trip, currencies, fleets', () => {
+    let seed = 7;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const pick = (list) => list[Math.floor(rnd() * list.length)];
+    const num = (lo, hi, digits) => Number((lo + rnd() * (hi - lo)).toFixed(digits || 0));
+    const seen = { 'разовий': 0, 'циклічний': 0, round: 0, fleet: 0, fx: 0 };
+    for (let i = 0; i < 240; i++) {
+        const currency = pick(['UAH', 'UAH', 'EUR', 'USD']);
+        const p = {
+            ...oneTrip,
+            calcType: pick(['фоп', 'безготівковий', 'готівка']),
+            returnMode: pick(['циклічний', 'разовий']),
+            driverPayMode: pick(['km', 'pct']), driverPctVal: 12,
+            contractCurrency: currency, fxRate: currency === 'UAH' ? 1 : num(38, 48, 2),
+            rate: currency === 'UAH' ? num(400, 2500) : num(10, 60),
+            dist: num(100, 1300), volume: num(30, 700, 1), normWeight: num(18, 26, 1), carsCount: num(1, 4),
+            daysPerTrip: num(0.5, 5, 2), idleDays: pick([0.5, 1, 1.25, 2.75, 3]),
+            idleRate: currency === 'UAH' ? num(300, 2500) : num(10, 60),
+            isRoundTrip: rnd() < 0.4
+        };
+        if (p.isRoundTrip) Object.assign(p, { rtTotalVolume: num(10, 300, 1), rtRate: num(10, 900), rtBackhaulDist: num(100, 1400), rtTransferDist: num(0, 150), rtReturnDist: num(0, 400) });
+        const vehicles = rnd() < 0.25 ? [{ id: 'a', label: 'AA', tonnage: num(10, 300, 1) }, { id: 'b', label: 'BB', tonnage: num(10, 300, 1) }] : null;
+        const body = vehicles ? { ...p, vehicles } : p;
+        seen[p.returnMode] += 1;
+        if (p.isRoundTrip) seen.round += 1;
+        if (vehicles) seen.fleet += 1;
+        if (currency !== 'UAH') seen.fx += 1;
+        const blank = buildTripFact(body, {}, null);
+        const shown = buildTripFact(body, blank.fact, null); // незмінені поля, які показав редактор
+        for (const built of [blank, shown]) {
+            assert.equal(built.fact.paidIdleDays, p.idleDays);
+            assert.deepEqual(built.actual, built.planNow, 'fact = plan #' + i);
+            assert.equal(built.deviation.revenue.abs, 0);
+            assert.equal(built.deviation.costs.abs, 0);
+            assert.equal(built.deviation.profit.abs, 0);
+        }
+        // Явний 0: дохід менший рівно на компенсацію плану (простій × ставка × курс × ходки, а для разового — авто).
+        const zero = buildTripFact(body, { ...blank.fact, paidIdleDays: 0 }, null);
+        const units = p.returnMode === 'разовий' ? (vehicles ? vehicles.length : p.carsCount) : blank.basis.tripsCount;
+        const expected = p.idleDays * p.idleRate * p.fxRate * units;
+        assert.ok(Math.abs((blank.actual.revenue - zero.actual.revenue) - expected) <= (vehicles ? 2 : 1), 'explicit 0 #' + i);
+        if (p.calcType === 'готівка' && p.driverPayMode === 'km') assert.ok(Math.abs(zero.actual.costs - blank.actual.costs) <= 1, 'costs unchanged (rounding ±1) #' + i);
+    }
+    assert.ok(seen['разовий'] >= 60 && seen['циклічний'] >= 60 && seen.round >= 60 && seen.fleet >= 30 && seen.fx >= 60, JSON.stringify(seen));
 });
 
 test('idle compensation uses trips (cyclic) or cars (one-off) and the contract currency', () => {
