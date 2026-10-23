@@ -1,0 +1,177 @@
+/* Контроль+ усередині сторінки сайту: усе під #kp-crm, щоб не зачепити стилі trip-control.com.
+   Розділ видно лише при body[data-kp-view] (site-bridge.js); тоді ховаємо робочу область калькулятора й огляду. */
+#kp-crm { display: none; }
+body[data-kp-view] #kp-crm { display: block; grid-column: 1 / -1; }
+body[data-kp-view] #main-app > :not(#sticky-top):not(#kp-crm):not(.tc-legal-footer),
+body[data-kp-view] #missing-hint,
+body[data-kp-view] #onboard-banner,
+body[data-kp-view] #cab-warning { display: none !important; }
+
+/* Палітра trip-control.com: світла тема і темна (body[data-theme="dark"] сайту). */
+#kp-crm, #kp-toast {
+    --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE; --row-hover: #FBF7EE;
+    --text: #0D2A28; --muted: #5A6B66;
+    --border: #D9D1BD; --border-soft: #E3DCCB;
+    --accent: #0D2A29; --on-accent: #F4EFE5; --accent-hover: #081c1b;
+    --gold: #B08A4C; --warn: #8A6420; --warn-bg: #FBF3E2;
+    --positive: #1F6F4D; --negative: #C2453F; --negative-bg: #FBEAE8; --negative-text: #8E2B26; --info-bg: #E8F0EE;
+    --radius-card: 14px; --radius-control: 10px;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+}
+body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast {
+    --bg: #0E1117; --surface: #161B22; --input: #0D1117; --row-hover: #1C222B;
+    --text: #E6EDF3; --muted: #8B949E;
+    --border: #30363D; --border-soft: #262C34;
+    --accent: #D6B67E; --on-accent: #1C1406; --accent-hover: #E2C590;
+    --gold: #D6B67E; --warn: #E3B341; --warn-bg: #2B2414;
+    --positive: #3FB950; --negative: #F85149; --negative-bg: #2D1517; --negative-text: #FFA198; --info-bg: #15232A;
+    color-scheme: dark;
+}
+
+#kp-crm, #kp-crm * { box-sizing: border-box; }
+#kp-crm { color: var(--text); padding: 8px 0 32px; }
+#kp-crm:focus { outline: none; }
+.tc-studio-nav #kp-nav-clients, .tc-studio-nav #kp-nav-report { white-space: nowrap; }
+#kp-crm .kp-who { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; font-size: 13px; }
+#kp-crm .kp-brand { font-weight: 800; }
+#kp-crm .kp-brand b { color: var(--gold); }
+#kp-crm .kp-who .org { font-weight: 700; }
+#kp-crm a { color: var(--accent); }
+#kp-crm h1 { font-size: 24px; line-height: 1.25; margin: 0 0 4px; }
+#kp-crm h2 { font-size: 17px; margin: 0 0 12px; }
+#kp-crm p { margin: 0 0 10px; }
+#kp-crm .muted { color: var(--muted); }
+#kp-crm .small { font-size: 13px; }
+#kp-crm .mono { font-family: var(--mono); font-size: 0.95em; }
+#kp-crm .pre { white-space: pre-wrap; }
+#kp-crm :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* Шапка */
+#kp-crm .badge { padding: 2px 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); font-weight: 600; }
+#kp-crm .badge-director { background: var(--warn-bg); border-color: #E6D2A8; color: var(--warn); }
+
+/* Сторінки */
+#kp-crm .page.narrow { max-width: 760px; margin: 0 auto; }
+#kp-crm .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+#kp-crm .section-title { margin-top: 28px; }
+#kp-crm .back { display: inline-block; margin-bottom: 12px; text-decoration: none; color: var(--muted); font-weight: 600; }
+#kp-crm .back:hover { color: var(--text); }
+#kp-crm .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px; }
+#kp-crm .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+#kp-crm .empty { padding: 32px 0; text-align: center; }
+#kp-crm .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+#kp-crm .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+#kp-crm .toolbar .grow { flex: 1 1 260px; }
+#kp-crm .toolbar .quick { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* Кнопки й поля */
+#kp-crm .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    min-height: 38px; padding: 8px 16px; border-radius: var(--radius-control);
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+#kp-crm .btn:hover { border-color: var(--accent); }
+#kp-crm .btn:disabled { opacity: 0.55; cursor: default; }
+#kp-crm .btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+#kp-crm .btn-primary:hover { background: var(--accent-hover); }
+#kp-crm .btn-ghost { background: transparent; }
+#kp-crm .btn-danger { color: var(--negative); border-color: #E5B8B4; background: transparent; }
+#kp-crm .btn-danger.is-armed { background: var(--negative); color: #fff; border-color: var(--negative); }
+#kp-crm .btn-sm { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+#kp-crm .btn-block { width: 100%; }
+#kp-crm input, #kp-crm select, #kp-crm textarea {
+    font: inherit; color: var(--text); background: var(--input);
+    border: 1px solid var(--border); border-radius: var(--radius-control); padding: 8px 10px; min-height: 38px;
+}
+#kp-crm textarea { resize: vertical; width: 100%; }
+#kp-crm input[type="checkbox"] { min-height: 0; width: 18px; height: 18px; accent-color: var(--accent); vertical-align: -3px; }
+#kp-crm input[aria-invalid] { border-color: var(--negative); }
+#kp-crm .check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+
+/* Форма клієнта */
+#kp-crm .form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+#kp-crm .form .form-section { grid-column: 1 / -1; margin: 10px 0 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+#kp-crm .form .form-section:first-child { margin-top: 0; }
+#kp-crm .field { display: grid; gap: 4px; align-content: start; }
+#kp-crm .field label { font-weight: 600; font-size: 13px; }
+#kp-crm .field input, #kp-crm .field select { width: 100%; }
+#kp-crm .field[data-key="name"], #kp-crm .field[data-key="legal_name"], #kp-crm .field[data-key="notes"], #kp-crm .field[data-key="legal_address"], #kp-crm .field[data-key="postal_address"] { grid-column: 1 / -1; }
+#kp-crm .field-check { align-content: end; padding-bottom: 8px; }
+#kp-crm .field-check label { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; cursor: pointer; }
+#kp-crm .field-check input[type="checkbox"] { width: 18px; flex: none; }
+#kp-crm .field.is-dim { opacity: 0.6; }
+#kp-crm .req { color: var(--negative); }
+#kp-crm .hint { font-size: 12px; min-height: 0; }
+#kp-crm .hint-error { color: var(--negative); }
+#kp-crm .hint-warn { color: var(--warn); }
+#kp-crm .form > div[aria-live], #kp-crm .form .actions { grid-column: 1 / -1; }
+
+/* Повідомлення */
+#kp-crm .notice { padding: 10px 14px; border-radius: var(--radius-control); margin: 0 0 12px; border: 1px solid; }
+#kp-crm .notice-error { background: var(--negative-bg); border-color: #E5B8B4; color: var(--negative-text); }
+#kp-crm .notice-info { background: var(--info-bg); border-color: #C7D9D4; color: var(--text); }
+#kp-crm .loading { display: flex; align-items: center; gap: 10px; padding: 20px 0; color: var(--muted); }
+#kp-crm .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: kp-spin 0.8s linear infinite; }
+@keyframes kp-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #kp-crm .spin { animation-duration: 3s; } }
+
+/* Таблиці */
+#kp-crm .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+#kp-crm .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#kp-crm .table th, #kp-crm .table td { padding: 9px 12px; border-bottom: 1px solid var(--border-soft); text-align: left; vertical-align: top; }
+#kp-crm .table thead th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); background: var(--bg); position: sticky; top: 0; }
+#kp-crm .table tbody tr:hover { background: var(--row-hover); }
+#kp-crm .table tbody tr:last-child td, #kp-crm .table tbody tr:last-child th { border-bottom: 0; }
+#kp-crm .table-num td, #kp-crm .table-num th { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#kp-crm .table-num .text { text-align: left; white-space: normal; }
+#kp-crm .table tfoot th, #kp-crm .table tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: 0; background: var(--bg); }
+#kp-crm .report tbody th { font-weight: 600; }
+#kp-crm .report tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--border-soft); }
+#kp-crm .report thead tr > :first-child { z-index: 2; background: var(--bg); }
+#kp-crm .report tfoot tr > :first-child { background: var(--bg); }
+#kp-crm .table-wrap + p { margin-top: 10px; }
+#kp-crm .is-none th { color: var(--muted); font-style: italic; }
+#kp-crm .is-archived td { color: var(--muted); }
+#kp-crm .pos { color: var(--positive); }
+#kp-crm .neg { color: var(--negative); }
+#kp-crm .tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 700; background: var(--bg); border: 1px solid var(--border); color: var(--muted); vertical-align: 2px; }
+#kp-crm .tag-vat { color: var(--positive); }
+#kp-crm .status { font-size: 12px; font-weight: 600; }
+#kp-crm .status-accepted { color: var(--positive); }
+#kp-crm .status-done { color: var(--accent); }
+#kp-crm .status-rejected { color: var(--negative); }
+
+/* Картка клієнта */
+#kp-crm dl { margin: 0; display: grid; gap: 8px; }
+#kp-crm .kv { display: grid; grid-template-columns: 160px 1fr; gap: 12px; }
+#kp-crm dt { color: var(--muted); font-size: 13px; }
+#kp-crm dd { margin: 0; overflow-wrap: anywhere; }
+#kp-crm .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+#kp-crm .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 12px 14px; }
+#kp-crm .stat-label { font-size: 12px; color: var(--muted); }
+#kp-crm .stat-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Звіт */
+#kp-crm .segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); margin-bottom: 16px; }
+#kp-crm .segmented button { border: 0; background: transparent; padding: 7px 14px; border-radius: 8px; font: inherit; font-weight: 600; color: var(--muted); cursor: pointer; }
+#kp-crm .segmented button.is-on { background: var(--accent); color: var(--on-accent); }
+
+/* Екран тарифу */
+#kp-crm .paywall .card { display: grid; gap: 10px; justify-items: start; }
+#kp-crm .ticks { margin: 0 0 8px; padding-left: 20px; }
+#kp-crm .ticks li { margin: 4px 0; }
+
+@media (max-width: 760px) {
+    #kp-crm .grid-2, #kp-crm .form { grid-template-columns: 1fr; }
+    #kp-crm .kv { grid-template-columns: 1fr; gap: 0; }
+    #kp-crm h1 { font-size: 21px; }
+}
+
+#kp-toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    padding: 10px 16px; border-radius: var(--radius-control); background: var(--accent); color: var(--on-accent);
+    transition: opacity 0.2s, transform 0.2s; z-index: 50; max-width: calc(100vw - 32px);
+}
+#kp-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+#kp-toast.toast-error { background: var(--negative); color: #fff; }

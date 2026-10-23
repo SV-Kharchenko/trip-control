@@ -1,6 +1,8 @@
-// Контроль+ service worker. Дані (Supabase, будь-які інші origin, не-GET) ніколи не кешуються і не перехоплюються.
-// Сторінки — лише мережа, без мережі — offline.html. Кешуються тільки власні статичні файли (збірка Vite, іконки).
-const VERSION = 'kp-1';
+// Контроль+ service worker (його ж реєструє скопійований код сайту: register('/sw.js'); sw.js сайту сюди не копіюється).
+// Дані (/api — проксі на trip-control.com, Supabase, будь-які інші origin, не-GET) ніколи не кешуються і не перехоплюються.
+// Сторінки — лише мережа, без мережі — offline.html. Кешуються тільки хешована збірка Vite (/kp-assets/), іконки й офлайн-сторінка;
+// файли сайту (/assets/**) — без SW, звичайним HTTP-кешем, як на trip-control.com.
+const VERSION = 'kp-2';
 const STATIC_CACHE = 'kp-static-' + VERSION;
 const OFFLINE_URL = '/offline.html';
 const PRECACHE = [OFFLINE_URL, '/offline.css', '/icons/icon-192.png', '/icons/symbol.svg'];
@@ -9,9 +11,10 @@ const PRECACHE = [OFFLINE_URL, '/offline.css', '/icons/icon-192.png', '/icons/sy
 function kpRoute(url, method, mode, origin) {
     if (method !== 'GET') return 'bypass';
     if (url.origin !== origin) return 'bypass';
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) return 'bypass';
     if (mode === 'navigate') return 'page';
     if (url.search) return 'bypass';
-    if (url.pathname.startsWith('/assets/') || url.pathname.startsWith('/icons/') || PRECACHE.includes(url.pathname)) return 'static';
+    if (url.pathname.startsWith('/kp-assets/') || url.pathname.startsWith('/icons/') || PRECACHE.includes(url.pathname)) return 'static';
     return 'bypass';
 }
 

@@ -37,10 +37,10 @@ export function notice(text, kind = 'error') {
 
 let toastTimer;
 export function toast(text, kind = 'ok') {
-    let box = document.getElementById('toast');
+    let box = document.getElementById('kp-toast');
     if (!box) {
-        box = h('div', { id: 'toast', role: 'status', 'aria-live': 'polite' });
-        document.body.append(box);
+        box = h('div', { id: 'kp-toast', role: 'status', 'aria-live': 'polite' });
+        (document.getElementById('kp-crm') || document.body).append(box);
     }
     box.className = 'toast toast-' + kind + ' is-on';
     box.textContent = text;
