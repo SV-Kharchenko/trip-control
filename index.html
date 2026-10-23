@@ -5347,7 +5347,7 @@
                 <p class="tc-fact-fixed" id="fact-podacha"></p>
                 <label for="fact-paid-idle">Оплачений простій, діб на ходку
                     <input type="number" id="fact-paid-idle" min="0" step="0.5" inputmode="decimal" oninput="queueFactPreview()">
-                    <small>0 або порожньо — компенсації немає</small>
+                    <small id="fact-paid-idle-hint">порожньо — як у плані; 0 — компенсації немає</small>
                 </label>
                 <label for="fact-idle-rate"><span>Ставка простою, <span id="fact-idle-unit">грн/доба</span></span>
                     <input type="number" id="fact-idle-rate" min="0" step="0.01" inputmode="decimal" oninput="queueFactPreview()">
@@ -13093,6 +13093,8 @@
         const unit = (b.contractCurrency === 'UAH' ? 'грн' : b.contractCurrency) + '/доба';
         setFactText('fact-idle-unit', unit);
         setFactText('fact-idle-hint', 'план: ' + formatHistoryNum(b.idleRate, 2) + ' ' + unit);
+        setFactText('fact-paid-idle-hint', 'план: ' + formatHistoryNum(b.idleDays, 2) + ' ' + ukDaysLabel(b.idleDays) +
+            ' · 0 — компенсації немає');
     }
     function renderFactPreview(data) {
         const box = document.getElementById('fact-preview');

@@ -55,7 +55,20 @@ test('earlier migrations are not edited by this change', () => {
     } catch (e) {
         return; // no git / no origin in this checkout
     }
-    const edited = changed.split('\n').filter(Boolean).filter((f) => !f.endsWith('20261021090000_security_grants.sql'));
+    // Єдиний дозволений виняток: файл факту v2 перейменовано на версію, під якою міграцію записано на проді,
+    // з тим самим вмістом (той самий git blob).
+    const renamedFrom = 'supabase/migrations/20261023090000_trip_fact_v2.sql';
+    const renamedTo = 'supabase/migrations/20261023091124_trip_fact_v2.sql';
+    const sameBlob = (from, to) => {
+        try {
+            return execFileSync('git', ['rev-parse', 'origin/main:' + from], { cwd: root, encoding: 'utf8' }).trim()
+                === execFileSync('git', ['hash-object', to], { cwd: root, encoding: 'utf8' }).trim();
+        } catch (e) {
+            return false;
+        }
+    };
+    const edited = changed.split('\n').filter(Boolean).filter((f) => !f.endsWith('20261021090000_security_grants.sql'))
+        .filter((f) => !((f === renamedFrom || f === renamedTo) && sameBlob(renamedFrom, renamedTo)));
     assert.deepEqual(edited, []);
 });
 
