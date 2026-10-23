@@ -3,16 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Контроль+ — CRM перевізника на спільній базі Trip Control",
+  "description": "Контроль+ — trip-control.com + CRM перевізника (клієнти, звіт план/факт) на спільній базі",
   "scripts": {
+    "predev": "node scripts/sync-site.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/sync-site.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
-    "check:db": "node db/check-db.mjs"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.42.0"
+    "check:db": "node db/check-db.mjs",
+    "check:scope": "node scripts/check-scope.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.2.17",
