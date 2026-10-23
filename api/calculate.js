@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 import { isDemoAccess, loadPaidUntil } from '../lib/billing/access.js';
+import { composeTripFact } from '../lib/trip-fact.js';
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -54,7 +55,9 @@ export function calculateTrip(body) {
     return computed.public;
 }
 
-function computeTrip(body) {
+// fact (лише calculateTripFact, lib/trip-fact.js): фактичні км, доби на ходку, оплачений простій і
+// незаплановані витрати замість планових. Без fact — рівно той самий розрахунок, що й раніше.
+function computeTrip(body, fact) {
     body = body || {};
 
     // 1. Вхідні параметри
@@ -209,8 +212,17 @@ function computeTrip(body) {
     }
     const rtExtraDays = kmPerDay > 0 ? Math.max(0, rtExtraKm / kmPerDay) : 0;
 
+    // Факт: пробіг на все замовлення (з вантажем / порожнім, уже з кругорейсом). Подача лишається плановою.
+    const planLoadedKm = totalLoadedKm;
+    const planEmptyKm = totalEmptyKm;
+    if (fact) {
+        totalLoadedKm = fact.loadedKm;
+        totalEmptyKm = fact.emptyKm;
+    }
+
     // --- ДОХІД ---
-    const idleCompensationTotal = idleDays * idleRate * (returnMode === 'разовий' ? carsCount : tripsCount);
+    // Факт: компенсація лише за оплачений простій (плановий простій не переноситься), ставка — у валюті контракту.
+    const idleCompensationTotal = (fact ? fact.paidIdleDays * (fact.idleRate * fxRate) : idleDays * idleRate) * (returnMode === 'разовий' ? carsCount : tripsCount);
     const grossIncome = (actualVolume * rate) + rtIncome + idleCompensationTotal;
 
     // --- ПДВ і "Чистий дохід" ---
@@ -261,7 +273,9 @@ function computeTrip(body) {
     const esvTotal = salaryTotal * 0.22;
 
     // Загальна кількість "діб у рейсі" по всьому парку разом, з урахуванням простою
-    const totalTripDays = tripsCount * (daysPerTrip + idleDays) + rtExtraDays;
+    const planTripDays = tripsCount * (daysPerTrip + idleDays) + rtExtraDays;
+    // Факт: фактичні доби на ходку × ходки; контур кругорейсу й простій уже всередині фактичного часу.
+    const totalTripDays = fact ? tripsCount * fact.tripDays : planTripDays;
     const perDiemTotal = totalTripDays * perDiem;
     const driverTotal = salaryTotal + esvTotal + perDiemTotal;
 
@@ -292,7 +306,9 @@ function computeTrip(body) {
     // Брокер (документи на партію вантажу) — на кожну завантажену зворотну ходку.
     const extrasTotal = extrasPerTrip * (returnMode === 'разовий' ? carsCount : tripsCount) + brokerCost * rtLegsUsed;
 
-    const directCostsTotal = fuelTotal + adblueTotal + driverTotal + maintenanceTotal + extrasTotal;
+    const directCostsBase = fuelTotal + adblueTotal + driverTotal + maintenanceTotal + extrasTotal;
+    // Факт: незаплановані витрати (грн) — як супутні витрати вище: без дільника ПДВ і без курсу.
+    const directCostsTotal = fact ? directCostsBase + fact.extraCosts : directCostsBase;
     const marginalIncome = netIncome - directCostsTotal;
 
     // --- НАКЛАДНІ ВИТРАТИ ---
@@ -348,6 +364,7 @@ function computeTrip(body) {
         { name: '👨‍✈️ Зарплата екіпажу + ЄСВ (22%) + Добові', val: Math.round(driverTotal) },
         { name: '🔧 ТО, Шини та Ремонти' + (tankWashTotal > 0 ? ' + промивка цистерни' : ''), val: Math.round(maintenanceTotal) },
         ...(useExtras ? [{ name: '🌍 Супутні витрати (дороги, кордон, брокер, страховка, паром)', val: Math.round(extrasTotal) }] : []),
+        ...(fact && fact.extraCosts > 0 ? [{ name: '🧾 Незаплановані витрати (факт)', val: Math.round(fact.extraCosts) }] : []),
         { name: '🏢 Накладні до EBITDA (адмін + інші операційні + інші витрати)', val: Math.round(ebitdaOverheadTotal) },
         { name: '📉 Амортизація та фінансові витрати (після EBITDA)', val: Math.round(postEbitdaTotal) },
         { name: '🏛️ Податки (ФОП / ПДВ)', val: Math.round(taxesTotal) }
@@ -419,7 +436,16 @@ function computeTrip(body) {
             rtVolumeAvailable: rtTotalVolumeAvailable,
             marginalIncome,
             ebitda,
-            postEbitdaTotal
+            postEbitdaTotal,
+            // План рейсу для редактора факту (lib/trip-fact.js); у публічний результат не потрапляє.
+            tripsCount,
+            planLoadedKm,
+            planEmptyKm,
+            podachaKm: totalPodachaKm,
+            planTripDays,
+            rtExtraDays,
+            daysPerTrip,
+            idleDays
         }
     };
 }
@@ -514,6 +540,54 @@ function vehicleSlicePayload(base, assignment, rtShare) {
     return slice;
 }
 
+function vehicleSlicePayloads(base, assignments, rtShares) {
+    return assignments.map(function (assignment, index) {
+        return vehicleSlicePayload(base, assignment, base && base.isRoundTrip === true ? (rtShares[index] || 0) : undefined);
+    });
+}
+
+// Факт на все замовлення → частки авто. Км — пропорційно плановим км авто (план 0 — пропорційно ходкам),
+// незаплановані витрати — пропорційно ходкам; доби на ходку, оплачений простій і ставка — однакові для всіх.
+// Факт = план → кожне авто отримує рівно свій плановий пробіг.
+function vehicleFactShares(payloads, fact) {
+    const plans = [];
+    for (let i = 0; i < payloads.length; i++) {
+        const computed = computeTrip(payloads[i]);
+        if (computed.status) return computed;
+        plans.push(computed.raw);
+    }
+    const trips = plans.map(function (raw) { return raw.tripsCount; });
+    const loaded = shareAmong(fact.loadedKm, plans.map(function (raw) { return raw.planLoadedKm; }), trips);
+    const empty = shareAmong(fact.emptyKm, plans.map(function (raw) { return raw.planEmptyKm; }), trips);
+    const extra = shareAmong(fact.extraCosts, trips, trips);
+    return plans.map(function (raw, i) {
+        return {
+            tripDays: fact.tripDays,
+            paidIdleDays: fact.paidIdleDays,
+            idleRate: fact.idleRate,
+            loadedKm: loaded[i],
+            emptyKm: empty[i],
+            extraCosts: extra[i]
+        };
+    });
+}
+
+function shareAmong(total, weights, fallback) {
+    const sumOf = function (list) { return list.reduce(function (sum, n) { return sum + n; }, 0); };
+    if (total === sumOf(weights)) return weights.slice();
+    let basis = weights;
+    if (!(sumOf(basis) > 0)) basis = fallback;
+    if (!(sumOf(basis) > 0)) basis = weights.map(function () { return 1; });
+    const basisSum = sumOf(basis);
+    let used = 0;
+    return basis.map(function (weight, i) {
+        if (i === basis.length - 1) return total - used;
+        const part = total * weight / basisSum;
+        used += part;
+        return part;
+    });
+}
+
 function vehicleRowValue(result, needle) {
     return (result.detailedRows || [])
         .filter(function (row) { return String(row.name).indexOf(needle) !== -1; })
@@ -533,12 +607,16 @@ function weightedVehicleRate(parts, key) {
 // часток і округлюються один раз, тож EBITDA − податок − амортизація = прибуток.
 // Останній рядок розбивки підганяється під цей підсумок.
 // Порожній список сюди не приходить: рейс без авто лишає calculateTrip без змін.
-export function sumVehicleTrips(base, assignments) {
+// fact (лише calculateTripFact): факт на все замовлення ділиться між авто (vehicleFactShares).
+export function sumVehicleTrips(base, assignments, fact) {
     if (!Array.isArray(assignments) || !assignments.length) return null;
     const rtShares = base && base.isRoundTrip === true ? returnCargoShares(base, assignments) : [];
+    const payloads = vehicleSlicePayloads(base, assignments, rtShares);
+    const partFacts = fact ? vehicleFactShares(payloads, fact) : null;
+    if (partFacts && !Array.isArray(partFacts)) return partFacts;
     const parts = assignments.map(function (assignment, index) {
-        const payload = vehicleSlicePayload(base, assignment, base && base.isRoundTrip === true ? (rtShares[index] || 0) : undefined);
-        const computed = computeTrip(payload);
+        const payload = payloads[index];
+        const computed = computeTrip(payload, partFacts ? partFacts[index] : undefined);
         if (computed && computed.status) {
             return { assignment: assignment, payload: payload, result: computed, raw: null };
         }
@@ -697,6 +775,139 @@ function vehicleAssignmentsFromBody(body) {
     return { list: list };
 }
 
+// План рейсу для редактора факту (lib/trip-fact.js): ходки, км і доби з того самого розрахунку,
+// що й POST /api/calculate (з розбиттям по авто, якщо воно є).
+export function tripFactBasis(body) {
+    const b = body || {};
+    const missing = missingRequiredFields(b);
+    if (missing.length) {
+        return {
+            status: 400,
+            code: 'MISSING_FIELDS',
+            error: 'Заповніть: ' + missing.map(k => REQUIRED_FIELD_LABELS[k]).join(', '),
+            fields: missing
+        };
+    }
+    const split = vehicleAssignmentsFromBody(b);
+    if (split && split.error) return split.error;
+    const payloads = split
+        ? vehicleSlicePayloads(b, split.list, b.isRoundTrip === true ? returnCargoShares(b, split.list) : [])
+        : [b];
+    const raws = [];
+    let currency = null;
+    for (let i = 0; i < payloads.length; i++) {
+        const computed = computeTrip(payloads[i]);
+        if (computed.status) return computed;
+        raws.push(computed.raw);
+        if (!currency) currency = { contractCurrency: computed.public.contractCurrency, fxRate: computed.public.fxRate };
+    }
+    const sum = function (key) { return raws.reduce(function (acc, raw) { return acc + raw[key]; }, 0); };
+    const tripsCount = sum('tripsCount');
+    const planDays = sum('planTripDays');
+    const daysPerTrip = raws[0].daysPerTrip;
+    const idleDays = raws[0].idleDays;
+    const withLoop = raws.some(function (raw) { return raw.rtExtraDays > 0; });
+    return {
+        vehicles: split ? split.list.length : 0,
+        returnMode: b.returnMode || 'циклічний',
+        isRoundTrip: b.isRoundTrip === true,
+        contractCurrency: currency.contractCurrency,
+        fxRate: currency.fxRate,
+        tripsCount,
+        loadedKm: sum('planLoadedKm'),
+        emptyKm: sum('planEmptyKm'),
+        podachaKm: sum('podachaKm'),
+        planDays,
+        daysPerTrip,
+        idleDays,
+        // Типові доби на ходку для факту: план (з простоєм); кругорейс — ще й контур, рівномірно на ходку.
+        tripDays: withLoop && tripsCount > 0 ? Math.round(planDays / tripsCount * 100) / 100 : daysPerTrip + idleDays,
+        idleRate: parseFloat(b.idleRate) || 0
+    };
+}
+
+// Факт рейсу: той самий розрахунок, що й POST /api/calculate, з фактичними км, добами на ходку,
+// оплаченим простоєм і незапланованими витратами. fact — перевірений lib/trip-fact.js.
+// Без fact — рівно результат калькулятора для цих вхідних даних.
+export function calculateTripFact(body, fact) {
+    const b = body || {};
+    const split = vehicleAssignmentsFromBody(b);
+    if (split && split.error) return split.error;
+    if (split) return sumVehicleTrips(b, split.list, fact);
+    const computed = computeTrip(b, fact);
+    return computed.status ? computed : computed.public;
+}
+
+// План / факт для редактора «Факт» і рядок trip_actuals (lib/trip-fact.js).
+export function buildTripFact(inputs, input, stored) {
+    return composeTripFact({ tripFactBasis, calculateTripFact }, inputs, input, stored);
+}
+
+const TRIP_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// POST /api/calculate?mode=fact  { calculationId, fact: { tripDays, loadedKm, emptyKm, paidIdleDays, idleRate,
+// extraCosts, extraCostsNote } } — факт збереженого рейсу. Вхідні дані беремо лише з calculations.inputs,
+// не з запиту, тож це не обхід демо-ліміту калькулятора (його лічильник не чіпаємо). Нічого не пише:
+// рядок trip_actuals зберігає клієнт під RLS і тригером trip_actuals_guard.
+async function tripFactRequest(req, res) {
+    const fail = (status, code, error, extra) => res.status(status).json(Object.assign({ code, error }, extra || {}));
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) return fail(401, 'AUTH_REQUIRED', 'Необхідна авторизація.');
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) return fail(401, 'BAD_TOKEN', 'Недійсний токен.');
+        if (userIsBlocked(user)) return res.status(403).json(USER_BLOCKED_ERROR);
+
+        const body = req.body || {};
+        const calculationId = String(body.calculationId || '');
+        if (!TRIP_ID.test(calculationId)) return fail(400, 'BAD_TRIP', 'Рейс не знайдено.');
+
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('org_id, org_role, member_status, organizations(status)')
+            .eq('id', user.id)
+            .single();
+        if (!profile || !profile.org_id) return fail(403, 'NO_PROFILE', 'Профіль користувача не знайдено.');
+        if (profile.member_status === 'disabled') return fail(403, 'MEMBER_DISABLED', 'Доступ до компанії відключено.');
+        if (!profile.organizations || profile.organizations.status === 'blocked') {
+            return fail(403, 'ORG_BLOCKED', 'Доступ компанії заблоковано адміністратором.');
+        }
+
+        const { data: calc, error: calcError } = await supabase
+            .from('calculations')
+            .select('id, org_id, user_id, status, inputs, results, revenue, profit')
+            .eq('id', calculationId)
+            .maybeSingle();
+        if (calcError) throw calcError;
+        // Ті самі правила, що й у trip_actuals_guard: своя компанія, автор або власник, прийнятий / виконаний рейс.
+        if (!calc || calc.org_id !== profile.org_id) return fail(404, 'BAD_TRIP', 'Рейс не знайдено.');
+        if (profile.org_role !== 'owner' && calc.user_id !== user.id) {
+            return fail(403, 'FACT_FORBIDDEN', 'Цей факт може змінити автор або власник.');
+        }
+        if (calc.status !== 'accepted' && calc.status !== 'done') {
+            return fail(409, 'FACT_STATUS', 'Факт можна внести лише для прийнятого або виконаного рейсу.');
+        }
+
+        const results = calc.results || {};
+        const stored = {
+            revenue: calc.revenue !== null && calc.revenue !== undefined ? calc.revenue : results.grossIncome,
+            profit: calc.profit !== null && calc.profit !== undefined ? calc.profit : results.netProfit
+        };
+        const built = buildTripFact(calc.inputs || {}, body.fact, stored);
+        if (built.status) {
+            const message = built.code === 'NO_INPUTS'
+                ? 'У рейсі немає збережених даних калькулятора. Новий факт порахувати не можна.'
+                : built.error;
+            return fail(built.status, built.code, message, built.fields ? { fields: built.fields } : null);
+        }
+        return res.status(200).json(built);
+    } catch (err) {
+        console.error('Trip fact error:', err);
+        return res.status(500).json({ error: 'Не вдалося порахувати факт.' });
+    }
+}
+
 // Обов'язкові поля: без них результат був би вигаданим. Разовий рейс: «Обсяг» не потрібен
 // (обсяг = норма × авто). Увімкнений кругорейс: обсяг і розцінка зворотного вантажу та плече C→D.
 export const REQUIRED_FIELD_LABELS = {
@@ -734,6 +945,8 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
+    // Факт рейсу (редактор «Факт»): окремий шлях, розрахунок калькулятора нижче не змінюється.
+    if (req.query && req.query.mode === 'fact') return tripFactRequest(req, res);
 
     try {
         // --- Перевірка авторизації та схвалення акаунта ---
