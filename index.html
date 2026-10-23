@@ -1224,10 +1224,44 @@
             border: 1px solid var(--border-color); border-radius: 10px;
             background: color-mix(in srgb, var(--input-bg) 88%, transparent);
         }
-        #fact-editor[hidden] { display: none; }
-        #fact-editor label { display: grid; gap: 4px; font-size: 0.75rem; }
-        #fact-editor input { width: 100%; max-width: 280px; text-align: left; }
+        #fact-editor[hidden], #fact-editor [hidden] { display: none; }
+        #fact-editor label { display: grid; gap: 4px; font-size: 0.75rem; align-content: start; }
+        #fact-editor input, #fact-editor textarea { width: 100%; text-align: left; box-sizing: border-box; }
+        #fact-editor textarea { min-height: 56px; resize: vertical; font: inherit; font-size: 0.8rem; padding: 8px 10px;
+            border: 1px solid var(--border-color); border-radius: 10px; background: var(--input-bg); color: var(--text-main); }
+        #fact-editor small { color: var(--text-muted); font-size: 0.68rem; }
         #fact-editor .tc-history-actions { margin-top: 2px; }
+        .tc-fact-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; justify-content: space-between; }
+        .tc-fact-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 12px; }
+        .tc-fact-form .is-wide { grid-column: 1 / -1; }
+        .tc-fact-fixed { grid-column: 1 / -1; margin: -2px 0 0; font-size: 0.72rem; color: var(--text-muted); }
+        .tc-fact-note {
+            display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; font-size: 0.75rem;
+            border: 1px dashed var(--border-color); color: var(--text-main);
+        }
+        .tc-fact-note p { margin: 0; }
+        .tc-fact-preview { display: grid; gap: 6px; }
+        .tc-fact-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        .tc-fact-table th, .tc-fact-table td { padding: 5px 6px; border-bottom: 1px solid var(--border-color); text-align: right; }
+        .tc-fact-table th:first-child, .tc-fact-table td:first-child { text-align: left; }
+        .tc-fact-table th { color: var(--text-muted); font-weight: 600; }
+        .tc-fact-table td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .tc-fact-table td:first-child { font-family: var(--font-ui); }
+        .tc-fact-table .is-good { color: var(--success); font-weight: 700; }
+        .tc-fact-table .is-bad { color: var(--danger); font-weight: 700; }
+        .tc-fact-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .tc-fact-chips span {
+            border: 1px solid var(--border-color); border-radius: 999px; padding: 3px 9px;
+            font-size: 0.7rem; font-variant-numeric: tabular-nums; color: var(--text-main);
+        }
+        .tc-fact-error { margin: 0; font-size: 0.75rem; color: var(--danger); }
+        .tc-fact-error:empty { display: none; }
+        #fact-save[disabled] { opacity: 0.55; cursor: not-allowed; }
+        @media (max-width: 560px) {
+            .tc-fact-form { grid-template-columns: 1fr; }
+            .tc-fact-table th, .tc-fact-table td { padding: 5px 3px; font-size: 0.7rem; }
+            .tc-fact-table td { white-space: normal; }
+        }
         .tc-history-actions { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
         .tc-history-actions button {
             background: none; border: 1px solid var(--border); color: var(--text);
@@ -4121,7 +4155,7 @@
           <div class="lp-status-row">
             <span class="lp-tc-status lp-is-draft">Чернетка</span><span class="lp-tc-status lp-is-proposed">Запропоновано</span><span class="lp-tc-status lp-is-accepted">Прийнято</span><span class="lp-tc-status lp-is-rejected">Відхилено</span><span class="lp-tc-status lp-is-done">Виконано</span>
           </div>
-          <div style="display:flex;gap:6px;align-items:center"><span class="lp-mini-btn">Факт</span><span style="font-size:12px;color:var(--muted)">фактичний дохід і витрати поруч із планом</span></div>
+          <div style="display:flex;gap:6px;align-items:center"><span class="lp-mini-btn">Факт</span><span style="font-size:12px;color:var(--muted)">доби, пробіг, простій і витрати рейсу поруч із планом</span></div>
         </div>
         <div class="lp-txt">
           <h3>Історія рейсів і план/факт</h3>
@@ -4383,7 +4417,7 @@
       <form class="lp-try-form lp-card" id="try-form" novalidate autocomplete="off">
         <div class="lp-t-step-head"><b id="t-step-title">Маршрут</b><span id="t-step-kicker">Крок 1 з 5</span></div>
         <div class="lp-t-hint" id="t-hint" role="alert" hidden></div>
-        <div class="lp-t-panel" id="t-panel-1" role="tabpanel" aria-labelledby="t-tab-1"><div class="lp-form-row"><label for="t-route-name">Назва / Маршрут заявки</label><div class="lp-in-wrap"><input type="text" id="t-route-name" name="route-name" placeholder="напр. Житомир → Одеса" maxlength="120" autocomplete="off"></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-base">Подача (стоянка, за бажанням)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-base" name="osm-base" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-base-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-base-coords" name="osm-base-coords"><ul class="tc-ac-list" id="t-osm-base-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-from">Пункт A (Завантаження)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-from" name="osm-from" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-from-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-from-coords" name="osm-from-coords"><ul class="tc-ac-list" id="t-osm-from-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-to">Пункт B (Розвантаження)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-to" name="osm-to" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-to-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-to-coords" name="osm-to-coords"><ul class="tc-ac-list" id="t-osm-to-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-t-route-tools"><button type="button" class="lp-btn lp-btn-ghost lp-btn-sm" id="t-swap" aria-label="Поміняти пункти A і B місцями">A ↔ B</button><span class="lp-t-route-status" id="t-route-status" role="status" aria-live="polite"></span></div><p class="lp-t-note lp-osm-only">Обери адресу з підказок: відстань і подачу за дорогами підставимо самі. <small class="lp-osm-attr">© OpenStreetMap contributors</small></p><div class="lp-form-row"><label for="t-podacha-dist">Подача авто (км)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-podacha-dist" name="podacha-dist" placeholder="напр. 40" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-dist">Відстань перевезення (км)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-dist" name="dist" placeholder="напр. 542" autocomplete="off"><span class="lp-unit">км</span></div></div><p class="lp-t-note lp-osm-only" id="t-dist-hint">Відстань за OpenStreetMap, можна виправити</p></div><div class="lp-t-panel" id="t-panel-2" role="tabpanel" aria-labelledby="t-tab-2" hidden><div class="lp-form-row"><label for="t-trailer-type">Тип причепа</label><div class="lp-in-wrap"><select id="t-trailer-type" name="trailer-type"><option value="зерновоз" selected>Зерновоз</option><option value="рефрижератор">Рефрижератор</option><option value="тент">Тент</option><option value="цистерна">Цистерна</option></select></div></div><div class="lp-form-row"><label for="t-return-mode">Логістика повернення</label><div class="lp-in-wrap"><select id="t-return-mode" name="return-mode"><option value="циклічний">🟢 Циклічний вивіз (весь об'єм, з поверненням)</option><option value="разовий" selected>⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option></select></div></div><div class="lp-form-row"><label for="t-volume">Загальний об'єм контракту</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-volume" name="volume" placeholder="напр. 60" autocomplete="off"><span class="lp-unit">т</span></div></div><div class="lp-form-row"><label for="t-norm-weight">Нормативна вага на авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-norm-weight" name="norm-weight" placeholder="напр. 20" autocomplete="off"><span class="lp-unit">т/авто</span></div></div><div class="lp-form-row"><label for="t-cars-count">Кількість залучених авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-cars-count" name="cars-count" placeholder="напр. 1" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-days-per-trip">Кількість діб на ходку</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-days-per-trip" name="days-per-trip" placeholder="напр. 2" autocomplete="off"><span class="lp-unit">діб</span></div></div><div class="lp-form-row"><label for="t-contract-currency">Валюта контракту</label><div class="lp-in-wrap"><select id="t-contract-currency" name="contract-currency"><option value="UAH" selected>Гривня (UAH)</option><option value="USD">Долар (USD)</option><option value="EUR">Євро (EUR)</option></select></div></div><p class="lp-t-note" id="t-fx-note">Розцінка, простій, зворотний вантаж і супутні витрати. Решта витрат компанії лишається в гривні.</p><div class="lp-form-row"><label for="t-rate">Розцінка (з ПДВ / ФОП)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rate" name="rate" placeholder="напр. 1500" autocomplete="off"><span class="lp-unit" id="t-rate-unit">грн/т</span></div></div></div><div class="lp-t-panel" id="t-panel-3" role="tabpanel" aria-labelledby="t-tab-3" hidden><div class="lp-form-row"><label for="t-season-type">Сезон</label><div class="lp-in-wrap"><select id="t-season-type" name="season-type"><option value="літо">Літо (+5% Кондиціонер)</option><option value="стандарт" selected>Норма (0%)</option><option value="зима">Зима (+10% Прогрів/Зима)</option></select></div></div><div class="lp-form-row"><label for="t-fuel-price">Вартість ДП</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-price" name="fuel-price" placeholder="напр. 95" autocomplete="off"><span class="lp-unit">грн/л</span></div></div><div class="lp-form-row"><label for="t-adblue-enable">Використання AdBlue</label><div class="lp-in-wrap"><select id="t-adblue-enable" name="adblue-enable"><option value="on" selected>Увімкнено</option><option value="off">Вимкнено</option></select></div></div></div><div class="lp-t-panel" id="t-panel-4" role="tabpanel" aria-labelledby="t-tab-4" hidden><div class="lp-form-row"><label for="t-calc-type">Форма розрахунку</label><div class="lp-in-wrap"><select id="t-calc-type" name="calc-type"><option value="безготівковий">Безготівковий (з ПДВ)</option><option value="фоп" selected>ФОП (3 група: 5% + ВЗ 1%)</option><option value="готівка">Готівка</option></select></div></div><div class="lp-form-row"><label for="t-road-quality">Якість дорожнього покриття</label><div class="lp-in-wrap"><select id="t-road-quality" name="road-quality"><option value="1.0" selected>🟢 Чудова дорога / Траса (1.0)</option><option value="1.06">🟡 Середня дорога / Вторинна (1.06)</option><option value="1.18">🔴 Погана дорога / Бруківка / Ями (1.18)</option></select></div></div><div class="lp-form-row" data-show="ref"><label for="t-ref-fuel-rate">Витрата рефа (л/год)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ref-fuel-rate" name="ref-fuel-rate" placeholder="напр. 2" autocomplete="off"><span class="lp-unit">л/год</span></div></div><div class="lp-form-row" data-show="ref"><label for="t-ref-hours">Час роботи рефрижератора</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ref-hours" name="ref-hours" placeholder="напр. 10" autocomplete="off"><span class="lp-unit">годин/рейс</span></div></div><div class="lp-form-row" data-show="wash"><label for="t-wash-cost">Вартість промивки цистерни</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-wash-cost" name="wash-cost" placeholder="напр. 3000" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row" data-show="wash"><label for="t-wash-freq">Промивок на рік</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-wash-freq" name="wash-freq" placeholder="напр. 12" autocomplete="off"><span class="lp-unit">раз/рік</span></div></div><div class="lp-form-row"><label for="t-idle-days">Фактичний простій (понад норму)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-idle-days" name="idle-days" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">діб/рейс</span></div></div><div class="lp-form-row"><label for="t-idle-rate">Компенсація за простій від замовника</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-idle-rate" name="idle-rate" placeholder="напр. 2000" autocomplete="off"><span class="lp-unit" id="t-idle-unit">грн/доба</span></div></div><div class="lp-form-row lp-is-green"><label for="t-round-trip-enable">🔄 Режим кругорейсу (зворотний вантаж)</label><div class="lp-in-wrap"><select id="t-round-trip-enable" name="round-trip-enable"><option value="off" selected>Вимкнено (без зворотного вантажу)</option><option value="on">Увімкнено (вантаж назад)</option></select></div></div><div class="lp-t-box" id="t-round-box" hidden><p class="lp-t-note">Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C, звідти <b>вантаженим</b> зворотним вантажем до точки D, і <b>порожнім</b> повертається у пункт A під нове завантаження.</p><div class="lp-form-row"><label for="t-rt-transfer-dist">Плече B→C (порожнім)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-transfer-dist" name="rt-transfer-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-backhaul-dist">Плече C→D (вантаженим)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-backhaul-dist" name="rt-backhaul-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-return-dist">Плече D→A (порожнім)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-return-dist" name="rt-return-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-total-volume">Загальний обсяг зворотного вантажу</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-total-volume" name="rt-total-volume" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">т</span></div></div><div class="lp-form-row"><label for="t-rt-rate">Розцінка зворотного вантажу</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-rate" name="rt-rate" placeholder="напр. 1200" autocomplete="off"><span class="lp-unit" id="t-rt-unit">грн/т</span></div></div></div><div class="lp-form-row lp-is-gold"><label for="t-extras-enable">🌍 Супутні витрати (дороги, кордон, брокер тощо)</label><div class="lp-in-wrap"><select id="t-extras-enable" name="extras-enable"><option value="off" selected>Вимкнено</option><option value="on">Увімкнено</option></select></div></div><div class="lp-t-box" id="t-extras-box" hidden><div class="lp-form-row"><label for="t-toll-cost">Платні дороги (за рейс)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-toll-cost" name="toll-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-toll">грн</span></div></div><div class="lp-form-row"><label for="t-border-cost">Проходження кордону</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-border-cost" name="border-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-border">грн</span></div></div><div class="lp-form-row"><label for="t-broker-cost">Послуги брокера</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-broker-cost" name="broker-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-broker">грн</span></div></div><div class="lp-form-row"><label for="t-green-card-cost">Зелена карта</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-green-card-cost" name="green-card-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-green">грн</span></div></div><div class="lp-form-row"><label for="t-ferry-cost">Паром</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ferry-cost" name="ferry-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-ferry">грн</span></div></div><p class="lp-t-note">Сума за один рейс/ходку: множиться на кількість ходок автоматично.</p></div></div><div class="lp-t-panel" id="t-panel-5" role="tabpanel" aria-labelledby="t-tab-5" hidden><p class="lp-t-note lp-is-info">У застосунку ці норми живуть у кабінеті (вкладки Парк, Пальне, Водій, ТО): вводите один раз, і вони підставляються в кожен розрахунок. Значення — приклад; у кабінеті вони вже заповнені стартовими нормами.</p><div class="lp-t-group">🚛 Парк і накладні</div><div class="lp-form-row"><label for="t-total-fleet">Всього авто в парку</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-total-fleet" name="total-fleet" placeholder="напр. 1" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-overhead-amort">Амортизація (річна)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-amort" name="overhead-amort" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-admin">Адміністративні витрати (річні)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-admin" name="overhead-admin" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-other-op">Інші операційні витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-other-op" name="overhead-other-op" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-other">Інші витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-other" name="overhead-other" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-repair">Ремонти та інші оп. витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-repair" name="overhead-repair" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-fin">Фінансові витрати (кредити)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-fin" name="overhead-fin" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-t-group">⛽ Пальне та AdBlue</div><div class="lp-form-row"><label for="t-fuel-load">Витрата з вантажем</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-load" name="fuel-load" placeholder="напр. 38" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row"><label for="t-fuel-empty">Витрата порожнім</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-empty" name="fuel-empty" placeholder="напр. 32" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row" data-show="adblue"><label for="t-adblue-consumption">Витрата AdBlue</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-adblue-consumption" name="adblue-consumption" placeholder="напр. 2.85" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row" data-show="adblue"><label for="t-adblue-price">Ціна AdBlue</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-adblue-price" name="adblue-price" placeholder="напр. 18" autocomplete="off"><span class="lp-unit">грн/л</span></div></div><div class="lp-t-group">👤 Водій</div><div class="lp-form-row"><label for="t-driver-pay-mode">Модель оплати</label><div class="lp-in-wrap"><select id="t-driver-pay-mode" name="driver-pay-mode"><option value="km" selected>За км (грн/км)</option><option value="pct">Відсоток від фрахту</option></select></div></div><div class="lp-form-row" data-show="km"><label for="t-driver-rate-load">Ставка з вантажем</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-rate-load" name="driver-rate-load" placeholder="напр. 4.03" autocomplete="off"><span class="lp-unit">грн/км</span></div></div><div class="lp-form-row" data-show="km"><label for="t-driver-rate-empty">Ставка порожнім</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-rate-empty" name="driver-rate-empty" placeholder="напр. 2.3" autocomplete="off"><span class="lp-unit">грн/км</span></div></div><div class="lp-form-row" data-show="pct"><label for="t-driver-pct-val">Відсоток від фрахту</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-pct-val" name="driver-pct-val" placeholder="напр. 12" autocomplete="off"><span class="lp-unit">%</span></div></div><div class="lp-form-row"><label for="t-per-diem">Добові</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-per-diem" name="per-diem" placeholder="напр. 500" autocomplete="off"><span class="lp-unit">грн/день</span></div></div><div class="lp-t-group">🔧 ТО та шини</div><div class="lp-form-row"><label for="t-to-cost">Вартість ТО</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-to-cost" name="to-cost" value="15000" placeholder="напр. 15000" data-default="15000" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-to-period">Пробіг між ТО</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-to-period" name="to-period" value="50000" placeholder="напр. 50000" data-default="50000" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-tire-cost">Ціна однієї шини</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-cost" name="tire-cost" value="16500" placeholder="напр. 16500" data-default="16500" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-tire-count">Кількість шин на авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-count" name="tire-count" value="14" placeholder="напр. 14" data-default="14" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-tire-mileage">Ресурс шини</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-mileage" name="tire-mileage" value="100000" placeholder="напр. 100000" data-default="100000" autocomplete="off"><span class="lp-unit">км</span></div></div></div>
+        <div class="lp-t-panel" id="t-panel-1" role="tabpanel" aria-labelledby="t-tab-1"><div class="lp-form-row"><label for="t-route-name">Назва / Маршрут заявки</label><div class="lp-in-wrap"><input type="text" id="t-route-name" name="route-name" placeholder="напр. Житомир → Одеса" maxlength="120" autocomplete="off"></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-base">Подача (стоянка, за бажанням)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-base" name="osm-base" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-base-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-base-coords" name="osm-base-coords"><ul class="tc-ac-list" id="t-osm-base-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-from">Пункт A (Завантаження)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-from" name="osm-from" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-from-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-from-coords" name="osm-from-coords"><ul class="tc-ac-list" id="t-osm-from-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-form-row lp-t-addr-row"><label for="t-osm-to">Пункт B (Розвантаження)</label><div class="lp-in-wrap lp-t-ac"><input type="text" id="t-osm-to" name="osm-to" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="t-osm-to-list" placeholder="Почни вводити місто або адресу" maxlength="160" autocomplete="off" spellcheck="false"><input type="hidden" id="t-osm-to-coords" name="osm-to-coords"><ul class="tc-ac-list" id="t-osm-to-list" role="listbox" aria-label="Підказки адрес" hidden></ul></div></div><div class="lp-t-route-tools"><button type="button" class="lp-btn lp-btn-ghost lp-btn-sm" id="t-swap" aria-label="Поміняти пункти A і B місцями">A ↔ B</button><span class="lp-t-route-status" id="t-route-status" role="status" aria-live="polite"></span></div><p class="lp-t-note lp-osm-only">Обери адресу з підказок: відстань і подачу за дорогами підставимо самі. <small class="lp-osm-attr">© OpenStreetMap contributors</small></p><div class="lp-form-row"><label for="t-podacha-dist">Подача авто (км)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-podacha-dist" name="podacha-dist" placeholder="напр. 40" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-dist">Відстань перевезення (км)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-dist" name="dist" placeholder="напр. 542" autocomplete="off"><span class="lp-unit">км</span></div></div><p class="lp-t-note lp-osm-only" id="t-dist-hint">Відстань за OpenStreetMap, можна виправити</p></div><div class="lp-t-panel" id="t-panel-2" role="tabpanel" aria-labelledby="t-tab-2" hidden><div class="lp-form-row"><label for="t-trailer-type">Тип причепа</label><div class="lp-in-wrap"><select id="t-trailer-type" name="trailer-type"><option value="зерновоз" selected>Зерновоз</option><option value="рефрижератор">Рефрижератор</option><option value="тент">Тент</option><option value="цистерна">Цистерна</option></select></div></div><div class="lp-form-row"><label for="t-return-mode">Логістика повернення</label><div class="lp-in-wrap"><select id="t-return-mode" name="return-mode"><option value="циклічний">🟢 Циклічний вивіз (весь об'єм, з поверненням)</option><option value="разовий" selected>⚪ Разовий рейс (1 виїзд автопарку, без повернення)</option></select></div></div><div class="lp-form-row"><label for="t-volume">Загальний об'єм контракту</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-volume" name="volume" placeholder="напр. 60" autocomplete="off"><span class="lp-unit">т</span></div></div><div class="lp-form-row"><label for="t-norm-weight">Нормативна вага на авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-norm-weight" name="norm-weight" placeholder="напр. 20" autocomplete="off"><span class="lp-unit">т/авто</span></div></div><div class="lp-form-row"><label for="t-cars-count">Кількість залучених авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-cars-count" name="cars-count" placeholder="напр. 1" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-days-per-trip">Кількість діб на ходку</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-days-per-trip" name="days-per-trip" placeholder="напр. 2" autocomplete="off"><span class="lp-unit">діб</span></div></div><div class="lp-form-row"><label for="t-contract-currency">Валюта контракту</label><div class="lp-in-wrap"><select id="t-contract-currency" name="contract-currency"><option value="UAH" selected>Гривня (UAH)</option><option value="USD">Долар (USD)</option><option value="EUR">Євро (EUR)</option></select></div></div><p class="lp-t-note" id="t-fx-note">Розцінка, простій, зворотний вантаж і супутні витрати. Решта витрат компанії лишається в гривні.</p><div class="lp-form-row"><label for="t-rate">Розцінка (з ПДВ / ФОП)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rate" name="rate" placeholder="напр. 1500" autocomplete="off"><span class="lp-unit" id="t-rate-unit">грн/т</span></div></div></div><div class="lp-t-panel" id="t-panel-3" role="tabpanel" aria-labelledby="t-tab-3" hidden><div class="lp-form-row"><label for="t-season-type">Сезон</label><div class="lp-in-wrap"><select id="t-season-type" name="season-type"><option value="літо">Літо (+5% Кондиціонер)</option><option value="стандарт" selected>Норма (0%)</option><option value="зима">Зима (+10% Прогрів/Зима)</option></select></div></div><div class="lp-form-row"><label for="t-fuel-price">Вартість ДП</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-price" name="fuel-price" placeholder="напр. 95" autocomplete="off"><span class="lp-unit">грн/л</span></div></div><div class="lp-form-row"><label for="t-adblue-enable">Використання AdBlue</label><div class="lp-in-wrap"><select id="t-adblue-enable" name="adblue-enable"><option value="on" selected>Увімкнено</option><option value="off">Вимкнено</option></select></div></div></div><div class="lp-t-panel" id="t-panel-4" role="tabpanel" aria-labelledby="t-tab-4" hidden><div class="lp-form-row"><label for="t-calc-type">Форма розрахунку</label><div class="lp-in-wrap"><select id="t-calc-type" name="calc-type"><option value="безготівковий">Безготівковий (з ПДВ)</option><option value="фоп" selected>ФОП (3 група: 5% + ВЗ 1%)</option><option value="готівка">Готівка</option></select></div></div><div class="lp-form-row"><label for="t-road-quality">Якість дорожнього покриття</label><div class="lp-in-wrap"><select id="t-road-quality" name="road-quality"><option value="1.0" selected>🟢 Чудова дорога / Траса (1.0)</option><option value="1.06">🟡 Середня дорога / Вторинна (1.06)</option><option value="1.18">🔴 Погана дорога / Бруківка / Ями (1.18)</option></select></div></div><div class="lp-form-row" data-show="ref"><label for="t-ref-fuel-rate">Витрата рефа (л/год)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ref-fuel-rate" name="ref-fuel-rate" placeholder="напр. 2" autocomplete="off"><span class="lp-unit">л/год</span></div></div><div class="lp-form-row" data-show="ref"><label for="t-ref-hours">Час роботи рефрижератора</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ref-hours" name="ref-hours" placeholder="напр. 10" autocomplete="off"><span class="lp-unit">годин/рейс</span></div></div><div class="lp-form-row" data-show="wash"><label for="t-wash-cost">Вартість промивки цистерни</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-wash-cost" name="wash-cost" placeholder="напр. 3000" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row" data-show="wash"><label for="t-wash-freq">Промивок на рік</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-wash-freq" name="wash-freq" placeholder="напр. 12" autocomplete="off"><span class="lp-unit">раз/рік</span></div></div><div class="lp-form-row"><label for="t-idle-days">Можливий простій понад норму</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-idle-days" name="idle-days" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">діб/рейс</span></div></div><div class="lp-form-row"><label for="t-idle-rate">Компенсація за простій від замовника</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-idle-rate" name="idle-rate" placeholder="напр. 2000" autocomplete="off"><span class="lp-unit" id="t-idle-unit">грн/доба</span></div></div><div class="lp-form-row lp-is-green"><label for="t-round-trip-enable">🔄 Режим кругорейсу (зворотний вантаж)</label><div class="lp-in-wrap"><select id="t-round-trip-enable" name="round-trip-enable"><option value="off" selected>Вимкнено (без зворотного вантажу)</option><option value="on">Увімкнено (вантаж назад)</option></select></div></div><div class="lp-t-box" id="t-round-box" hidden><p class="lp-t-note">Модель: після розвантаження в пункті B авто їде <b>порожнім</b> до точки довантаження C, звідти <b>вантаженим</b> зворотним вантажем до точки D, і <b>порожнім</b> повертається у пункт A під нове завантаження.</p><div class="lp-form-row"><label for="t-rt-transfer-dist">Плече B→C (порожнім)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-transfer-dist" name="rt-transfer-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-backhaul-dist">Плече C→D (вантаженим)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-backhaul-dist" name="rt-backhaul-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-return-dist">Плече D→A (порожнім)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-return-dist" name="rt-return-dist" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-rt-total-volume">Загальний обсяг зворотного вантажу</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-total-volume" name="rt-total-volume" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">т</span></div></div><div class="lp-form-row"><label for="t-rt-rate">Розцінка зворотного вантажу</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-rt-rate" name="rt-rate" placeholder="напр. 1200" autocomplete="off"><span class="lp-unit" id="t-rt-unit">грн/т</span></div></div></div><div class="lp-form-row lp-is-gold"><label for="t-extras-enable">🌍 Супутні витрати (дороги, кордон, брокер тощо)</label><div class="lp-in-wrap"><select id="t-extras-enable" name="extras-enable"><option value="off" selected>Вимкнено</option><option value="on">Увімкнено</option></select></div></div><div class="lp-t-box" id="t-extras-box" hidden><div class="lp-form-row"><label for="t-toll-cost">Платні дороги (за рейс)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-toll-cost" name="toll-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-toll">грн</span></div></div><div class="lp-form-row"><label for="t-border-cost">Проходження кордону</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-border-cost" name="border-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-border">грн</span></div></div><div class="lp-form-row"><label for="t-broker-cost">Послуги брокера</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-broker-cost" name="broker-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-broker">грн</span></div></div><div class="lp-form-row"><label for="t-green-card-cost">Зелена карта</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-green-card-cost" name="green-card-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-green">грн</span></div></div><div class="lp-form-row"><label for="t-ferry-cost">Паром</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-ferry-cost" name="ferry-cost" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit" id="t-u-ferry">грн</span></div></div><p class="lp-t-note">Сума за один рейс/ходку: множиться на кількість ходок автоматично.</p></div></div><div class="lp-t-panel" id="t-panel-5" role="tabpanel" aria-labelledby="t-tab-5" hidden><p class="lp-t-note lp-is-info">У застосунку ці норми живуть у кабінеті (вкладки Парк, Пальне, Водій, ТО): вводите один раз, і вони підставляються в кожен розрахунок. Значення — приклад; у кабінеті вони вже заповнені стартовими нормами.</p><div class="lp-t-group">🚛 Парк і накладні</div><div class="lp-form-row"><label for="t-total-fleet">Всього авто в парку</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-total-fleet" name="total-fleet" placeholder="напр. 1" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-overhead-amort">Амортизація (річна)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-amort" name="overhead-amort" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-admin">Адміністративні витрати (річні)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-admin" name="overhead-admin" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-other-op">Інші операційні витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-other-op" name="overhead-other-op" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-other">Інші витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-other" name="overhead-other" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-repair">Ремонти та інші оп. витрати</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-repair" name="overhead-repair" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-overhead-fin">Фінансові витрати (кредити)</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-overhead-fin" name="overhead-fin" placeholder="0" data-zero="1" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-t-group">⛽ Пальне та AdBlue</div><div class="lp-form-row"><label for="t-fuel-load">Витрата з вантажем</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-load" name="fuel-load" placeholder="напр. 38" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row"><label for="t-fuel-empty">Витрата порожнім</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-fuel-empty" name="fuel-empty" placeholder="напр. 32" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row" data-show="adblue"><label for="t-adblue-consumption">Витрата AdBlue</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-adblue-consumption" name="adblue-consumption" placeholder="напр. 2.85" autocomplete="off"><span class="lp-unit">л/100км</span></div></div><div class="lp-form-row" data-show="adblue"><label for="t-adblue-price">Ціна AdBlue</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-adblue-price" name="adblue-price" placeholder="напр. 18" autocomplete="off"><span class="lp-unit">грн/л</span></div></div><div class="lp-t-group">👤 Водій</div><div class="lp-form-row"><label for="t-driver-pay-mode">Модель оплати</label><div class="lp-in-wrap"><select id="t-driver-pay-mode" name="driver-pay-mode"><option value="km" selected>За км (грн/км)</option><option value="pct">Відсоток від фрахту</option></select></div></div><div class="lp-form-row" data-show="km"><label for="t-driver-rate-load">Ставка з вантажем</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-rate-load" name="driver-rate-load" placeholder="напр. 4.03" autocomplete="off"><span class="lp-unit">грн/км</span></div></div><div class="lp-form-row" data-show="km"><label for="t-driver-rate-empty">Ставка порожнім</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-rate-empty" name="driver-rate-empty" placeholder="напр. 2.3" autocomplete="off"><span class="lp-unit">грн/км</span></div></div><div class="lp-form-row" data-show="pct"><label for="t-driver-pct-val">Відсоток від фрахту</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-driver-pct-val" name="driver-pct-val" placeholder="напр. 12" autocomplete="off"><span class="lp-unit">%</span></div></div><div class="lp-form-row"><label for="t-per-diem">Добові</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-per-diem" name="per-diem" placeholder="напр. 500" autocomplete="off"><span class="lp-unit">грн/день</span></div></div><div class="lp-t-group">🔧 ТО та шини</div><div class="lp-form-row"><label for="t-to-cost">Вартість ТО</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-to-cost" name="to-cost" value="15000" placeholder="напр. 15000" data-default="15000" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-to-period">Пробіг між ТО</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-to-period" name="to-period" value="50000" placeholder="напр. 50000" data-default="50000" autocomplete="off"><span class="lp-unit">км</span></div></div><div class="lp-form-row"><label for="t-tire-cost">Ціна однієї шини</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-cost" name="tire-cost" value="16500" placeholder="напр. 16500" data-default="16500" autocomplete="off"><span class="lp-unit">грн</span></div></div><div class="lp-form-row"><label for="t-tire-count">Кількість шин на авто</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-count" name="tire-count" value="14" placeholder="напр. 14" data-default="14" autocomplete="off"><span class="lp-unit">шт</span></div></div><div class="lp-form-row"><label for="t-tire-mileage">Ресурс шини</label><div class="lp-in-wrap"><input type="text" inputmode="decimal" id="t-tire-mileage" name="tire-mileage" value="100000" placeholder="напр. 100000" data-default="100000" autocomplete="off"><span class="lp-unit">км</span></div></div></div>
         <div class="lp-t-nav">
           <button type="button" class="lp-btn lp-btn-ghost" id="t-back" hidden>← Назад</button>
           <button type="button" class="lp-btn lp-btn-primary" id="t-next">Далі →</button>
@@ -4986,7 +5020,7 @@
                 </div>
 
                 <div class="form-row">
-                    <label>Фактичний простій (понад норму):</label>
+                    <label>Можливий простій понад норму:</label>
                     <input type="number" id="idle-days" value="0" step="0.5" oninput="calculate()">
                     <span class="unit">діб/рейс</span>
                 </div>
@@ -5286,18 +5320,62 @@
             <div id="template-list" class="tc-template-list"></div>
         </div>
         <div id="fact-editor" hidden>
-            <b id="fact-editor-title">Факт рейсу</b>
+            <div class="tc-fact-head">
+                <b id="fact-editor-title">Факт рейсу</b>
+                <span class="tc-history-meta" id="fact-editor-saved"></span>
+            </div>
             <p class="tc-history-meta" id="fact-editor-plan"></p>
-            <label>Фактичний дохід, грн
-                <input type="number" id="fact-revenue" min="0" step="1" inputmode="decimal" oninput="refreshFactMath()">
-            </label>
-            <label>Фактичні витрати, грн
-                <input type="number" id="fact-costs" min="0" step="1" inputmode="decimal" oninput="refreshFactMath()">
-            </label>
-            <p class="tc-history-meta" id="fact-editor-math"></p>
-            <p class="tc-history-meta" id="fact-editor-error"></p>
+            <div id="fact-legacy" class="tc-fact-note" hidden>
+                <p id="fact-legacy-text"></p>
+                <div class="tc-history-actions" id="fact-legacy-actions">
+                    <button type="button" class="btn" onclick="startNewTripFact()">Внести новий факт</button>
+                </div>
+            </div>
+            <div id="fact-v2" class="tc-fact-form" hidden>
+                <label for="fact-days">Фактичний час на ходку, діб
+                    <input type="number" id="fact-days" min="0" step="0.1" inputmode="decimal" oninput="queueFactPreview()">
+                    <small id="fact-days-hint"></small>
+                </label>
+                <label for="fact-loaded-km">Фактичний пробіг з вантажем, км
+                    <input type="number" id="fact-loaded-km" min="0" step="1" inputmode="decimal" oninput="queueFactPreview()">
+                    <small id="fact-loaded-hint"></small>
+                </label>
+                <label for="fact-empty-km">Фактичний пробіг порожнім, км
+                    <input type="number" id="fact-empty-km" min="0" step="1" inputmode="decimal" oninput="queueFactPreview()">
+                    <small id="fact-empty-hint"></small>
+                </label>
+                <p class="tc-fact-fixed" id="fact-podacha"></p>
+                <label for="fact-paid-idle">Оплачений простій, діб на ходку
+                    <input type="number" id="fact-paid-idle" min="0" step="0.5" inputmode="decimal" oninput="queueFactPreview()">
+                    <small>0 або порожньо — компенсації немає</small>
+                </label>
+                <label for="fact-idle-rate"><span>Ставка простою, <span id="fact-idle-unit">грн/доба</span></span>
+                    <input type="number" id="fact-idle-rate" min="0" step="0.01" inputmode="decimal" oninput="queueFactPreview()">
+                    <small id="fact-idle-hint"></small>
+                </label>
+                <label for="fact-extra">Супутні незаплановані витрати, грн
+                    <input type="number" id="fact-extra" min="0" step="1" inputmode="decimal" oninput="queueFactPreview()">
+                    <small>штрафи, ремонт у дорозі, додаткові збори</small>
+                </label>
+                <label for="fact-extra-note" class="is-wide">Опис витрат (необов'язково)
+                    <textarea id="fact-extra-note" maxlength="500" rows="2" oninput="refreshFactNoteCount()"></textarea>
+                    <small id="fact-note-count">0 / 500</small>
+                </label>
+            </div>
+            <div id="fact-manual" class="tc-fact-form" hidden>
+                <p class="tc-fact-fixed">У рейсі немає даних калькулятора, тож доби й пробіг не перерахувати. Факт вноситься вручну.</p>
+                <label>Фактичний дохід, грн
+                    <input type="number" id="fact-revenue" min="0" step="1" inputmode="decimal" oninput="refreshFactMath()">
+                </label>
+                <label>Фактичні витрати, грн
+                    <input type="number" id="fact-costs" min="0" step="1" inputmode="decimal" oninput="refreshFactMath()">
+                </label>
+                <p class="tc-fact-fixed" id="fact-editor-math"></p>
+            </div>
+            <div id="fact-preview" class="tc-fact-preview" aria-live="polite" hidden></div>
+            <p class="tc-fact-error" id="fact-editor-error" role="alert"></p>
             <div class="tc-history-actions">
-                <button type="button" class="btn btn-success" onclick="saveTripActual()">Зберегти факт</button>
+                <button type="button" class="btn btn-success" id="fact-save" onclick="saveTripActual()">Зберегти факт</button>
                 <button type="button" class="btn" onclick="closeFactEditor()">Закрити</button>
             </div>
         </div>
@@ -5378,7 +5456,7 @@
                         <div id="overview-fleet"></div>
                     </div>
                     <div class="card tc-ov-card">
-                        <div class="tc-ov-card-head"><h3>Простої</h3><span class="tc-ov-unit" id="overview-idle-period"></span></div>
+                        <div class="tc-ov-card-head"><h3>Можливий простій</h3><span class="tc-ov-unit" id="overview-idle-period"></span></div>
                         <div id="overview-idle"></div>
                     </div>
                 </div>
@@ -5615,6 +5693,11 @@
     let templateDeleteId = null;
     let tripActuals = {};
     let factEditorId = null;
+    let factEditorMode = '';
+    let factPreviewTimer = null;
+    let factPreviewSeq = 0;
+    let factPreviewData = null;
+    let factPreviewKey = '';
     const HISTORY_PAGE_SIZE = 50;
     function resetUserScopedState() {
         currentUserId = null;
@@ -5626,6 +5709,10 @@
         historyDeleteId = null;
         templateDeleteId = null;
         factEditorId = null;
+        factEditorMode = '';
+        factPreviewData = null;
+        factPreviewSeq += 1;
+        clearTimeout(factPreviewTimer);
         const recent = document.getElementById('saved-recent');
         if (recent) recent.innerHTML = '';
         const other = document.getElementById('recent-routes');
@@ -6127,7 +6214,7 @@
         const extras = document.getElementById('extras-enable');
         const round = document.getElementById('round-trip-enable');
         const parts = [];
-        parts.push(idle ? ('простій ' + idle + ' діб') : 'без простою');
+        parts.push(idle ? ('можливий простій ' + idle + ' діб') : 'без простою');
         parts.push(extras && extras.value === 'on' ? 'супутні витрати' : 'без супутніх');
         if (round && round.value === 'on') parts.push('кругорейс');
         return parts.join(' · ');
@@ -11746,20 +11833,36 @@
         refreshMigrateBox();
     }
 
+    const TRIP_FACT_COLUMNS = 'calculation_id, revenue, costs, planned_overhead, profit, fact_version, fact_days, ' +
+        'fact_loaded_km, fact_empty_km, paid_idle_days, idle_rate, extra_costs, extra_costs_note';
+    function tripActualFromRow(row) {
+        const num = function (value) { return value === null || value === undefined ? null : Number(value); };
+        return {
+            revenue: Number(row.revenue),
+            costs: Number(row.costs),
+            plannedOverhead: Number(row.planned_overhead),
+            profit: Number(row.profit),
+            version: row.fact_version || null,
+            days: num(row.fact_days),
+            loadedKm: num(row.fact_loaded_km),
+            emptyKm: num(row.fact_empty_km),
+            paidIdleDays: num(row.paid_idle_days),
+            idleRate: num(row.idle_rate),
+            extraCosts: num(row.extra_costs),
+            extraNote: row.extra_costs_note || ''
+        };
+    }
     async function loadTripActuals() {
         tripActuals = {};
         try {
-            const { data, error } = await supabaseClient
-                .from('trip_actuals')
-                .select('calculation_id, revenue, costs, planned_overhead, profit');
-            if (error) return;
-            (data || []).forEach(function (row) {
-                tripActuals[row.calculation_id] = {
-                    revenue: Number(row.revenue),
-                    costs: Number(row.costs),
-                    plannedOverhead: Number(row.planned_overhead),
-                    profit: Number(row.profit)
-                };
+            let res = await supabaseClient.from('trip_actuals').select(TRIP_FACT_COLUMNS);
+            // База ще без стовпців факту v2 — старі факти читаються як раніше.
+            if (res.error && /column|schema cache/i.test(String(res.error.message || res.error))) {
+                res = await supabaseClient.from('trip_actuals').select('calculation_id, revenue, costs, planned_overhead, profit');
+            }
+            if (res.error) return;
+            (res.data || []).forEach(function (row) {
+                tripActuals[row.calculation_id] = tripActualFromRow(row);
             });
         } catch (e) {}
     }
@@ -12127,7 +12230,7 @@
                 return '<div class="tc-ov-list-row"><span>' + escHtml(item.row.routeName || item.row.name || 'Рейс') + '</span>' +
                     '<b class="soon">' + escHtml(ovNum(item.days, Number.isInteger(item.days) ? 0 : 1) + ' ' + ukDaysLabel(item.days)) + '</b></div>';
             }).join('')
-            : '<p class="tc-ov-note">Рейсів із простоєм немає.</p>';
+            : '<p class="tc-ov-note">Рейсів із закладеним простоєм немає.</p>';
         box.innerHTML = list + '<div class="tc-ov-list-row"><span>Збиткові рейси</span><b class="' + (losses ? 'is-down' : '') + '">' + losses + '</b></div>';
     }
     // Таблиця «Логісти» — колишня таблиця за авторами: owner бачить усіх, інакше — лише себе; без команди — «Ви».
@@ -12768,6 +12871,75 @@
         if (document.activeElement !== input) input.value = String(factAlertPct());
         label.hidden = currentOrgRole !== 'owner';
     }
+    // Редактор «Факт» (v2): доби, пробіг, оплачений простій і незаплановані витрати → POST /api/calculate?mode=fact рахує
+    // факт тим самим ядром, що й калькулятор. Ручний факт (стара версія) не перетирається без «Внести новий факт».
+    // Рейс без даних калькулятора (перенесений зі старої історії) — лише ручний факт, як раніше.
+    const FACT_FIELDS = [
+        ['tripDays', 'fact-days'], ['loadedKm', 'fact-loaded-km'], ['emptyKm', 'fact-empty-km'],
+        ['paidIdleDays', 'fact-paid-idle'], ['idleRate', 'fact-idle-rate'], ['extraCosts', 'fact-extra']
+    ];
+    function currentFactRow() {
+        return savedCalculations.find(function (item) { return item.id === factEditorId; }) || null;
+    }
+    function tripHasCalcInputs(row) {
+        const inputs = row && row.inputs;
+        return !!(inputs && typeof inputs === 'object' && Number(inputs.dist) > 0 && Number(inputs.rate) > 0);
+    }
+    function setFactPart(id, show) {
+        const el = document.getElementById(id);
+        if (el) el.hidden = !show;
+    }
+    function setFactText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+    // Поле показує округлене до сотих, а незмінене поле надсилає точне число, яке в нього підставили
+    // (план або збережений факт). Сервер упізнає план і рахує рівно планові доби / км: без змін факт = план.
+    let factFilled = {};
+    function rememberFactField(key, el, exact) {
+        if (!el) return;
+        const n = Number(exact);
+        if (el.value !== '' && Number.isFinite(n)) factFilled[key] = { shown: el.value, exact: n };
+        else delete factFilled[key];
+    }
+    function factFormValues() {
+        const out = {};
+        FACT_FIELDS.forEach(function (pair) {
+            const el = document.getElementById(pair[1]);
+            const filled = factFilled[pair[0]];
+            out[pair[0]] = !el ? '' : (filled && el.value === filled.shown ? filled.exact : el.value);
+        });
+        const note = document.getElementById('fact-extra-note');
+        out.extraCostsNote = note ? note.value : '';
+        return out;
+    }
+    function factInputValue(n) {
+        return n === null || n === undefined || !Number.isFinite(Number(n)) ? '' : String(Math.round(Number(n) * 100) / 100);
+    }
+    function setFactFormValues(values) {
+        factFilled = {};
+        FACT_FIELDS.forEach(function (pair) {
+            const el = document.getElementById(pair[1]);
+            if (el) el.value = factInputValue(values[pair[0]]);
+            rememberFactField(pair[0], el, values[pair[0]]);
+        });
+        const note = document.getElementById('fact-extra-note');
+        if (note) note.value = values.extraCostsNote || '';
+        refreshFactNoteCount();
+    }
+    function refreshFactNoteCount() {
+        const note = document.getElementById('fact-extra-note');
+        setFactText('fact-note-count', (note ? note.value.length : 0) + ' / 500');
+    }
+    function setFactError(text) {
+        setFactText('fact-editor-error', text || '');
+    }
+    function factSignedMoney(n) {
+        return displayMinus((n > 0 ? '+' : '') + formatMoney(n));
+    }
+    function factSignedNum(n, digits) {
+        return displayMinus((n > 0 ? '+' : '') + formatHistoryNum(n, digits));
+    }
     function openFactEditor(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
         if (!row) return;
@@ -12782,33 +12954,191 @@
             return;
         }
         factEditorId = id;
+        factPreviewData = null;
+        factPreviewKey = '';
+        clearTimeout(factPreviewTimer);
         const actual = tripActuals[id];
-        const overhead = plannedOverheadOf(row);
-        const title = document.getElementById('fact-editor-title');
-        const plan = document.getElementById('fact-editor-plan');
-        const revenue = document.getElementById('fact-revenue');
-        const costs = document.getElementById('fact-costs');
-        const error = document.getElementById('fact-editor-error');
-        if (title) title.textContent = 'Факт: ' + historyRouteLabel(fields);
-        if (plan) {
-            plan.textContent = 'План: ' + (fields.profit === null ? '—' : formatMoney(fields.profit)) +
-                '. Планові амортизація й накладні: ' + formatMoney(overhead) +
-                '. Калькулятор цей рейс не перераховує.';
-        }
-        if (revenue) revenue.value = actual ? actual.revenue : '';
-        if (costs) costs.value = actual ? actual.costs : '';
-        if (error) error.textContent = '';
+        setFactText('fact-editor-title', 'Факт: ' + historyRouteLabel(fields));
+        setFactText('fact-editor-saved', actual ? (actual.version === 'v2' ? 'факт збережено' : 'факт внесено вручну') : '');
+        setFactText('fact-editor-plan', 'План: дохід ' + (fields.revenue == null ? '—' : displayMinus(formatMoney(fields.revenue))) +
+            ', прибуток ' + (fields.profit === null ? '—' : displayMinus(formatMoney(fields.profit))) + '.');
+        setFactError('');
+        const canCompute = tripHasCalcInputs(row) && String(row.id).indexOf('preview-') !== 0;
+        renderFactMode(!canCompute ? 'manual' : (actual && actual.version !== 'v2' ? 'legacy' : 'v2'), row, actual);
         const box = document.getElementById('fact-editor');
         if (box) {
             box.hidden = false;
             if (box.scrollIntoView) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        refreshFactMath();
+    }
+    function renderFactMode(mode, row, actual) {
+        factEditorMode = mode;
+        setFactPart('fact-legacy', mode === 'legacy');
+        setFactPart('fact-v2', mode === 'v2');
+        setFactPart('fact-manual', mode === 'manual');
+        setFactPart('fact-preview', false);
+        const save = document.getElementById('fact-save');
+        if (save) {
+            save.hidden = mode === 'legacy';
+            save.disabled = mode === 'v2';
+            save.textContent = 'Зберегти факт';
+        }
+        if (mode === 'legacy') {
+            setFactText('fact-legacy-text', 'Цей факт внесено вручну: дохід ' + displayMinus(formatMoney(actual.revenue)) +
+                ', витрати ' + displayMinus(formatMoney(actual.costs + actual.plannedOverhead)) +
+                ', прибуток ' + displayMinus(formatMoney(actual.profit)) +
+                '. Новий факт рахується з фактичних діб, пробігу й простою. Старий лишається, доки ви не збережете новий.');
+        }
+        if (mode === 'manual') {
+            const revenue = document.getElementById('fact-revenue');
+            const costs = document.getElementById('fact-costs');
+            if (revenue) revenue.value = actual ? actual.revenue : '';
+            if (costs) costs.value = actual ? actual.costs : '';
+            refreshFactMath();
+        }
+        if (mode === 'v2') {
+            setFactFormValues(actual && actual.version === 'v2' ? {
+                tripDays: actual.days, loadedKm: actual.loadedKm, emptyKm: actual.emptyKm, paidIdleDays: actual.paidIdleDays,
+                idleRate: actual.idleRate, extraCosts: actual.extraCosts, extraCostsNote: actual.extraNote
+            } : {});
+            runFactPreview(true);
+        }
+    }
+    function startNewTripFact() {
+        const row = currentFactRow();
+        if (!row) return;
+        renderFactMode('v2', row, null);
+        setFactText('fact-save', 'Замінити старий факт');
     }
     function closeFactEditor() {
         factEditorId = null;
+        factEditorMode = '';
+        factPreviewData = null;
+        factPreviewSeq += 1;
+        clearTimeout(factPreviewTimer);
         const box = document.getElementById('fact-editor');
         if (box) box.hidden = true;
+    }
+    function queueFactPreview() {
+        clearTimeout(factPreviewTimer);
+        factPreviewTimer = setTimeout(function () { runFactPreview(false); }, 350);
+    }
+    async function runFactPreview(fillDefaults) {
+        clearTimeout(factPreviewTimer);
+        factPreviewTimer = null;
+        const row = currentFactRow();
+        if (!row || factEditorMode !== 'v2') return null;
+        const values = factFormValues();
+        const seq = ++factPreviewSeq;
+        const save = document.getElementById('fact-save');
+        try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) currentSessionToken = session.access_token;
+            const response = await fetch('/api/calculate?mode=fact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentSessionToken },
+                body: JSON.stringify({ calculationId: row.id, fact: values })
+            });
+            const json = await response.json().catch(function () { return {}; });
+            if (seq !== factPreviewSeq || factEditorId !== row.id) return null;
+            if (!response.ok) {
+                factPreviewData = null;
+                setFactPart('fact-preview', false);
+                if (save) save.disabled = true;
+                if (json.code === 'NO_INPUTS') {
+                    renderFactMode('manual', row, tripActuals[row.id]);
+                    return null;
+                }
+                setFactError(json.error || 'Не вдалося порахувати факт.');
+                return null;
+            }
+            factPreviewData = json;
+            if (fillDefaults) {
+                FACT_FIELDS.forEach(function (pair) {
+                    const el = document.getElementById(pair[1]);
+                    if (el && el.value === '') {
+                        el.value = factInputValue(json.fact[pair[0]]);
+                        rememberFactField(pair[0], el, json.fact[pair[0]]);
+                    }
+                });
+            }
+            // Порожні поля й підставлені точні значення сервер рахує однаково — повторний запит не потрібен.
+            factPreviewKey = JSON.stringify(factFormValues());
+            setFactError('');
+            renderFactHints(json);
+            renderFactPreview(json);
+            if (save) save.disabled = false;
+            return json;
+        } catch (e) {
+            if (seq === factPreviewSeq) {
+                factPreviewData = null;
+                if (save) save.disabled = true;
+                setFactError('Немає звʼязку із сервером розрахунку. Спробуйте ще раз.');
+            }
+            return null;
+        }
+    }
+    function renderFactHints(data) {
+        const b = data.basis;
+        const planDays = b.daysPerTrip + b.idleDays;
+        let daysHint = 'план: ' + formatHistoryNum(planDays, 2) + ' ' + ukDaysLabel(planDays) +
+            (b.idleDays > 0 ? ' (з них можливий простій ' + formatHistoryNum(b.idleDays, 2) + ')' : '');
+        if (b.tripDays !== planDays) daysHint += ', з кругорейсом ' + formatHistoryNum(b.tripDays, 2);
+        setFactText('fact-days-hint', daysHint + ' · ходок: ' + formatHistoryNum(b.tripsCount, 0));
+        setFactText('fact-loaded-hint', 'план: ' + formatHistoryNum(b.loadedKm, 0) + ' км на все замовлення');
+        setFactText('fact-empty-hint', 'план: ' + formatHistoryNum(b.emptyKm, 0) + ' км');
+        setFactText('fact-podacha', b.podachaKm > 0
+            ? 'Подача, план: ' + formatHistoryNum(b.podachaKm, 0) + ' км. Лишається плановою.'
+            : 'Подачі в плані немає.');
+        const unit = (b.contractCurrency === 'UAH' ? 'грн' : b.contractCurrency) + '/доба';
+        setFactText('fact-idle-unit', unit);
+        setFactText('fact-idle-hint', 'план: ' + formatHistoryNum(b.idleRate, 2) + ' ' + unit);
+    }
+    function renderFactPreview(data) {
+        const box = document.getElementById('fact-preview');
+        if (!box) return;
+        const table = document.createElement('table');
+        table.className = 'tc-fact-table';
+        const head = table.createTHead().insertRow();
+        ['', 'План', 'Факт', 'Відхилення'].forEach(function (text) {
+            const th = document.createElement('th');
+            th.textContent = text;
+            head.appendChild(th);
+        });
+        const body = table.createTBody();
+        [['Дохід', 'revenue', 1], ['Витрати', 'costs', -1], ['Прибуток', 'profit', 1]].forEach(function (item) {
+            const tr = body.insertRow();
+            const dev = data.deviation[item[1]];
+            const cells = [item[0], displayMinus(formatMoney(data.plan[item[1]])), displayMinus(formatMoney(data.actual[item[1]])),
+                dev.abs === null ? '—' : factSignedMoney(dev.abs) + (dev.pct === null ? '' : ' · ' + factSignedNum(dev.pct, 1) + '%')];
+            cells.forEach(function (text, index) {
+                const td = tr.insertCell();
+                td.textContent = text;
+                if (index === 3 && dev.abs) td.className = dev.abs * item[2] > 0 ? 'is-good' : 'is-bad';
+            });
+        });
+        const chips = document.createElement('div');
+        chips.className = 'tc-fact-chips';
+        const d = data.deviation.days;
+        const k = data.deviation.km;
+        [
+            'Різниця діб: ' + factSignedNum(d.abs, 2) + ' (план ' + formatHistoryNum(d.plan, 2) + ', факт ' + formatHistoryNum(d.fact, 2) + ')',
+            'Різниця км: ' + factSignedNum(k.abs, 0) + ' (план ' + formatHistoryNum(k.plan, 0) + ', факт ' + formatHistoryNum(k.fact, 0) + ')'
+        ].forEach(function (text) {
+            const chip = document.createElement('span');
+            chip.textContent = text;
+            chips.appendChild(chip);
+        });
+        const nodes = [table, chips];
+        if (data.planNow && data.planNow.profit !== data.plan.profit) {
+            const note = document.createElement('p');
+            note.className = 'tc-fact-fixed';
+            note.textContent = 'За поточними формулами план цього рейсу — ' + displayMinus(formatMoney(data.planNow.profit)) +
+                ' прибутку. Порівнюємо зі збереженим планом, тож ця різниця не від факту.';
+            nodes.push(note);
+        }
+        box.replaceChildren.apply(box, nodes);
+        box.hidden = false;
     }
     function refreshFactMath() {
         const math = document.getElementById('fact-editor-math');
@@ -12826,7 +13156,20 @@
     async function saveTripActual() {
         const row = savedCalculations.find(function (item) { return item.id === factEditorId; });
         const error = document.getElementById('fact-editor-error');
-        if (!row) return;
+        if (!row || factEditorMode === 'legacy') return;
+        if (factEditorMode === 'v2') {
+            let data = factPreviewData;
+            if (!data || factPreviewKey !== JSON.stringify(factFormValues())) data = await runFactPreview(false);
+            if (!data || factEditorId !== row.id) return;
+            // updated_at — ознака нової версії для trip_actuals_guard (стара версія його не надсилає).
+            await writeTripActual(row, Object.assign({
+                calculation_id: row.id,
+                org_id: currentOrgId,
+                entered_by: currentUserId,
+                updated_at: new Date().toISOString()
+            }, data.row));
+            return;
+        }
         const revenue = Number(document.getElementById('fact-revenue').value);
         const costs = Number(document.getElementById('fact-costs').value);
         const overhead = plannedOverheadOf(row);
@@ -12836,30 +13179,34 @@
             return;
         }
         if (String(row.id).indexOf('preview-') === 0) {
-            tripActuals[row.id] = { revenue: revenue, costs: costs, plannedOverhead: overhead, profit: profit };
+            tripActuals[row.id] = { revenue: revenue, costs: costs, plannedOverhead: overhead, profit: profit, version: null };
             renderSavedTable();
             showToast('Факт збережено');
             return;
         }
+        await writeTripActual(row, {
+            calculation_id: row.id,
+            org_id: currentOrgId,
+            revenue: revenue,
+            costs: costs,
+            planned_overhead: overhead,
+            profit: profit,
+            entered_by: currentUserId
+        });
+    }
+    async function writeTripActual(row, payload) {
+        const error = document.getElementById('fact-editor-error');
         try {
-            const { data, error: writeError } = await supabaseClient.from('trip_actuals').upsert({
-                calculation_id: row.id,
-                org_id: currentOrgId,
-                revenue: revenue,
-                costs: costs,
-                planned_overhead: overhead,
-                profit: profit,
-                entered_by: currentUserId
-            }, { onConflict: 'calculation_id' }).select('calculation_id, revenue, costs, planned_overhead, profit').single();
+            const { data, error: writeError } = await supabaseClient.from('trip_actuals')
+                .upsert(payload, { onConflict: 'calculation_id' }).select(TRIP_FACT_COLUMNS).single();
             if (writeError) throw writeError;
-            tripActuals[row.id] = {
-                revenue: Number(data.revenue),
-                costs: Number(data.costs),
-                plannedOverhead: Number(data.planned_overhead),
-                profit: Number(data.profit)
-            };
+            tripActuals[row.id] = tripActualFromRow(data);
             renderSavedTable();
-            refreshFactMath();
+            if (factEditorId === row.id) {
+                setFactText('fact-editor-saved', tripActuals[row.id].version === 'v2' ? 'факт збережено' : 'факт внесено вручну');
+                setFactText('fact-save', 'Зберегти факт');
+                if (factEditorMode === 'manual') refreshFactMath();
+            }
             showToast('Факт збережено');
         } catch (e) {
             const message = dbErrorText(e);
@@ -12867,6 +13214,7 @@
             if (message.indexOf('FACT_LOCKED') !== -1) showToast('Минуло 30 діб. Факт змінює власник.', 4200);
             else if (message.indexOf('FACT_STATUS') !== -1) showToast('Факт можна внести лише для прийнятого або виконаного рейсу.');
             else if (message.indexOf('FACT_FORBIDDEN') !== -1) showToast('Цей факт може змінити автор або власник.');
+            else if (/fact_version|fact_days|trip_actuals_fact_v2|schema cache/.test(message)) showToast('Новий факт ще недоступний: базу не оновлено.', 4200);
             else showToast('Не вдалося зберегти факт.', 3600);
         }
     }

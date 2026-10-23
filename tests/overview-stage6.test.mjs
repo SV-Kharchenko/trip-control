@@ -150,7 +150,7 @@ test('the overview markup has the mockup layout without mockup numbers', () => {
     const section = sliceBetween(html, '<section id="studio-overview"', '</section>');
     assert.match(section, /Огляд компанії/);
     assert.match(section, /data-period="month" aria-pressed="true"/);
-    ['Тиждень', 'Місяць', 'Квартал', 'Чистий прибуток по тижнях', 'Автопарк зараз', 'Простої', 'Логісти', 'Збережені розрахунки'].forEach(function (text) {
+    ['Тиждень', 'Місяць', 'Квартал', 'Чистий прибуток по тижнях', 'Автопарк зараз', 'Можливий простій', 'Логісти', 'Збережені розрахунки'].forEach(function (text) {
         assert.ok(section.includes(text), text);
     });
     ['6,84', '712', '1,12', 'Олена Коваль', 'у рейсі', 'на ТО', '142'].forEach(function (text) {
