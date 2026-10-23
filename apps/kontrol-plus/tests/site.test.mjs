@@ -140,13 +140,13 @@ test('site API needs no Origin/Host checks for the proxy; requests carry Authori
 });
 
 test('CRM tabs reuse the site Supabase client and never register a service worker', () => {
-    const sources = ['src/site-bridge.js', 'src/ui.js', ...fs.readdirSync(path.join(APP, 'src/views')).map((f) => 'src/views/' + f),
-        ...fs.readdirSync(path.join(APP, 'src/lib')).map((f) => 'src/lib/' + f)].filter((f) => !f.endsWith('login.js'));
+    const sources = ['src/site-bridge.js', 'src/bridge.js', 'src/ui.js', ...fs.readdirSync(path.join(APP, 'src/views')).map((f) => 'src/views/' + f),
+        ...fs.readdirSync(path.join(APP, 'src/lib')).map((f) => 'src/lib/' + f)];
     for (const file of sources) {
         const code = read(file);
         assert.doesNotMatch(code, /createClient|@supabase\/supabase-js|serviceWorker\.register/, file);
     }
-    assert.match(read('src/site-bridge.js'), /return supabaseClient;/);
+    assert.match(read('src/bridge.js'), /return supabaseClient;/);
     assert.match(fs.readFileSync(ROOT_INDEX, 'utf8'), /const supabaseClient = window\.supabase\.createClient\(/, 'site still exposes supabaseClient');
     assert.match(fs.readFileSync(ROOT_INDEX, 'utf8'), /navigator\.serviceWorker\.register\('\/sw\.js'/, 'site registers /sw.js = the app SW here');
     assert.match(read('public/kp-entry.js'), /setAttribute\('data-entry', 'app'\)/);
@@ -176,4 +176,20 @@ test("plan gate: CRM tabs open only for plan = 'control_plus'", () => {
     assert.deepEqual(crmPermissions({ control_plus: true, role: 'director' }), { canWrite: false, canDelete: false });
     assert.deepEqual(crmPermissions({ control_plus: false, role: 'owner' }), { canWrite: false, canDelete: false });
     assert.deepEqual(crmPermissions(null), { canWrite: false, canDelete: false });
+});
+
+// Те саме, що README → «Залежності моста від сайту». Якщо сайт перейменує щось — тест покаже, що міст треба оновити.
+test('the site still has every id / class / global the bridge depends on', () => {
+    const site = fs.readFileSync(ROOT_INDEX, 'utf8');
+    for (const id of ['tc-nav-panel', 'main-app', 'sticky-top', 'studio-overview', 'studio-nav-calc', 'studio-nav-overview',
+        'missing-hint', 'onboard-banner', 'cab-warning']) {
+        assert.match(site, new RegExp(`id="${id}"`), '#' + id);
+    }
+    assert.match(site, /<div class="tc-nav-panel" id="tc-nav-panel">\s*<nav class="tc-studio-nav"/, '#tc-nav-panel .tc-studio-nav');
+    assert.match(site, /<footer class="tc-legal-footer">/, '.tc-legal-footer in #main-app');
+    assert.match(site, /document\.body\.setAttribute\('data-studio-view'/, 'body[data-studio-view]');
+    assert.match(site, /body\.setAttribute\('data-theme', next\)/, 'body[data-theme]');
+    assert.match(site, /classList\.toggle\('on', !overview\)/, '.on marks the active nav button');
+    assert.match(site, /const supabaseClient = window\.supabase\.createClient\(/, 'global supabaseClient');
+    assert.match(site, /document\.documentElement\.setAttribute\('data-entry', entry\)/, 'html[data-entry] for kp-entry.js');
 });

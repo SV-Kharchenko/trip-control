@@ -104,7 +104,7 @@ test('vercel.json: sw and manifest headers', () => {
 });
 
 test('no innerHTML with data in the CRM tabs', () => {
-    for (const file of ['src/site-bridge.js', 'public/kp-entry.js']) {
+    for (const file of ['src/site-bridge.js', 'src/bridge.js', 'public/kp-entry.js']) {
         assert.doesNotMatch(read(file), /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, file);
     }
     for (const file of fs.readdirSync(new URL('src/views/', APP))) {
@@ -127,11 +127,10 @@ test('root .vercelignore hides repo internals from trip-control.com but keeps th
     }
 });
 
-test('no secrets: keys only from env, .env files ignored', () => {
+test('no secrets: no keys in the app (the site client is reused), .env files ignored', () => {
     const ignore = read('.gitignore');
     assert.match(ignore, /^\.env$/m);
     assert.match(ignore, /^\.env\.\*$/m);
-    assert.match(ignore, /^!\.env\.example$/m);
     assert.match(ignore, /^\.site\/$/m, 'the site copy is a build artifact');
     let files;
     try {
@@ -147,6 +146,6 @@ test('no secrets: keys only from env, .env files ignored', () => {
         const text = fs.readFileSync(new URL(file, APP), 'utf8');
         assert.doesNotMatch(text, jwt, file);
         assert.doesNotMatch(text, named, file);
-        assert.ok(!/^\.env(\.|$)/.test(file) || file === '.env.example', file + ' must not be committed');
+        assert.ok(!/^\.env(\.|$)/.test(file), file + ' must not be committed');
     }
 });

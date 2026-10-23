@@ -11,14 +11,37 @@
 - Збірка (`vite.config.js`) кладе сайт у `dist/` як є; лише `dist/index.html` отримує вставки між `<!--kp:start-->` /
   `<!--kp:end-->` (`scripts/site-html.mjs`): `noindex`, стилі CRM, `/kp-entry.js` (гість одразу бачить вхід, не лендинг),
   модуль `src/site-bridge.js`, маніфест застосунку замість `/site.webmanifest`. Збірка Vite — у `/kp-assets/`.
-- `site-bridge.js` додає в навігацію сайту «Клієнти» і «Звіт план/факт» (`#/clients…`, `#/report`), бере клієнт Supabase
-  сайту (`supabaseClient`) — другого клієнта немає. Гейт: `kp_context().control_plus`, без тарифу — екран тарифу.
+- `src/site-bridge.js` (точка входу: стилі + `startBridge()` з `src/bridge.js`) додає в навігацію сайту «Клієнти» і
+  «Звіт план/факт» (`#/clients…`, `#/report`), бере клієнт Supabase сайту (`supabaseClient`) — другого клієнта немає.
+  Гейт: `kp_context().control_plus`, без тарифу — екран тарифу. Старий ключ сесії окремого застосунку `kp-auth`
+  прибирається з `localStorage` при першому завантаженні (сесія сайту не чіпається).
 - `/api/*` — серверний rewrite Vercel на `https://trip-control.com/api/*`: для браузера той самий origin, CORS не потрібен,
   `Authorization: Bearer` проходить (перевірено локально через проксі `vite preview`: `/api/calculate` з поганим токеном → 401
   «Недійсний токен»). `api/*` не перевіряє Origin/Host.
 - Service worker: сайт реєструє `/sw.js` — тут це SW застосунку (`public/sw.js`); sw.js сайту не копіюється.
   `/api`, Supabase, HTML і файли сайту `/assets/**` не кешуються SW.
 - CSP сайту (з `'unsafe-inline'`) — лише на сторінках сайту (`/`, `/index.html`, `/legal/*`, `/offer`…), решта — строгий CSP.
+
+### Залежності моста від сайту
+
+Міст не правує код сайту, але спирається на його розмітку й глобальні імена. Якщо щось із цього зникне, `startBridge()`
+поверне `false` (вкладок немає, сайт працює як є, одне попередження в консолі), а тест
+`the site still has every id / class / global the bridge depends on` (`tests/site.test.mjs`) впаде.
+
+| Що | Де в сайті | Навіщо мосту |
+|---|---|---|
+| `const supabaseClient` (глобальна лексична змінна) | inline-скрипт ініціалізації Supabase | єдиний клієнт: сесія, `kp_context`, CRM-запити |
+| `#tc-nav-panel .tc-studio-nav` | шапка застосунку | сюди додаються `#kp-nav-clients`, `#kp-nav-report` |
+| `#main-app` | контейнер застосунку | сюди вставляється `#kp-crm` |
+| `#studio-overview` | «Огляд» у `#main-app` | `#kp-crm` стає перед ним (немає — в кінець `#main-app`) |
+| `#sticky-top`, `.tc-legal-footer` | діти `#main-app` | лишаються видимими у вкладках CRM, решта дітей ховається |
+| `#studio-nav-calc`, `#studio-nav-overview`, клас `.on` | кнопки навігації | знімаємо підсвітку, поки відкрито CRM |
+| `body[data-studio-view]` | `setStudioView()` | будь-яка зміна (калькулятор, огляд, логотип, «Історія», закриття кабінету) закриває CRM |
+| `body[data-theme]` (`dark`) | `applyTheme()` | темна палітра `crm.css`; повторна синхронізація навігації |
+| `#missing-hint`, `#onboard-banner`, `#cab-warning` | підказки над калькулятором | ховаються у вкладках CRM |
+| `html[data-entry]`, `html[data-screen]` | перший inline-скрипт `<body>` | `kp-entry.js`: гість бачить вхід, не лендинг |
+| `<link rel="manifest" href="/site.webmanifest">`, по одному `</head>` і `</body>` | `index.html` | точки інжекту (`site-html.mjs` падає, якщо їх не рівно по одному) |
+| `navigator.serviceWorker.register('/sw.js')` | код сайту | реєструє SW застосунку; сам міст SW не реєструє |
 
 ### Відомі наслідки проксі
 
