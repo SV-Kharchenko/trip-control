@@ -99,7 +99,11 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     assert.equal(api && api.destination, 'https://trip-control.com/api/:path*');
     const site = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'vercel.json'), 'utf8'));
     for (const rule of site.rewrites) assert.ok(cfg.rewrites.some((r) => r.source === rule.source && r.destination === rule.destination), rule.source);
-    assert.ok(!cfg.functions && !fs.existsSync(path.join(APP, 'api')), 'no own serverless functions');
+    // Єдина власна функція — GPS (етап 2a); решта /api/* — проксі на сайт.
+    const own = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map(String).filter((f) => f.endsWith('.js'))
+        .map((f) => f.replace(/\\/g, '/'));
+    assert.deepEqual(own, ['gps/[route].js'], 'only the GPS function');
+    assert.deepEqual(cfg.functions, { 'api/gps/[route].js': { maxDuration: 30 } });
 });
 
 test('vercel.json: site CSP only on site pages, strict CSP everywhere else, one CSP per path', () => {

@@ -1,6 +1,7 @@
 // Контроль+ (Етап 1): перевірка міграцій на справжньому Postgres (PGlite, у пам'яті). Supabase не чіпає.
 // Усі міграції репозиторію по черзі на заглушці базової схеми прод (таблиці до репо, ролі й default privileges
-// Supabase), потім 20261022090000 / 20261022091000 (двічі — ідемпотентність) і сценарії від імені authenticated.
+// Supabase), потім 20261022090000 / 20261022091000 (двічі — ідемпотентність), пізніші міграції і GPS-міграція
+// етапу 2a (двічі, на заглушці схеми vault — лише в цьому тесті) і сценарії від імені authenticated / service_role.
 //
 //   npm i --no-save @electric-sql/pglite@0.2.17   (у корені репозиторію)
 //   node apps/kontrol-plus/db/check-db.mjs
@@ -11,6 +12,9 @@ const DIR = new URL('../../../supabase/migrations/', import.meta.url);
 const OURS = ['20261022090000_kontrol_plus_access.sql', '20261022091000_kontrol_plus_clients_reports.sql'];
 const all = fs.readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort();
 const before = all.filter((f) => f < OURS[0]);
+const GPS = all.find((f) => /^\d{14}_gps_integrations\.sql$/.test(f));
+const later = all.filter((f) => f > OURS[1] && f !== GPS);
+if (!GPS) throw new Error('немає міграції *_gps_integrations.sql');
 const db = new PGlite();
 
 await db.exec(`
@@ -60,6 +64,34 @@ for (const file of OURS) {
     await db.exec(sql);
 }
 check(true, 'all ' + before.length + ' earlier migrations + both Контроль+ migrations (twice) applied');
+for (const file of later) await db.exec(fs.readFileSync(new URL(file, DIR), 'utf8'));
+
+// Заглушка Supabase Vault (лише для PGlite; на проді supabase_vault уже встановлено і шифрує секрети).
+await db.exec(`
+CREATE SCHEMA vault;
+CREATE TABLE vault.secrets (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text UNIQUE, description text NOT NULL DEFAULT '',
+  secret text NOT NULL, key_id uuid, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE VIEW vault.decrypted_secrets AS
+  SELECT id, name, description, secret, secret AS decrypted_secret, key_id, created_at, updated_at FROM vault.secrets;
+CREATE FUNCTION vault.create_secret(new_secret text, new_name text DEFAULT NULL, new_description text DEFAULT '', new_key_id uuid DEFAULT NULL)
+  RETURNS uuid LANGUAGE sql AS
+  $$ INSERT INTO vault.secrets (secret, name, description, key_id) VALUES (new_secret, new_name, coalesce(new_description, ''), new_key_id) RETURNING id $$;
+CREATE FUNCTION vault.update_secret(secret_id uuid, new_secret text DEFAULT NULL, new_name text DEFAULT NULL,
+  new_description text DEFAULT NULL, new_key_id uuid DEFAULT NULL) RETURNS void LANGUAGE sql AS
+  $$ UPDATE vault.secrets SET secret = coalesce(new_secret, secret), name = coalesce(new_name, name),
+       description = coalesce(new_description, description), updated_at = now() WHERE id = secret_id $$;
+REVOKE ALL ON SCHEMA vault FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA vault FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA vault FROM PUBLIC, anon, authenticated, service_role;
+`);
+const gpsSql = fs.readFileSync(new URL(GPS, DIR), 'utf8');
+await db.exec(gpsSql);
+await db.exec(gpsSql);
+check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(gpsSql)
+    // Рядки верхнього рівня (не коментарі й не тіла функцій з відступом): без CREATE EXTENSION і без vault.*.
+    && !gpsSql.split('\n').some((line) => !/^\s*--/.test(line) && !/^\s/.test(line) && /CREATE EXTENSION|vault\./i.test(line)),
+    'gps: migration header, no CREATE EXTENSION and no vault.* in top-level DDL');
+check(true, 'gps: ' + later.length + ' later migration(s) + ' + GPS + ' (twice) applied');
 
 async function one(sql, params = []) {
     const { rows } = await db.query(sql, params);
@@ -344,6 +376,132 @@ const mixedTotal = Object.values(vMixed).reduce((s, r) => s + num(r.plan_revenue
 check(num(vMixed.AA1111AA.plan_revenue) === 40000 && mixedTotal === 40000, 'report vehicle: partly missing tonnage — by known tonnage, total kept');
 await db.query(`DELETE FROM public.calculations WHERE id = ANY($1)`, [[tNull, tZero, tMixed]]);
 
+// ---------------------------------------------------------------------------
+// GPS (етап 2a): підключення, Vault, видимість, мапінг, чистка
+// ---------------------------------------------------------------------------
+const FAKE_TOKEN = 'FAKEtoken0000000000000000000000000000000000000000000000000000000000beef';
+const intOf = async (org, host = 'hst-api.wialon.com') => (await service(`INSERT INTO public.gps_integrations (org_id, provider, host_kind, api_host, status)
+  VALUES ($1, 'wialon', 'hosting', $2, 'active') RETURNING id`, [org, host])).rows[0].id;
+const iA = await intOf(A);
+const iB = await intOf(B);
+const iC = await intOf(C);
+const hint = await service(`SELECT public.gps_store_token($1, $2) AS hint`, [iA, FAKE_TOKEN]);
+check(hint.ok && hint.rows[0].hint === '…beef', 'gps vault: store_token returns only the mask', hint.message);
+const rowA = await one(`SELECT row_to_json(gi)::text AS j, token_secret_id FROM public.gps_integrations AS gi WHERE id = $1`, [iA]);
+check(rowA.token_secret_id && !rowA.j.includes(FAKE_TOKEN) && !rowA.j.includes('FAKEtoken'), 'gps vault: no token in any gps_integrations column');
+const secretRow = await one(`SELECT name, secret FROM vault.secrets WHERE id = $1`, [rowA.token_secret_id]);
+check(secretRow && secretRow.name === 'gps:' + iA && secretRow.secret === FAKE_TOKEN, 'gps vault: secret gps:<integration_id> in Vault');
+const readBack = await service(`SELECT public.gps_read_token($1) AS t`, [iA]);
+check(readBack.ok && readBack.rows[0].t === FAKE_TOKEN, 'gps vault: service_role reads the token');
+const rotated = await service(`SELECT public.gps_store_token($1, $2) AS hint`, [iA, FAKE_TOKEN.replace('beef', 'cafe')]);
+const secretsAfter = await one(`SELECT count(*)::int AS n FROM vault.secrets WHERE name = $1`, ['gps:' + iA]);
+check(rotated.ok && rotated.rows[0].hint === '…cafe' && secretsAfter.n === 1, 'gps vault: a new token updates the same secret');
+await service(`SELECT public.gps_store_token($1, $2)`, [iA, FAKE_TOKEN]);
+const badToken = await service(`SELECT public.gps_store_token($1, 'short')`, [iA]);
+check(!badToken.ok && /GPS_BAD_TOKEN/.test(badToken.message) && !badToken.message.includes('short'), 'gps vault: bad token refused without echo');
+
+for (const [name, sql] of [
+    ['vault.secrets', 'SELECT * FROM vault.secrets'],
+    ['vault.decrypted_secrets', 'SELECT * FROM vault.decrypted_secrets'],
+    ['gps_read_token', `SELECT public.gps_read_token('${iA}')`],
+    ['gps_store_token', `SELECT public.gps_store_token('${iA}', 'x1234567890')`],
+    ['gps_delete_token', `SELECT public.gps_delete_token('${iA}')`],
+    ['gps_purge_old', 'SELECT public.gps_purge_old(14, 5000)'],
+    ['token_secret_id column', 'SELECT token_secret_id FROM public.gps_integrations'],
+    ['insert gps_integrations', `INSERT INTO public.gps_integrations (org_id, provider, api_host) VALUES ('${A}', 'wialon', 'x')`],
+    ['update gps_integrations', "UPDATE public.gps_integrations SET status = 'active'"],
+    ['delete gps_integrations', 'DELETE FROM public.gps_integrations'],
+    ['insert gps_vehicles', `INSERT INTO public.gps_vehicles (org_id, integration_id, external_id, name) VALUES ('${A}', '${iA}', '9', 'x')`],
+    ['update gps_vehicles', 'UPDATE public.gps_vehicles SET vehicle_id = NULL'],
+    ['delete gps_positions', 'DELETE FROM public.gps_positions'],
+]) {
+    const res = await user(OA)(sql);
+    check(!res.ok && res.code === '42501', 'gps: owner (authenticated) cannot ' + name, res.message);
+}
+const anonGps = await as('anon', null, 'SELECT * FROM public.gps_integrations');
+check(!anonGps.ok && anonGps.code === '42501', 'gps: anon cannot read gps_integrations');
+const anonUnits = await as('anon', null, 'SELECT * FROM public.gps_vehicles');
+check(!anonUnits.ok && anonUnits.code === '42501', 'gps: anon cannot read gps_vehicles');
+
+const INT_COLS = 'id, org_id, status, token_hint, api_host';
+const seesInt = async (id) => (await user(id)(`SELECT ${INT_COLS} FROM public.gps_integrations`)).rows;
+check((await seesInt(OA)).map((r) => r.id).join() === iA, 'gps: owner sees own integration (with mask)');
+check((await seesInt(OA))[0].token_hint === '…beef', 'gps: owner sees only the token mask');
+check((await seesInt(DIR1)).map((r) => r.id).join() === iA, 'gps: director sees the integration');
+check((await seesInt(LA)).length === 0, 'gps: logist does not see gps_integrations');
+check((await seesInt(OC)).map((r) => r.id).join() === iC, 'gps: another org sees only its own');
+check((await seesInt(OB)).length === 0, 'gps: company plan sees nothing (own integration row exists)');
+
+const unit = async (integration, ext, name, vehicle = null) => (await service(`INSERT INTO public.gps_vehicles (org_id, integration_id, external_id, name, vehicle_id)
+  VALUES ($1, $2, $3, $4, $5) RETURNING id, org_id`, [A, integration, ext, name, vehicle]));
+const u1 = (await unit(iA, '101', 'AA1111AA')).rows[0].id;
+const u2 = (await unit(iA, '102', 'BB2222BB')).rows[0].id;
+const u3 = (await unit(iA, '103', 'Тягач без авто')).rows[0].id;
+const uC = await unit(iC, '201', 'C unit');
+check(uC.ok && uC.rows[0].org_id === C, 'gps: unit org is taken from its integration (not from the input)');
+const uB = (await unit(iB, '301', 'B unit')).rows[0].id;
+const vC = (await service(`INSERT INTO public.fleet_vehicles (org_id, label) VALUES ($1, 'CC0000CC') RETURNING id`, [C])).rows[0].id;
+const crossVehicle = await unit(iA, '104', 'cross', vC);
+check(!crossVehicle.ok && /GPS_VEHICLE_ORG_MISMATCH/.test(crossVehicle.message), 'gps: a vehicle of another org cannot be attached (trigger)');
+const pos = (u, days) => service(`INSERT INTO public.gps_positions (org_id, gps_vehicle_id, recorded_at, lat, lon, speed)
+  VALUES ($1, $2, now() - make_interval(days => $3), 50.45, 30.52, 60) RETURNING id`, [A, u, days]);
+for (const [u, d] of [[u1, 20], [u1, 15], [u1, 1], [u2, 0], [uC.rows[0].id, 30], [uB, 2]]) {
+    const r = await pos(u, d);
+    if (!r.ok) throw new Error(r.message);
+}
+const unitsOf = async (id) => (await user(id)('SELECT id FROM public.gps_vehicles')).rows.length;
+const posOf = async (id) => (await user(id)('SELECT id FROM public.gps_positions')).rows.length;
+check(await unitsOf(OA) === 3 && await posOf(OA) === 4, 'gps: owner sees all units and positions of the org');
+check(await unitsOf(LA) === 3 && await posOf(LA) === 4, 'gps: logist sees ALL units / positions of the org (no trip filter, see-all off)');
+check(await unitsOf(LA2) === 3, 'gps: another logist of the org too');
+check(await unitsOf(DIR1) === 3 && await posOf(DIR1) === 4, 'gps: director sees all units / positions');
+check(await unitsOf(OC) === 1 && await posOf(OC) === 1, 'gps: another org sees only its own units / positions');
+check(await unitsOf(OB) === 0 && await posOf(OB) === 0, 'gps: company plan sees no units / positions');
+
+const map = (id, u, v) => user(id)(`SELECT * FROM public.gps_map_vehicle($1, $2)`, [u, v]);
+const V1g = '20000000-0000-4000-8000-000000000001', V2g = '20000000-0000-4000-8000-000000000002';
+const m1 = await map(OA, u1, V1g);
+check(m1.ok && m1.rows[0].vehicle_id === V1g, 'gps map: owner maps a unit to a vehicle', m1.message);
+const mDup = await map(OA, u2, V1g);
+check(!mDup.ok && /GPS_VEHICLE_TAKEN/.test(mDup.message), 'gps map: the same vehicle on a second unit — GPS_VEHICLE_TAKEN');
+const mLogist = await map(LA, u2, V2g);
+check(!mLogist.ok && /GPS_MAP_FORBIDDEN/.test(mLogist.message), 'gps map: logist cannot map');
+const mDir = await map(DIR1, u2, V2g);
+check(!mDir.ok && /GPS_MAP_FORBIDDEN/.test(mDir.message), 'gps map: director cannot map');
+const mForeign = await map(OC, u2, null);
+check(!mForeign.ok && /GPS_UNIT_NOT_FOUND/.test(mForeign.message), 'gps map: another org cannot touch the unit');
+const mForeignVehicle = await map(OA, u2, vC);
+check(!mForeignVehicle.ok && /GPS_VEHICLE_NOT_FOUND/.test(mForeignVehicle.message), 'gps map: a vehicle of another org — GPS_VEHICLE_NOT_FOUND');
+const mB = await map(OB, uB, null);
+check(!mB.ok && /GPS_MAP_FORBIDDEN/.test(mB.message), 'gps map: company plan cannot map');
+const unmap = await map(OA, u1, null);
+check(unmap.ok && (await one(`SELECT vehicle_id FROM public.gps_vehicles WHERE id = $1`, [u1])).vehicle_id === null, 'gps map: null removes the mapping');
+await map(OA, u1, V1g);
+const anonMap = await as('anon', null, `SELECT * FROM public.gps_map_vehicle('${u1}', NULL)`);
+check(!anonMap.ok && anonMap.code === '42501', 'gps map: anon cannot call');
+const unitsDir = await user(DIR1)('SELECT name, vehicle_label FROM public.gps_units()');
+check(unitsDir.ok && unitsDir.rows.length === 3 && unitsDir.rows.some((r) => r.vehicle_label === 'AA1111AA'),
+    'gps_units: director sees unit names with vehicle labels', unitsDir.message);
+const unitsB = await user(OB)('SELECT * FROM public.gps_units()');
+check(!unitsB.ok && /CONTROL_PLUS_REQUIRED/.test(unitsB.message), 'gps_units: company plan — CONTROL_PLUS_REQUIRED');
+
+const purge = await service('SELECT public.gps_purge_old(14, 1) AS n');
+const left = await one('SELECT count(*)::int AS n, min(recorded_at) > now() - interval \'14 days\' AS fresh FROM public.gps_positions');
+check(purge.ok && Number(purge.rows[0].n) === 3 && left.n === 3 && left.fresh, 'gps_purge_old: removes points older than 14 days in batches, keeps fresh ones', purge.message);
+
+// Втрата плану — доступ до GPS зникає.
+await service(`SELECT public.set_org_plan($1, 'company')`, [A]);
+check(await unitsOf(LA) === 0 && (await seesInt(OA)).length === 0 && await posOf(DIR1) === 0, 'gps: plan back to company — nothing visible');
+await service(`SELECT public.set_org_plan($1, 'control_plus')`, [A]);
+
+const del = await service(`SELECT public.gps_delete_token($1) AS ok`, [iA]);
+const afterDel = await one(`SELECT token_secret_id, token_hint FROM public.gps_integrations WHERE id = $1`, [iA]);
+const vaultLeft = await one(`SELECT count(*)::int AS n FROM vault.secrets WHERE name = $1`, ['gps:' + iA]);
+check(del.ok && afterDel.token_secret_id === null && afterDel.token_hint === null && vaultLeft.n === 0
+    && (await service(`SELECT public.gps_read_token($1) AS t`, [iA])).rows[0].t === null, 'gps vault: delete_token removes the secret and the mask');
+await db.exec(gpsSql);
+check((await one('SELECT count(*)::int AS n FROM public.gps_vehicles')).n === 5, 'gps: the migration re-applied over data keeps the data');
+
 // Відключення плану — доступ зникає одразу.
 await service(`SELECT public.set_org_plan($1, 'company')`, [A]);
 check((await user(DIR1)(`SELECT id FROM public.clients`)).rows.length === 0 && !(await ctx(OA)).control_plus, 'gating: plan back to company — clients hidden, no context');
@@ -402,6 +560,16 @@ await db.exec(tapSql);
 const tap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows;
 for (const row of tap) check(row.ok, 'pgTAP kontrol_plus.sql: ' + row.label);
 check(tap.length === planned, `pgTAP kontrol_plus.sql: ran ${tap.length} of plan(${planned})`);
+
+// supabase/tests/gps_integrations.sql — той самий shim pgTAP і заглушка Vault.
+const gpsTapSql = fs.readFileSync(new URL('../../../supabase/tests/gps_integrations.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const gpsPlanned = Number((gpsTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const tapBefore = tap.length;
+await db.exec(gpsTapSql);
+const gpsTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(tapBefore);
+for (const row of gpsTap) check(row.ok, 'pgTAP gps_integrations.sql: ' + row.label);
+check(gpsTap.length === gpsPlanned, `pgTAP gps_integrations.sql: ran ${gpsTap.length} of plan(${gpsPlanned})`);
 
 if (failed) {
     console.log(failed + ' Контроль+ DB check(s) failed');

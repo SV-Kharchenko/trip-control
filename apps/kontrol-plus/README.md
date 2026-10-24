@@ -93,7 +93,8 @@
 
 ## Стек
 
-Vite + vanilla JS (без фреймворку) для CRM-вкладок; сайт — як є. Залежностей у runtime немає (Supabase JS вантажить сайт з CDN).
+Vite + vanilla JS (без фреймворку) для CRM-вкладок; сайт — як є. У браузері залежностей немає (Supabase JS вантажить сайт з CDN).
+Серверна функція `api/gps/[route].js` (Vercel) — єдина залежність `@supabase/supabase-js`.
 
 ## Локально
 
@@ -104,7 +105,7 @@ npm run dev                     # http://localhost:5174 — сайт + вкла�
 npm test                        # копія сайту без змін, інжект, rewrite, CSP, гейт, SW, валідація
 npm run build && npm run preview  # http://localhost:4174 — те, що піде на Vercel
 npm run check:scope             # поза apps/kontrol-plus/ немає змін відносно main
-npm run check:db                # усі міграції + Контроль+ на PGlite і supabase/tests/kontrol_plus.sql
+npm run check:db                # усі міграції + Контроль+ і GPS на PGlite, supabase/tests/kontrol_plus.sql і gps_integrations.sql
 ```
 
 На localhost SW не реєструється (код сайту). Карта Google на localhost працює лише якщо ключ дозволяє цей referrer.
@@ -112,7 +113,50 @@ npm run check:db                # усі міграції + Контроль+ н
 ## Vercel
 
 - Framework: Vite, Output: `dist`, `vercel.json` цієї теки (rewrites `/api` і юридичних сторінок, заголовки).
+- Власна функція лише одна: `api/gps/[route].js` (`maxDuration` 30 с). Файл у `api/` має пріоритет над rewrite
+  `/api/:path*`, тож `/api/gps/*` обробляє Контроль+, а решта `/api/*` і далі йде на trip-control.com. Перевірити на preview.
 - Див. «Ручні налаштування власника» вище.
+
+## GPS (Wialon), етап 2a
+
+Вкладка «GPS» (`#/gps`): підключення Wialon, перевірка, список юнітів і привʼязка юнітів до авто автопарку.
+Збирача позицій, крону, карти й привʼязки до заявок **ще немає** (етапи 2b / 2c): `gps_positions` порожня,
+`fetchPositions` реалізовано й покрито тестами, але ніхто його не викликає.
+
+- **Хто що бачить.** Вкладку бачать усі ролі організації на `control_plus` (тариф «Компанія» — ні). Власник: підключення,
+  перевірка, оновлення юнітів, відключення, привʼязка. Директор: картка статусу й таблиця (перегляд). Логіст та інші: лише
+  таблиця юнітів і привʼязок (перегляд). Права перевіряє база (RLS, `gps_map_vehicle`) і API, інтерфейс лише ховає кнопки.
+- **Схема:** `supabase/migrations/20261024090000_gps_integrations.sql` (`gps_integrations`, `gps_vehicles`, `gps_positions`,
+  Vault-функції, `gps_map_vehicle`, `gps_units`, `gps_purge_old`). pgTAP: `supabase/tests/gps_integrations.sql`.
+- **API** (`POST /api/gps/connect | test | sync-units | disconnect`, лише власник, `Authorization: Bearer <JWT>`):
+  `connect` перевіряє токен у Wialon і лише тоді зберігає його в Supabase Vault (`gps:<integration_id>`); у таблиці —
+  лише `token_hint` («…a1b2») і посилання на секрет. Не частіше одного `connect` / `test` на 10 с на організацію.
+  `sync-units` оновлює юніти й повертає підказки привʼязки (назва юніта = номер авто); підказки застосовуються лише кнопкою.
+- **Токен** ніде не показується й не логується: не повертається API, не пишеться в таблиці, URL, localStorage чи логи.
+- **Wialon Hosting:** лише `hst-api.wialon.com`, `.eu`, `.us`, `.org`.
+- **Wialon Local:** адресу вводить клієнт, тож вона проходить захист від SSRF (`lib/gps/safe-host.js`): лише `https://`
+  з доменним імʼям (без IP, `localhost`, `.local` / `.internal` / `.lan` / `.home`), порти 443 або 8443; перед кожним
+  запитом DNS-резолв, і якщо хоч одна адреса приватна / службова — відмова; зʼєднання йде саме на перевірену адресу;
+  без редиректів. Потрібен **дійсний TLS-сертифікат** (самопідписаний не підтримується) і доступність сервера з інтернету.
+
+### Змінні середовища (Vercel, проєкт kontrol-plus)
+
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — лише серверна функція. Без них `/api/gps/*` відповідає 503 «GPS ще не налаштовано».
+
+### Як клієнту отримати токен Wialon
+
+1. У Wialon створити окремого користувача лише з правом **перегляду** потрібних обʼєктів (авто).
+2. Увійти цим користувачем за посиланням
+   `https://hosting.wialon.com/login.html?client_id=TripControl&access_type=256&activation_time=0&duration=0&lang=uk&flags=0&user=<логін>`
+   (для Wialon Local — той самий шлях на адресі свого сервера). `client_id` — довільна назва застосунку.
+3. Після входу токен — в адресі після `access_token=`. Вставити його у вкладці «GPS» → «Підключити».
+4. Ніколи не надсилати токен у чат чи пошту.
+
+### Обмеження 2a
+
+- Кронів і збору позицій немає; `next_poll_at` / `lock_until` / `consecutive_failures` — заготовка для 2b.
+- Ліміт `connect` / `test` тримається в памʼяті функції і за `last_checked_at` у базі (не строгий між інстансами).
+- Локально (`npm run dev`) `/api` проксіюється на trip-control.com, тож `/api/gps/*` там не працює — лише на Vercel.
 
 ## PWA / Microsoft Store
 
