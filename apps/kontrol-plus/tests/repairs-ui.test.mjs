@@ -24,7 +24,7 @@ test('repairsAccess: hidden without context; repair manager without own Конт
 
 test('routes: #/repairs and its sub-tabs; unknown sub → not a route', () => {
     assert.deepEqual(parseCrmHash('#/repairs'), { view: 'repairs', sub: 'list' });
-    for (const sub of ['new', 'stock', 'handlers']) assert.deepEqual(parseCrmHash('#/repairs/' + sub), { view: 'repairs', sub });
+    for (const sub of ['new', 'stock', 'handlers', 'maintenance', 'cost']) assert.deepEqual(parseCrmHash('#/repairs/' + sub), { view: 'repairs', sub });
     assert.equal(tabOf(parseCrmHash('#/repairs/stock')), 'repairs');
     assert.notDeepEqual(parseCrmHash('#/repairs/other'), { view: 'repairs', sub: 'other' });
 });
@@ -94,7 +94,7 @@ test('fmtMoneyCents and kyivDate', () => {
 
 test('repairs views: no innerHTML / outerHTML / insertAdjacentHTML', () => {
     const files = fs.readdirSync(new URL('src/views/', APP)).filter((f) => /^repairs.*\.js$/.test(f));
-    assert.deepEqual(files.sort(), ['repairs-form.js', 'repairs-handlers.js', 'repairs-import.js', 'repairs-stock.js', 'repairs.js']);
+    assert.deepEqual(files.sort(), ['repairs-cost.js', 'repairs-form.js', 'repairs-handlers.js', 'repairs-import.js', 'repairs-maintenance.js', 'repairs-stock.js', 'repairs.js']);
     for (const file of files) {
         assert.doesNotMatch(fs.readFileSync(new URL('src/views/' + file, APP), 'utf8'), /innerHTML|outerHTML|insertAdjacentHTML/, file);
     }

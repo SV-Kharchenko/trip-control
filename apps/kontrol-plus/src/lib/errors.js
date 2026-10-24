@@ -1,4 +1,20 @@
 // Коди помилок з міграцій Контроль+ і типові помилки Postgres / Supabase Auth → зрозумілий текст.
+import { fmtDate, fmtNumber } from './format.js';
+
+// Показник одометра поза межами сусідніх баз (kp_odometer_guard, етап 3b): межа — 'prev' (попередня база, нове
+// значення менше) або 'next' (наступна база, нове значення більше — вставка «в минуле»).
+export function odometerDecreaseText(km, readOn, kind = 'prev') {
+    const at = ' (' + fmtNumber(km) + ' км на ' + fmtDate(readOn) + ')';
+    return kind === 'next' ? 'Показник одометра більший за наступний' + at : 'Показник одометра менший за попередній' + at;
+}
+
+// ODOMETER_DECREASE з бази: DETAIL 'км|РРРР-ММ-ДД', HINT 'prev' / 'next'.
+export function odometerErrorText(error) {
+    if (!error || !/ODOMETER_DECREASE/.test(String(error.message || ''))) return null;
+    const [km, readOn] = String(error.details || '').split('|');
+    return km && readOn ? odometerDecreaseText(km, readOn, error.hint === 'next' ? 'next' : 'prev') : 'Показник одометра менший за попередній.';
+}
+
 const BY_MESSAGE = [
     [/CONTROL_PLUS_REQUIRED/, 'Цей розділ доступний у тарифі Контроль+.'],
     [/CLIENT_NOT_FOUND/, 'Клієнта не знайдено або він належить іншій організації.'],
@@ -30,6 +46,8 @@ const BY_CODE = {
 export function errorText(error) {
     if (!error) return '';
     const message = String(error.message || error.error_description || error);
+    const odometer = odometerErrorText(error);
+    if (odometer) return odometer;
     for (const [pattern, text] of BY_MESSAGE) if (pattern.test(message)) return text;
     if (error.code && BY_CODE[error.code]) return BY_CODE[error.code];
     return 'Не вдалося виконати дію. Спробуйте ще раз.';

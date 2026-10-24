@@ -13,6 +13,7 @@ import { renderClientForm } from './views/client-form.js';
 import { renderReport } from './views/report.js';
 import { renderGps } from './views/gps.js';
 import { renderRepairs } from './views/repairs.js';
+import { paintRepairsBadge } from './views/repairs-maintenance.js';
 import { repairsAccess } from './lib/repairs.js';
 import { callKpApi } from './lib/gps-client.js';
 
@@ -52,6 +53,9 @@ function app() {
         ...crmPermissions(state.context),
         go: (hash) => { location.hash = hash; },
         repairs: state.repairs,
+        // Бейдж ТО на вкладці «Ремонти»: з рядків, що вже завантажив розділ «ТО», або новим запитом.
+        onMaintenance: (rows) => paintRepairsBadge(tabs.repairs, rows),
+        refreshMaintenance: () => { loadRepairsBadge(); },
         onPlanLost: () => { state.context = null; syncGpsTab(); render(); },
         onCleanup: (fn) => { cleanups.push(fn); },
     };
@@ -116,7 +120,22 @@ async function loadContext() {
     state.context = (data && data[0]) || { control_plus: false };
     state.repairs = await loadRepairsContext();
     state.contextUser = userId;
+    // Бейдж — у фоні: статус ТО великого автопарку не має затримувати відкриття розділу.
+    if (state.repairs) loadRepairsBadge();
+    else paintRepairsBadge(tabs.repairs, []);
     return { context: state.context };
+}
+
+// Бейдж ТО (етап 3b): лише в Контроль+, без сповіщень. Без міграції 3b чи без доступу — без бейджа.
+async function loadRepairsBadge() {
+    if (!tabs.repairs || !state.session) return;
+    const userId = state.session.user.id;
+    let rows = [];
+    try {
+        const { data, error } = await state.supabase.rpc('kp_maintenance_status', { p_vehicle: null });
+        if (!error) rows = data || [];
+    } catch { /* без бейджа */ }
+    if (state.session && state.session.user.id === userId) paintRepairsBadge(tabs.repairs, rows);
 }
 
 // null — розділу «Ремонти» немає (тариф «Компанія», не відповідальний або міграцію 3a ще не застосовано).
@@ -183,7 +202,15 @@ function inviteHint(text, kind = 'info') {
     else document.body.append(box);
 }
 
-async function acceptRepairInvite() {
+// Старт і onAuthStateChange можуть викликати це майже одночасно: поки accept у дорозі, другий виклик отримує той самий
+// Promise — один запит kp_repair_invite_accept і одне видалення ключа.
+let inviteInFlight = null;
+function acceptRepairInvite() {
+    if (!inviteInFlight) inviteInFlight = acceptRepairInviteOnce().finally(() => { inviteInFlight = null; });
+    return inviteInFlight;
+}
+
+async function acceptRepairInviteOnce() {
     const fromUrl = takeInviteFromUrl();
     if (fromUrl && !state.session) {
         try {

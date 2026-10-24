@@ -31,7 +31,8 @@ class FakeElement extends FakeNode {
 }
 
 function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null,
-    url = 'https://app.trip-control.com/', stored = null, acceptResponse = { status: 200, body: { ok: true, org_name: 'Агро А' } } } = {}) {
+    url = 'https://app.trip-control.com/', stored = null, acceptResponse = { status: 200, body: { ok: true, org_name: 'Агро А' } },
+    maintenance = [], fetchGate = null } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
@@ -56,6 +57,7 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
         history: { replaceState(_s, _t, path) { calls.replaced.push(path); loc.href = new URL(path, url).href; } },
         fetch: async (path, init) => {
             calls.fetch.push({ path, body: JSON.parse(init.body) });
+            if (fetchGate) await fetchGate;
             return { ok: acceptResponse.status < 400, status: acceptResponse.status, json: async () => acceptResponse.body };
         },
         MutationObserver: class { observe() { calls.observers += 1; } },
@@ -70,8 +72,13 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
             // Етап 3a: після kp_context міст питає ще kp_repairs_context (вкладка «Ремонти»).
             rpc: async (name) => {
                 if (!session) throw new Error(name + ' must not be called without a session');
-                assert.ok(['kp_context', 'kp_repairs_context'].includes(name), 'unexpected rpc ' + name);
+                // Етап 3b: бейдж ТО — kp_maintenance_status, лише коли «Ремонти» видно.
+                assert.ok(['kp_context', 'kp_repairs_context', 'kp_maintenance_status'].includes(name), 'unexpected rpc ' + name);
                 calls.rpcs[name] = (calls.rpcs[name] || 0) + 1;
+                if (name === 'kp_maintenance_status') {
+                    if (maintenance === 'missing') return { data: null, error: { code: 'PGRST202', message: 'not found' } };
+                    return { data: maintenance, error: null };
+                }
                 if (name === 'kp_repairs_context') {
                     if (repairs === 'missing') return { data: null, error: { code: 'PGRST202', message: 'not found' } };
                     return { data: repairs ? [repairs] : [], error: null };
@@ -189,7 +196,41 @@ for (const [name, context, repairs, expected] of [
             const tab = (id) => env.navEl.children.find((b) => b.id === id).hidden === true;
             assert.deepEqual({ repairs: tab('kp-nav-repairs'), clients: tab('kp-nav-clients'), gps: tab('kp-nav-gps') }, expected, 'hidden flags');
             assert.equal(tab('kp-nav-report'), expected.clients, 'Звіт hidden together with Клієнти');
-            assert.deepEqual(env.calls.rpcs, { kp_context: 1, kp_repairs_context: 1 });
+            const badge = expected.repairs ? {} : { kp_maintenance_status: 1 };
+            assert.deepEqual(env.calls.rpcs, { kp_context: 1, kp_repairs_context: 1, ...badge }, 'badge asked only when Ремонти is visible');
+        } finally {
+            env.restore();
+        }
+    });
+}
+
+// Бейдж ТО на кнопці «Ремонти»: red → кількість red; без red — yellow; нуль або без міграції 3b — без бейджа.
+const nodeText = (node) => (node.text !== undefined ? node.text : (node.children || []).map(nodeText).join(''));
+for (const [name, maintenance, expected] of [
+    ['two red and a yellow', [{ status: 'red' }, { status: 'yellow' }, { status: 'red' }, { status: 'ok' }], { kind: 'red', count: '2' }],
+    ['only yellow', [{ status: 'yellow' }, { status: 'ok' }, { status: 'unknown' }], { kind: 'yellow', count: '1' }],
+    ['all ok', [{ status: 'ok' }, { status: 'unknown' }], null],
+    ['migration 3b not applied', 'missing', null],
+]) {
+    test(`bridge: Ремонти badge — ${name}`, async () => {
+        const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: true, role: 'owner' },
+            repairs: RP('owner'), maintenance });
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            await ticks();   // бейдж малюється у фоні
+            const tab = env.navEl.children.find((b) => b.id === 'kp-nav-repairs');
+            const spans = tab.children.filter((c) => c.tagName === 'SPAN');
+            assert.equal(nodeText(tab.children[0]), 'Ремонти', 'label kept');
+            if (!expected) {
+                assert.equal(spans.length, 0, 'no badge');
+                assert.equal(tab.getAttribute('title'), null);
+            } else {
+                assert.equal(spans.length, 1);
+                assert.equal(spans[0].className, 'kpr-nav-badge kpr-nav-badge-' + expected.kind);
+                assert.equal(nodeText(spans[0]), expected.count);
+                assert.match(tab.getAttribute('title'), expected.kind === 'red' ? /Протерміноване ТО: 2/ : /Скоро ТО: 1/);
+            }
         } finally {
             env.restore();
         }
@@ -260,6 +301,30 @@ test('bridge: expired stored repair invite is ignored and deleted', async () => 
         assert.deepEqual(env.calls.fetch, [], 'not sent');
         assert.equal(env.storage.has('kp_repair_invite'), false, 'deleted');
         assert.ok(env.calls.removed.includes('kp_repair_invite'));
+    } finally {
+        env.restore();
+    }
+});
+
+// Хвіст 3a: accept зі старту ще в дорозі, а onAuthStateChange кличе його знову — один запит, ключ видаляється один раз.
+test('bridge: repair invite — start and onAuthStateChange at once → one accept request, the key deleted once', async () => {
+    let open;
+    const gate = new Promise((resolve) => { open = resolve; });
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false },
+        stored: JSON.stringify({ token: TOKEN, at: Date.now() - 60000 }), fetchGate: gate });
+    try {
+        const { startBridge } = await freshBridge();
+        const started = startBridge();
+        await ticks();
+        assert.equal(env.calls.fetch.length, 1, 'accept from start is waiting for the server');
+        env.calls.auth('SIGNED_IN', { user: { id: 'u2' }, access_token: 'jwt2' });
+        await ticks();
+        open();
+        assert.equal(await started, true);
+        await ticks();
+        assert.deepEqual(env.calls.fetch, [{ path: '/api/repairs/invites', body: { action: 'accept', token: TOKEN } }], 'one accept request');
+        assert.equal(env.calls.removed.filter((k) => k === 'kp_repair_invite').length, 1, 'key deleted once');
+        assert.equal(env.storage.has('kp_repair_invite'), false);
     } finally {
         env.restore();
     }

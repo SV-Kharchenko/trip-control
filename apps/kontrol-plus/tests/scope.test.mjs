@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 4);
+    assert.equal(SCOPE_ALLOWLIST.length, 6);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -26,7 +26,7 @@ test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () =
 });
 
 test('check-scope allowlist: exactly two more patterns for repairs (3a), neighbours refused', () => {
-    assert.deepEqual(SCOPE_ALLOWLIST.slice(2).map(String), [
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(2, 4).map(String), [
         String(/^supabase\/migrations\/\d{14}_repairs_stock\.sql$/),
         String(/^supabase\/tests\/repairs_stock\.sql$/),
     ]);
@@ -46,6 +46,30 @@ test('check-scope allowlist: exactly two more patterns for repairs (3a), neighbo
         'api/repairs/invites.js',
         'lib/invite-mail.js',
         'api/team.js',
+    ]) assert.equal(isAllowedOutside(bad), false, bad);
+});
+
+test('check-scope allowlist: exactly two more patterns for maintenance (3b), neighbours refused', () => {
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(4).map(String), [
+        String(/^supabase\/migrations\/\d{14}_repairs_maintenance\.sql$/),
+        String(/^supabase\/tests\/repairs_maintenance\.sql$/),
+    ]);
+    for (const ok of ['supabase/migrations/20261026090000_repairs_maintenance.sql', 'supabase/tests/repairs_maintenance.sql']) {
+        assert.equal(isAllowedOutside(ok), true, ok);
+    }
+    for (const bad of [
+        'supabase/migrations/repairs_maintenance.sql',
+        'supabase/migrations/2026102609000_repairs_maintenance.sql',
+        'supabase/migrations/20261026090000_repairs_maintenance.sql.bak',
+        'supabase/migrations/20261026090000_repairs_maintenance_v2.sql',
+        'supabase/migrations/20261026090000_maintenance.sql',
+        'supabase/migrations/x/20261026090000_repairs_maintenance.sql',
+        'supabase/tests/repairs_maintenance.sql.orig',
+        'supabase/tests/maintenance.sql',
+        'supabase/tests/x/repairs_maintenance.sql',
+        'supabase/migrations/20261013190000_calc_vehicles.sql',
+        'supabase/migrations/20261023091124_trip_fact_v2.sql',
+        'lib/trip-fact.js',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });
 

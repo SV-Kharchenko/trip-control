@@ -1,5 +1,6 @@
 // Новий ремонт: авто, дата (сьогодні за Києвом), одометр, роботи, СТО, рядки запчастин (пошук, видно залишок).
 // Підсумок «Запчастини / СТО / Разом» — за поточною середньою собівартістю, як спише сервер (усе або нічого).
+// Ремонт, списання і «Виконане ТО» — один виклик kp_repair_save_with_maintenance (одна транзакція).
 import { h, clear, notice, toast } from '../ui.js';
 import { fmtMoney, fmtMoneyCents, fmtNumber, kyivDate } from '../lib/format.js';
 import { repairTotals, validateRepairForm, repairPartsPayload, repairErrorText } from '../lib/repairs.js';
@@ -8,8 +9,35 @@ export function partOptionLabel(part) {
     return part.name + (part.article ? ' (' + part.article + ')' : '') + ' — залишок ' + fmtNumber(part.qty) + ' ' + (part.unit || '');
 }
 
+// «Виконане ТО» (етап 3b): активні типи — лише коли обрано авто.
+export function maintenanceChoices(types, vehicleId) {
+    return vehicleId ? (types || []).filter((t) => t.is_active) : [];
+}
+
+// Обрані типи для kp_repair_save_with_maintenance: лише ті, що ще є серед варіантів.
+export function maintenancePayload(checked, choices) {
+    const ids = new Set((choices || []).map((t) => t.id));
+    return [...new Set(checked || [])].filter((id) => ids.has(id));
+}
+
+// Аргументи kp_repair_save_with_maintenance для нового ремонту (p_repair NULL); типи ТО — лише якщо є що позначити.
+export function repairSavePayload(values, typeIds) {
+    return {
+        p_repair: null,
+        p_vehicle: values.vehicle_id,
+        p_date: values.date,
+        p_odometer: values.odometer === '' || values.odometer == null ? null : Number(values.odometer),
+        p_works: String(values.works || '').trim(),
+        p_provider: String(values.provider || '').trim() || null,
+        p_service_cost: values.service_cost === '' || values.service_cost == null ? 0 : Number(values.service_cost),
+        p_parts: repairPartsPayload(values.lines),
+        p_type_ids: typeIds && typeIds.length ? typeIds : null,
+    };
+}
+
 export function renderRepairForm(app) {
-    const state = { parts: [], partsById: new Map(), lines: [] };
+    const state = { parts: [], partsById: new Map(), lines: [], types: [], checked: new Set() };
+    const maintenanceBox = h('div', { class: 'field kpr-wide', hidden: true });
     const vehicle = h('select', { id: 'kpr-vehicle', required: true }, h('option', { value: '' }, '— оберіть авто —'));
     const date = h('input', { id: 'kpr-date', type: 'date', value: kyivDate(), max: kyivDate() });
     const odometer = h('input', { id: 'kpr-odometer', type: 'number', inputmode: 'numeric', min: '0', step: '1', placeholder: 'км' });
@@ -61,6 +89,17 @@ export function renderRepairForm(app) {
             } }, '×'), info);
     }
 
+    function drawMaintenance() {
+        const choices = maintenanceChoices(state.types, vehicle.value);
+        maintenanceBox.hidden = !choices.length;
+        clear(maintenanceBox, h('span', { class: 'kpr-label', id: 'kpr-to-label' }, 'Виконане ТО'),
+            h('div', { class: 'kpr-to', role: 'group', 'aria-labelledby': 'kpr-to-label' }, choices.map((t) => h('label', { class: 'check' },
+                h('input', { type: 'checkbox', value: t.id, checked: state.checked.has(t.id),
+                    onchange: (e) => { if (e.target.checked) state.checked.add(t.id); else state.checked.delete(t.id); } }),
+                ' ' + t.name))),
+            h('p', { class: 'hint' }, 'Відлік цих ТО почнеться з дати й одометра ремонту (без одометра — з розрахункового пробігу).'));
+    }
+
     function drawLines() {
         clear(linesBox, state.lines.map(lineRow),
             h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { state.lines.push({ part_id: '', qty: '1' }); drawLines(); } }, '+ Запчастина зі складу'));
@@ -80,6 +119,11 @@ export function renderRepairForm(app) {
         state.parts = parts.data || [];
         state.partsById = new Map(state.parts.map((p) => [p.id, p]));
         drawLines();
+        // Без міграції 3b (або без типів ТО) блок «Виконане ТО» просто не показується.
+        const types = await app.supabase.from('maintenance_types').select('id, name, is_active, sort').eq('is_active', true)
+            .order('sort', { ascending: true }).limit(200).then((r) => r, () => ({ data: null }));
+        state.types = types && !types.error ? types.data || [] : [];
+        drawMaintenance();
     }
 
     const form = h('form', { class: 'card kpr-form', novalidate: true, onsubmit: async (event) => {
@@ -93,21 +137,19 @@ export function renderRepairForm(app) {
         }
         save.disabled = true;
         clear(message);
-        const { error } = await app.supabase.rpc('kp_repair_post', {
-            p_vehicle: vehicle.value,
-            p_date: date.value,
-            p_odometer: odometer.value === '' ? null : Number(odometer.value),
-            p_works: works.value.trim(),
-            p_provider: provider.value.trim() || null,
-            p_service_cost: service.value === '' ? 0 : Number(service.value),
-            p_parts: repairPartsPayload(state.lines),
-        });
+        const typeIds = maintenancePayload([...state.checked], maintenanceChoices(state.types, vehicle.value));
+        // Помилка (нестача на складі, тип ТО в архіві, одометр менший за попередній) — не збережено нічого.
+        const { error } = await app.supabase.rpc('kp_repair_save_with_maintenance', repairSavePayload({
+            vehicle_id: vehicle.value, date: date.value, odometer: odometer.value, works: works.value, provider: provider.value,
+            service_cost: service.value, lines: state.lines,
+        }, typeIds));
         save.disabled = false;
         if (error) {
             clear(message, notice(repairErrorText(error)));
             return;
         }
-        toast('Ремонт збережено');
+        if (typeIds.length && app.refreshMaintenance) app.refreshMaintenance();
+        toast(typeIds.length ? 'Ремонт і виконане ТО збережено' : 'Ремонт збережено');
         app.go('#/repairs');
     } },
     h('h2', null, 'Новий ремонт'),
@@ -118,11 +160,13 @@ export function renderRepairForm(app) {
         h('div', { class: 'field kpr-wide' }, h('label', { for: 'kpr-works' }, 'Роботи'), works),
         h('div', { class: 'field' }, h('label', { for: 'kpr-provider' }, 'СТО'), provider),
         h('div', { class: 'field' }, h('label', { for: 'kpr-service' }, 'Вартість СТО, ₴'), service),
+        maintenanceBox,
         h('div', { class: 'field kpr-wide' }, h('span', { class: 'kpr-label' }, 'Запчастини зі складу'), linesBox)),
     totals,
     message,
     h('div', { class: 'actions kpr-sticky' }, save, h('a', { class: 'btn btn-ghost', href: '#/repairs' }, 'Скасувати')));
     service.addEventListener('input', drawTotals);
+    vehicle.addEventListener('change', drawMaintenance);
     load();
     return form;
 }

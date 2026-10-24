@@ -1,6 +1,7 @@
 // Ремонти і склад (етап 3a): чисті функції інтерфейсу — доступ за роллю, підсумки ремонту, перевірка форми,
 // тексти помилок і статусів. Права однаково перевіряє база (kp_repairs_can_write і функції запису).
 import { num } from './format.js';
+import { odometerErrorText } from './errors.js';
 
 export const REPAIR_ROLE_LABELS = {
     owner: 'Власник',
@@ -67,7 +68,7 @@ export function validateRepairForm(form, partsById, today) {
     return errors;
 }
 
-// Рядки запчастин для kp_repair_post.
+// Рядки запчастин для kp_repair_post / kp_repair_save_with_maintenance.
 export function repairPartsPayload(lines) {
     return (lines || []).filter((l) => l.part_id && num(l.qty) > 0).map((l) => ({ part_id: l.part_id, qty: num(l.qty) }));
 }
@@ -83,6 +84,7 @@ const REPAIR_ERRORS = [
     [/PART_NOT_FOUND/, 'Запчастину не знайдено. Оновіть сторінку.'],
     [/REPAIR_VEHICLE_NOT_FOUND/, 'Авто не знайдено в автопарку вашої компанії.'],
     [/REPAIR_WORKS/, 'Опишіть роботи (до 2000 символів).'],
+    [/REPAIR_BAD_PARTS/, 'Перевірте рядки запчастин.'],
     [/BAD_DATE/, 'Перевірте дату.'],
     [/IMPORT_HAS_ERRORS/, 'У файлі є помилкові рядки — нічого не імпортовано.'],
     [/IMPORT_TOO_LARGE/, 'Понад 2000 рядків. Розбийте файл на частини.'],
@@ -90,6 +92,19 @@ const REPAIR_ERRORS = [
     [/REPAIR_HANDLER_NOT_LOGIST/, 'Призначити можна лише активного логіста компанії.'],
     [/REPAIR_HANDLER_EXISTS/, 'Цю людину вже призначено.'],
     [/ADJUST_REASON/, 'Вкажіть причину коригування.'],
+    // ТО і вартість на км (етап 3b).
+    [/MAINT_TYPE_EXISTS/, 'Тип ТО з такою назвою вже є.'],
+    [/MAINT_TYPE_ARCHIVED/, 'Цей тип ТО в архіві. Оновіть сторінку.'],
+    [/MAINT_TYPE_NOT_FOUND/, 'Тип ТО не знайдено. Оновіть сторінку.'],
+    [/MAINT_TYPE_NAME/, 'Назва типу ТО — від 1 до 80 символів.'],
+    [/MAINT_TYPE_INTERVAL/, 'Вкажіть інтервал: км від 1 до 1 000 000 і/або місяці від 1 до 120.'],
+    [/MAINT_TYPES_LIMIT/, 'Досягнуто ліміту 100 типів ТО.'],
+    [/MAINT_BAD_TYPES/, 'Забагато типів ТО в одному ремонті.'],
+    [/ODOMETER_BAD_VALUES/, 'Показник одометра — ціле число від 0 до 10 000 000 км.'],
+    [/ODOMETER_LIMIT/, 'Забагато показників одометра для цього авто.'],
+    [/REPAIR_NOT_FOUND/, 'Ремонт не знайдено. Оновіть сторінку.'],
+    [/PERIOD_TOO_LONG/, 'Період завеликий — менше 3 років.'],
+    [/BAD_PERIOD/, 'Перевірте період: «з» не пізніше «по».'],
     [/CONTROL_PLUS_REQUIRED/, 'Розділ доступний у тарифі Контроль+.'],
     [/Failed to fetch|NetworkError|Load failed/i, 'Немає зʼєднання з сервером. Перевірте інтернет.'],
 ];
@@ -97,6 +112,8 @@ const REPAIR_ERRORS = [
 export function repairErrorText(error) {
     if (!error) return '';
     const message = String(error.message || error.error || error);
+    const odometer = odometerErrorText(error);
+    if (odometer) return odometer;
     if (/STOCK_INSUFFICIENT/.test(message)) {
         return 'Не вистачає на складі' + (error.details ? ': ' + String(error.details).slice(0, 200) : '') + '. Нічого не списано.';
     }

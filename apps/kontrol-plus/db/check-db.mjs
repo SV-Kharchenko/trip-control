@@ -73,6 +73,16 @@ await db.exec(repairsSql);
 check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(repairsSql)
     && !repairsSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
 'repairs: ' + REPAIRS + ' applied twice (idempotent), manual-apply header, no CREATE EXTENSION');
+// ТО і вартість на км (етап 3b): після повторного 3a (він повертає старі kp_repair_invite_reserve / kp_user_has_own_kp) —
+// ще двічі поспіль: ідемпотентність і остаточні версії хвостів 3a.
+const MAINT = all.find((f) => /^\d{14}_repairs_maintenance\.sql$/.test(f));
+if (!MAINT) throw new Error('немає міграції *_repairs_maintenance.sql');
+const maintSql = fs.readFileSync(new URL(MAINT, DIR), 'utf8');
+await db.exec(maintSql);
+await db.exec(maintSql);
+check(MAINT > REPAIRS && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(maintSql)
+    && !maintSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
+'maintenance: ' + MAINT + ' (after ' + REPAIRS + ') applied twice in a row (idempotent), manual-apply header, no CREATE EXTENSION');
 
 // Заглушка Supabase Vault (лише для PGlite; на проді supabase_vault уже встановлено і шифрує секрети).
 await db.exec(`
@@ -606,6 +616,53 @@ await db.exec(repTapSql);
 const repTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(repBefore);
 for (const row of repTap) check(row.ok, 'pgTAP repairs_stock.sql: ' + row.label);
 check(repTap.length === repPlanned, `pgTAP repairs_stock.sql: ran ${repTap.length} of plan(${repPlanned})`);
+
+// supabase/tests/repairs_maintenance.sql — той самий shim pgTAP.
+const mTapSql = fs.readFileSync(new URL('../../../supabase/tests/repairs_maintenance.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const mPlanned = Number((mTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const mBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+await db.exec(mTapSql);
+const mTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(mBefore);
+for (const row of mTap) check(row.ok, 'pgTAP repairs_maintenance.sql: ' + row.label);
+check(mTap.length === mPlanned, `pgTAP repairs_maintenance.sql: ran ${mTap.length} of plan(${mPlanned})`);
+
+// Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
+// (tripFactBasis з api/calculate.js: loadedKm + emptyKm + podachaKm по всіх авто заявки). Сайт лише читаємо.
+process.env.SUPABASE_URL ||= 'https://example.supabase.co';
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'check-db';
+const { tripFactBasis } = await import('../../../api/calculate.js');
+const golden = JSON.parse(fs.readFileSync(new URL('../../../tests/fixtures/calc-golden.json', import.meta.url), 'utf8'))[0].payload;
+const PV = ['20000000-0000-4000-8000-0000000000f1', '20000000-0000-4000-8000-0000000000f2', '20000000-0000-4000-8000-0000000000f3'];
+await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+await db.exec(`INSERT INTO public.fleet_vehicles (id, org_id, label) VALUES ('${PV[0]}', '${A}', 'PV-1'), ('${PV[1]}', '${A}', 'PV-2'), ('${PV[2]}', '${A}', 'PV-3')`);
+const planCases = [
+    ['cyclic, two vehicles, own payloads, feed 35 km', { podachaDist: 35, vehicles: [{ id: PV[0], tonnage: 70, payloadTons: 25 }, { id: PV[1], tonnage: 56, payloadTons: 21 }] }],
+    ['cyclic, payload missing → calculator norm', { vehicles: [{ id: PV[0], tonnage: 40 }, { id: PV[1], tonnage: 86, payloadTons: 30 }] }],
+    ['one-off, three vehicles, feed 18.5 km', { returnMode: 'разовий', podachaDist: 18.5, vehicles: [{ id: PV[0], tonnage: 20 }, { id: PV[1], tonnage: 22 }, { id: PV[2], tonnage: 25 }] }],
+    ['cyclic round trip, cargo split greedily, feed 60 km', { podachaDist: 60, isRoundTrip: true, rtTransferDist: 40, rtBackhaulDist: 300, rtReturnDist: 60, rtTotalVolume: 90, rtRate: 500,
+        vehicles: [{ id: PV[0], tonnage: 42, payloadTons: 21 }, { id: PV[1], tonnage: 63, payloadTons: 21 }, { id: PV[2], tonnage: 21, payloadTons: 21 }] }],
+    ['one-off round trip', { returnMode: 'разовий', isRoundTrip: true, rtTransferDist: 0, rtBackhaulDist: 250, rtReturnDist: 30, rtTotalVolume: 30, rtRate: 400,
+        vehicles: [{ id: PV[1], tonnage: 22 }, { id: PV[0], tonnage: 24 }] }],
+];
+for (const [index, [name, extra]] of planCases.entries()) {
+    const body = { ...golden, ...extra };
+    const basis = tripFactBasis(body);
+    const day = `2027-01-${String(index * 2 + 2).padStart(2, '0')}`;
+    const calc = (await db.query(`INSERT INTO public.calculations (org_id, user_id, name, inputs, results, status, trip_date)
+        VALUES ($1, $2, $3, $4::jsonb, '{}'::jsonb, 'accepted', $5::date) RETURNING id`, [A, OA, 'Plan ' + name, JSON.stringify(body), day])).rows[0].id;
+    for (const v of body.vehicles) {
+        await db.query(`INSERT INTO public.calc_vehicles (calc_id, vehicle_id, tonnage, snapshot) VALUES ($1, $2, $3, $4::jsonb)`,
+            [calc, v.id, v.tonnage, JSON.stringify(v.payloadTons ? { resolved: { payloadTons: v.payloadTons } } : {})]);
+    }
+    const sql = (await db.query(`SELECT sum(public.kp_vehicle_trip_km($1, v, $2::date - 1, $2::date))::float AS km FROM unnest($3::uuid[]) AS v`,
+        [A, day, body.vehicles.map((v) => v.id)])).rows[0].km;
+    const js = basis.loadedKm + basis.emptyKm + basis.podachaKm;
+    check(!basis.status && Math.abs(sql - js) < 0.2 * body.vehicles.length, `trip km: SQL plan = tripFactBasis (${name}): ${sql} vs ${js}`);
+    // Подача — один раз на авто заявки (computeTrip у зрізі: podachaDist × carsCount, carsCount = 1).
+    check(basis.podachaKm === (Number(body.podachaDist) || 0) * body.vehicles.length, `trip km: feed = podachaDist × vehicles (${name}): ${basis.podachaKm}`);
+}
+await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
 if (failed) {
     console.log(failed + ' Контроль+ DB check(s) failed');
