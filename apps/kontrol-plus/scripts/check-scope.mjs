@@ -1,5 +1,5 @@
 // Гілка Контроль+ не змінює сайт: git diff від main (merge-base) поза apps/kontrol-plus/ має бути порожнім.
-// Винятки — вузький явний allowlist нижче: міграції етапів 2a (GPS) і 3a (ремонти і склад) та їхні pgTAP.
+// Винятки — вузький явний allowlist нижче: міграції етапів 2a (GPS), 3a (ремонти і склад), 3b (ТО і вартість на км) та їхні pgTAP.
 //   npm run check:scope [-- <база, за замовчуванням origin/main або main>]
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,8 @@ export const SCOPE_ALLOWLIST = [
     /^supabase\/tests\/gps_integrations\.sql$/,
     /^supabase\/migrations\/\d{14}_repairs_stock\.sql$/,
     /^supabase\/tests\/repairs_stock\.sql$/,
+    /^supabase\/migrations\/\d{14}_repairs_maintenance\.sql$/,
+    /^supabase\/tests\/repairs_maintenance\.sql$/,
 ];
 
 export function isAllowedOutside(file) {

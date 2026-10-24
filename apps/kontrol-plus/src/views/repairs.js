@@ -1,4 +1,5 @@
-// Вкладка «Ремонти» (етап 3a): підвкладки «Ремонти» (список + новий ремонт), «Склад», «Відповідальні».
+// Вкладка «Ремонти» (етап 3a): підвкладки «Ремонти» (список + новий ремонт), «Склад», «Відповідальні»;
+// етап 3b — «ТО» (статус, шаблон, одометр) і «Вартість на км».
 // Права — з kp_repairs_context(); кнопки без права запису приховані, але база однаково забороняє запис.
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtMoney, fmtNumber, fmtDate, kyivDate, monthRange } from '../lib/format.js';
@@ -6,13 +7,24 @@ import { repairsAccess, repairErrorText, REPAIR_ROLE_LABELS } from '../lib/repai
 import { renderRepairForm } from './repairs-form.js';
 import { renderStock } from './repairs-stock.js';
 import { renderHandlers } from './repairs-handlers.js';
+import { renderMaintenance } from './repairs-maintenance.js';
+import { renderCost } from './repairs-cost.js';
 
 export function repairsTabs(access) {
     return [
         { sub: 'list', hash: '#/repairs', label: 'Ремонти' },
+        { sub: 'maintenance', hash: '#/repairs/maintenance', label: 'ТО' },
+        { sub: 'cost', hash: '#/repairs/cost', label: 'Вартість на км' },
         { sub: 'stock', hash: '#/repairs/stock', label: 'Склад' },
         access.canManage ? { sub: 'handlers', hash: '#/repairs/handlers', label: 'Відповідальні' } : null,
     ].filter(Boolean);
+}
+
+// Виконане ТО за ремонтами (kp_repair_maintenance_list): repair_id → «Масло, Фільтри».
+export function maintenanceByRepair(rows) {
+    const map = new Map();
+    for (const r of rows || []) map.set(r.repair_id, (map.has(r.repair_id) ? map.get(r.repair_id) + ', ' : '') + r.type_name);
+    return map;
 }
 
 export function partsSummary(parts) {
@@ -34,7 +46,12 @@ function renderList(app, access) {
 
     async function load() {
         clear(list, spinner());
-        const { data, error } = await app.supabase.rpc('kp_repairs_list', { p_from: from.value, p_to: to.value, p_vehicle: vehicle.value || null });
+        const [{ data, error }, done] = await Promise.all([
+            app.supabase.rpc('kp_repairs_list', { p_from: from.value, p_to: to.value, p_vehicle: vehicle.value || null }),
+            // Без міграції 3b — просто без рядка «ТО».
+            app.supabase.rpc('kp_repair_maintenance_list', { p_from: from.value, p_to: to.value }).then((r) => r, () => ({ data: null })),
+        ]);
+        const maintenance = maintenanceByRepair(done && !done.error ? done.data : null);
         if (error) {
             clear(list, notice(repairErrorText(error)));
             return;
@@ -54,7 +71,8 @@ function renderList(app, access) {
                     h('td', { 'data-label': 'Дата' }, fmtDate(r.repair_date), r.status === 'void' ? h('span', { class: 'tag' }, 'сторно') : null),
                     h('td', { 'data-label': 'Авто' }, r.vehicle_label || '—'),
                     h('td', { 'data-label': 'Одометр', class: 'mono' }, r.odometer_km === null ? '—' : fmtNumber(r.odometer_km) + ' км'),
-                    h('td', { 'data-label': 'Роботи', class: 'kpr-works' }, r.works),
+                    h('td', { 'data-label': 'Роботи', class: 'kpr-works' }, r.works,
+                        maintenance.has(r.id) ? h('span', { class: 'hint kpr-done-to' }, 'ТО: ' + maintenance.get(r.id)) : null),
                     h('td', { 'data-label': 'СТО' }, r.provider ? r.provider + ' · ' + fmtMoney(r.service_cost) : (Number(r.service_cost) ? fmtMoney(r.service_cost) : '—')),
                     h('td', { 'data-label': 'Запчастини' }, r.parts && r.parts.length ? partsSummary(r.parts) + ' · ' + fmtMoney(r.parts_cost) : '—'),
                     h('td', { 'data-label': 'Разом', class: 'mono' }, h('b', null, fmtMoney(r.total))),
@@ -83,6 +101,8 @@ export function renderRepairs(app, sub) {
     let body;
     if (sub === 'new') body = access.canWrite ? renderRepairForm(app) : notice('Немає права вносити ремонти.', 'info');
     else if (sub === 'stock') body = renderStock(app, access);
+    else if (sub === 'maintenance') body = renderMaintenance(app, access);
+    else if (sub === 'cost') body = renderCost(app);
     else if (sub === 'handlers') body = access.canManage ? renderHandlers(app, access) : notice('Розділ доступний власнику й директору.', 'info');
     else body = renderList(app, access);
     return h('section', { class: 'page kpr-page' },

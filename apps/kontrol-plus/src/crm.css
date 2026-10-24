@@ -268,6 +268,25 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast {
 #kp-crm .kpr-error-row td { color: var(--negative-text); }
 #kp-crm .kpr-invite-sent { color: var(--positive); }
 #kp-crm .kpr-invite-expired, #kp-crm .kpr-invite-revoked { color: var(--warn); }
+/* ТО і вартість на км (етап 3b). Бейдж — у навігації сайту (поза #kp-crm), тому кольори явні. */
+.tc-studio-nav #kp-nav-repairs .kpr-nav-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; vertical-align: 1px; }
+.tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { background: #C2453F; color: #fff; }
+.tc-studio-nav #kp-nav-repairs .kpr-nav-badge-yellow { background: #E3B341; color: #1C1406; }
+body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { background: #F85149; color: #160606; }
+#kp-crm .kpr-st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--border); white-space: nowrap; }
+#kp-crm .kpr-st-red { background: var(--negative-bg); color: var(--negative-text); border-color: var(--negative); }
+#kp-crm .kpr-st-yellow { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+#kp-crm .kpr-st-ok { color: var(--positive); }
+#kp-crm .kpr-st-unknown { color: var(--muted); }
+#kp-crm .kpr-why { font-weight: 700; }
+#kp-crm .kpr-row-red td.kpr-why { color: var(--negative-text); }
+#kp-crm .kpr-row-yellow td.kpr-why { color: var(--warn); }
+#kp-crm .kpr-done-to { display: block; margin-top: 2px; }
+#kp-crm .kpr-to { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0; }
+#kp-crm .kpr-override { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#kp-crm .kpr-override input[type="number"] { width: 110px; }
+#kp-crm .kpr-page tfoot td { font-weight: 700; border-top: 2px solid var(--border); }
 @media (max-width: 767px) {
     #kp-crm .kpr-line { grid-template-columns: 1fr 100px; }
     #kp-crm .kpr-line > :first-child, #kp-crm .kpr-line select { grid-column: 1 / -1; }
