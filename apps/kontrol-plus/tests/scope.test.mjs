@@ -30,7 +30,7 @@ test('check-scope allowlist: exactly two more patterns for repairs (3a), neighbo
         String(/^supabase\/migrations\/\d{14}_repairs_stock\.sql$/),
         String(/^supabase\/tests\/repairs_stock\.sql$/),
     ]);
-    for (const ok of ['supabase/migrations/20261025090000_repairs_stock.sql', 'supabase/tests/repairs_stock.sql']) {
+    for (const ok of ['supabase/migrations/20261024150255_repairs_stock.sql', 'supabase/tests/repairs_stock.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
     for (const bad of [
