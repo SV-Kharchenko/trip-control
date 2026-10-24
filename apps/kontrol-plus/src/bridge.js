@@ -1,16 +1,17 @@
-// Контроль+ поверх копії сайту trip-control.com: вкладки «Клієнти» і «Звіт план/факт» у навігації сайту.
+// Контроль+ поверх копії сайту trip-control.com: вкладки «Клієнти», «Звіт план/факт» і «GPS» у навігації сайту.
 // Сайт працює як є (калькулятор, огляд, історія, кабінет, команда, тариф…); тут лише додаткові розділи CRM.
 // Один клієнт Supabase на сторінку — той, що створив сайт (const supabaseClient у його класичному скрипті).
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
 import { h, clear, spinner, notice } from './ui.js';
 import { errorText } from './lib/errors.js';
 import { parseCrmHash, tabOf } from './lib/route.js';
-import { ROLE_LABELS, crmAccess, crmPermissions } from './lib/gate.js';
+import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
 import { renderClients } from './views/clients.js';
 import { renderClientCard } from './views/client-card.js';
 import { renderClientForm } from './views/client-form.js';
 import { renderReport } from './views/report.js';
+import { renderGps } from './views/gps.js';
 
 const SITE_URL = 'https://trip-control.com';
 
@@ -35,7 +36,7 @@ function app() {
         user: state.session && state.session.user,
         ...crmPermissions(state.context),
         go: (hash) => { location.hash = hash; },
-        onPlanLost: () => { state.context = null; render(); },
+        onPlanLost: () => { state.context = null; syncGpsTab(); render(); },
     };
 }
 
@@ -54,6 +55,26 @@ function syncNav() {
         const button = document.getElementById(id);
         if (button && button.classList.contains('on')) button.classList.remove('on');
     }
+}
+
+// «GPS» видно лише організаціям на control_plus (тариф «Компанія» вкладки не бачить).
+function syncGpsTab() {
+    if (!tabs.gps) return;
+    const current = state.session && state.contextUser === state.session.user.id ? state.context : null;
+    tabs.gps.hidden = !gpsAccess(current).visible;
+}
+
+async function refreshGpsTab() {
+    if (!state.session) {
+        syncGpsTab();
+        return;
+    }
+    if (!state.context || state.contextUser !== state.session.user.id) {
+        try {
+            await loadContext();
+        } catch { /* вкладка лишається схованою */ }
+    }
+    syncGpsTab();
 }
 
 function leave() {
@@ -95,6 +116,7 @@ async function render() {
         clear(root, spinner('Перевіряємо доступ…'));
         const result = await loadContext();
         if (!result || state.route !== route) return;
+        syncGpsTab();
         if (result.error) {
             clear(root, h('section', { class: 'page' }, notice(errorText(result.error)),
                 h('button', { type: 'button', class: 'btn', onclick: render }, 'Спробувати ще')));
@@ -110,6 +132,7 @@ async function render() {
     else if (route.view === 'client-new') view = renderClientForm(app(), null);
     else if (route.view === 'client-edit') view = renderClientForm(app(), route.id);
     else if (route.view === 'client') view = renderClientCard(app(), route.id);
+    else if (route.view === 'gps') view = renderGps(app());
     else view = renderClients(app());
     clear(root, head(), view);
     root.focus({ preventScroll: true });
@@ -132,7 +155,9 @@ function mount() {
     if (!nav || !main) return false;
     tabs.clients = h('button', { type: 'button', id: 'kp-nav-clients', onclick: () => { location.hash = '#/clients'; } }, 'Клієнти');
     tabs.report = h('button', { type: 'button', id: 'kp-nav-report', onclick: () => { location.hash = '#/report'; } }, 'Звіт план/факт');
-    nav.append(tabs.clients, tabs.report);
+    tabs.gps = h('button', { type: 'button', id: 'kp-nav-gps', onclick: () => { location.hash = '#/gps'; } }, 'GPS');
+    tabs.gps.hidden = true;
+    nav.append(tabs.clients, tabs.report, tabs.gps);
     root = h('section', { id: 'kp-crm', class: 'kp-crm', 'aria-label': 'Контроль+', tabindex: '-1' });
     main.insertBefore(root, document.getElementById('studio-overview'));
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
@@ -168,11 +193,14 @@ export async function startBridge() {
         if (event === 'SIGNED_OUT' || changedUser) {
             state.context = null;
             state.contextUser = null;
+            syncGpsTab();
             // Supabase не можна кликати прямо з колбеку onAuthStateChange.
             if (state.route) setTimeout(render, 0);
+            else if (session) setTimeout(refreshGpsTab, 0);
         }
     });
     window.addEventListener('hashchange', onHash);
     onHash();
+    if (!state.route) await refreshGpsTab();
     return true;
 }

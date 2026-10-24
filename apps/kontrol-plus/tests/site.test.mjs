@@ -99,7 +99,19 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     assert.equal(api && api.destination, 'https://trip-control.com/api/:path*');
     const site = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'vercel.json'), 'utf8'));
     for (const rule of site.rewrites) assert.ok(cfg.rewrites.some((r) => r.source === rule.source && r.destination === rule.destination), rule.source);
-    assert.ok(!cfg.functions && !fs.existsSync(path.join(APP, 'api')), 'no own serverless functions');
+    // Власні функції — лише GPS (етап 2a), і лише статичні файли: реальний файл у api/ має пріоритет над rewrite
+    // /api/:path* (для динамічних [param] це не гарантовано). Решта /api/* — проксі на сайт.
+    const own = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map(String).filter((f) => f.endsWith('.js'))
+        .map((f) => f.replace(/\\/g, '/')).sort();
+    assert.deepEqual(own, ['gps/connect.js', 'gps/disconnect.js', 'gps/sync-units.js', 'gps/test.js'], 'only the static GPS functions');
+    assert.equal(own.some((f) => /\[|\]/.test(f)), false, 'no dynamic [param] routes');
+    for (const file of own) {
+        const route = file.replace(/^gps\/|\.js$/g, '');
+        assert.match(fs.readFileSync(path.join(APP, 'api', file), 'utf8'), new RegExp("gpsVercelRoute\\('" + route + "'\\)"), file);
+        assert.ok(sourceRegex(api.source).test('/api/' + file.replace(/\.js$/, '')), 'the proxy rule would match /api/' + file + ' — the real file wins');
+    }
+    assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 } });
+    assert.equal(cfg.rewrites.filter((r) => r.source.startsWith('/api')).length, 1, 'one proxy rule, unchanged');
 });
 
 test('vercel.json: site CSP only on site pages, strict CSP everywhere else, one CSP per path', () => {

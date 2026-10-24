@@ -28,7 +28,7 @@ class FakeElement extends FakeNode {
     focus() {}
 }
 
-function setup({ nav = true, main = true, client = true, legacyKey = true } = {}) {
+function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
@@ -55,8 +55,13 @@ function setup({ nav = true, main = true, client = true, legacyKey = true } = {}
         },
         console: { ...console, warn: () => { calls.warn += 1; } },
         supabaseClient: client ? {
-            auth: { getSession: async () => ({ data: { session: null } }), onAuthStateChange: () => { calls.listeners += 1; } },
-            rpc: async () => { throw new Error('kp_context must not be called without a session'); },
+            auth: { getSession: async () => ({ data: { session } }), onAuthStateChange: () => { calls.listeners += 1; } },
+            rpc: async (name) => {
+                if (!session) throw new Error('kp_context must not be called without a session');
+                assert.equal(name, 'kp_context');
+                calls.rpc = (calls.rpc || 0) + 1;
+                return { data: context ? [context] : [], error: null };
+            },
         } : undefined,
     };
     const saved = {};
@@ -108,7 +113,9 @@ test('bridge: site with nav, #main-app and supabaseClient → two tabs and #kp-c
         const { startBridge, LEGACY_SESSION_KEY } = await freshBridge();
         assert.equal(LEGACY_SESSION_KEY, 'kp-auth');
         assert.equal(await startBridge(), true);
-        assert.deepEqual(env.navEl.children.map((b) => b.id), ['kp-nav-clients', 'kp-nav-report']);
+        assert.deepEqual(env.navEl.children.map((b) => b.id), ['kp-nav-clients', 'kp-nav-report', 'kp-nav-gps']);
+        assert.equal(env.navEl.children[2].hidden, true, 'GPS tab hidden without a session');
+        assert.equal(env.navEl.children[0].hidden, undefined, 'Клієнти / Звіт as before');
         assert.deepEqual(env.byId['main-app'].children.map((el) => el.id), ['kp-crm']);
         assert.equal(env.calls.warn, 0);
         assert.deepEqual(env.calls.removed, ['kp-auth'], 'only the legacy key, never the site session');
@@ -126,6 +133,27 @@ test('bridge: site with nav, #main-app and supabaseClient → two tabs and #kp-c
         again.restore();
     }
 });
+
+for (const [name, context, visible] of [
+    ['control_plus owner', { control_plus: true, role: 'owner' }, true],
+    ['control_plus logist', { control_plus: true, role: 'logist' }, true],
+    ['control_plus director', { control_plus: true, role: 'director' }, true],
+    ['company plan', { control_plus: false, role: null, own_org_plan: 'company' }, false],
+    ['no context row', null, false],
+]) {
+    test(`bridge: GPS tab — ${name} → ${visible ? 'visible' : 'hidden'}`, async () => {
+        const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context });
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            const gps = env.navEl.children.find((b) => b.id === 'kp-nav-gps');
+            assert.equal(gps.hidden, !visible);
+            assert.equal(env.calls.rpc, 1, 'kp_context asked once');
+        } finally {
+            env.restore();
+        }
+    });
+}
 
 test('bridge: blocked localStorage does not break start', async () => {
     const env = setup();

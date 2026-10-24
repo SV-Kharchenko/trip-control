@@ -7,6 +7,18 @@ export function crmAccess(context) {
     return context.control_plus === true ? 'open' : 'paywall';
 }
 
+// Вкладка «GPS»: видно всім ролям організації на control_plus; керує власник; метадані підключення бачать власник
+// і директор (як RLS gps_integrations); юніти й мапінг (перегляд) — усі.
+export function gpsAccess(context) {
+    const plan = Boolean(context && context.control_plus === true);
+    const role = plan ? context.role : null;
+    return {
+        visible: plan,
+        canManage: role === 'owner',
+        seesIntegration: role === 'owner' || role === 'director',
+    };
+}
+
 export function crmPermissions(context) {
     const role = context && context.control_plus === true ? context.role : null;
     return {
