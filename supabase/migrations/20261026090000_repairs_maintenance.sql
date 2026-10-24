@@ -5,11 +5,24 @@
 -- * maintenance_types — шаблон типів ТО організації (інтервал км і/або місяців); vehicle_maintenance_overrides —
 --   перевизначення на авто (NULL = з шаблону, disabled = тип для авто не відстежується). Архівування — м'яке.
 -- * vehicle_odometer_readings — показання одометра (source 'manual'; 'gps' зарезервовано, поки ніхто не пише).
---   Пробіг на дату = остання ручна база (read_on <= дата) + км з рейсів після дати бази (kp_vehicle_mileage_at).
+-- * Бази пробігу (kp_vehicle_odometer_bases — єдиний перелік): ручні показання (source 'manual') І ремонти
+--   status = 'posted' цього авто з odometer_km (дата бази = repair_date). Сторнований ремонт базою бути перестає.
+--   Пробіг на дату = остання база з read_on <= дата + км з рейсів після дати бази (kp_vehicle_mileage_at).
+--   Однакова дата — перемагає пізніше створена (created_at показання / ремонту), далі більший id: порядок
+--   детермінований. Старт відліку без виконань ТО — найраніша база з обох джерел.
 --   GPS пізніше підмінить лише kp_vehicle_mileage_at; решта функцій викликає тільки її і kp_vehicle_trip_km.
+-- * Показання не зменшуються (kp_odometer_guard): нове значення — ручне (kp_odometer_add) чи з ремонту (тригер
+--   BEFORE INSERT / UPDATE на repairs) — не менше за найпізнішу базу з датою <= його дати і не більше за найранішу
+--   базу з датою > його дати (вставка «в минуле» між показаннями). Рівне — можна. Інакше ODOMETER_DECREASE
+--   (DETAIL 'км|дата' межі, HINT 'prev' / 'next').
 -- * repair_maintenance — які типи ТО виконано ремонтом (done_on = дата ремонту, done_km = одометр ремонту або
 --   розрахунковий пробіг на дату ремонту). Останнє виконання — лише обчисленням серед ремонтів 'posted': сторно
 --   ремонту нічого не видаляє, відлік сам повертається до попереднього виконання (або до першої бази одометра).
+--   Зміна дати, одометра чи авто ремонту перераховує done_on / done_km (тригер). Авто прибрали (vehicle_id NULL —
+--   так робить видалення авто на сайті, ON DELETE SET NULL) — ТО цього ремонту видаляються: без авто вони нічого не
+--   означають, а відмова зламала б видалення авто на сайті.
+-- * Ремонт разом із ТО — одна транзакція (kp_repair_save_with_maintenance викликає kp_repair_post / kp_repair_update
+--   і kp_repair_set_maintenance): будь-яка помилка — не зберігається нічого, склад не списано.
 -- * Статус ТО «що раніше»: гірший з вимірів км (≤ 0 red, ≤ 5000 yellow) і часу (due ≤ сьогодні red, ≤ 14 днів yellow).
 -- * Вартість на км: запчастини (списання без сторно) + СТО ремонтів 'posted' за період / км рейсів за період.
 --
@@ -24,15 +37,21 @@
 --   план зрізу авто = kp_trip_plan_km: дзеркало computeTrip для зрізу (carsCount = 1; разовий — 1 ходка dist;
 --   циклічний — ходок ceil(tonnage / норма), норма = payloadTons або inputs.normWeight, з вантажем dist·ходки,
 --   порожнім dist·(ходки − 1); кругорейс — частка зворотного вантажу жадібно за порядком inputs.vehicles, як
---   returnCargoShares). Подача (podachaDist) не входить ні в план, ні у факт (факт v2 її теж не містить).
---   км авто = факт v2 × план авто / Σ план усіх рядків заявки (як vehicleFactShares); Σ план = 0 — факт / кількість
---   рядків calc_vehicles з vehicle_id; без факту — план авто. NULL — 0; від'ємних не буває.
+--   returnCargoShares) + подача. Подача авто = podachaDist один раз на заявку (computeTrip: totalPodachaKm =
+--   podachaDist × carsCount, у зрізі carsCount = 1), не на кожну ходку. Разом = tripFactBasis: loadedKm + emptyKm
+--   + podachaKm.
+--   Факт v2 подачі не містить, тому:
+--     без факту — км авто = план авто (з подачею);
+--     з фактом — км авто = факт × план_без_подачі авто / Σ план_без_подачі усіх рядків заявки + подача авто
+--     (частка факту — як vehicleFactShares; подачу додаємо окремо: її у факті немає, і вона однакова для всіх авто);
+--     Σ план без подачі = 0 — факт / кількість рядків calc_vehicles з vehicle_id + подача авто.
+--   NULL — 0; від'ємних не буває.
 --
 -- Хвости 3a (CREATE OR REPLACE тієї самої сигнатури, права ті самі):
 -- * kp_repair_invite_reserve — на початку видаляє записи repair_invite_sends старші за добу (sent_at); ліміти як були.
 -- * kp_user_has_own_kp — директор заблокованої організації (organizations.status = 'blocked') власного КП не має.
 --
--- Лише адитивно: нові таблиці, функції, тригер на repairs і політики на нових таблицях. calculations, calc_vehicles,
+-- Лише адитивно: нові таблиці, функції, тригери на repairs і політики на нових таблицях. calculations, calc_vehicles,
 -- trip_actuals, fleet_vehicles, kp_org_id / kp_role / kp_can_write / kp_context не змінюються. Ідемпотентно.
 
 -- ---------------------------------------------------------------------------
@@ -119,8 +138,20 @@ $$;
 -- Trip km and mileage (internal: not callable by clients)
 -- ---------------------------------------------------------------------------
 
--- Плановий пробіг (з вантажем + порожнім, без подачі) зрізу заявки на одне авто — дзеркало computeTrip
+-- Подача зрізу одного авто: podachaDist один раз на заявку (computeTrip: podachaDist × carsCount, carsCount = 1).
+-- Зріз без тоннажу не рахується взагалі (як у kp_trip_plan_km).
+CREATE OR REPLACE FUNCTION public.kp_trip_podacha_km(p_inputs jsonb, p_tonnage numeric)
+RETURNS numeric
+LANGUAGE sql
+IMMUTABLE
+SET search_path = public
+AS $$
+  SELECT CASE WHEN p_tonnage > 0 THEN greatest(coalesce(public.tc_num(coalesce(p_inputs, '{}'::jsonb), 'podachaDist'), 0), 0) ELSE 0 END;
+$$;
+
+-- Плановий пробіг (з вантажем + порожній + подача) зрізу заявки на одне авто — дзеркало computeTrip
 -- (api/calculate.js) для vehicleSlicePayload: carsCount = 1; p_rt_volume — частка авто у зворотному вантажі.
+-- Подача зрізу — kp_trip_podacha_km (podachaDist один раз).
 CREATE OR REPLACE FUNCTION public.kp_trip_plan_km(p_inputs jsonb, p_tonnage numeric, p_payload numeric, p_rt_volume numeric)
 RETURNS numeric
 LANGUAGE plpgsql
@@ -160,7 +191,7 @@ BEGIN
       + v_legs * (greatest(coalesce(public.tc_num(inp, 'rtTransferDist'), 0), 0) + greatest(coalesce(public.tc_num(inp, 'rtReturnDist'), 0), 0)));
     v_loaded := v_loaded + v_legs * greatest(coalesce(public.tc_num(inp, 'rtBackhaulDist'), 0), 0);
   END IF;
-  RETURN greatest(0, v_loaded + v_empty);
+  RETURN greatest(0, v_loaded + v_empty) + public.kp_trip_podacha_km(inp, p_tonnage);
 END;
 $$;
 
@@ -206,25 +237,47 @@ AS $$
                                          ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0))) AS rt_share
     FROM capacity AS c
   ), planned AS (
-    SELECT s.id, s.fact_km, s.vehicle_id, public.kp_trip_plan_km(s.inputs, s.tonnage, s.payload, s.rt_share) AS plan_km
+    SELECT s.id, s.fact_km, s.vehicle_id, public.kp_trip_plan_km(s.inputs, s.tonnage, s.payload, s.rt_share) AS plan_km,
+           public.kp_trip_podacha_km(s.inputs, s.tonnage) AS podacha_km
     FROM shared AS s
   ), per_trip AS (
     SELECT p.id, max(p.fact_km) AS fact_km,
-           sum(p.plan_km) AS plan_total,
+           sum(p.plan_km - p.podacha_km) AS plan_total,
            sum(p.plan_km) FILTER (WHERE p.vehicle_id = p_vehicle) AS plan_mine,
+           sum(p.plan_km - p.podacha_km) FILTER (WHERE p.vehicle_id = p_vehicle) AS road_mine,
+           sum(p.podacha_km) FILTER (WHERE p.vehicle_id = p_vehicle) AS podacha_mine,
            count(*) FILTER (WHERE p.vehicle_id IS NOT NULL) AS vehicles
     FROM planned AS p
     GROUP BY p.id
   )
+  -- plan_total / road_mine — план без подачі (база частки факту); подача авто додається окремо.
   SELECT coalesce(round(sum(greatest(0,
     CASE WHEN t.fact_km IS NULL THEN coalesce(t.plan_mine, 0)
-         WHEN t.plan_total > 0 THEN t.fact_km * coalesce(t.plan_mine, 0) / t.plan_total
-         ELSE t.fact_km / greatest(t.vehicles, 1) END)), 1), 0)
+         WHEN t.plan_total > 0 THEN t.fact_km * coalesce(t.road_mine, 0) / t.plan_total + coalesce(t.podacha_mine, 0)
+         ELSE t.fact_km / greatest(t.vehicles, 1) + coalesce(t.podacha_mine, 0) END)), 1), 0)
   FROM per_trip AS t;
 $$;
 
--- Пробіг авто на дату: остання ручна база (read_on <= p_on) + км рейсів після дати бази. Без бази — рядок з NULL.
--- Єдине джерело пробігу: GPS підмінить лише цю функцію (source = 'gps').
+-- Бази пробігу авто — єдиний перелік: ручні показання і ремонти 'posted' з одометром (дата = repair_date).
+-- Порядок у межах дати — created_at, далі ref_id (показання або ремонт): пізніше створена база перемагає.
+CREATE OR REPLACE FUNCTION public.kp_vehicle_odometer_bases(p_org uuid, p_vehicle uuid)
+RETURNS TABLE (read_on date, odometer_km integer, source text, ref_id uuid, created_at timestamptz)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT r.read_on, r.odometer_km, 'manual'::text, r.id, r.created_at
+  FROM public.vehicle_odometer_readings AS r
+  WHERE r.org_id = p_org AND r.vehicle_id = p_vehicle AND r.source = 'manual'
+  UNION ALL
+  SELECT rp.repair_date, rp.odometer_km, 'repair'::text, rp.id, rp.created_at
+  FROM public.repairs AS rp
+  WHERE rp.org_id = p_org AND rp.vehicle_id = p_vehicle AND rp.status = 'posted' AND rp.odometer_km IS NOT NULL;
+$$;
+
+-- Пробіг авто на дату: остання база (read_on <= p_on) + км рейсів після дати бази. Без бази — рядок з NULL.
+-- source — 'manual' або 'repair' (звідки база). Єдине джерело пробігу: GPS підмінить лише цю функцію.
 CREATE OR REPLACE FUNCTION public.kp_vehicle_mileage_at(p_org uuid, p_vehicle uuid, p_on date)
 RETURNS TABLE (odometer_km integer, base_read_on date, base_km integer, trips_km numeric, source text)
 LANGUAGE plpgsql
@@ -235,19 +288,57 @@ AS $$
 DECLARE
   v_read_on date;
   v_km integer;
+  v_source text;
   v_trips numeric;
 BEGIN
-  SELECT r.read_on, r.odometer_km INTO v_read_on, v_km
-  FROM public.vehicle_odometer_readings AS r
-  WHERE r.org_id = p_org AND r.vehicle_id = p_vehicle AND r.source = 'manual' AND r.read_on <= p_on
-  ORDER BY r.read_on DESC, r.created_at DESC
+  SELECT b.read_on, b.odometer_km, b.source INTO v_read_on, v_km, v_source
+  FROM public.kp_vehicle_odometer_bases(p_org, p_vehicle) AS b
+  WHERE b.read_on <= p_on
+  ORDER BY b.read_on DESC, b.created_at DESC, b.ref_id DESC
   LIMIT 1;
   IF v_read_on IS NULL THEN
     RETURN QUERY SELECT NULL::integer, NULL::date, NULL::integer, NULL::numeric, NULL::text;
     RETURN;
   END IF;
   v_trips := public.kp_vehicle_trip_km(p_org, p_vehicle, v_read_on, p_on);
-  RETURN QUERY SELECT (v_km + round(v_trips))::integer, v_read_on, v_km, v_trips, 'manual'::text;
+  RETURN QUERY SELECT (v_km + round(v_trips))::integer, v_read_on, v_km, v_trips, v_source;
+END;
+$$;
+
+-- Нове показання p_km на дату p_on (ручне або з ремонту p_skip_repair — сам ремонт не порівнюється з собою) не
+-- менше за найпізнішу базу з датою <= p_on і не більше за найранішу базу з датою > p_on. Рівне — можна.
+-- Advisory-lock на авто: паралельні записи одного авто перевіряються по черзі (fleet_vehicles не блокуємо).
+CREATE OR REPLACE FUNCTION public.kp_odometer_guard(p_org uuid, p_vehicle uuid, p_on date, p_km integer, p_skip_repair uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_b record;
+BEGIN
+  IF p_vehicle IS NULL OR p_on IS NULL OR p_km IS NULL THEN
+    RETURN;
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('kp_odometer:' || p_vehicle::text, 0));
+  SELECT b.read_on, b.odometer_km INTO v_b
+  FROM public.kp_vehicle_odometer_bases(p_org, p_vehicle) AS b
+  WHERE b.read_on <= p_on AND NOT (b.source = 'repair' AND b.ref_id IS NOT DISTINCT FROM p_skip_repair)
+  ORDER BY b.read_on DESC, b.created_at DESC, b.ref_id DESC
+  LIMIT 1;
+  IF FOUND AND p_km < v_b.odometer_km THEN
+    RAISE EXCEPTION 'ODOMETER_DECREASE' USING ERRCODE = 'P0001',
+      DETAIL = v_b.odometer_km::text || '|' || to_char(v_b.read_on, 'YYYY-MM-DD'), HINT = 'prev';
+  END IF;
+  SELECT b.read_on, b.odometer_km INTO v_b
+  FROM public.kp_vehicle_odometer_bases(p_org, p_vehicle) AS b
+  WHERE b.read_on > p_on AND NOT (b.source = 'repair' AND b.ref_id IS NOT DISTINCT FROM p_skip_repair)
+  ORDER BY b.read_on, b.created_at, b.ref_id
+  LIMIT 1;
+  IF FOUND AND p_km > v_b.odometer_km THEN
+    RAISE EXCEPTION 'ODOMETER_DECREASE' USING ERRCODE = 'P0001',
+      DETAIL = v_b.odometer_km::text || '|' || to_char(v_b.read_on, 'YYYY-MM-DD'), HINT = 'next';
+  END IF;
 END;
 $$;
 
@@ -283,9 +374,12 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.kp_trip_podacha_km(jsonb, numeric) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_trip_plan_km(jsonb, numeric, numeric, numeric) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_vehicle_trip_km(uuid, uuid, date, date) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.kp_vehicle_odometer_bases(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_vehicle_mileage_at(uuid, uuid, date) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.kp_odometer_guard(uuid, uuid, date, integer, uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_maintenance_eval(integer, integer) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_maintenance_require_vehicle(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 
@@ -467,8 +561,10 @@ BEGIN
 END;
 $$;
 
+-- Історія показань: ручні / GPS і одометри проведених ремонтів (source 'repair'). Від ремонту — лише дата, км і
+-- repair_id (без робіт, сум і запчастин).
 CREATE OR REPLACE FUNCTION public.kp_odometer_list(p_vehicle uuid)
-RETURNS TABLE (id uuid, read_on date, odometer_km integer, source text, note text, created_at timestamptz)
+RETURNS TABLE (id uuid, read_on date, odometer_km integer, source text, note text, created_at timestamptz, repair_id uuid)
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
@@ -480,17 +576,25 @@ DECLARE
 BEGIN
   PERFORM public.kp_maintenance_require_vehicle(v_org, p_vehicle);
   RETURN QUERY
-  SELECT r.id, r.read_on, r.odometer_km, r.source, r.note, r.created_at
-  FROM public.vehicle_odometer_readings AS r
-  WHERE r.org_id = v_org AND r.vehicle_id = p_vehicle
-  ORDER BY r.read_on DESC, r.created_at DESC
+  SELECT x.id, x.read_on, x.odometer_km, x.source, x.note, x.created_at, x.repair_id
+  FROM (
+    SELECT r.id, r.read_on, r.odometer_km, r.source, r.note, r.created_at, NULL::uuid AS repair_id
+    FROM public.vehicle_odometer_readings AS r
+    WHERE r.org_id = v_org AND r.vehicle_id = p_vehicle
+    UNION ALL
+    SELECT b.ref_id, b.read_on, b.odometer_km, b.source, NULL::text, b.created_at, b.ref_id
+    FROM public.kp_vehicle_odometer_bases(v_org, p_vehicle) AS b
+    WHERE b.source = 'repair'
+  ) AS x
+  ORDER BY x.read_on DESC, x.created_at DESC, x.id DESC
   LIMIT 200;
 END;
 $$;
 
--- Ручне показання (база пробігу): дата не в майбутньому (Київ). Повертає оновлену історію авто.
+-- Ручне показання (база пробігу): дата не в майбутньому (Київ), не менше попередньої бази й не більше наступної
+-- (kp_odometer_guard). Повертає оновлену історію авто.
 CREATE OR REPLACE FUNCTION public.kp_odometer_add(p_vehicle uuid, p_read_on date, p_odometer integer, p_note text DEFAULT NULL)
-RETURNS TABLE (id uuid, read_on date, odometer_km integer, source text, note text, created_at timestamptz)
+RETURNS TABLE (id uuid, read_on date, odometer_km integer, source text, note text, created_at timestamptz, repair_id uuid)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -508,6 +612,7 @@ BEGIN
   IF (SELECT count(*) FROM public.vehicle_odometer_readings AS r WHERE r.vehicle_id = p_vehicle) >= 5000 THEN
     RAISE EXCEPTION 'ODOMETER_LIMIT' USING ERRCODE = 'P0001';
   END IF;
+  PERFORM public.kp_odometer_guard(v_org, p_vehicle, p_read_on, p_odometer, NULL);
   INSERT INTO public.vehicle_odometer_readings (org_id, vehicle_id, read_on, odometer_km, source, note, created_by)
   VALUES (v_org, p_vehicle, p_read_on, p_odometer, 'manual', nullif(btrim(coalesce(p_note, '')), ''), auth.uid());
   RETURN QUERY SELECT * FROM public.kp_odometer_list(p_vehicle);
@@ -572,8 +677,9 @@ BEGIN
 END;
 $$;
 
--- Дата або одометр ремонту змінились (kp_repair_update) — перерахувати done_on / done_km його ТО (тригер, а не
--- в kp_repair_update: функцію 3a не чіпаємо).
+-- Дата, одометр або авто ремонту змінились (kp_repair_update, видалення авто на сайті) — перерахувати done_on /
+-- done_km його ТО (тригер, а не в kp_repair_update: функцію 3a не чіпаємо). Авто прибрали (NULL) — ТО ремонту
+-- видаляються: без авто вони нічого не означають, а відмова зламала б видалення авто (ON DELETE SET NULL).
 CREATE OR REPLACE FUNCTION public.kp_repair_maintenance_sync()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -581,6 +687,10 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
+  IF NEW.vehicle_id IS NULL THEN
+    DELETE FROM public.repair_maintenance AS rm WHERE rm.repair_id = NEW.id;
+    RETURN NULL;
+  END IF;
   UPDATE public.repair_maintenance AS rm
   SET done_on = NEW.repair_date,
       done_km = coalesce(NEW.odometer_km, (SELECT m.odometer_km FROM public.kp_vehicle_mileage_at(NEW.org_id, NEW.vehicle_id, NEW.repair_date) AS m))
@@ -593,12 +703,73 @@ REVOKE ALL ON FUNCTION public.kp_repair_maintenance_sync() FROM PUBLIC, anon, au
 
 DROP TRIGGER IF EXISTS trg_kp_repair_maintenance_sync ON public.repairs;
 CREATE TRIGGER trg_kp_repair_maintenance_sync
-  AFTER UPDATE OF repair_date, odometer_km ON public.repairs
+  AFTER UPDATE OF repair_date, odometer_km, vehicle_id ON public.repairs
   FOR EACH ROW
-  WHEN (OLD.repair_date IS DISTINCT FROM NEW.repair_date OR OLD.odometer_km IS DISTINCT FROM NEW.odometer_km)
+  WHEN (OLD.repair_date IS DISTINCT FROM NEW.repair_date OR OLD.odometer_km IS DISTINCT FROM NEW.odometer_km
+        OR OLD.vehicle_id IS DISTINCT FROM NEW.vehicle_id)
   EXECUTE FUNCTION public.kp_repair_maintenance_sync();
 
--- ТО, виконане ремонтами за період (для списку ремонтів).
+-- Одометр ремонту — база пробігу, тож він теж не може зменшуватися (kp_odometer_guard). Лише для проведеного
+-- ремонту з авто й одометром і лише коли дата / одометр / авто справді змінились: правка робіт старого ремонту
+-- не ламається через історичні дані.
+CREATE OR REPLACE FUNCTION public.kp_repair_odometer_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.status = 'posted' AND NEW.vehicle_id IS NOT NULL AND NEW.odometer_km IS NOT NULL
+     AND (TG_OP = 'INSERT' OR OLD.repair_date IS DISTINCT FROM NEW.repair_date OR OLD.odometer_km IS DISTINCT FROM NEW.odometer_km
+          OR OLD.vehicle_id IS DISTINCT FROM NEW.vehicle_id) THEN
+    PERFORM public.kp_odometer_guard(NEW.org_id, NEW.vehicle_id, NEW.repair_date, NEW.odometer_km, NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.kp_repair_odometer_guard() FROM PUBLIC, anon, authenticated, service_role;
+
+DROP TRIGGER IF EXISTS trg_kp_repair_odometer_guard ON public.repairs;
+CREATE TRIGGER trg_kp_repair_odometer_guard
+  BEFORE INSERT OR UPDATE OF repair_date, odometer_km, vehicle_id ON public.repairs
+  FOR EACH ROW EXECUTE FUNCTION public.kp_repair_odometer_guard();
+
+-- Ремонт разом із виконаним ТО — один виклик, одна транзакція: p_repair NULL — kp_repair_post (новий, зі
+-- списанням), інакше kp_repair_update (описові поля; авто й списання 3a не змінює — p_vehicle ігнорується, рядки
+-- запчастин відхиляються). Потім kp_repair_set_maintenance (p_type_ids NULL — набір ТО не чіпаємо). Будь-яка
+-- помилка — не зберігається нічого. Права — ті самі, що в kp_repair_post / kp_repair_update (їх і викликаємо).
+CREATE OR REPLACE FUNCTION public.kp_repair_save_with_maintenance(
+  p_repair uuid, p_vehicle uuid, p_date date, p_odometer integer, p_works text, p_provider text, p_service_cost numeric,
+  p_parts jsonb, p_type_ids uuid[]
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  PERFORM public.kp_repairs_require_write();
+  IF p_repair IS NULL THEN
+    v_id := public.kp_repair_post(p_vehicle, p_date, p_odometer, p_works, p_provider, p_service_cost, p_parts);
+  ELSE
+    IF p_parts IS NOT NULL AND (jsonb_typeof(p_parts) <> 'array' OR jsonb_array_length(p_parts) > 0) THEN
+      RAISE EXCEPTION 'REPAIR_BAD_PARTS' USING ERRCODE = 'P0001';
+    END IF;
+    PERFORM public.kp_repair_update(p_repair, p_date, p_odometer, p_works, p_provider, p_service_cost);
+    v_id := p_repair;
+  END IF;
+  IF p_type_ids IS NOT NULL
+     AND (cardinality(p_type_ids) > 0 OR EXISTS (SELECT 1 FROM public.repair_maintenance AS rm WHERE rm.repair_id = v_id)) THEN
+    PERFORM 1 FROM public.kp_repair_set_maintenance(v_id, p_type_ids);
+  END IF;
+  RETURN v_id;
+END;
+$$;
+
+-- ТО, виконане проведеними ремонтами за період (для списку ремонтів); ТО сторнованих ремонтів не повертаємо.
 CREATE OR REPLACE FUNCTION public.kp_repair_maintenance_list(p_from date, p_to date)
 RETURNS TABLE (repair_id uuid, type_id uuid, type_name text, done_on date, done_km integer)
 LANGUAGE plpgsql
@@ -618,7 +789,7 @@ BEGIN
   FROM public.repair_maintenance AS rm
   JOIN public.repairs AS r ON r.id = rm.repair_id
   JOIN public.maintenance_types AS t ON t.id = rm.type_id
-  WHERE rm.org_id = v_org AND r.repair_date BETWEEN p_from AND p_to
+  WHERE rm.org_id = v_org AND r.status = 'posted' AND r.repair_date BETWEEN p_from AND p_to
   ORDER BY rm.repair_id, t.sort, lower(t.name)
   LIMIT 5000;
 END;
@@ -629,8 +800,10 @@ $$;
 -- ---------------------------------------------------------------------------
 
 -- Пари (авто, активний не вимкнений тип). Останнє виконання — найпізніший done_on (далі created_at) серед ремонтів
--- 'posted'; без виконань — найраніша ручна база одометра (last_source = 'start'); без бази — unknown.
+-- 'posted'; без виконань — найраніша база (ручна або ремонт, last_source = 'start'); без бази — unknown.
 -- done_km = NULL (ремонт без одометра й без бази на той момент) — пробіг на done_on, якщо база зʼявилась пізніше.
+-- Продуктивність: пробіг (kp_vehicle_mileage_at → kp_vehicle_trip_km) і старт рахуються один раз на авто
+-- (MATERIALIZED) і лише для авто, що мають хоч один відстежуваний тип; з p_vehicle — лише для нього.
 CREATE OR REPLACE FUNCTION public.kp_maintenance_status(p_vehicle uuid DEFAULT NULL)
 RETURNS TABLE (
   vehicle_id uuid, vehicle_label text, type_id uuid, type_name text, interval_km integer, interval_months integer,
@@ -657,7 +830,7 @@ BEGIN
     WHERE fv.org_id = v_org AND (p_vehicle IS NULL OR fv.id = p_vehicle)
     ORDER BY lower(fv.label)
     LIMIT 1000
-  ), pairs AS (
+  ), pairs AS MATERIALIZED (
     SELECT v.vid, v.label, t.id AS tid, t.name AS tname, t.sort AS tsort,
            coalesce(o.interval_km, t.interval_km) AS ikm,
            coalesce(o.interval_months, t.interval_months) AS imon,
@@ -666,14 +839,14 @@ BEGIN
     CROSS JOIN public.maintenance_types AS t
     LEFT JOIN public.vehicle_maintenance_overrides AS o ON o.vehicle_id = v.vid AND o.type_id = t.id
     WHERE t.org_id = v_org AND t.is_active AND NOT coalesce(o.disabled, false)
-  ), odo AS (
-    SELECT v.vid, m.odometer_km AS now_km, s.read_on AS start_on, s.odometer_km AS start_km
-    FROM v
-    LEFT JOIN LATERAL public.kp_vehicle_mileage_at(v_org, v.vid, v_today) AS m ON true
+  ), odo AS MATERIALIZED (
+    SELECT tv.vid, m.odometer_km AS now_km, s.read_on AS start_on, s.odometer_km AS start_km
+    FROM (SELECT DISTINCT p.vid FROM pairs AS p) AS tv
+    LEFT JOIN LATERAL public.kp_vehicle_mileage_at(v_org, tv.vid, v_today) AS m ON true
     LEFT JOIN LATERAL (
-      SELECT r.read_on, r.odometer_km FROM public.vehicle_odometer_readings AS r
-      WHERE r.org_id = v_org AND r.vehicle_id = v.vid AND r.source = 'manual' AND r.read_on <= v_today
-      ORDER BY r.read_on, r.created_at
+      SELECT b.read_on, b.odometer_km FROM public.kp_vehicle_odometer_bases(v_org, tv.vid) AS b
+      WHERE b.read_on <= v_today
+      ORDER BY b.read_on, b.created_at, b.ref_id
       LIMIT 1
     ) AS s ON true
   ), lastdone AS (
@@ -879,6 +1052,7 @@ BEGIN
     'public.kp_odometer_list(uuid)',
     'public.kp_odometer_add(uuid, date, integer, text)',
     'public.kp_repair_set_maintenance(uuid, uuid[])',
+    'public.kp_repair_save_with_maintenance(uuid, uuid, date, integer, text, text, numeric, jsonb, uuid[])',
     'public.kp_repair_maintenance_list(date, date)',
     'public.kp_maintenance_status(uuid)',
     'public.kp_repair_cost_per_km(date, date, uuid)'

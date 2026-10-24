@@ -628,7 +628,7 @@ for (const row of mTap) check(row.ok, 'pgTAP repairs_maintenance.sql: ' + row.la
 check(mTap.length === mPlanned, `pgTAP repairs_maintenance.sql: ran ${mTap.length} of plan(${mPlanned})`);
 
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
-// (tripFactBasis з api/calculate.js: loadedKm + emptyKm по всіх авто заявки). Сайт лише читаємо.
+// (tripFactBasis з api/calculate.js: loadedKm + emptyKm + podachaKm по всіх авто заявки). Сайт лише читаємо.
 process.env.SUPABASE_URL ||= 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'check-db';
 const { tripFactBasis } = await import('../../../api/calculate.js');
@@ -637,10 +637,10 @@ const PV = ['20000000-0000-4000-8000-0000000000f1', '20000000-0000-4000-8000-000
 await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
 await db.exec(`INSERT INTO public.fleet_vehicles (id, org_id, label) VALUES ('${PV[0]}', '${A}', 'PV-1'), ('${PV[1]}', '${A}', 'PV-2'), ('${PV[2]}', '${A}', 'PV-3')`);
 const planCases = [
-    ['cyclic, two vehicles, own payloads', { vehicles: [{ id: PV[0], tonnage: 70, payloadTons: 25 }, { id: PV[1], tonnage: 56, payloadTons: 21 }] }],
+    ['cyclic, two vehicles, own payloads, feed 35 km', { podachaDist: 35, vehicles: [{ id: PV[0], tonnage: 70, payloadTons: 25 }, { id: PV[1], tonnage: 56, payloadTons: 21 }] }],
     ['cyclic, payload missing → calculator norm', { vehicles: [{ id: PV[0], tonnage: 40 }, { id: PV[1], tonnage: 86, payloadTons: 30 }] }],
-    ['one-off, three vehicles', { returnMode: 'разовий', vehicles: [{ id: PV[0], tonnage: 20 }, { id: PV[1], tonnage: 22 }, { id: PV[2], tonnage: 25 }] }],
-    ['cyclic round trip, cargo split greedily', { isRoundTrip: true, rtTransferDist: 40, rtBackhaulDist: 300, rtReturnDist: 60, rtTotalVolume: 90, rtRate: 500,
+    ['one-off, three vehicles, feed 18.5 km', { returnMode: 'разовий', podachaDist: 18.5, vehicles: [{ id: PV[0], tonnage: 20 }, { id: PV[1], tonnage: 22 }, { id: PV[2], tonnage: 25 }] }],
+    ['cyclic round trip, cargo split greedily, feed 60 km', { podachaDist: 60, isRoundTrip: true, rtTransferDist: 40, rtBackhaulDist: 300, rtReturnDist: 60, rtTotalVolume: 90, rtRate: 500,
         vehicles: [{ id: PV[0], tonnage: 42, payloadTons: 21 }, { id: PV[1], tonnage: 63, payloadTons: 21 }, { id: PV[2], tonnage: 21, payloadTons: 21 }] }],
     ['one-off round trip', { returnMode: 'разовий', isRoundTrip: true, rtTransferDist: 0, rtBackhaulDist: 250, rtReturnDist: 30, rtTotalVolume: 30, rtRate: 400,
         vehicles: [{ id: PV[1], tonnage: 22 }, { id: PV[0], tonnage: 24 }] }],
@@ -657,8 +657,10 @@ for (const [index, [name, extra]] of planCases.entries()) {
     }
     const sql = (await db.query(`SELECT sum(public.kp_vehicle_trip_km($1, v, $2::date - 1, $2::date))::float AS km FROM unnest($3::uuid[]) AS v`,
         [A, day, body.vehicles.map((v) => v.id)])).rows[0].km;
-    const js = basis.loadedKm + basis.emptyKm;
+    const js = basis.loadedKm + basis.emptyKm + basis.podachaKm;
     check(!basis.status && Math.abs(sql - js) < 0.2 * body.vehicles.length, `trip km: SQL plan = tripFactBasis (${name}): ${sql} vs ${js}`);
+    // Подача — один раз на авто заявки (computeTrip у зрізі: podachaDist × carsCount, carsCount = 1).
+    check(basis.podachaKm === (Number(body.podachaDist) || 0) * body.vehicles.length, `trip km: feed = podachaDist × vehicles (${name}): ${basis.podachaKm}`);
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
