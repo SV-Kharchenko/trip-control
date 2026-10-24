@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 2);
+    assert.equal(SCOPE_ALLOWLIST.length, 4);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -22,6 +22,30 @@ test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () =
         'vercel.json',
         'package.json',
         'apps/other/x.js',
+    ]) assert.equal(isAllowedOutside(bad), false, bad);
+});
+
+test('check-scope allowlist: exactly two more patterns for repairs (3a), neighbours refused', () => {
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(2).map(String), [
+        String(/^supabase\/migrations\/\d{14}_repairs_stock\.sql$/),
+        String(/^supabase\/tests\/repairs_stock\.sql$/),
+    ]);
+    for (const ok of ['supabase/migrations/20261025090000_repairs_stock.sql', 'supabase/tests/repairs_stock.sql']) {
+        assert.equal(isAllowedOutside(ok), true, ok);
+    }
+    for (const bad of [
+        'supabase/migrations/repairs_stock.sql',
+        'supabase/migrations/2026102509000_repairs_stock.sql',
+        'supabase/migrations/20261025090000_repairs_stock.sql.bak',
+        'supabase/migrations/20261025090000_repairs_stock_v2.sql',
+        'supabase/migrations/20261025090000_repairs.sql',
+        'supabase/migrations/x/20261025090000_repairs_stock.sql',
+        'supabase/tests/repairs_stock.sql.orig',
+        'supabase/tests/repairs.sql',
+        'supabase/tests/x/repairs_stock.sql',
+        'api/repairs/invites.js',
+        'lib/invite-mail.js',
+        'api/team.js',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });
 

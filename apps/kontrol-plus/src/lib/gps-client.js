@@ -1,12 +1,16 @@
-// Виклик серверного GPS API Контроль+ (/api/gps/<route>) з JWT сесії сайту. Нічого не зберігає в браузері.
-// Відповідь з помилкою повертається повністю (у 429 карти — ще й дані з кешу).
-export async function callGpsApi(app, route, body) {
+// Виклик власних функцій Контроль+ (/api/gps/<route>, /api/repairs/<route>) з JWT сесії сайту. Нічого не зберігає
+// в браузері. Відповідь з помилкою повертається повністю (у 429 карти — ще й дані з кешу).
+export function callGpsApi(app, route, body) {
+    return callKpApi(app, '/api/gps/' + route, body);
+}
+
+export async function callKpApi(app, path, body) {
     const { data } = await app.supabase.auth.getSession();
     const jwt = data && data.session && data.session.access_token;
     if (!jwt) return { ok: false, status: 401, error: 'Сесія завершилась — увійдіть ще раз.' };
     let res;
     try {
-        res = await fetch('/api/gps/' + route, {
+        res = await fetch(path, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + jwt },
             body: JSON.stringify(body || {}),

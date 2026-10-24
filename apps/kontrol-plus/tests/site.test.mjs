@@ -103,14 +103,17 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     // /api/:path* (для динамічних [param] це не гарантовано). Решта /api/* — проксі на сайт.
     const own = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map(String).filter((f) => f.endsWith('.js'))
         .map((f) => f.replace(/\\/g, '/')).sort();
-    assert.deepEqual(own, ['gps/connect.js', 'gps/disconnect.js', 'gps/positions.js', 'gps/sync-units.js', 'gps/test.js'], 'only the static GPS functions');
+    assert.deepEqual(own, ['gps/connect.js', 'gps/disconnect.js', 'gps/positions.js', 'gps/sync-units.js', 'gps/test.js', 'repairs/invites.js'], 'only the static GPS and repairs functions');
     assert.equal(own.some((f) => /\[|\]/.test(f)), false, 'no dynamic [param] routes');
-    for (const file of own) {
+    for (const file of own.filter((f) => f.startsWith('gps/'))) {
         const route = file.replace(/^gps\/|\.js$/g, '');
         assert.match(fs.readFileSync(path.join(APP, 'api', file), 'utf8'), new RegExp("gpsVercelRoute\\('" + route + "'\\)"), file);
+    }
+    assert.match(fs.readFileSync(path.join(APP, 'api/repairs/invites.js'), 'utf8'), /createRepairInvitesHandler/);
+    for (const file of own) {
         assert.ok(sourceRegex(api.source).test('/api/' + file.replace(/\.js$/, '')), 'the proxy rule would match /api/' + file + ' — the real file wins');
     }
-    assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 } });
+    assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 }, 'api/repairs/*.js': { maxDuration: 15 } });
     assert.equal(cfg.rewrites.filter((r) => r.source.startsWith('/api')).length, 1, 'one proxy rule, unchanged');
 });
 

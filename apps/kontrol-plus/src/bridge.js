@@ -1,8 +1,8 @@
-// Контроль+ поверх копії сайту trip-control.com: вкладки «Клієнти», «Звіт план/факт» і «GPS» у навігації сайту.
+// Контроль+ поверх копії сайту trip-control.com: вкладки «Клієнти», «Звіт план/факт», «GPS» і «Ремонти» у навігації сайту.
 // Сайт працює як є (калькулятор, огляд, історія, кабінет, команда, тариф…); тут лише додаткові розділи CRM.
 // Один клієнт Supabase на сторінку — той, що створив сайт (const supabaseClient у його класичному скрипті).
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
-import { h, clear, spinner, notice } from './ui.js';
+import { h, clear, spinner, notice, toast } from './ui.js';
 import { errorText } from './lib/errors.js';
 import { parseCrmHash, tabOf } from './lib/route.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
@@ -12,6 +12,9 @@ import { renderClientCard } from './views/client-card.js';
 import { renderClientForm } from './views/client-form.js';
 import { renderReport } from './views/report.js';
 import { renderGps } from './views/gps.js';
+import { renderRepairs } from './views/repairs.js';
+import { repairsAccess } from './lib/repairs.js';
+import { callKpApi } from './lib/gps-client.js';
 
 const SITE_URL = 'https://trip-control.com';
 
@@ -25,7 +28,8 @@ function siteSupabase() {
     }
 }
 
-const state = { supabase: null, session: null, context: null, contextUser: null, route: null };
+// repairs — kp_repairs_context() (етап 3a): менеджер з ремонтів має доступ лише до «Ремонтів» чужої організації.
+const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null };
 // Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
 let cleanups = [];
 function runCleanups() {
@@ -47,6 +51,7 @@ function app() {
         user: state.session && state.session.user,
         ...crmPermissions(state.context),
         go: (hash) => { location.hash = hash; },
+        repairs: state.repairs,
         onPlanLost: () => { state.context = null; syncGpsTab(); render(); },
         onCleanup: (fn) => { cleanups.push(fn); },
     };
@@ -74,6 +79,11 @@ function syncGpsTab() {
     if (!tabs.gps) return;
     const current = state.session && state.contextUser === state.session.user.id ? state.context : null;
     tabs.gps.hidden = !gpsAccess(current).visible;
+    // «Ремонти» — за kp_repairs_context(); менеджеру з ремонтів без власного Контроль+ — лише ця вкладка.
+    const repairs = repairsAccess(current ? state.repairs : null, current);
+    if (tabs.repairs) tabs.repairs.hidden = !repairs.visible;
+    if (repairs.repairsOnly || tabs.clients.hidden) tabs.clients.hidden = repairs.repairsOnly;
+    if (repairs.repairsOnly || tabs.report.hidden) tabs.report.hidden = repairs.repairsOnly;
 }
 
 async function refreshGpsTab() {
@@ -104,8 +114,101 @@ async function loadContext() {
     if (!state.session || state.session.user.id !== userId) return null;
     if (error) return { error };
     state.context = (data && data[0]) || { control_plus: false };
+    state.repairs = await loadRepairsContext();
     state.contextUser = userId;
     return { context: state.context };
+}
+
+// null — розділу «Ремонти» немає (тариф «Компанія», не відповідальний або міграцію 3a ще не застосовано).
+async function loadRepairsContext() {
+    try {
+        const { data, error } = await state.supabase.rpc('kp_repairs_context');
+        const row = !error && data && data[0];
+        return row && row.org_id ? row : null;
+    } catch {
+        return null;
+    }
+}
+
+// Посилання-запрошення менеджера з ремонтів (?repair_invite=…). Параметр одразу прибираємо з URL. Без сесії токен
+// чекає в localStorage (реєстрація з підтвердженням пошти відкриває сайт без параметра, часто в іншій вкладці), не довше
+// за строк запрошення (7 днів). Після входу — accept; ключ видаляємо за будь-якої відповіді сервера. Токен не логуємо.
+// Власна організація людини не змінюється.
+export const REPAIR_INVITE_KEY = 'kp_repair_invite';
+const REPAIR_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const REPAIR_INVITE_LOGIN_HINT = 'Увійдіть або зареєструйтеся тією поштою, на яку прийшло запрошення. '
+    + 'Після підтвердження пошти запрошення буде прийнято автоматично.';
+
+function takeInviteFromUrl() {
+    let url;
+    try {
+        url = new URL(location.href);
+    } catch {
+        return null;
+    }
+    const token = url.searchParams.get('repair_invite');
+    if (!token) return null;
+    url.searchParams.delete('repair_invite');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+    return token;
+}
+
+function storedInvite() {
+    try {
+        const raw = localStorage.getItem(REPAIR_INVITE_KEY);
+        if (raw === null) return null;
+        const saved = JSON.parse(raw);
+        const age = Date.now() - Number(saved && saved.at);
+        if (saved && typeof saved.token === 'string' && saved.token && age >= 0 && age < REPAIR_INVITE_TTL_MS) return saved.token;
+        localStorage.removeItem(REPAIR_INVITE_KEY);
+    } catch {
+        try { localStorage.removeItem(REPAIR_INVITE_KEY); } catch { /* сховище заблоковане */ }
+    }
+    return null;
+}
+
+function forgetInvite() {
+    try {
+        if (localStorage.getItem(REPAIR_INVITE_KEY) !== null) localStorage.removeItem(REPAIR_INVITE_KEY);
+    } catch { /* сховище заблоковане */ }
+}
+
+// Підказка поверх сайту (поза #kp-crm, який схований на сторінках сайту), закривається кнопкою.
+function inviteHint(text, kind = 'info') {
+    const old = document.getElementById('kp-invite-hint');
+    const box = h('div', { id: 'kp-invite-hint', class: 'kp-invite-hint kp-invite-hint-' + kind, role: kind === 'error' ? 'alert' : 'status' },
+        h('span', null, text),
+        h('button', { type: 'button', class: 'kp-invite-hint-close', onclick: () => box.remove() }, 'Зрозуміло'));
+    if (old) old.replaceWith(box);
+    else document.body.append(box);
+}
+
+async function acceptRepairInvite() {
+    const fromUrl = takeInviteFromUrl();
+    if (fromUrl && !state.session) {
+        try {
+            localStorage.setItem(REPAIR_INVITE_KEY, JSON.stringify({ token: fromUrl, at: Date.now() }));
+        } catch { /* приватний режим: після входу посилання доведеться відкрити ще раз */ }
+        inviteHint(REPAIR_INVITE_LOGIN_HINT);
+        return;
+    }
+    if (!state.session) return;
+    const token = fromUrl || storedInvite();
+    if (!token) return;
+    const out = await callKpApi({ supabase: state.supabase }, '/api/repairs/invites', { action: 'accept', token });
+    // Відповідь сервера (успіх, 404 / 409 / 403) — ключ більше не потрібен; без мережі — спробуємо при наступному вході.
+    if (!out.network) forgetInvite();
+    if (!out.ok) {
+        inviteHint(out.error || 'Не вдалося прийняти запрошення.', 'error');
+        return;
+    }
+    const hint = document.getElementById('kp-invite-hint');
+    if (hint) hint.remove();
+    state.context = null;
+    state.contextUser = null;
+    await refreshGpsTab();
+    toast('Ви — менеджер з ремонтів' + (out.org_name ? ' компанії «' + out.org_name + '»' : '') + '.');
+    location.hash = '#/repairs';
 }
 
 function head() {
@@ -136,13 +239,27 @@ async function render() {
             return;
         }
     }
+    const repairs = repairsAccess(state.repairs, state.context);
+    if (route.view === 'repairs' && repairs.visible) {
+        runCleanups();
+        clear(root, head(), renderRepairs(app(), route.sub));
+        root.focus({ preventScroll: true });
+        window.scrollTo(0, 0);
+        return;
+    }
     if (crmAccess(state.context) !== 'open') {
+        // Менеджер з ремонтів без власного Контроль+ — без екрана тарифу: одразу до «Ремонтів».
+        if (repairs.repairsOnly) {
+            location.hash = '#/repairs';
+            return;
+        }
         clear(root, renderPaywall({ context: state.context, siteUrl: SITE_URL }));
         return;
     }
     runCleanups();
     let view;
-    if (route.view === 'report') view = renderReport(app());
+    if (route.view === 'repairs') view = h('section', { class: 'page' }, notice('Розділ «Ремонти» ще не ввімкнено для вашої компанії.', 'info'));
+    else if (route.view === 'report') view = renderReport(app());
     else if (route.view === 'client-new') view = renderClientForm(app(), null);
     else if (route.view === 'client-edit') view = renderClientForm(app(), route.id);
     else if (route.view === 'client') view = renderClientCard(app(), route.id);
@@ -171,7 +288,9 @@ function mount() {
     tabs.report = h('button', { type: 'button', id: 'kp-nav-report', onclick: () => { location.hash = '#/report'; } }, 'Звіт план/факт');
     tabs.gps = h('button', { type: 'button', id: 'kp-nav-gps', onclick: () => { location.hash = '#/gps'; } }, 'GPS');
     tabs.gps.hidden = true;
-    nav.append(tabs.clients, tabs.report, tabs.gps);
+    tabs.repairs = h('button', { type: 'button', id: 'kp-nav-repairs', onclick: () => { location.hash = '#/repairs'; } }, 'Ремонти');
+    tabs.repairs.hidden = true;
+    nav.append(tabs.clients, tabs.report, tabs.gps, tabs.repairs);
     root = h('section', { id: 'kp-crm', class: 'kp-crm', 'aria-label': 'Контроль+', tabindex: '-1' });
     main.insertBefore(root, document.getElementById('studio-overview'));
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
@@ -207,14 +326,17 @@ export async function startBridge() {
         if (event === 'SIGNED_OUT' || changedUser) {
             state.context = null;
             state.contextUser = null;
+            state.repairs = null;
             syncGpsTab();
             // Supabase не можна кликати прямо з колбеку onAuthStateChange.
             if (state.route) setTimeout(render, 0);
             else if (session) setTimeout(refreshGpsTab, 0);
+            if (session) setTimeout(acceptRepairInvite, 0);
         }
     });
     window.addEventListener('hashchange', onHash);
     onHash();
     if (!state.route) await refreshGpsTab();
+    await acceptRepairInvite();
     return true;
 }
