@@ -55,10 +55,12 @@ test('earlier migrations are not edited by this change', () => {
     } catch (e) {
         return; // no git / no origin in this checkout
     }
-    // Єдиний дозволений виняток: файл факту v2 перейменовано на версію, під якою міграцію записано на проді,
-    // з тим самим вмістом (той самий git blob).
-    const renamedFrom = 'supabase/migrations/20261023090000_trip_fact_v2.sql';
-    const renamedTo = 'supabase/migrations/20261023091124_trip_fact_v2.sql';
+    // Єдині дозволені винятки: міграцію перейменовано на версію, під якою її записано на проді, з тим самим вмістом
+    // (той самий git blob, що й у origin/main під старою назвою).
+    const RENAMES = [
+        ['supabase/migrations/20261023090000_trip_fact_v2.sql', 'supabase/migrations/20261023091124_trip_fact_v2.sql'],
+        ['supabase/migrations/20261024090000_gps_integrations.sql', 'supabase/migrations/20261024111415_gps_integrations.sql'],
+    ];
     const sameBlob = (from, to) => {
         try {
             return execFileSync('git', ['rev-parse', 'origin/main:' + from], { cwd: root, encoding: 'utf8' }).trim()
@@ -68,7 +70,7 @@ test('earlier migrations are not edited by this change', () => {
         }
     };
     const edited = changed.split('\n').filter(Boolean).filter((f) => !f.endsWith('20261021090000_security_grants.sql'))
-        .filter((f) => !((f === renamedFrom || f === renamedTo) && sameBlob(renamedFrom, renamedTo)));
+        .filter((f) => !RENAMES.some(([from, to]) => (f === from || f === to) && sameBlob(from, to)));
     assert.deepEqual(edited, []);
 });
 
