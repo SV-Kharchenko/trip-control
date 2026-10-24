@@ -4,7 +4,9 @@
 --
 -- * org_repair_handlers — відповідальні за ремонти: призначені логісти організації і менеджери з ремонтів (до 2 на
 --   організацію; не займають місць логістів, не є учасниками чи директорами цієї організації). Менеджер зʼявляється лише
---   через прийняте запрошення (repair_manager_invites, API Контроль+ зі service_role).
+--   через прийняте запрошення (repair_manager_invites, API Контроль+ зі service_role). Менеджером не може бути людина з
+--   власним Контроль+ (активний учасник або директор організації на control_plus): kp_repairs_org_id віддав би її власну
+--   організацію. Відправлення запрошень — у журналі repair_invite_sends (ліміт 10/год на організацію, 60 с на запрошення).
 -- * kp_repairs_org_id / kp_repairs_role / kp_repairs_can_write / kp_repairs_context — доступ до розділу «Ремонти».
 --   kp_org_id / kp_role / kp_can_write / kp_context НЕ змінюються: менеджер з ремонтів не бачить заявок, клієнтів, звітів, GPS.
 -- * parts (довідник і залишки), part_receipts (приходи), repairs (ремонти), part_writeoffs (списання на ремонт),
@@ -72,6 +74,40 @@ $$;
 
 REVOKE ALL ON FUNCTION public.kp_repair_manager_seats(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
 
+-- Журнал відправлень запрошень (create і resend): ліміти рахуються тут, під блокуванням організації.
+CREATE TABLE IF NOT EXISTS public.repair_invite_sends (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  org_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
+  invite_id uuid NOT NULL REFERENCES public.repair_manager_invites (id) ON DELETE CASCADE,
+  sent_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS repair_invite_sends_org_idx ON public.repair_invite_sends (org_id, sent_at DESC);
+
+ALTER TABLE public.repair_invite_sends ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.repair_invite_sends FROM PUBLIC, anon, authenticated;
+
+-- Власний Контроль+ користувача p_user — як kp_org_id(), але явними запитами (kp_org_id залежить від auth.uid()):
+-- активний учасник незаблокованої організації на control_plus або директор організації на control_plus.
+CREATE OR REPLACE FUNCTION public.kp_user_has_own_kp(p_user uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles AS p JOIN public.organizations AS o ON o.id = p.org_id
+    WHERE p.id = p_user AND p.member_status = 'active' AND o.status <> 'blocked'
+      AND public.org_has_plan(p.org_id, 'control_plus')
+  ) OR EXISTS (
+    SELECT 1 FROM public.org_directors AS d
+    WHERE d.user_id = p_user AND public.org_has_plan(d.org_id, 'control_plus')
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.kp_user_has_own_kp(uuid) FROM PUBLIC, anon, authenticated, service_role;
+
 -- Правила відповідальних — під блокуванням організації (як ліміти логістів і директорів).
 CREATE OR REPLACE FUNCTION public.kp_guard_repair_handlers()
 RETURNS trigger
@@ -85,10 +121,6 @@ BEGIN
     RAISE EXCEPTION 'CONTROL_PLUS_REQUIRED' USING ERRCODE = '42501';
   END IF;
   IF NEW.kind = 'repair_manager' THEN
-    IF public.kp_repair_manager_seats(NEW.org_id, NEW.user_id, NULL) >= 2 THEN
-      RAISE EXCEPTION 'REPAIR_MANAGER_LIMIT'
-        USING ERRCODE = 'P0001', DETAIL = 'At most 2 repair managers (incl. pending invites) per organization';
-    END IF;
     IF EXISTS (
       SELECT 1 FROM public.profiles AS p
       WHERE p.id = NEW.user_id AND p.org_id = NEW.org_id AND p.member_status = 'active'
@@ -97,6 +129,13 @@ BEGIN
     END IF;
     IF EXISTS (SELECT 1 FROM public.org_directors AS d WHERE d.org_id = NEW.org_id AND d.user_id = NEW.user_id) THEN
       RAISE EXCEPTION 'REPAIR_MANAGER_IS_DIRECTOR' USING ERRCODE = 'P0001';
+    END IF;
+    IF public.kp_user_has_own_kp(NEW.user_id) THEN
+      RAISE EXCEPTION 'REPAIR_MANAGER_HAS_OWN_KP' USING ERRCODE = 'P0001';
+    END IF;
+    IF public.kp_repair_manager_seats(NEW.org_id, NEW.user_id, NULL) >= 2 THEN
+      RAISE EXCEPTION 'REPAIR_MANAGER_LIMIT'
+        USING ERRCODE = 'P0001', DETAIL = 'At most 2 repair managers (incl. pending invites) per organization';
     END IF;
   ELSE
     IF NOT EXISTS (
@@ -617,7 +656,8 @@ DECLARE
   v_cost numeric;
   v_parts_cost numeric := 0;
   v_count integer;
-  v_expected integer;
+  v_ids uuid[];
+  v_qtys numeric[];
 BEGIN
   IF p_date IS NULL OR p_date < DATE '2000-01-01' OR p_date > public.ua_today() + 1 THEN
     RAISE EXCEPTION 'BAD_DATE' USING ERRCODE = 'P0001';
@@ -632,35 +672,36 @@ BEGIN
     RAISE EXCEPTION 'REPAIR_BAD_PARTS' USING ERRCODE = 'P0001';
   END IF;
 
-  CREATE TEMP TABLE IF NOT EXISTS kp_repair_need (part_id uuid PRIMARY KEY, qty numeric) ON COMMIT DROP;
-  DELETE FROM kp_repair_need;
+  -- Потреба по запчастинах (сума рядків однієї запчастини) — у масивах, без тимчасових таблиць.
   BEGIN
-    INSERT INTO kp_repair_need (part_id, qty)
-    SELECT (e ->> 'part_id')::uuid, sum((e ->> 'qty')::numeric)
-    FROM jsonb_array_elements(coalesce(p_parts, '[]'::jsonb)) AS e
-    GROUP BY (e ->> 'part_id')::uuid;
+    SELECT coalesce(array_agg(g.part_id ORDER BY g.part_id), '{}'::uuid[]), coalesce(array_agg(g.qty ORDER BY g.part_id), '{}'::numeric[])
+    INTO v_ids, v_qtys
+    FROM (
+      SELECT (e ->> 'part_id')::uuid AS part_id, sum((e ->> 'qty')::numeric) AS qty
+      FROM jsonb_array_elements(coalesce(p_parts, '[]'::jsonb)) AS e
+      GROUP BY (e ->> 'part_id')::uuid
+    ) AS g;
   EXCEPTION WHEN others THEN
     RAISE EXCEPTION 'REPAIR_BAD_PARTS' USING ERRCODE = 'P0001';
   END;
-  IF EXISTS (SELECT 1 FROM kp_repair_need WHERE part_id IS NULL OR qty IS NULL OR qty <= 0 OR qty > 1000000) THEN
+  IF EXISTS (SELECT 1 FROM unnest(v_ids, v_qtys) AS n(part_id, qty) WHERE n.part_id IS NULL OR n.qty IS NULL OR n.qty <= 0 OR n.qty > 1000000) THEN
     RAISE EXCEPTION 'REPAIR_BAD_PARTS' USING ERRCODE = 'P0001';
   END IF;
 
   -- Блокування в стабільному порядку (id) — без взаємоблокувань між паралельними ремонтами.
-  SELECT count(*)::integer INTO v_expected FROM kp_repair_need;
   SELECT count(*)::integer INTO v_count FROM (
     SELECT p.id FROM public.parts AS p
-    WHERE p.org_id = v_org AND p.id IN (SELECT part_id FROM kp_repair_need)
+    WHERE p.org_id = v_org AND p.id = ANY (v_ids)
     ORDER BY p.id
     FOR UPDATE
   ) AS locked;
-  IF v_count <> v_expected THEN
+  IF v_count <> cardinality(v_ids) THEN
     RAISE EXCEPTION 'PART_NOT_FOUND' USING ERRCODE = 'P0001';
   END IF;
   -- Усі залишки — до будь-якого запису.
   FOR v_need IN
     SELECT n.part_id, n.qty, p.name, p.qty AS available
-    FROM kp_repair_need AS n JOIN public.parts AS p ON p.id = n.part_id
+    FROM unnest(v_ids, v_qtys) AS n(part_id, qty) JOIN public.parts AS p ON p.id = n.part_id
     ORDER BY p.id
   LOOP
     IF v_need.available < v_need.qty THEN
@@ -673,14 +714,13 @@ BEGIN
           round(coalesce(p_service_cost, 0), 2), auth.uid())
   RETURNING id INTO v_repair;
 
-  FOR v_need IN SELECT n.part_id, n.qty FROM kp_repair_need AS n ORDER BY n.part_id LOOP
+  FOR v_need IN SELECT n.part_id, n.qty FROM unnest(v_ids, v_qtys) AS n(part_id, qty) ORDER BY n.part_id LOOP
     v_cost := public.kp_stock_out(v_need.part_id, v_need.qty);
     INSERT INTO public.part_writeoffs (org_id, repair_id, part_id, qty, unit_cost, total)
     VALUES (v_org, v_repair, v_need.part_id, v_need.qty, v_cost, round(v_need.qty * v_cost, 2));
     v_parts_cost := v_parts_cost + round(v_need.qty * v_cost, 2);
   END LOOP;
   UPDATE public.repairs SET parts_cost = v_parts_cost WHERE id = v_repair;
-  DELETE FROM kp_repair_need;
   RETURN v_repair;
 END;
 $$;
@@ -1041,7 +1081,8 @@ DECLARE
   v_org uuid := public.kp_repairs_require_write();
   v_batch uuid := gen_random_uuid();
   v_row record;
-  v_result jsonb := '[]'::jsonb;
+  v_rows jsonb;
+  v_result jsonb;
   v_errors integer := 0;
   v_new integer := 0;
   v_existing integer := 0;
@@ -1051,82 +1092,96 @@ BEGIN
   IF p_rows IS NULL OR jsonb_typeof(p_rows) <> 'array' THEN
     RAISE EXCEPTION 'IMPORT_BAD_INPUT' USING ERRCODE = 'P0001';
   END IF;
-  IF jsonb_array_length(p_rows) > 2000 THEN
+  -- Ліміти не лише на клієнті: до 2000 рядків і до 2 МБ JSON (CSV до 1 МБ з запасом на ключі).
+  IF jsonb_array_length(p_rows) > 2000 OR octet_length(p_rows::text) > 2 * 1024 * 1024 THEN
     RAISE EXCEPTION 'IMPORT_TOO_LARGE' USING ERRCODE = 'P0001';
   END IF;
 
-  CREATE TEMP TABLE IF NOT EXISTS kp_import_rows (
-    n integer PRIMARY KEY, line integer, name text, article text, akey text, nkey text, unit text,
-    qty numeric, price numeric, on_date date, supplier text, note text, errors text[], part_id uuid, status text
-  ) ON COMMIT DROP;
-  DELETE FROM kp_import_rows;
-
-  INSERT INTO kp_import_rows (n, line, name, article, unit, supplier, note, errors)
-  SELECT ord::integer,
-         CASE WHEN (e ->> 'line') ~ '^[0-9]{1,6}$' THEN (e ->> 'line')::integer ELSE ord::integer END,
-         btrim(coalesce(e ->> 'name', '')),
-         nullif(btrim(coalesce(e ->> 'article', '')), ''),
-         nullif(btrim(coalesce(e ->> 'unit', '')), ''),
-         nullif(btrim(coalesce(e ->> 'supplier', '')), ''),
-         nullif(btrim(coalesce(e ->> 'note', '')), ''),
-         ARRAY[]::text[]
-  FROM jsonb_array_elements(p_rows) WITH ORDINALITY AS t(e, ord);
-
-  -- Числа й дати — лише з валідних рядків (без винятків на «abc»).
-  UPDATE kp_import_rows AS r SET
-    qty = CASE WHEN (x.e ->> 'qty') ~ '^\s*[0-9]+(\.[0-9]+)?\s*$' THEN (x.e ->> 'qty')::numeric END,
-    price = CASE WHEN (x.e ->> 'unit_price') ~ '^\s*[0-9]+(\.[0-9]+)?\s*$' THEN (x.e ->> 'unit_price')::numeric END,
-    on_date = CASE WHEN coalesce(x.e ->> 'date', '') = '' THEN v_today
-                   ELSE public.kp_try_date(x.e ->> 'date') END
-  FROM (SELECT ord::integer AS n, e FROM jsonb_array_elements(p_rows) WITH ORDINALITY AS t(e, ord)) AS x
-  WHERE x.n = r.n;
-
-  UPDATE kp_import_rows SET akey = lower(article), nkey = lower(name), unit = coalesce(unit, 'шт');
-
-  UPDATE kp_import_rows SET errors = errors || 'Назва: 1–200 символів'::text WHERE char_length(name) NOT BETWEEN 1 AND 200;
-  UPDATE kp_import_rows SET errors = errors || 'Артикул: до 64 символів'::text WHERE char_length(article) > 64;
-  UPDATE kp_import_rows SET errors = errors || 'Одиниця: до 16 символів'::text WHERE char_length(unit) > 16;
-  UPDATE kp_import_rows SET errors = errors || 'Кількість: число більше 0'::text WHERE qty IS NULL OR qty <= 0 OR qty > 1000000 OR scale(qty) > 3;
-  UPDATE kp_import_rows SET errors = errors || 'Ціна: число від 0'::text WHERE price IS NULL OR price > 100000000;
-  UPDATE kp_import_rows SET errors = errors || 'Дата: ДД.ММ.РРРР або РРРР-ММ-ДД'::text WHERE on_date IS NULL OR on_date < DATE '2000-01-01' OR on_date > v_today + 1;
-  UPDATE kp_import_rows SET errors = errors || 'Постачальник: до 200 символів'::text WHERE char_length(supplier) > 200;
-  UPDATE kp_import_rows SET errors = errors || 'Примітка: до 500 символів'::text WHERE char_length(note) > 500;
-  UPDATE kp_import_rows AS r SET errors = errors || 'Артикул повторюється у файлі'::text
-  WHERE r.akey IS NOT NULL AND (SELECT count(*) FROM kp_import_rows AS o WHERE o.akey = r.akey) > 1;
-  UPDATE kp_import_rows AS r SET errors = errors || 'Назва без артикула повторюється у файлі'::text
-  WHERE r.akey IS NULL AND r.nkey <> '' AND (SELECT count(*) FROM kp_import_rows AS o WHERE o.akey IS NULL AND o.nkey = r.nkey) > 1;
-
-  -- Наявні запчастини: за артикулом, без артикула — за назвою серед запчастин без артикула.
-  UPDATE kp_import_rows AS r SET part_id = p.id
-  FROM public.parts AS p
-  WHERE r.akey IS NOT NULL AND p.org_id = v_org AND p.article IS NOT NULL AND lower(btrim(p.article)) = r.akey;
-  UPDATE kp_import_rows AS r SET part_id = (
-    SELECT p.id FROM public.parts AS p
-    WHERE p.org_id = v_org AND p.article IS NULL AND lower(btrim(p.name)) = r.nkey
-    ORDER BY p.created_at, p.id LIMIT 1
+  -- Перевірка — одним запитом, без тимчасових таблиць. Числа й дати — лише з валідних рядків (без винятків на «abc»).
+  WITH src AS (
+    SELECT ord::integer AS n, e FROM jsonb_array_elements(p_rows) WITH ORDINALITY AS t(e, ord)
+  ), base AS (
+    SELECT n,
+           CASE WHEN (e ->> 'line') ~ '^[0-9]{1,6}$' THEN (e ->> 'line')::integer ELSE n END AS line,
+           btrim(coalesce(e ->> 'name', '')) AS name,
+           nullif(btrim(coalesce(e ->> 'article', '')), '') AS article,
+           coalesce(nullif(btrim(coalesce(e ->> 'unit', '')), ''), 'шт') AS unit,
+           nullif(btrim(coalesce(e ->> 'supplier', '')), '') AS supplier,
+           nullif(btrim(coalesce(e ->> 'note', '')), '') AS note,
+           CASE WHEN (e ->> 'qty') ~ '^\s*[0-9]+(\.[0-9]+)?\s*$' THEN (e ->> 'qty')::numeric END AS qty,
+           CASE WHEN (e ->> 'unit_price') ~ '^\s*[0-9]+(\.[0-9]+)?\s*$' THEN (e ->> 'unit_price')::numeric END AS price,
+           CASE WHEN coalesce(e ->> 'date', '') = '' THEN v_today ELSE public.kp_try_date(e ->> 'date') END AS on_date
+    FROM src
+  ), keyed AS (
+    SELECT b.*, lower(b.article) AS akey, lower(b.name) AS nkey FROM base AS b
+  ), counted AS (
+    SELECT k.*,
+           count(*) OVER (PARTITION BY k.akey) AS acount,
+           count(*) FILTER (WHERE k.akey IS NULL) OVER (PARTITION BY k.nkey) AS ncount
+    FROM keyed AS k
+  ), checked AS (
+    SELECT c.*,
+           -- Наявні запчастини: за артикулом, без артикула — за назвою серед запчастин без артикула.
+           CASE WHEN c.akey IS NOT NULL THEN (
+             SELECT p.id FROM public.parts AS p
+             WHERE p.org_id = v_org AND p.article IS NOT NULL AND lower(btrim(p.article)) = c.akey
+             ORDER BY p.id LIMIT 1
+           ) ELSE (
+             SELECT p.id FROM public.parts AS p
+             WHERE p.org_id = v_org AND p.article IS NULL AND lower(btrim(p.name)) = c.nkey
+             ORDER BY p.created_at, p.id LIMIT 1
+           ) END AS part_id,
+           array_remove(ARRAY[
+             CASE WHEN char_length(c.name) NOT BETWEEN 1 AND 200 THEN 'Назва: 1–200 символів' END,
+             CASE WHEN char_length(c.article) > 64 THEN 'Артикул: до 64 символів' END,
+             CASE WHEN char_length(c.unit) > 16 THEN 'Одиниця: до 16 символів' END,
+             CASE WHEN c.qty IS NULL OR c.qty <= 0 OR c.qty > 1000000 OR scale(c.qty) > 3 THEN 'Кількість: число більше 0' END,
+             CASE WHEN c.price IS NULL OR c.price > 100000000 THEN 'Ціна: число від 0' END,
+             CASE WHEN c.on_date IS NULL OR c.on_date < DATE '2000-01-01' OR c.on_date > v_today + 1 THEN 'Дата: ДД.ММ.РРРР або РРРР-ММ-ДД' END,
+             CASE WHEN char_length(c.supplier) > 200 THEN 'Постачальник: до 200 символів' END,
+             CASE WHEN char_length(c.note) > 500 THEN 'Примітка: до 500 символів' END,
+             CASE WHEN c.akey IS NOT NULL AND c.acount > 1 THEN 'Артикул повторюється у файлі' END,
+             CASE WHEN c.akey IS NULL AND c.nkey <> '' AND c.ncount > 1 THEN 'Назва без артикула повторюється у файлі' END
+           ]::text[], NULL) AS errors
+    FROM counted AS c
   )
-  WHERE r.akey IS NULL AND r.part_id IS NULL;
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+           'n', n, 'line', line, 'name', name, 'article', article, 'unit', unit, 'qty', qty, 'price', price,
+           'on_date', on_date, 'supplier', supplier, 'note', note, 'part_id', part_id, 'errors', to_jsonb(errors),
+           'status', CASE WHEN cardinality(errors) > 0 THEN 'error' WHEN part_id IS NULL THEN 'new_part' ELSE 'receipt_existing' END
+         ) ORDER BY n), '[]'::jsonb)
+  INTO v_rows
+  FROM checked;
 
-  UPDATE kp_import_rows SET status = CASE WHEN cardinality(errors) > 0 THEN 'error' WHEN part_id IS NULL THEN 'new_part' ELSE 'receipt_existing' END;
-  SELECT count(*) FILTER (WHERE status = 'error'), count(*) FILTER (WHERE status = 'new_part'), count(*) FILTER (WHERE status = 'receipt_existing')
-  INTO v_errors, v_new, v_existing FROM kp_import_rows;
+  SELECT count(*) FILTER (WHERE r ->> 'status' = 'error'), count(*) FILTER (WHERE r ->> 'status' = 'new_part'),
+         count(*) FILTER (WHERE r ->> 'status' = 'receipt_existing')
+  INTO v_errors, v_new, v_existing FROM jsonb_array_elements(v_rows) AS r;
   IF v_new > 0 AND (SELECT count(*) FROM public.parts WHERE org_id = v_org) + v_new > 5000 THEN
-    UPDATE kp_import_rows SET errors = errors || 'Забагато запчастин (понад 5000)'::text, status = 'error' WHERE status = 'new_part';
-    SELECT count(*) FILTER (WHERE status = 'error'), 0 INTO v_errors, v_new FROM kp_import_rows;
+    SELECT jsonb_agg(CASE WHEN r ->> 'status' = 'new_part'
+                          THEN r || jsonb_build_object('status', 'error', 'errors', (r -> 'errors') || to_jsonb('Забагато запчастин (понад 5000)'::text))
+                          ELSE r END ORDER BY (r ->> 'n')::integer)
+    INTO v_rows FROM jsonb_array_elements(v_rows) AS r;
+    v_errors := v_errors + v_new;
+    v_new := 0;
   END IF;
 
-  SELECT coalesce(jsonb_agg(jsonb_build_object('line', line, 'status', status, 'errors', to_jsonb(errors), 'part_id', part_id) ORDER BY n), '[]'::jsonb)
-  INTO v_result FROM kp_import_rows;
+  SELECT coalesce(jsonb_agg(jsonb_build_object('line', r -> 'line', 'status', r -> 'status', 'errors', r -> 'errors', 'part_id', r -> 'part_id')
+                            ORDER BY (r ->> 'n')::integer), '[]'::jsonb)
+  INTO v_result FROM jsonb_array_elements(v_rows) AS r;
 
   IF coalesce(p_commit, false) THEN
     IF v_errors > 0 THEN
       RAISE EXCEPTION 'IMPORT_HAS_ERRORS' USING ERRCODE = 'P0001', DETAIL = v_errors::text;
     END IF;
     PERFORM 1 FROM public.parts AS p
-    WHERE p.id IN (SELECT part_id FROM kp_import_rows WHERE part_id IS NOT NULL)
+    WHERE p.id IN (SELECT (r ->> 'part_id')::uuid FROM jsonb_array_elements(v_rows) AS r WHERE r ->> 'part_id' IS NOT NULL)
     ORDER BY p.id
     FOR UPDATE;
-    FOR v_row IN SELECT * FROM kp_import_rows ORDER BY n LOOP
+    FOR v_row IN
+      SELECT * FROM jsonb_to_recordset(v_rows) AS x(n integer, name text, article text, unit text, qty numeric, price numeric,
+                                                   on_date date, supplier text, note text, part_id uuid)
+      ORDER BY x.n
+    LOOP
       v_part := v_row.part_id;
       IF v_part IS NULL THEN
         INSERT INTO public.parts (org_id, name, article, unit, created_by)
@@ -1140,7 +1195,6 @@ BEGIN
     END LOOP;
   END IF;
 
-  DELETE FROM kp_import_rows;
   RETURN jsonb_build_object(
     'committed', coalesce(p_commit, false),
     'batch_id', CASE WHEN coalesce(p_commit, false) THEN v_batch END,
@@ -1179,6 +1233,9 @@ BEGIN
     IF v_existing.accepted_at IS NOT NULL OR v_existing.revoked_at IS NOT NULL OR v_existing.declined_at IS NOT NULL THEN
       RAISE EXCEPTION 'REPAIR_INVITE_CLOSED' USING ERRCODE = 'P0001';
     END IF;
+    IF v_existing.last_sent_at > now() - interval '60 seconds' THEN
+      RAISE EXCEPTION 'REPAIR_INVITE_RATE_LIMIT' USING ERRCODE = 'P0001', DETAIL = 'At most one send per invite per 60 s';
+    END IF;
     v_email := v_existing.email;
   ELSE
     IF EXISTS (SELECT 1 FROM public.repair_manager_invites WHERE id = p_invite) THEN
@@ -1201,9 +1258,13 @@ BEGIN
   IF public.kp_repair_manager_seats(p_org, NULL, p_invite) >= 2 THEN
     RAISE EXCEPTION 'REPAIR_MANAGER_LIMIT' USING ERRCODE = 'P0001';
   END IF;
+  IF (SELECT count(*) FROM public.repair_invite_sends AS s WHERE s.org_id = p_org AND s.sent_at > now() - interval '1 hour') >= 10 THEN
+    RAISE EXCEPTION 'REPAIR_INVITE_RATE_LIMIT' USING ERRCODE = 'P0001', DETAIL = 'At most 10 invite sends per organization per hour';
+  END IF;
   INSERT INTO public.repair_manager_invites (id, org_id, email, token_hash, invited_by, expires_at, last_sent_at)
   VALUES (p_invite, p_org, v_email, p_token_hash, p_invited_by, p_expires_at, now())
   ON CONFLICT (id) DO UPDATE SET token_hash = EXCLUDED.token_hash, expires_at = EXCLUDED.expires_at, last_sent_at = now();
+  INSERT INTO public.repair_invite_sends (org_id, invite_id) VALUES (p_org, p_invite);
   RETURN p_invite;
 END;
 $$;
@@ -1253,6 +1314,10 @@ BEGIN
   PERFORM 1 FROM public.organizations WHERE id = v_i.org_id FOR UPDATE;
   IF EXISTS (SELECT 1 FROM public.org_repair_handlers AS h WHERE h.org_id = v_i.org_id AND h.user_id = p_user) THEN
     RAISE EXCEPTION 'REPAIR_MANAGER_EXISTS' USING ERRCODE = 'P0001';
+  END IF;
+  -- Людина з власним Контроль+ отримала б у «Ремонтах» свою організацію, а не ту, що запросила: відмова, запрошення лишається.
+  IF public.kp_user_has_own_kp(p_user) THEN
+    RAISE EXCEPTION 'REPAIR_MANAGER_HAS_OWN_KP' USING ERRCODE = 'P0001';
   END IF;
   UPDATE public.repair_manager_invites SET accepted_at = now(), accepted_by = p_user WHERE id = v_i.id;
   INSERT INTO public.org_repair_handlers (org_id, user_id, kind, created_by) VALUES (v_i.org_id, p_user, 'repair_manager', v_i.invited_by);

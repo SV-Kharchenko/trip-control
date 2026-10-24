@@ -10,13 +10,18 @@ const SECRET = 'test-signing-secret-not-real';
 const T0 = Date.parse('2026-10-25T09:00:00Z');
 const A = 'aaaaaaaa-0000-4000-8000-00000000000a';
 
-// Сховище в памʼяті: ті самі правила, що й функції БД (ліміт 2 місця, email, хеш токена).
+// Сховище в памʼяті: ті самі правила, що й функції БД (ліміт 2 місця, email, хеш токена, власний Контроль+,
+// журнал відправлень: 10 на організацію за годину і 60 с на одне запрошення).
+const CONFIRMED = '2026-10-01T00:00:00Z';
 function memoryStore(clock) {
+    const user = (id, email, extra = {}) => ({ id, email, email_confirmed_at: CONFIRMED, ...extra });
     const s = {
-        users: { 'jwt-owner': { id: 'u-owner', email: 'owner@a.ua' }, 'jwt-director': { id: 'u-dir', email: 'dir@x.ua' },
-            'jwt-logist': { id: 'u-logist', email: 'logist@a.ua' }, 'jwt-manager': { id: 'u-man', email: 'man@m.ua' },
-            'jwt-company': { id: 'u-company', email: 'c@c.ua' }, 'jwt-invitee': { id: 'u-new', email: 'New@Repair.ua' },
-            'jwt-other': { id: 'u-other', email: 'other@x.ua' }, 'jwt-banned': { id: 'u-b', email: 'b@b.ua', banned_until: '2999-01-01T00:00:00Z' } },
+        users: { 'jwt-owner': user('u-owner', 'owner@a.ua'), 'jwt-director': user('u-dir', 'dir@x.ua'),
+            'jwt-logist': user('u-logist', 'logist@a.ua'), 'jwt-manager': user('u-man', 'man@m.ua'),
+            'jwt-company': user('u-company', 'c@c.ua'), 'jwt-invitee': user('u-new', 'New@Repair.ua'),
+            'jwt-other': user('u-other', 'other@x.ua'), 'jwt-banned': user('u-b', 'b@b.ua', { banned_until: '2999-01-01T00:00:00Z' }),
+            'jwt-unconfirmed': user('u-unc', 'new@repair.ua', { email_confirmed_at: null }),
+            'jwt-kp-owner': user('u-kp', 'new@repair.ua'), 'jwt-logist-director': user('u-ld', 'ld@a.ua') },
         profiles: {
             'u-owner': { org_id: A, org_role: 'owner', member_status: 'active', org_status: 'active', org_plan: 'control_plus' },
             'u-logist': { org_id: A, org_role: 'logist', member_status: 'active', org_status: 'active', org_plan: 'control_plus' },
@@ -25,12 +30,17 @@ function memoryStore(clock) {
             'u-company': { org_id: 'C', org_role: 'owner', member_status: 'active', org_status: 'active', org_plan: 'company' },
             'u-new': { org_id: 'N', org_role: 'owner', member_status: 'active', org_status: 'active', org_plan: 'company' },
             'u-other': { org_id: 'O', org_role: 'owner', member_status: 'active', org_status: 'active', org_plan: 'company' },
+            'u-unc': { org_id: 'U', org_role: 'owner', member_status: 'active', org_status: 'active', org_plan: 'company' },
+            'u-kp': { org_id: 'K', org_role: 'owner', member_status: 'active', org_status: 'active', org_plan: 'control_plus' },
+            'u-ld': { org_id: 'L', org_role: 'logist', member_status: 'active', org_status: 'active', org_plan: 'control_plus' },
         },
-        directors: { 'u-dir': A },
+        directors: { 'u-dir': A, 'u-ld': A },
         managers: [],
         invites: [],
+        sends: [],
         reserveCalls: 0,
     };
+    const ownKp = (id) => (s.profiles[id] && s.profiles[id].org_plan === 'control_plus') || Boolean(s.directors[id]);
     const pending = (org, except) => s.invites.filter((i) => i.org_id === org && i.id !== except && inviteStatus(i, clock.t) === 'sent').length;
     const store = {
         async getUser(jwt) { return s.users[jwt] || null; },
@@ -40,11 +50,13 @@ function memoryStore(clock) {
         async listInvites(org) { return s.invites.filter((i) => i.org_id === org).map((i) => ({ ...i })); },
         async getInvite(id) { const r = s.invites.find((i) => i.id === id); return r ? { ...r } : null; },
         async countManagers(org) { return s.managers.filter((m) => m.org_id === org).length; },
-        async recentSends(org, since) { return s.invites.filter((i) => i.org_id === org && i.last_sent_at >= since).length; },
         async reserve({ orgId, inviteId, email, tokenHash: hash, invitedBy, expiresAt }) {
             s.reserveCalls += 1;
             const existing = s.invites.find((i) => i.id === inviteId);
+            if (existing && Date.parse(existing.last_sent_at) > clock.t - 60000) throw new Error('REPAIR_INVITE_RATE_LIMIT');
             if (s.managers.filter((m) => m.org_id === orgId).length + pending(orgId, inviteId) >= 2) throw new Error('REPAIR_MANAGER_LIMIT');
+            if (s.sends.filter((x) => x.org === orgId && x.at > clock.t - 3600000).length >= 10) throw new Error('REPAIR_INVITE_RATE_LIMIT');
+            s.sends.push({ org: orgId, at: clock.t });
             const at = new Date(clock.t).toISOString();
             if (existing) Object.assign(existing, { token_hash: hash, expires_at: expiresAt, last_sent_at: at });
             else s.invites.push({ id: inviteId, org_id: orgId, email, token_hash: hash, invited_by: invitedBy, expires_at: expiresAt, created_at: at, last_sent_at: at });
@@ -61,6 +73,7 @@ function memoryStore(clock) {
             if (!r || r.revoked_at) throw new Error('REPAIR_INVITE_NOT_FOUND');
             if (r.accepted_at) throw new Error('REPAIR_INVITE_USED');
             if (email !== r.email) throw new Error('INVITE_EMAIL_MISMATCH');
+            if (ownKp(userId)) throw new Error('REPAIR_MANAGER_HAS_OWN_KP');
             r.accepted_at = new Date(clock.t).toISOString();
             s.managers.push({ org_id: r.org_id, user_id: userId });
             return r.org_id;
@@ -76,14 +89,14 @@ function memoryStore(clock) {
     return { s, store };
 }
 
-function harness({ secret = SECRET, env = {}, mailOk = true } = {}) {
+function harness({ secret = SECRET, env = {}, mailOk = true, limiter } = {}) {
     const clock = { t: T0 };
     const { s, store } = memoryStore(clock);
     const mails = [];
     const fakeFetch = async (url, init) => { mails.push({ url, body: JSON.parse(init.body) }); return { ok: mailOk }; };
     const logs = [];
     const handler = createRepairInvitesHandler({ store, secret, env, fetch: fakeFetch, now: () => new Date(clock.t),
-        limiter: createSendLimiter({ now: () => clock.t }), log: { error: (...a) => logs.push(a.join(' ')) } });
+        limiter: limiter || createSendLimiter({ now: () => clock.t }), log: { error: (...a) => logs.push(a.join(' ')) } });
     const call = async (body, { jwt = 'jwt-owner', method = 'POST' } = {}) => {
         const res = { headers: {}, setHeader(k, v) { this.headers[k.toLowerCase()] = v; }, status(c) { this.statusCode = c; return this; }, json(b) { this.body = b; return this; } };
         await handler({ method, headers: jwt ? { authorization: 'Bearer ' + jwt } : {}, body }, res);
@@ -215,14 +228,63 @@ test('accept / decline: email must match; forged / expired / revoked → 404; se
     assert.equal(list.body.invites[0].status, 'declined');
 });
 
-test('limit: 10 create + resend per org per hour', async () => {
+test('limit: 10 create + resend per org per hour (in memory and in the DB), one invite at most once per 60 s', async () => {
     const h = harness();
     const first = await h.call({ action: 'create', email: 'a0@repair.ua' });
+    const soon = await h.call({ action: 'resend', id: first.body.invite.id });
+    assert.deepEqual([soon.statusCode, soon.body.code], [429, 'REPAIR_INVITE_RATE_LIMIT'], 'resend within 60 s');
     let last;
-    for (let i = 0; i < 10; i++) last = await h.call({ action: 'resend', id: first.body.invite.id });
-    assert.deepEqual([last.statusCode, last.body.code], [429, 'RATE_LIMITED'], '11th send within the hour');
+    for (let i = 0; i < 10; i++) {
+        h.clock.t += 61000;
+        last = await h.call({ action: 'resend', id: first.body.invite.id });
+    }
+    assert.deepEqual([last.statusCode, last.body.code], [429, 'REPAIR_INVITE_RATE_LIMIT'], '11th send within the hour');
     h.clock.t += 3600001;
     assert.equal((await h.call({ action: 'resend', id: first.body.invite.id })).statusCode, 200);
+
+    // Інший інстанс (свій лімітер у памʼяті) не обходить ліміт: його тримає БД.
+    const db = harness({ limiter: { hit: () => true } });
+    const one = await db.call({ action: 'create', email: 'a0@repair.ua' });
+    let out;
+    for (let i = 0; i < 10; i++) {
+        db.clock.t += 61000;
+        out = await db.call({ action: 'resend', id: one.body.invite.id });
+    }
+    assert.deepEqual([out.statusCode, out.body.code], [429, 'REPAIR_INVITE_RATE_LIMIT'], 'DB journal: 11th send → 429');
+    assert.equal(db.s.sends.length, 10, 'rejected sends are not journaled');
+});
+
+test('accept: a person with their own Контроль+ → 409 REPAIR_MANAGER_HAS_OWN_KP, the invite stays open', async () => {
+    const h = harness();
+    const created = await h.call({ action: 'create', email: 'new@repair.ua' });
+    const token = decodeURIComponent(created.body.link.split('repair_invite=')[1]);
+    const out = await h.call({ action: 'accept', token }, { jwt: 'jwt-kp-owner' });
+    assert.deepEqual([out.statusCode, out.body.code], [409, 'REPAIR_MANAGER_HAS_OWN_KP']);
+    assert.match(out.body.error, /власний Контроль\+/);
+    assert.deepEqual(h.s.managers, []);
+    assert.equal((await h.call({ action: 'list' })).body.invites[0].status, 'sent');
+});
+
+test('accept / decline need a confirmed email → 403 EMAIL_NOT_CONFIRMED', async () => {
+    const h = harness();
+    const created = await h.call({ action: 'create', email: 'new@repair.ua' });
+    const token = decodeURIComponent(created.body.link.split('repair_invite=')[1]);
+    for (const action of ['accept', 'decline']) {
+        const out = await h.call({ action, token }, { jwt: 'jwt-unconfirmed' });
+        assert.deepEqual([out.statusCode, out.body.code], [403, 'EMAIL_NOT_CONFIRMED'], action);
+    }
+    assert.deepEqual(h.s.managers, []);
+    assert.equal((await h.call({ action: 'list' })).body.invites[0].status, 'sent');
+});
+
+test('inviter follows kp_org_id(): logist of an own control_plus org is not a director elsewhere; blocked → 403', async () => {
+    const h = harness();
+    const out = await h.call({ action: 'list' }, { jwt: 'jwt-logist-director' });
+    assert.deepEqual([out.statusCode, out.body.code], [403, 'REPAIRS_FORBIDDEN']);
+    h.s.users['jwt-director'].banned_until = '2999-01-01T00:00:00Z';
+    const banned = await h.call({ action: 'create', email: 'x@repair.ua' }, { jwt: 'jwt-director' });
+    assert.deepEqual([banned.statusCode, banned.body.code], [403, 'USER_BLOCKED']);
+    assert.equal(h.s.reserveCalls, 0);
 });
 
 test('token and email never in console.* or in error bodies', async () => {

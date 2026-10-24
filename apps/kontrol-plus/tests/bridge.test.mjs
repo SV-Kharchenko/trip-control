@@ -26,15 +26,21 @@ class FakeElement extends FakeNode {
     replaceChildren(...nodes) { this.children = nodes; }
     insertBefore(node) { this.children.push(node); return node; }
     focus() {}
+    remove() { this.removed = true; }
+    replaceWith(node) { this.replacedBy = node; }
 }
 
-function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null } = {}) {
+function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null,
+    url = 'https://app.trip-control.com/', stored = null, acceptResponse = { status: 200, body: { ok: true, org_name: 'Агро А' } } } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
     const body = new FakeElement('body');
     const storage = new Map(legacyKey ? [['kp-auth', '{"old":1}'], ['sb-qkfqjorzsxcajcneohoy-auth-token', 'site']] : []);
-    const calls = { warn: 0, listeners: 0, observers: 0, removed: [], rpcs: {} };
+    if (stored) storage.set('kp_repair_invite', stored);
+    const calls = { warn: 0, listeners: 0, observers: 0, removed: [], rpcs: {}, fetch: [], replaced: [], auth: null, logs: [] };
+    const loc = { hash: '', pathname: '/', search: '', href: url };
+    body.append = (...nodes) => { body.children.push(...nodes); for (const n of nodes) if (n.id) byId[n.id] = n; };
     const doc = {
         body,
         querySelector: (sel) => (sel === '#tc-nav-panel .tc-studio-nav' ? navEl : null),
@@ -46,16 +52,21 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
         Node: FakeNode,
         document: doc,
         window: { addEventListener: () => { calls.listeners += 1; }, scrollTo() {} },
-        location: { hash: '', pathname: '/', search: '' },
-        history: { replaceState() {} },
+        location: loc,
+        history: { replaceState(_s, _t, path) { calls.replaced.push(path); loc.href = new URL(path, url).href; } },
+        fetch: async (path, init) => {
+            calls.fetch.push({ path, body: JSON.parse(init.body) });
+            return { ok: acceptResponse.status < 400, status: acceptResponse.status, json: async () => acceptResponse.body };
+        },
         MutationObserver: class { observe() { calls.observers += 1; } },
         localStorage: {
             getItem: (k) => (storage.has(k) ? storage.get(k) : null),
+            setItem: (k, v) => { storage.set(k, String(v)); },
             removeItem: (k) => { calls.removed.push(k); storage.delete(k); },
         },
-        console: { ...console, warn: () => { calls.warn += 1; } },
+        console: { ...console, warn: () => { calls.warn += 1; }, log: (...a) => calls.logs.push(a.join(' ')), error: (...a) => calls.logs.push(a.join(' ')) },
         supabaseClient: client ? {
-            auth: { getSession: async () => ({ data: { session } }), onAuthStateChange: () => { calls.listeners += 1; } },
+            auth: { getSession: async () => ({ data: { session } }), onAuthStateChange: (cb) => { calls.listeners += 1; calls.auth = cb; } },
             // Етап 3a: після kp_context міст питає ще kp_repairs_context (вкладка «Ремонти»).
             rpc: async (name) => {
                 if (!session) throw new Error(name + ' must not be called without a session');
@@ -81,7 +92,8 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
             else delete globalThis[key];
         }
     };
-    return { navEl, body, byId, storage, calls, restore };
+    const signIn = (s) => { session = s; calls.auth('SIGNED_IN', s); };
+    return { navEl, body, byId, storage, calls, restore, loc, signIn };
 }
 
 let n = 0;
@@ -190,6 +202,64 @@ test('bridge: blocked localStorage does not break start', async () => {
     try {
         const { startBridge } = await freshBridge();
         assert.equal(await startBridge(), true);
+    } finally {
+        env.restore();
+    }
+});
+
+// Запрошення менеджера з ремонтів: реєстрація з підтвердженням пошти відкриває сайт без ?repair_invite=.
+const TOKEN = 'v2.11111111-2222-4333-8444-555555555555.' + 'A'.repeat(43);
+const ticks = () => new Promise((r) => setTimeout(r, 30));
+
+test('bridge: repair invite without a session → stored, removed from the URL, hint; after sign-in accepted and the key deleted', async () => {
+    const env = setup({ url: 'https://app.trip-control.com/?repair_invite=' + encodeURIComponent(TOKEN) + '&x=1' });
+    try {
+        const { startBridge, REPAIR_INVITE_KEY, REPAIR_INVITE_LOGIN_HINT } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        assert.equal(REPAIR_INVITE_KEY, 'kp_repair_invite');
+        const saved = JSON.parse(env.storage.get('kp_repair_invite'));
+        assert.equal(saved.token, TOKEN);
+        assert.ok(Math.abs(saved.at - Date.now()) < 5000, 'stored with the time');
+        assert.deepEqual(env.calls.replaced, ['/?x=1'], 'parameter removed, the rest of the URL kept');
+        assert.equal(env.byId['kp-invite-hint'].children[0].children[0].text, REPAIR_INVITE_LOGIN_HINT);
+        assert.deepEqual(env.calls.fetch, [], 'nothing sent without a session');
+
+        env.signIn({ user: { id: 'u1' }, access_token: 'jwt' });
+        await ticks();
+        assert.deepEqual(env.calls.fetch, [{ path: '/api/repairs/invites', body: { action: 'accept', token: TOKEN } }]);
+        assert.equal(env.storage.has('kp_repair_invite'), false, 'key deleted after accept');
+        assert.equal(env.loc.hash, '#/repairs');
+        assert.ok(env.calls.logs.every((line) => !line.includes(TOKEN)), 'token never logged');
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: stored repair invite — server error (404) still deletes the key and shows the error', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false },
+        stored: JSON.stringify({ token: TOKEN, at: Date.now() - 60000 }),
+        acceptResponse: { status: 404, body: { code: 'REPAIR_INVITE_NOT_FOUND', error: 'Запрошення не знайдено або строк дії минув.' } } });
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        assert.equal(env.calls.fetch.length, 1);
+        assert.equal(env.storage.has('kp_repair_invite'), false);
+        assert.equal(env.byId['kp-invite-hint'].children[0].children[0].text, 'Запрошення не знайдено або строк дії минув.');
+        assert.notEqual(env.loc.hash, '#/repairs');
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: expired stored repair invite is ignored and deleted', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false },
+        stored: JSON.stringify({ token: TOKEN, at: Date.now() - 8 * 24 * 3600 * 1000 }) });
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        assert.deepEqual(env.calls.fetch, [], 'not sent');
+        assert.equal(env.storage.has('kp_repair_invite'), false, 'deleted');
+        assert.ok(env.calls.removed.includes('kp_repair_invite'));
     } finally {
         env.restore();
     }

@@ -47,12 +47,6 @@ export function createRepairsStore(supabase) {
             if (error) throw new Error('managers');
             return count || 0;
         },
-        async recentSends(orgId, sinceIso) {
-            const { count, error } = await supabase.from('repair_manager_invites').select('id', { count: 'exact', head: true })
-                .eq('org_id', orgId).gte('last_sent_at', sinceIso);
-            if (error) throw new Error('recent sends');
-            return count || 0;
-        },
         async reserve({ orgId, inviteId, email, tokenHash, invitedBy, expiresAt }) {
             return must(await supabase.rpc('kp_repair_invite_reserve', {
                 p_org: orgId, p_invite: inviteId, p_email: email, p_token_hash: tokenHash, p_invited_by: invitedBy, p_expires_at: expiresAt,

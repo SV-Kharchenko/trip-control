@@ -123,7 +123,8 @@ export async function sendInviteEmail(to, message, { env, fetch: doFetch, timeou
     }
 }
 
-// Ліміт create + resend: 10 на організацію за годину (у памʼяті інстансу + за last_sent_at у БД).
+// Перший барʼєр create + resend — 10 на організацію за годину в памʼяті інстансу. Надійний ліміт — у БД
+// (kp_repair_invite_reserve: журнал repair_invite_sends під блокуванням організації, 10/год і 60 с на запрошення).
 export function createSendLimiter({ limit = SEND_LIMIT_PER_HOUR, windowMs = 3600000, now = () => Date.now() } = {}) {
     const hits = new Map();
     return {
@@ -151,6 +152,9 @@ const DB_ERRORS = {
     INVITE_EMAIL_MISMATCH: [403, 'Запрошення надіслано на іншу пошту. Увійдіть акаунтом з тією адресою, на яку прийшов лист.'],
     REPAIR_MANAGER_IS_MEMBER: [409, 'Ви вже учасник цієї компанії — менеджером з ремонтів бути не можна.'],
     REPAIR_MANAGER_IS_DIRECTOR: [409, 'Ви директор цієї компанії — менеджером з ремонтів бути не можна.'],
+    REPAIR_MANAGER_HAS_OWN_KP: [409, 'У вас уже є власний Контроль+ (ви учасник або директор компанії на цьому тарифі), тому стати менеджером з ремонтів іншої компанії не можна. '
+        + 'Увійдіть іншим акаунтом або попросіть надіслати запрошення на іншу пошту.'],
+    REPAIR_INVITE_RATE_LIMIT: [429, 'Забагато запрошень: не більше 10 на годину й не частіше разу на хвилину для одного запрошення. Спробуйте пізніше.'],
     CONTROL_PLUS_REQUIRED: [403, 'Компанія не на тарифі Контроль+.'],
 };
 
@@ -181,27 +185,38 @@ function bodyOf(req) {
 export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doFetch, now = () => new Date(),
     limiter = createSendLimiter({ now: () => now().getTime() }), log = console } = {}) {
 
+    // Аналог is_user_blocked(): активний бан Supabase Auth.
+    const blocked = (user) => Boolean(user.banned_until && new Date(user.banned_until).getTime() > now().getTime());
+
     async function authenticate(req) {
         const header = String((req.headers && (req.headers.authorization || req.headers.Authorization)) || '');
         if (!header.startsWith('Bearer ') || header.length <= 7) throw new HttpError(401, 'AUTH_REQUIRED', 'Потрібно увійти.');
         const user = await store.getUser(header.slice(7));
         if (!user) throw new HttpError(401, 'BAD_TOKEN', 'Сесія завершилась — увійдіть ще раз.');
-        if (user.banned_until && new Date(user.banned_until).getTime() > now().getTime()) {
-            throw new HttpError(403, 'USER_BLOCKED', 'Акаунт заблоковано.');
-        }
+        if (blocked(user)) throw new HttpError(403, 'USER_BLOCKED', 'Акаунт заблоковано.');
         return user;
     }
 
-    // Запрошує власник своєї організації на control_plus або директор такої організації.
+    // Як kp_repairs_require_manage(): не заблокований; організація — як kp_org_id() (спершу власна на control_plus,
+    // і тоді лише власник; інакше — перша організація на control_plus, де користувач директор).
     async function inviter(user) {
+        const forbidden = new HttpError(403, 'REPAIRS_FORBIDDEN', 'Запрошувати менеджерів з ремонтів може власник або директор компанії на тарифі Контроль+.');
+        if (blocked(user)) throw new HttpError(403, 'USER_BLOCKED', 'Акаунт заблоковано.');
         const profile = await store.getProfile(user.id);
-        if (profile && profile.org_id && profile.org_plan === 'control_plus' && profile.org_status !== 'blocked'
-            && profile.member_status === 'active' && profile.org_role === 'owner') {
-            return { orgId: profile.org_id, role: 'owner' };
+        if (profile && profile.org_id && profile.org_plan === 'control_plus' && profile.org_status !== 'blocked' && profile.member_status === 'active') {
+            if (profile.org_role === 'owner') return { orgId: profile.org_id, role: 'owner' };
+            throw forbidden;
         }
         const directorOf = await store.directorOrg(user.id);
         if (directorOf) return { orgId: directorOf, role: 'director' };
-        throw new HttpError(403, 'REPAIRS_FORBIDDEN', 'Запрошувати менеджерів з ремонтів може власник або директор компанії на тарифі Контроль+.');
+        throw forbidden;
+    }
+
+    // Прийняти чи відхилити — лише з підтвердженою поштою (інакше будь-хто міг би зареєструватися на чужу адресу).
+    function requireConfirmedEmail(user) {
+        if (!user.email_confirmed_at) {
+            throw new HttpError(403, 'EMAIL_NOT_CONFIRMED', 'Спершу підтвердьте пошту (лист від Trip Control), а потім відкрийте посилання-запрошення ще раз.');
+        }
     }
 
     function publicInvite(row, t) {
@@ -221,11 +236,8 @@ export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doF
         return { used: managers + pending, limit: 2, managers, pending };
     }
 
-    async function guardSends(orgId, t) {
-        const recent = await store.recentSends(orgId, new Date(t - 3600000).toISOString());
-        if (recent >= SEND_LIMIT_PER_HOUR || !limiter.hit(orgId)) {
-            throw new HttpError(429, 'RATE_LIMITED', 'Забагато запрошень за годину. Спробуйте пізніше.');
-        }
+    function guardSends(orgId) {
+        if (!limiter.hit(orgId)) throw new HttpError(429, 'REPAIR_INVITE_RATE_LIMIT', DB_ERRORS.REPAIR_INVITE_RATE_LIMIT[1]);
     }
 
     async function issue(orgId, inviteId, email, invitedBy, t) {
@@ -255,7 +267,7 @@ export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doF
             const { orgId } = await inviter(user);
             if (!validEmail(body.email)) throw new HttpError(400, 'BAD_EMAIL', 'Вкажіть коректну пошту.');
             const t = now().getTime();
-            await guardSends(orgId, t);
+            guardSends(orgId);
             return { status: 200, body: { ok: true, ...(await issue(orgId, randomUUID(), normalizeEmail(body.email), user.id, t)) } };
         },
         async resend(user, body) {
@@ -265,7 +277,7 @@ export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doF
             const row = await store.getInvite(id);
             if (!row || row.org_id !== orgId) throw new HttpError(404, 'REPAIR_INVITE_NOT_FOUND', DB_ERRORS.REPAIR_INVITE_NOT_FOUND[1]);
             const t = now().getTime();
-            await guardSends(orgId, t);
+            guardSends(orgId);
             return { status: 200, body: { ok: true, ...(await issue(orgId, row.id, row.email, user.id, t)) } };
         },
         async revoke(user, body) {
@@ -277,6 +289,7 @@ export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doF
             return { status: 200, body: { ok: true } };
         },
         async accept(user, body) {
+            requireConfirmedEmail(user);
             const token = await checkedToken(body.token);
             try {
                 const orgId = await store.accept(tokenHash(token), user.id, normalizeEmail(user.email));
@@ -286,6 +299,7 @@ export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doF
             }
         },
         async decline(user, body) {
+            requireConfirmedEmail(user);
             const token = await checkedToken(body.token);
             try {
                 await store.decline(tokenHash(token), normalizeEmail(user.email));

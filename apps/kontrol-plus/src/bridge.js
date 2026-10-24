@@ -130,22 +130,80 @@ async function loadRepairsContext() {
     }
 }
 
-// Посилання-запрошення менеджера з ремонтів (?repair_invite=…): після входу приймаємо й прибираємо параметр з URL.
+// Посилання-запрошення менеджера з ремонтів (?repair_invite=…). Параметр одразу прибираємо з URL. Без сесії токен
+// чекає в localStorage (реєстрація з підтвердженням пошти відкриває сайт без параметра, часто в іншій вкладці), не довше
+// за строк запрошення (7 днів). Після входу — accept; ключ видаляємо за будь-якої відповіді сервера. Токен не логуємо.
 // Власна організація людини не змінюється.
-async function acceptRepairInvite() {
-    let token = null;
+export const REPAIR_INVITE_KEY = 'kp_repair_invite';
+const REPAIR_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const REPAIR_INVITE_LOGIN_HINT = 'Увійдіть або зареєструйтеся тією поштою, на яку прийшло запрошення. '
+    + 'Після підтвердження пошти запрошення буде прийнято автоматично.';
+
+function takeInviteFromUrl() {
+    let url;
     try {
-        token = new URL(location.href).searchParams.get('repair_invite');
-    } catch { /* немає URL */ }
-    if (!token || !state.session) return;
-    const url = new URL(location.href);
+        url = new URL(location.href);
+    } catch {
+        return null;
+    }
+    const token = url.searchParams.get('repair_invite');
+    if (!token) return null;
     url.searchParams.delete('repair_invite');
     history.replaceState(null, '', url.pathname + url.search + url.hash);
-    const out = await callKpApi({ supabase: state.supabase }, '/api/repairs/invites', { action: 'accept', token });
-    if (!out.ok) {
-        toast(out.error || 'Не вдалося прийняти запрошення.', 'error');
+    return token;
+}
+
+function storedInvite() {
+    try {
+        const raw = localStorage.getItem(REPAIR_INVITE_KEY);
+        if (raw === null) return null;
+        const saved = JSON.parse(raw);
+        const age = Date.now() - Number(saved && saved.at);
+        if (saved && typeof saved.token === 'string' && saved.token && age >= 0 && age < REPAIR_INVITE_TTL_MS) return saved.token;
+        localStorage.removeItem(REPAIR_INVITE_KEY);
+    } catch {
+        try { localStorage.removeItem(REPAIR_INVITE_KEY); } catch { /* сховище заблоковане */ }
+    }
+    return null;
+}
+
+function forgetInvite() {
+    try {
+        if (localStorage.getItem(REPAIR_INVITE_KEY) !== null) localStorage.removeItem(REPAIR_INVITE_KEY);
+    } catch { /* сховище заблоковане */ }
+}
+
+// Підказка поверх сайту (поза #kp-crm, який схований на сторінках сайту), закривається кнопкою.
+function inviteHint(text, kind = 'info') {
+    const old = document.getElementById('kp-invite-hint');
+    const box = h('div', { id: 'kp-invite-hint', class: 'kp-invite-hint kp-invite-hint-' + kind, role: kind === 'error' ? 'alert' : 'status' },
+        h('span', null, text),
+        h('button', { type: 'button', class: 'kp-invite-hint-close', onclick: () => box.remove() }, 'Зрозуміло'));
+    if (old) old.replaceWith(box);
+    else document.body.append(box);
+}
+
+async function acceptRepairInvite() {
+    const fromUrl = takeInviteFromUrl();
+    if (fromUrl && !state.session) {
+        try {
+            localStorage.setItem(REPAIR_INVITE_KEY, JSON.stringify({ token: fromUrl, at: Date.now() }));
+        } catch { /* приватний режим: після входу посилання доведеться відкрити ще раз */ }
+        inviteHint(REPAIR_INVITE_LOGIN_HINT);
         return;
     }
+    if (!state.session) return;
+    const token = fromUrl || storedInvite();
+    if (!token) return;
+    const out = await callKpApi({ supabase: state.supabase }, '/api/repairs/invites', { action: 'accept', token });
+    // Відповідь сервера (успіх, 404 / 409 / 403) — ключ більше не потрібен; без мережі — спробуємо при наступному вході.
+    if (!out.network) forgetInvite();
+    if (!out.ok) {
+        inviteHint(out.error || 'Не вдалося прийняти запрошення.', 'error');
+        return;
+    }
+    const hint = document.getElementById('kp-invite-hint');
+    if (hint) hint.remove();
     state.context = null;
     state.contextUser = null;
     await refreshGpsTab();

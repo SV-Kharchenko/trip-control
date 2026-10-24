@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(110);
+SELECT plan(122);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"service_role"}', true);
 
@@ -270,7 +270,31 @@ SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 SET LOCAL ROLE authenticated;
 SELECT ok((SELECT count(*) FROM public.repair_manager_invites) >= 5, 'owner sees the invites');
 SELECT throws_ok($$SELECT token_hash FROM public.repair_manager_invites$$, '42501', NULL, 'owner cannot read token_hash');
+SELECT throws_ok($$SELECT * FROM public.repair_invite_sends$$, '42501', NULL, 'clients cannot read the send journal');
 RESET ROLE;
+
+-- 9b. Власний Контроль+ → менеджером з ремонтів бути не можна (kp_repairs_org_id віддав би власну організацію).
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000e1","role":"service_role"}', true);
+SELECT ok(public.kp_repair_invite_revoke('60000000-0000-0000-0000-00000000000a', (SELECT id FROM t_ids WHERE k = 'i5')), 'revoke frees a seat for the next case');
+SELECT lives_ok($$INSERT INTO t_ids SELECT 'i6', public.kp_repair_invite_reserve('60000000-0000-0000-0000-00000000000a', gen_random_uuid(), 'rs-e8@example.com', repeat('7', 64), '00000000-0000-0000-0000-0000000000e1', now() + interval '7 days')$$,
+  'invite the owner of another control_plus org');
+SELECT throws_ok($$SELECT public.kp_repair_invite_accept(repeat('7', 64), '00000000-0000-0000-0000-0000000000e8', 'rs-e8@example.com')$$,
+  'P0001', 'REPAIR_MANAGER_HAS_OWN_KP', 'owner of another control_plus org — REPAIR_MANAGER_HAS_OWN_KP');
+SELECT is((SELECT count(*)::integer FROM public.org_repair_handlers WHERE user_id = '00000000-0000-0000-0000-0000000000e8'), 0, 'own KP: handler not inserted');
+SELECT ok((SELECT accepted_at IS NULL AND revoked_at IS NULL AND declined_at IS NULL AND expires_at > now()
+  FROM public.repair_manager_invites WHERE id = (SELECT id FROM t_ids WHERE k = 'i6')), 'own KP: the invite stays open');
+SELECT throws_ok($$INSERT INTO public.org_repair_handlers (org_id, user_id, kind) VALUES ('60000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000e4', 'repair_manager')$$,
+  'P0001', 'REPAIR_MANAGER_HAS_OWN_KP', 'guard: a director of a control_plus org cannot be a repair manager elsewhere');
+
+-- 9c. Ліміти відправлень (журнал repair_invite_sends, під блокуванням організації).
+SELECT throws_ok($$SELECT public.kp_repair_invite_reserve('60000000-0000-0000-0000-00000000000a', (SELECT id FROM t_ids WHERE k = 'i6'), 'rs-e8@example.com', repeat('8', 64), NULL, now() + interval '7 days')$$,
+  'P0001', 'REPAIR_INVITE_RATE_LIMIT', 'resend of one invite within 60 s — REPAIR_INVITE_RATE_LIMIT');
+SELECT lives_ok($$INSERT INTO t_ids SELECT 'b1', public.kp_repair_invite_reserve('60000000-0000-0000-0000-00000000000b', gen_random_uuid(), 'b1@example.com', repeat('9', 64), NULL, now() + interval '7 days')$$,
+  'org B: first send');
+INSERT INTO public.repair_invite_sends (org_id, invite_id) SELECT '60000000-0000-0000-0000-00000000000b', (SELECT id FROM t_ids WHERE k = 'b1') FROM generate_series(1, 9);
+SELECT throws_ok($$SELECT public.kp_repair_invite_reserve('60000000-0000-0000-0000-00000000000b', gen_random_uuid(), 'b2@example.com', repeat('b', 64), NULL, now() + interval '7 days')$$,
+  'P0001', 'REPAIR_INVITE_RATE_LIMIT', '11th send of the org within an hour — REPAIR_INVITE_RATE_LIMIT');
+SELECT is((SELECT count(*)::integer FROM public.repair_invite_sends WHERE org_id = '60000000-0000-0000-0000-00000000000a'), 6, 'every successful create / resend is journaled');
 
 -- 10. Імпорт: перевірка нічого не пише; помилка — нічого не записано; дублі; наявний артикул; ліміт.
 CREATE TEMP TABLE t_before AS SELECT (SELECT count(*) FROM public.parts) AS parts, (SELECT count(*) FROM public.part_receipts) AS receipts,
@@ -298,6 +322,8 @@ SELECT is((SELECT avg_cost FROM public.parts WHERE article = 'F-1'),
 SELECT is((SELECT count(*)::integer FROM public.part_receipts WHERE import_batch_id IS NOT NULL AND kind = 'opening'), 2, 'import receipts: opening balances with a batch id');
 SELECT throws_ok($$SELECT public.kp_parts_import((SELECT jsonb_agg(jsonb_build_object('line', g, 'name', 'X' || g, 'qty', '1', 'unit_price', '1')) FROM generate_series(1, 2001) AS g), false)$$,
   'P0001', NULL, '2001 rows — IMPORT_TOO_LARGE');
+SELECT throws_ok($$SELECT public.kp_parts_import(jsonb_build_array(jsonb_build_object('name', repeat('x', 2 * 1024 * 1024 + 1), 'qty', '1', 'unit_price', '1')), false)$$,
+  'P0001', 'IMPORT_TOO_LARGE', 'over 2 MB of JSON — IMPORT_TOO_LARGE (not only on the client)');
 RESET ROLE;
 
 SELECT * FROM finish();
