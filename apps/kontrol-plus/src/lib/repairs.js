@@ -1,6 +1,7 @@
 // Ремонти і склад (етап 3a): чисті функції інтерфейсу — доступ за роллю, підсумки ремонту, перевірка форми,
 // тексти помилок і статусів. Права однаково перевіряє база (kp_repairs_can_write і функції запису).
 import { num } from './format.js';
+import { odometerErrorText } from './errors.js';
 
 export const REPAIR_ROLE_LABELS = {
     owner: 'Власник',
@@ -67,7 +68,7 @@ export function validateRepairForm(form, partsById, today) {
     return errors;
 }
 
-// Рядки запчастин для kp_repair_post.
+// Рядки запчастин для kp_repair_post / kp_repair_save_with_maintenance.
 export function repairPartsPayload(lines) {
     return (lines || []).filter((l) => l.part_id && num(l.qty) > 0).map((l) => ({ part_id: l.part_id, qty: num(l.qty) }));
 }
@@ -83,6 +84,7 @@ const REPAIR_ERRORS = [
     [/PART_NOT_FOUND/, 'Запчастину не знайдено. Оновіть сторінку.'],
     [/REPAIR_VEHICLE_NOT_FOUND/, 'Авто не знайдено в автопарку вашої компанії.'],
     [/REPAIR_WORKS/, 'Опишіть роботи (до 2000 символів).'],
+    [/REPAIR_BAD_PARTS/, 'Перевірте рядки запчастин.'],
     [/BAD_DATE/, 'Перевірте дату.'],
     [/IMPORT_HAS_ERRORS/, 'У файлі є помилкові рядки — нічого не імпортовано.'],
     [/IMPORT_TOO_LARGE/, 'Понад 2000 рядків. Розбийте файл на частини.'],
@@ -110,6 +112,8 @@ const REPAIR_ERRORS = [
 export function repairErrorText(error) {
     if (!error) return '';
     const message = String(error.message || error.error || error);
+    const odometer = odometerErrorText(error);
+    if (odometer) return odometer;
     if (/STOCK_INSUFFICIENT/.test(message)) {
         return 'Не вистачає на складі' + (error.details ? ': ' + String(error.details).slice(0, 200) : '') + '. Нічого не списано.';
     }

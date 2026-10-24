@@ -3,9 +3,10 @@
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtNumber, fmtDate, kyivDate } from '../lib/format.js';
 import { repairErrorText } from '../lib/repairs.js';
+import { odometerDecreaseText } from '../lib/errors.js';
 import {
     sortMaintenance, maintenanceBadge, badgeTitle, intervalText, leftKmText, leftDaysText, lastText, STATUS_TEXT,
-    validateTypeForm, validateOdometerForm,
+    validateTypeForm, validateOdometerForm, odometerConflict, ODOMETER_SOURCE_TEXT,
 } from '../lib/maintenance.js';
 
 // Бейдж на кнопці «Ремонти» в навігації сайту: число red (червоний) або yellow (жовтий); нуль — без бейджа.
@@ -218,7 +219,8 @@ export function renderMaintenance(app, access) {
             overridesBox));
     }
 
-    // Одометр: показник (база пробігу) й історія; поточний пробіг = база + км рейсів після неї.
+    // Одометр: показник (база пробігу) й історія — ручні показання й одометри проведених ремонтів (теж бази);
+    // поточний пробіг = остання база + км рейсів після неї.
     function odometerPanel() {
         const car = vehicleSelect('kpr-od-vehicle', vehicle.value);
         const date = h('input', { id: 'kpr-od-date', type: 'date', value: kyivDate(), max: kyivDate() });
@@ -227,14 +229,16 @@ export function renderMaintenance(app, access) {
         const errors = h('div', { 'aria-live': 'polite' });
         const now = h('p', { class: 'small' });
         const history = h('div');
+        let historyRows = [];
 
         function drawHistory(rows) {
+            historyRows = rows || [];
             clear(history, (rows || []).length ? h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
                 h('thead', null, h('tr', null, ['Дата', 'Показник', 'Джерело', 'Примітка'].map((t) => h('th', null, t)))),
                 h('tbody', null, rows.map((r) => h('tr', null,
                     h('td', { 'data-label': 'Дата' }, fmtDate(r.read_on)),
                     h('td', { 'data-label': 'Показник', class: 'mono' }, fmtNumber(r.odometer_km) + ' км'),
-                    h('td', { 'data-label': 'Джерело' }, r.source === 'gps' ? 'GPS' : 'Вручну'),
+                    h('td', { 'data-label': 'Джерело' }, ODOMETER_SOURCE_TEXT[r.source] || 'Вручну'),
                     h('td', { 'data-label': 'Примітка' }, r.note || '—')))))) : h('p', { class: 'muted small' }, 'Показників ще немає.'));
         }
 
@@ -252,9 +256,9 @@ export function renderMaintenance(app, access) {
             if (list.error || mileage.error) return clear(errors, notice(repairErrorText(list.error || mileage.error)));
             const m = (mileage.data || [])[0];
             clear(now, m && m.odometer_km !== null
-                ? ['Поточний пробіг: ', h('b', null, fmtNumber(m.odometer_km) + ' км'), ' (показник ' + fmtDate(m.base_read_on) + ': ' + fmtNumber(m.base_km)
+                ? ['Поточний пробіг: ', h('b', null, fmtNumber(m.odometer_km) + ' км'), (m.source === 'repair' ? ' (одометр ремонту ' : ' (показник ') + fmtDate(m.base_read_on) + ': ' + fmtNumber(m.base_km)
                     + ' км + рейси: ' + fmtNumber(m.trips_km) + ' км)']
-                : h('span', { class: 'muted' }, 'Вкажіть показник одометра — від нього рахується пробіг.'));
+                : h('span', { class: 'muted' }, 'Вкажіть показник одометра (або одометр у ремонті) — від нього рахується пробіг.'));
             drawHistory(list.data);
         }
 
@@ -262,6 +266,8 @@ export function renderMaintenance(app, access) {
         const form = access.canWrite ? h('form', { class: 'form', novalidate: true, onsubmit: async (e) => {
             e.preventDefault();
             const problems = validateOdometerForm({ vehicle_id: car.value, date: date.value, km: km.value }, kyivDate());
+            const conflict = problems.length ? null : odometerConflict(historyRows, date.value, km.value);
+            if (conflict) problems.push(odometerDecreaseText(conflict.km, conflict.read_on, conflict.kind) + '.');
             if (problems.length) return clear(errors, h('div', { class: 'notice notice-error', role: 'alert' }, problems.join(' ')));
             const { data, error } = await app.supabase.rpc('kp_odometer_add', { p_vehicle: car.value, p_read_on: date.value,
                 p_odometer: Number(km.value), p_note: note.value.trim() || null });

@@ -1,5 +1,6 @@
 // Новий ремонт: авто, дата (сьогодні за Києвом), одометр, роботи, СТО, рядки запчастин (пошук, видно залишок).
 // Підсумок «Запчастини / СТО / Разом» — за поточною середньою собівартістю, як спише сервер (усе або нічого).
+// Ремонт, списання і «Виконане ТО» — один виклик kp_repair_save_with_maintenance (одна транзакція).
 import { h, clear, notice, toast } from '../ui.js';
 import { fmtMoney, fmtMoneyCents, fmtNumber, kyivDate } from '../lib/format.js';
 import { repairTotals, validateRepairForm, repairPartsPayload, repairErrorText } from '../lib/repairs.js';
@@ -13,10 +14,25 @@ export function maintenanceChoices(types, vehicleId) {
     return vehicleId ? (types || []).filter((t) => t.is_active) : [];
 }
 
-// Обрані типи для kp_repair_set_maintenance: лише ті, що ще є серед варіантів.
+// Обрані типи для kp_repair_save_with_maintenance: лише ті, що ще є серед варіантів.
 export function maintenancePayload(checked, choices) {
     const ids = new Set((choices || []).map((t) => t.id));
     return [...new Set(checked || [])].filter((id) => ids.has(id));
+}
+
+// Аргументи kp_repair_save_with_maintenance для нового ремонту (p_repair NULL); типи ТО — лише якщо є що позначити.
+export function repairSavePayload(values, typeIds) {
+    return {
+        p_repair: null,
+        p_vehicle: values.vehicle_id,
+        p_date: values.date,
+        p_odometer: values.odometer === '' || values.odometer == null ? null : Number(values.odometer),
+        p_works: String(values.works || '').trim(),
+        p_provider: String(values.provider || '').trim() || null,
+        p_service_cost: values.service_cost === '' || values.service_cost == null ? 0 : Number(values.service_cost),
+        p_parts: repairPartsPayload(values.lines),
+        p_type_ids: typeIds && typeIds.length ? typeIds : null,
+    };
 }
 
 export function renderRepairForm(app) {
@@ -121,32 +137,18 @@ export function renderRepairForm(app) {
         }
         save.disabled = true;
         clear(message);
-        const { data: repairId, error } = await app.supabase.rpc('kp_repair_post', {
-            p_vehicle: vehicle.value,
-            p_date: date.value,
-            p_odometer: odometer.value === '' ? null : Number(odometer.value),
-            p_works: works.value.trim(),
-            p_provider: provider.value.trim() || null,
-            p_service_cost: service.value === '' ? 0 : Number(service.value),
-            p_parts: repairPartsPayload(state.lines),
-        });
+        const typeIds = maintenancePayload([...state.checked], maintenanceChoices(state.types, vehicle.value));
+        // Помилка (нестача на складі, тип ТО в архіві, одометр менший за попередній) — не збережено нічого.
+        const { error } = await app.supabase.rpc('kp_repair_save_with_maintenance', repairSavePayload({
+            vehicle_id: vehicle.value, date: date.value, odometer: odometer.value, works: works.value, provider: provider.value,
+            service_cost: service.value, lines: state.lines,
+        }, typeIds));
+        save.disabled = false;
         if (error) {
-            save.disabled = false;
             clear(message, notice(repairErrorText(error)));
             return;
         }
-        const typeIds = maintenancePayload([...state.checked], maintenanceChoices(state.types, vehicle.value));
-        if (typeIds.length) {
-            const { error: toError } = await app.supabase.rpc('kp_repair_set_maintenance', { p_repair: repairId, p_type_ids: typeIds });
-            if (app.refreshMaintenance) app.refreshMaintenance();
-            if (toError) {
-                // Ремонт уже проведено (склад списано) — не дублюємо його, лише повідомляємо про ТО.
-                toast('Ремонт збережено, але ТО не позначено: ' + repairErrorText(toError), 'error');
-                app.go('#/repairs');
-                return;
-            }
-        }
-        save.disabled = false;
+        if (typeIds.length && app.refreshMaintenance) app.refreshMaintenance();
         toast(typeIds.length ? 'Ремонт і виконане ТО збережено' : 'Ремонт збережено');
         app.go('#/repairs');
     } },

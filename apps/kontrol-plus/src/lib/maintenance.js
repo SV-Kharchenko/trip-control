@@ -158,6 +158,24 @@ export function validateTypeForm(form) {
     return errors;
 }
 
+// Копія kp_odometer_guard (джерело істини — SQL) для форми: бази — ручні показання й ремонти з історії
+// kp_odometer_list (GPS базою не є). Нове значення не менше за найпізнішу базу з датою <= дати і не більше за
+// найранішу базу з датою > дати; рівне — можна. Порядок у межах дати — created_at, далі id (як у SQL).
+// Повертає null або { kind: 'prev' | 'next', km, read_on }.
+export function odometerConflict(history, date, km) {
+    const value = num(km);
+    if (!date || value === null) return null;
+    const key = (r) => String(r.read_on) + '|' + String(r.created_at || '') + '|' + String(r.id || '');
+    const bases = (history || []).filter((r) => r.source === 'manual' || r.source === 'repair').slice().sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+    const prev = bases.filter((r) => r.read_on <= date).pop();
+    if (prev && value < Number(prev.odometer_km)) return { kind: 'prev', km: Number(prev.odometer_km), read_on: prev.read_on };
+    const next = bases.find((r) => r.read_on > date);
+    if (next && value > Number(next.odometer_km)) return { kind: 'next', km: Number(next.odometer_km), read_on: next.read_on };
+    return null;
+}
+
+export const ODOMETER_SOURCE_TEXT = { manual: 'Вручну', gps: 'GPS', repair: 'Ремонт' };
+
 // Показник одометра: ціле 0–10 000 000, дата не пізніше сьогодні (Київ).
 export function validateOdometerForm(form, today = kyivDate()) {
     const errors = [];

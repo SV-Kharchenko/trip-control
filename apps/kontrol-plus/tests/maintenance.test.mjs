@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import {
     maintenanceEval, sortMaintenance, maintenanceBadge, badgeTitle, intervalText, leftKmText, leftDaysText, lastText,
     periodRange, periodError, costTotals, costCsvRows, COST_CSV_HEADER, perKmText, validateTypeForm, validateOdometerForm, PERIODS,
+    odometerConflict, ODOMETER_SOURCE_TEXT,
 } from '../src/lib/maintenance.js';
+import { errorText, odometerDecreaseText } from '../src/lib/errors.js';
 import { kyivDate } from '../src/lib/format.js';
 import { repairErrorText } from '../src/lib/repairs.js';
 import { parseCrmHash } from '../src/lib/route.js';
@@ -38,7 +40,7 @@ const all = (node, tag) => (node.children || []).flatMap((c) => [...(c.tagName =
 
 const { maintenanceTable, paintRepairsBadge } = await import('../src/views/repairs-maintenance.js');
 const { costTable } = await import('../src/views/repairs-cost.js');
-const { maintenanceChoices, maintenancePayload } = await import('../src/views/repairs-form.js');
+const { maintenanceChoices, maintenancePayload, repairSavePayload } = await import('../src/views/repairs-form.js');
 const { repairsTabs, maintenanceByRepair } = await import('../src/views/repairs.js');
 
 test('maintenanceEval: the same inclusive boundaries as kp_maintenance_eval', () => {
@@ -149,6 +151,37 @@ test('forms: type template and odometer validation', () => {
     assert.equal(validateOdometerForm({ vehicle_id: 'v', date: '2026-10-24', km: '' }, '2026-10-24').length, 1);
 });
 
+test('odometerConflict: the same inclusive bounds as kp_odometer_guard (manual and repair bases)', () => {
+    const history = [
+        { id: 'm3', read_on: '2026-08-20', odometer_km: 2000, source: 'manual', created_at: '2026-08-20T10:00:00+00:00' },
+        { id: 'r1', read_on: '2026-08-11', odometer_km: 1500, source: 'repair', created_at: '2026-08-11T10:00:00+00:00' },
+        { id: 'g1', read_on: '2026-08-05', odometer_km: 99999, source: 'gps', created_at: '2026-08-05T10:00:00+00:00' },
+        { id: 'm1', read_on: '2026-08-01', odometer_km: 1000, source: 'manual', created_at: '2026-08-01T10:00:00+00:00' },
+    ];
+    assert.equal(odometerConflict(history, '2026-08-10', '1000'), null, 'equal to the previous — allowed');
+    assert.deepEqual(odometerConflict(history, '2026-08-10', '999'), { kind: 'prev', km: 1000, read_on: '2026-08-01' }, '1 km less — refused');
+    assert.equal(odometerConflict(history, '2026-08-08', '1200'), null, 'between two bases; GPS is not a base');
+    assert.deepEqual(odometerConflict(history, '2026-08-12', '1499'), { kind: 'prev', km: 1500, read_on: '2026-08-11' }, 'a repair is a base');
+    assert.equal(odometerConflict(history, '2026-08-12', '2000'), null, 'equal to the next — allowed');
+    assert.deepEqual(odometerConflict(history, '2026-08-12', '2001'), { kind: 'next', km: 2000, read_on: '2026-08-20' }, 'into the past above the next');
+    assert.deepEqual(odometerConflict(history, '2026-08-11', '1499'), { kind: 'prev', km: 1500, read_on: '2026-08-11' }, 'same date counts as previous');
+    const sameDay = [...history, { id: 'm2', read_on: '2026-08-11', odometer_km: 1600, source: 'manual', created_at: '2026-08-11T12:00:00+00:00' }];
+    assert.deepEqual(odometerConflict(sameDay, '2026-08-15', '1550'), { kind: 'prev', km: 1600, read_on: '2026-08-11' }, 'same date: the later-created wins');
+    assert.equal(odometerConflict([], '2026-08-15', '1'), null, 'no bases');
+    assert.equal(odometerConflict(history, '2026-08-15', ''), null, 'empty value is left to the form check');
+    assert.deepEqual([ODOMETER_SOURCE_TEXT.manual, ODOMETER_SOURCE_TEXT.repair, ODOMETER_SOURCE_TEXT.gps], ['Вручну', 'Ремонт', 'GPS']);
+});
+
+test('errors: ODOMETER_DECREASE with the bound km and date (lib/errors.js)', () => {
+    const prev = { message: 'ODOMETER_DECREASE', details: '120500|2026-08-11', hint: 'prev', code: 'P0001' };
+    assert.match(errorText(prev), /^Показник одометра менший за попередній \(120\s500 км на 11\.08\.2026\)$/);
+    assert.equal(repairErrorText(prev), errorText(prev), 'repair screens show the same text');
+    assert.match(errorText({ ...prev, details: '2000|2026-08-20', hint: 'next' }), /^Показник одометра більший за наступний \(2\s000 км на 20\.08\.2026\)$/);
+    assert.equal(errorText({ message: 'ODOMETER_DECREASE' }), 'Показник одометра менший за попередній.');
+    assert.match(odometerDecreaseText(1000, '2026-08-01'), /менший за попередній \(1\s000 км на 01\.08\.2026\)/);
+    assert.match(repairErrorText({ message: 'REPAIR_BAD_PARTS' }), /запчастин/);
+});
+
 test('errors: Ukrainian texts for the new codes', () => {
     assert.match(repairErrorText({ message: 'MAINT_TYPE_ARCHIVED' }), /в архіві/);
     assert.match(repairErrorText({ message: 'MAINT_TYPE_EXISTS' }), /вже є/);
@@ -224,6 +257,18 @@ test('UI repair form: «Виконане ТО» only with a vehicle; payload kee
         [['r1', 'Масло, Фільтри'], ['r2', 'Гальма']]);
 });
 
+test('UI repair form: one atomic call — repair, write-off and TO', () => {
+    const payload = repairSavePayload({ vehicle_id: 'v1', date: '2026-10-24', odometer: '120500', works: ' Масло ', provider: ' ', service_cost: '',
+        lines: [{ part_id: 'p1', qty: '2' }, { part_id: '', qty: '1' }] }, ['t1']);
+    assert.deepEqual(payload, { p_repair: null, p_vehicle: 'v1', p_date: '2026-10-24', p_odometer: 120500, p_works: 'Масло', p_provider: null,
+        p_service_cost: 0, p_parts: [{ part_id: 'p1', qty: 2 }], p_type_ids: ['t1'] });
+    assert.equal(repairSavePayload({ vehicle_id: 'v1', date: '2026-10-24', odometer: '', works: 'x', service_cost: '10', lines: [] }, []).p_type_ids, null,
+        'no TO chosen → the TO set is not touched');
+    const form = fs.readFileSync(new URL('../src/views/repairs-form.js', import.meta.url), 'utf8');
+    assert.match(form, /rpc\('kp_repair_save_with_maintenance'/);
+    assert.doesNotMatch(form, /rpc\('kp_repair_post'|rpc\('kp_repair_set_maintenance'/, 'no separate post + set (not atomic)');
+});
+
 test('3b sources: no innerHTML / outerHTML / insertAdjacentHTML; RPC names exist in the migration', () => {
     const app = new URL('../', import.meta.url);
     const sources = ['src/views/repairs-maintenance.js', 'src/views/repairs-cost.js', 'src/views/repairs-form.js', 'src/lib/maintenance.js', 'src/bridge.js']
@@ -235,7 +280,7 @@ test('3b sources: no innerHTML / outerHTML / insertAdjacentHTML; RPC names exist
     const rpcs = new Set([...sources.matchAll(/rpc\('(kp_[a-z_]+)'/g)].map((m) => m[1]));
     for (const name of ['kp_maintenance_status', 'kp_maintenance_seed_defaults', 'kp_maintenance_type_upsert', 'kp_maintenance_type_archive',
         'kp_maintenance_override_set', 'kp_maintenance_override_clear', 'kp_odometer_add', 'kp_odometer_list', 'kp_vehicle_mileage',
-        'kp_repair_set_maintenance', 'kp_repair_cost_per_km']) {
+        'kp_repair_save_with_maintenance', 'kp_repair_cost_per_km']) {
         assert.ok(rpcs.has(name), 'UI calls ' + name);
         assert.match(sql, new RegExp('FUNCTION public\\.' + name + '\\('), name + ' in the migration');
     }
