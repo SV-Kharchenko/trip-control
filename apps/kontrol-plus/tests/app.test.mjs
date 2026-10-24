@@ -58,6 +58,10 @@ test('service worker never touches data: Supabase, other origins, non-GET', () =
     assert.equal(route('https://abc.supabase.co/auth/v1/token?grant_type=password', 'POST'), 'bypass');
     assert.equal(route('https://abc.supabase.co/rest/v1/rpc/report_plan_fact', 'POST'), 'bypass');
     assert.equal(route('https://trip-control.com/'), 'bypass');
+    // Тайли карти GPS (2c): чужий origin — SW не кешує й не префетчить.
+    assert.equal(route('https://tile.openstreetmap.org/6/38/22.png'), 'bypass');
+    assert.equal(route('https://tile.openstreetmap.org/6/38/22.png', 'GET', 'no-cors'), 'bypass');
+    assert.equal(route('/api/gps/positions', 'POST'), 'bypass');
     assert.equal(route('/api/calculate', 'POST'), 'bypass');
     assert.equal(route('/api/team'), 'bypass');
     assert.equal(route('/api/team', 'GET', 'navigate'), 'bypass');
