@@ -60,6 +60,7 @@ test('earlier migrations are not edited by this change', () => {
     const RENAMES = [
         ['supabase/migrations/20261023090000_trip_fact_v2.sql', 'supabase/migrations/20261023091124_trip_fact_v2.sql'],
         ['supabase/migrations/20261024090000_gps_integrations.sql', 'supabase/migrations/20261024111415_gps_integrations.sql'],
+        ['supabase/migrations/20261025090000_repairs_stock.sql', 'supabase/migrations/20261024150255_repairs_stock.sql'],
     ];
     const sameBlob = (from, to) => {
         try {

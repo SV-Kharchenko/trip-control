@@ -213,7 +213,7 @@ npm run check:db                # усі міграції + Контроль+ і
 ## Ремонти і склад запчастин, етап 3a
 
 Вкладка «Ремонти» (`#/repairs`, підрозділи `#/repairs/new`, `#/repairs/stock`, `#/repairs/handlers`) — для організацій на
-`control_plus`. Міграція `supabase/migrations/20261025090000_repairs_stock.sql` (лише додає таблиці й функції, повторно
+`control_plus`. Міграція `supabase/migrations/20261024150255_repairs_stock.sql` (лише додає таблиці й функції, повторно
 застосовується без помилок), тести — `supabase/tests/repairs_stock.sql` (`npm run check:db`). Поки міграцію не застосовано,
 `kp_repairs_context()` не існує, і вкладку просто не видно.
 
