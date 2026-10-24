@@ -28,13 +28,13 @@ class FakeElement extends FakeNode {
     focus() {}
 }
 
-function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null } = {}) {
+function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
     const body = new FakeElement('body');
     const storage = new Map(legacyKey ? [['kp-auth', '{"old":1}'], ['sb-qkfqjorzsxcajcneohoy-auth-token', 'site']] : []);
-    const calls = { warn: 0, listeners: 0, observers: 0, removed: [] };
+    const calls = { warn: 0, listeners: 0, observers: 0, removed: [], rpcs: {} };
     const doc = {
         body,
         querySelector: (sel) => (sel === '#tc-nav-panel .tc-studio-nav' ? navEl : null),
@@ -56,10 +56,15 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
         console: { ...console, warn: () => { calls.warn += 1; } },
         supabaseClient: client ? {
             auth: { getSession: async () => ({ data: { session } }), onAuthStateChange: () => { calls.listeners += 1; } },
+            // Етап 3a: після kp_context міст питає ще kp_repairs_context (вкладка «Ремонти»).
             rpc: async (name) => {
-                if (!session) throw new Error('kp_context must not be called without a session');
-                assert.equal(name, 'kp_context');
-                calls.rpc = (calls.rpc || 0) + 1;
+                if (!session) throw new Error(name + ' must not be called without a session');
+                assert.ok(['kp_context', 'kp_repairs_context'].includes(name), 'unexpected rpc ' + name);
+                calls.rpcs[name] = (calls.rpcs[name] || 0) + 1;
+                if (name === 'kp_repairs_context') {
+                    if (repairs === 'missing') return { data: null, error: { code: 'PGRST202', message: 'not found' } };
+                    return { data: repairs ? [repairs] : [], error: null };
+                }
                 return { data: context ? [context] : [], error: null };
             },
         } : undefined,
@@ -107,14 +112,15 @@ for (const [name, opts] of [
     });
 }
 
-test('bridge: site with nav, #main-app and supabaseClient → two tabs and #kp-crm; legacy kp-auth removed once', async () => {
+test('bridge: site with nav, #main-app and supabaseClient → four tabs and #kp-crm; legacy kp-auth removed once', async () => {
     const env = setup();
     try {
         const { startBridge, LEGACY_SESSION_KEY } = await freshBridge();
         assert.equal(LEGACY_SESSION_KEY, 'kp-auth');
         assert.equal(await startBridge(), true);
-        assert.deepEqual(env.navEl.children.map((b) => b.id), ['kp-nav-clients', 'kp-nav-report', 'kp-nav-gps']);
+        assert.deepEqual(env.navEl.children.map((b) => b.id), ['kp-nav-clients', 'kp-nav-report', 'kp-nav-gps', 'kp-nav-repairs']);
         assert.equal(env.navEl.children[2].hidden, true, 'GPS tab hidden without a session');
+        assert.equal(env.navEl.children[3].hidden, true, 'Ремонти hidden without a session');
         assert.equal(env.navEl.children[0].hidden, undefined, 'Клієнти / Звіт as before');
         assert.deepEqual(env.byId['main-app'].children.map((el) => el.id), ['kp-crm']);
         assert.equal(env.calls.warn, 0);
@@ -148,7 +154,30 @@ for (const [name, context, visible] of [
             assert.equal(await startBridge(), true);
             const gps = env.navEl.children.find((b) => b.id === 'kp-nav-gps');
             assert.equal(gps.hidden, !visible);
-            assert.equal(env.calls.rpc, 1, 'kp_context asked once');
+            assert.equal(env.calls.rpcs.kp_context, 1, 'kp_context asked once');
+        } finally {
+            env.restore();
+        }
+    });
+}
+
+const RP = (role, extra = {}) => ({ org_id: 'o1', org_name: 'Org', role, can_write: true, can_manage_handlers: false, ...extra });
+for (const [name, context, repairs, expected] of [
+    ['owner with repairs', { control_plus: true, role: 'owner' }, RP('owner', { can_manage_handlers: true }), { repairs: false, clients: false, gps: false }],
+    ['logist not a handler (read only)', { control_plus: true, role: 'logist' }, RP('logist', { can_write: false }), { repairs: false, clients: false, gps: false }],
+    ['repair manager of another org', { control_plus: false, role: null, own_org_plan: 'company' }, RP('repair_manager'), { repairs: false, clients: true, gps: true }],
+    ['company plan, no repairs', { control_plus: false, role: null, own_org_plan: 'company' }, null, { repairs: true, clients: false, gps: true }],
+    ['migration 3a not applied', { control_plus: true, role: 'owner' }, 'missing', { repairs: true, clients: false, gps: false }],
+]) {
+    test(`bridge: Ремонти tab — ${name}`, async () => {
+        const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context, repairs });
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            const tab = (id) => env.navEl.children.find((b) => b.id === id).hidden === true;
+            assert.deepEqual({ repairs: tab('kp-nav-repairs'), clients: tab('kp-nav-clients'), gps: tab('kp-nav-gps') }, expected, 'hidden flags');
+            assert.equal(tab('kp-nav-report'), expected.clients, 'Звіт hidden together with Клієнти');
+            assert.deepEqual(env.calls.rpcs, { kp_context: 1, kp_repairs_context: 1 });
         } finally {
             env.restore();
         }

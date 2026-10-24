@@ -12,6 +12,13 @@ export function fmtMoney(value) {
     return n === null ? '—' : money.format(n) + ' ₴';
 }
 
+// Гроші з копійками (ціна одиниці, середня собівартість).
+const money2 = new Intl.NumberFormat('uk-UA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export function fmtMoneyCents(value) {
+    const n = num(value);
+    return n === null ? '—' : money2.format(n) + ' ₴';
+}
+
 export function fmtNumber(value) {
     const n = num(value);
     return n === null ? '—' : number.format(n);

@@ -230,3 +230,51 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast {
 #kp-crm .leaflet-control-attribution { background: rgba(255, 255, 255, 0.85); color: #333; }
 #kp-crm .leaflet-control-attribution a { color: #0078a8; }
 #kp-crm .leaflet-popup-content-wrapper, #kp-crm .leaflet-popup-tip { background: #fff; color: #0D2A28; }
+
+/* Ремонти і склад (етап 3a). */
+.tc-studio-nav #kp-nav-repairs { white-space: nowrap; }
+#kp-crm .kpr-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 16px; border-bottom: 1px solid var(--border); }
+#kp-crm .kpr-tab { padding: 8px 14px; text-decoration: none; color: var(--muted); font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+#kp-crm .kpr-tab:hover { color: var(--text); }
+#kp-crm .kpr-tab.on { color: var(--text); border-bottom-color: var(--gold); }
+#kp-crm .kpr-panel:not(:empty) { margin-bottom: 16px; }
+#kp-crm .kpr-wide { grid-column: 1 / -1; }
+#kp-crm .kpr-lines { display: grid; gap: 8px; margin: 0 0 10px; }
+#kp-crm .kpr-line { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 2fr) 110px auto; gap: 8px; align-items: center;
+    padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--bg); }
+#kp-crm .kpr-line .hint { grid-column: 1 / -1; margin: 0; }
+#kp-crm .kpr-totals { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--mono); padding: 10px 0; }
+#kp-crm .kpr-totals b { font-size: 1.1em; }
+#kp-crm .kpr-sticky { position: sticky; bottom: 0; z-index: 3; padding: 10px 0; background: var(--surface); border-top: 1px solid var(--border-soft); }
+#kp-crm .kpr-errors { margin: 0; padding-left: 18px; }
+#kp-crm .kpr-works { max-width: 340px; white-space: pre-line; }
+#kp-crm .kpr-page td.mono, #kp-crm .kpr-page td b { white-space: nowrap; }
+#kp-crm .kpr-label { font-weight: 600; }
+#kp-crm .kpr-page input:not([type="number"]), #kp-crm .kpr-page textarea, #kp-crm .kpr-page select { text-align: left; }
+#kp-crm .kpr-page input[type="number"] { text-align: right; }
+#kp-crm .kpr-page .toolbar > .btn, #kp-crm .kpr-page .toolbar > .check { flex: 0 0 auto; width: auto; }
+#kp-crm .kpr-page .toolbar > select, #kp-crm .kpr-page .toolbar > input:not(.grow) { flex: 0 1 340px; width: auto; min-width: 0; }
+#kp-crm .table tbody tr.kpr-error-row, #kp-crm .table tbody tr.kpr-error-row:hover { background: var(--negative-bg); }
+#kp-crm .kpr-error-row td { color: var(--negative-text); }
+#kp-crm .kpr-invite-sent { color: var(--positive); }
+#kp-crm .kpr-invite-expired, #kp-crm .kpr-invite-revoked { color: var(--warn); }
+@media (max-width: 767px) {
+    #kp-crm .kpr-line { grid-template-columns: 1fr 100px; }
+    #kp-crm .kpr-line > :first-child, #kp-crm .kpr-line select { grid-column: 1 / -1; }
+    /* Таблиці — картками, без горизонтального скролу. */
+    #kp-crm .kpr-cards { overflow-x: visible; border: 0; background: transparent; }
+    #kp-crm .kpr-cards table, #kp-crm .kpr-cards tbody, #kp-crm .kpr-cards tr, #kp-crm .kpr-cards td { display: block; width: 100%; }
+    #kp-crm .kpr-cards thead { display: none; }
+    #kp-crm .kpr-cards tr { margin: 0 0 10px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+    #kp-crm .kpr-cards tr.kpr-error-row { background: var(--negative-bg); }
+    #kp-crm .kpr-cards td { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 5px 0; border-bottom: 1px solid var(--border-soft); overflow-wrap: anywhere; }
+    #kp-crm .kpr-cards td > * { max-width: 100%; }
+    #kp-crm .kpr-cards td:last-child { border-bottom: 0; }
+    #kp-crm .kpr-cards td::before { content: attr(data-label); flex: 0 0 38%; font-family: system-ui, sans-serif; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+    #kp-crm .kpr-cards td[data-label=""]::before { display: none; }
+    #kp-crm .kpr-works { max-width: none; }
+    #kp-crm .kpr-cards td .actions { flex: 1 1 100%; }
+    #kp-crm .kpr-cards td .actions > * { flex: 1 1 0; }
+    #kp-crm .kpr-page .toolbar > * { flex: 1 1 auto; min-width: 0; }
+    #kp-crm .kpr-page .toolbar > .grow, #kp-crm .kpr-page .toolbar > input, #kp-crm .kpr-page .toolbar > select { flex: 1 1 100%; }
+}
