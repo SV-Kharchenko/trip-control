@@ -1,15 +1,23 @@
 // POST /api/gps/{connect|test|sync-units|disconnect} — керування підключенням GPS (лише власник організації на
-// control_plus). Залежності підмінні (store, провайдер, час), тож логіка тестується без мережі й без БД.
+// control_plus). POST /api/gps/positions — карта (етап 2c): будь-який учасник організації на control_plus.
+// Залежності підмінні (store, провайдер, час), тож логіка тестується без мережі й без БД.
 // Токен Wialon: перевіряється, передається в Vault (gps_store_token) і далі ніде не зʼявляється — ні у відповідях,
 // ні в логах, ні в повідомленнях помилок. Тіла запитів не логуємо.
 import { getProvider as defaultGetProvider } from './index.js';
 import { GpsError, gpsMessage, AUTH_CODES } from './errors.js';
 import { hostingHost, normalizeLocalUrl, parseApiHost } from './safe-host.js';
+import { readMap } from './map.js';
 
-export const GPS_ROUTES = ['connect', 'test', 'sync-units', 'disconnect'];
+export const GPS_ROUTES = ['connect', 'test', 'sync-units', 'disconnect', 'positions'];
 const TOKEN_RE = /^[0-9A-Za-z]{32,128}$/;
 const RATE_WINDOW_MS = 10000;
 const PROVIDER = 'wialon';
+// Карта: не частіше одного звернення до Wialon на хвилину на організацію; дані старші за хвилину — застарілі.
+export const MAP_LOCK_MS = 60000;
+const MAP_STALE_MS = 60000;
+// 'error' (мережа / тимчасова помилка) теж оновлюємо, інакше один збій назавжди зупинив би карту до ручної
+// «Перевірити підключення». 'error_auth' — ні: недійсний токен не перевіряємо автоматично (ліміт невдалих логінів Wialon).
+const MAP_REFRESH_STATUSES = new Set(['active', 'error']);
 
 export function createLimiter({ windowMs = RATE_WINDOW_MS, now = () => Date.now() } = {}) {
     const last = new Map();
@@ -21,8 +29,22 @@ export function createLimiter({ windowMs = RATE_WINDOW_MS, now = () => Date.now(
             last.set(key, t);
             return true;
         },
+        // Скільки мс до наступного дозволеного hit (0 — можна).
+        remaining(key) {
+            const at = last.get(key);
+            return at === undefined ? 0 : Math.max(0, windowMs - (now() - at));
+        },
     };
 }
+
+// Статус підключення для карти: 'not_connected' — немає підключення з токеном (або відключено).
+export function mapIntegrationStatus(row) {
+    if (!row || !row.token_secret_id || row.status === 'disabled') return 'not_connected';
+    return row.status;
+}
+
+const smallint = (v) => (v === null || v === undefined || !Number.isFinite(Number(v)) ? null
+    : Math.max(-32768, Math.min(32767, Math.round(Number(v)))));
 
 // Автопідказка мапінгу: назва юніта = номер авто (lower(trim)). Лише вільні авто, кожне — не більше одного разу.
 export function suggestMapping(units, fleet) {
@@ -92,10 +114,13 @@ class HttpError extends Error {
 const providerStatus = (code) => (code === 'unsafe_host' ? 400 : AUTH_CODES.has(code) ? 422 : 502);
 
 export function createGpsHandler({ store, getProvider = defaultGetProvider, providerDeps, now = () => new Date(),
-    limiter = createLimiter(), log = console } = {}) {
+    limiter = createLimiter(), mapLimiter, log = console } = {}) {
     const provider = () => getProvider(PROVIDER, providerDeps);
+    // Перший бар'єр карти — у памʼяті інстансу; другий, міжінстансний — лок у БД (store.claimRefresh).
+    const mapGate = mapLimiter || createLimiter({ windowMs: MAP_LOCK_MS, now: () => now().getTime() });
 
-    async function authorize(req) {
+    // Спільне для всіх маршрутів: JWT → користувач (не заблокований) → профіль.
+    async function authenticate(req) {
         const header = String((req.headers && (req.headers.authorization || req.headers.Authorization)) || '');
         if (!header.startsWith('Bearer ') || header.length <= 7) throw new HttpError(401, 'AUTH_REQUIRED', 'Потрібно увійти.');
         const user = await store.getUser(header.slice(7));
@@ -103,7 +128,28 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         if (user.banned_until && new Date(user.banned_until).getTime() > now().getTime()) {
             throw new HttpError(403, 'USER_BLOCKED', 'Акаунт заблоковано.');
         }
-        const profile = await store.getProfile(user.id);
+        return { user, profile: await store.getProfile(user.id) };
+    }
+
+    // Карта: будь-який учасник організації на control_plus (власник, логіст, інші ролі) або її директор
+    // (org_directors, як kp_org_id()). Усі бачать усі авто своєї організації.
+    async function authorizeMember(req) {
+        const { user, profile } = await authenticate(req);
+        if (profile && profile.org_id && profile.org_plan === 'control_plus') {
+            if (profile.org_status === 'blocked') throw new HttpError(403, 'ORG_BLOCKED', 'Доступ компанії заблоковано.');
+            if (profile.member_status !== 'active') throw new HttpError(403, 'MEMBER_DISABLED', 'Доступ до компанії відключено.');
+            return { user, orgId: profile.org_id, role: profile.org_role || null };
+        }
+        const directorOf = await store.directorOrg(user.id);
+        if (directorOf) return { user, orgId: directorOf, role: 'director' };
+        if (!profile || !profile.org_id) throw new HttpError(403, 'NO_PROFILE', 'Профіль користувача не знайдено.');
+        if (profile.member_status !== 'active') throw new HttpError(403, 'MEMBER_DISABLED', 'Доступ до компанії відключено.');
+        if (profile.org_status === 'blocked') throw new HttpError(403, 'ORG_BLOCKED', 'Доступ компанії заблоковано.');
+        throw new HttpError(403, 'CONTROL_PLUS_REQUIRED', 'GPS доступний у тарифі Контроль+.');
+    }
+
+    async function authorize(req) {
+        const { user, profile } = await authenticate(req);
         if (!profile || !profile.org_id) throw new HttpError(403, 'NO_PROFILE', 'Профіль користувача не знайдено.');
         if (profile.member_status !== 'active') throw new HttpError(403, 'MEMBER_DISABLED', 'Доступ до компанії відключено.');
         if (profile.org_status === 'blocked') throw new HttpError(403, 'ORG_BLOCKED', 'Доступ компанії заблоковано.');
@@ -293,7 +339,105 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         return { status: 200, body: { ok: true, ...publicIntegration(row) } };
     }
 
-    const HANDLERS = { connect, test, 'sync-units': syncUnits, disconnect };
+    // Нові точки → gps_positions (без дублів) і last_* юніта, лише якщо точка новіша за збережену.
+    async function savePoints(orgId, units, points, seenIso) {
+        const byExt = new Map(units.map((u) => [String(u.external_id), u]));
+        const rows = [];
+        const latest = new Map();
+        for (const p of points || []) {
+            const unit = byExt.get(String(p.externalId));
+            if (!unit || !Number.isFinite(Date.parse(p.t))) continue;
+            const row = {
+                org_id: orgId,
+                gps_vehicle_id: unit.id,
+                recorded_at: new Date(p.t).toISOString(),
+                lat: p.lat,
+                lon: p.lon,
+                speed: smallint(p.speed),
+                course: smallint(p.course),
+                sats: smallint(p.sats),
+                altitude: p.altitude === null || p.altitude === undefined || !Number.isFinite(Number(p.altitude)) ? null : Number(p.altitude),
+            };
+            rows.push(row);
+            const prev = latest.get(unit.id);
+            if (!prev || prev.recorded_at < row.recorded_at) latest.set(unit.id, row);
+        }
+        await store.insertPositions(rows);
+        const updates = [];
+        for (const unit of units) {
+            const row = latest.get(unit.id);
+            if (!row) continue;
+            if (unit.last_pos_at && Date.parse(row.recorded_at) <= Date.parse(unit.last_pos_at)) continue;
+            updates.push({ id: unit.id, last_pos_at: row.recorded_at, last_lat: row.lat, last_lon: row.lon,
+                last_speed: row.speed, last_course: row.course, last_seen_at: seenIso });
+        }
+        if (updates.length) await store.updateLastPositions(orgId, updates);
+    }
+
+    function isStale(integration, units, t) {
+        const okAt = Date.parse(integration.last_ok_at || '');
+        const lastPos = Math.max(...units.map((u) => Date.parse(u.last_pos_at || '')).filter(Number.isFinite), -Infinity);
+        return !Number.isFinite(okAt) || t.getTime() - okAt > MAP_STALE_MS || !Number.isFinite(lastPos) || t.getTime() - lastPos > MAP_STALE_MS;
+    }
+
+    // Карта: віддаємо рядки з бази; перед цим — оновлення з Wialon, якщо дані застарілі або просять refresh,
+    // і лише під локом (не частіше разу на хвилину на організацію). Лок зайнятий — це не помилка: кеш + next_refresh_at.
+    async function positions(auth, body) {
+        const t = now();
+        const nowIso = t.toISOString();
+        const refresh = body.refresh === true;
+        const integration = await store.getIntegration(auth.orgId, PROVIDER);
+        const lockedUntil = integration && Date.parse(integration.lock_until || '') > t.getTime() ? integration.lock_until : null;
+        let nextRefreshAt = lockedUntil;
+        let refreshed = false;
+        let refreshError = null;
+        let rateLimited = false;
+        let current = integration;
+        if (integration && integration.token_secret_id && MAP_REFRESH_STATUSES.has(integration.status)) {
+            const units = await store.mappedUnits(auth.orgId);
+            if (units.length && (refresh || isStale(integration, units, t))) {
+                const until = new Date(t.getTime() + MAP_LOCK_MS).toISOString();
+                // gps_integrations.lock_until у 2c належить ЛИШЕ ліміту оновлення карти. Збирач 2b має отримати
+                // власне поле локу (окрема міграція в 2b) і не перевикористовувати це.
+                const claimed = mapGate.hit(auth.orgId) && await store.claimRefresh(integration.id, auth.orgId, nowIso, until);
+                if (!claimed) {
+                    rateLimited = refresh;
+                    const memoryWait = mapGate.remaining(auth.orgId);
+                    nextRefreshAt = lockedUntil || new Date(t.getTime() + (memoryWait || MAP_LOCK_MS)).toISOString();
+                } else {
+                    nextRefreshAt = until;
+                    try {
+                        const creds = await credsOf(integration);
+                        const points = await provider().fetchPositions(creds, units.map((u) => String(u.external_id)));
+                        await savePoints(auth.orgId, units, points, nowIso);
+                        current = await markOk(integration, {});
+                        refreshed = true;
+                    } catch (error) {
+                        if (error instanceof GpsError) {
+                            current = await markFailure(integration, error.code);
+                            refreshError = gpsMessage(error.code);
+                        } else if (error instanceof HttpError) {
+                            refreshError = error.publicMessage;
+                        } else throw error;
+                    }
+                }
+            }
+        }
+        const out = {
+            integration_status: mapIntegrationStatus(current),
+            refreshed,
+            next_refresh_at: nextRefreshAt,
+            vehicles: await readMap(store, auth.orgId, t),
+        };
+        if (refreshError) out.refresh_error = refreshError;
+        if (rateLimited) {
+            const seconds = Math.max(1, Math.ceil((Date.parse(nextRefreshAt) - t.getTime()) / 1000));
+            return { status: 429, body: { code: 'RATE_LIMITED', error: 'Оновлення доступне через ' + seconds + ' с.', ...out } };
+        }
+        return { status: 200, body: out };
+    }
+
+    const HANDLERS = { connect, test, 'sync-units': syncUnits, disconnect, positions };
 
     // route — з імені статичного файлу api/gps/<route>.js (lib/gps/vercel.js); без нього — з URL.
     return async function gpsHandler(req, res, forcedRoute) {
@@ -305,7 +449,7 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         }
         if (!GPS_ROUTES.includes(route)) return res.status(404).json({ code: 'NOT_FOUND', error: 'Невідома дія.' });
         try {
-            const auth = await authorize(req);
+            const auth = route === 'positions' ? await authorizeMember(req) : await authorize(req);
             const out = await HANDLERS[route](auth, bodyOf(req));
             return res.status(out.status).json(out.body);
         } catch (error) {

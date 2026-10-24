@@ -174,6 +174,42 @@ npm run check:db                # усі міграції + Контроль+ і
   додатковий. Не захищає лише від гонки двох одночасних запитів у різних інстансах (обидва можуть пройти перевірку).
 - Локально (`npm run dev`) `/api` проксіюється на trip-control.com, тож `/api/gps/*` там не працює — лише на Vercel.
 
+## GPS, етап 2c (карта)
+
+Підрозділ «Карта» у вкладці «GPS» (`#/gps`): авто організації на карті OpenStreetMap, список поруч, у кожного авто — поточна
+заявка. Бачать усі ролі організації на `control_plus` (власник, директор, логіст, інші); тариф «Компанія» — ні.
+Схема БД не змінювалась: використовуються таблиці 2a (`gps_vehicles.last_*`, `gps_positions`, `gps_integrations.lock_until`).
+
+- **Оновлення без крону.** Карта при відкритті кличе `POST /api/gps/positions` (`{ refresh: false }`), кнопка «Оновити» —
+  `{ refresh: true }`. Сервер (service_role) звертається до Wialon лише для привʼязаних активних юнітів своєї організації
+  (`active = true`, `vehicle_id IS NOT NULL`), зберігає точки в `gps_positions` (без дублів) і `gps_vehicles.last_*` (лише якщо точка
+  новіша), а відповідь будує з бази (`lib/gps/map.js` → `readMap`). Без `refresh` звертаємось до Wialon, лише якщо дані старші
+  за 60 с (`last_ok_at` або остання точка організації).
+- **Ліміт 60 с на організацію.** Перший барʼєр — лічильник у памʼяті інстансу; другий, міжінстансний — атомарний лок
+  `UPDATE gps_integrations SET lock_until = now() + 60 s WHERE id = … AND (lock_until IS NULL OR lock_until < now())`.
+  Лок зайнятий — це не помилка: віддаємо дані з бази, `refreshed: false` і `next_refresh_at`; лише явний `refresh: true` у вікні
+  дає 429 (теж із даними). Помилка Wialon — дані з бази + `refresh_error`; статус підключення як у 2a; лок не знімаємо.
+  Підключення у статусі `error` (тимчасовий збій) оновлюється далі, `error_auth` — ні (недійсний токен не перевіряємо автоматично).
+- **`gps_integrations.lock_until` зайнятий лімітом карти.** Збирач 2b має отримати **власне** поле для свого локу (окрема
+  міграція в 2b) і не перевикористовувати `lock_until`. Коли зʼявиться 2b, він лише наповнюватиме ті самі `gps_positions` /
+  `gps_vehicles.last_*`: свіжі дані від крону означатимуть, що карта не звертається до Wialon; `readMap` не змінюється.
+- **Поточна заявка** = лише `accepted` (не `done`: виконаний рейс уже не поточний, навіть у вікні; `draft` / `proposed` /
+  `rejected` теж ні), `calc_vehicles.vehicle_id` = авто юніта, `calculations.org_id` = своя організація; вікно за
+  Europe/Kyiv: `trip_date ≤ сьогодні < trip_date + ceil(trip_days або 1) + 1 доба`. Кілька — найпізніша, що вже почалась,
+  решта — «+N». Клієнт — `calculation_clients → clients.name`, інакше `calculations.client_name`.
+- **Деталі заявок на карті бачать усі учасники організації** (власник, директор, логіст, інші ролі) для кожного авто своєї
+  організації — без правила `kp_trip_visible` і без маскування заявок інших логістів. Межі: лише своя організація (явний
+  фільтр `org_id` на сервері), лише поля заявки з відповіді (дата, маршрут, клієнт). Видимість заявок в інших розділах не змінилась.
+- «Немає сигналу» — остання точка старша за 30 хв або її немає.
+- **Leaflet 1.9.4** (BSD-2-Clause) з npm, збирається Vite в окремий чанк `/kp-assets/leaflet-*.js` / `.css` і вантажиться лише
+  при відкритті розділу (`import('leaflet')`); при виході — `map.remove()`. Маркери — `L.divIcon` (HTML/CSS), без PNG і CDN.
+- **CSP:** у правилі сторінок сайту (`/`, `/index.html`, юридичні сторінки) до `img-src` додано `https://tile.openstreetmap.org`
+  (тайли — це `<img>`, `connect-src` не потрібен). Строгий CSP решти шляхів не змінювався.
+- **Тайли OSM:** `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, `maxZoom` 19, видима атрибуція «© OpenStreetMap contributors»
+  з посиланням на https://www.openstreetmap.org/copyright. Без префетчу й офлайн-кешу (service worker пропускає чужі origin).
+  Політика тайлів OSM (https://operations.osmfoundation.org/policies/tiles/) — для помірного навантаження; для комерційного
+  сервісу з багатьма користувачами варто перейти на власний або платний сервер тайлів (зміна однієї константи `OSM_TILES` і CSP).
+
 ## PWA / Microsoft Store
 
 `public/manifest.webmanifest` (id, standalone, window-controls-overlay, іконки any + maskable, скриншоти wide/narrow),

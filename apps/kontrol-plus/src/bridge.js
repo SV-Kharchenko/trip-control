@@ -26,6 +26,17 @@ function siteSupabase() {
 }
 
 const state = { supabase: null, session: null, context: null, contextUser: null, route: null };
+// Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
+let cleanups = [];
+function runCleanups() {
+    const list = cleanups;
+    cleanups = [];
+    for (const fn of list) {
+        try {
+            fn();
+        } catch { /* прибирання не має ламати навігацію */ }
+    }
+}
 let root = null;
 const tabs = {};
 
@@ -37,6 +48,7 @@ function app() {
         ...crmPermissions(state.context),
         go: (hash) => { location.hash = hash; },
         onPlanLost: () => { state.context = null; syncGpsTab(); render(); },
+        onCleanup: (fn) => { cleanups.push(fn); },
     };
 }
 
@@ -78,6 +90,7 @@ async function refreshGpsTab() {
 }
 
 function leave() {
+    runCleanups();
     if (!state.route) return;
     state.route = null;
     if (parseCrmHash(location.hash)) history.replaceState(null, '', location.pathname + location.search);
@@ -127,6 +140,7 @@ async function render() {
         clear(root, renderPaywall({ context: state.context, siteUrl: SITE_URL }));
         return;
     }
+    runCleanups();
     let view;
     if (route.view === 'report') view = renderReport(app());
     else if (route.view === 'client-new') view = renderClientForm(app(), null);

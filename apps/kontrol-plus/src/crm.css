@@ -194,3 +194,39 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast {
     #kp-crm .gps-units select { min-width: 0; width: 100%; }
     #kp-crm .gps-units td { white-space: normal; }
 }
+
+/* GPS — карта (етап 2c) */
+#kp-crm .gps-map-section { margin-bottom: 8px; }
+#kp-crm .gps-map-section .page-head { align-items: center; }
+#kp-crm .gps-map-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: stretch; }
+#kp-crm .gps-map { height: 520px; min-height: 320px; border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; background: var(--bg); }
+#kp-crm .gps-map-list { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; display: grid; gap: 6px; align-content: start; }
+#kp-crm .gps-map-item { width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
+#kp-crm .gps-map-item:disabled { cursor: default; opacity: 0.75; }
+#kp-crm .gps-map-item:not(:disabled):hover { border-color: var(--accent); }
+#kp-crm .gps-map-main { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+#kp-crm .gps-map-item .dot { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--positive); }
+#kp-crm .gps-map-item.is-nosignal .dot { background: var(--muted); }
+#kp-crm .gps-to-form { margin-left: 8px; }
+/* Маркери (L.divIcon): мітка над точкою; тайли не інвертуємо в темній темі. */
+#kp-crm .kp-marker-wrap { background: none; border: 0; }
+#kp-crm .kp-marker { transform: translate(-50%, -100%); display: grid; gap: 1px; padding: 3px 7px; border-radius: 8px; white-space: nowrap;
+    font: 600 12px/1.2 var(--font-ui, sans-serif); color: #fff; background: #1F6F4D; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); border: 2px solid #fff; }
+#kp-crm .kp-marker span { font-weight: 500; font-size: 11px; opacity: 0.95; }
+#kp-crm .kp-marker.is-nosignal { background: #6B7280; }
+#kp-crm .kp-popup { display: grid; gap: 3px; font-size: 13px; min-width: 200px; color: #0D2A28; }
+#kp-crm .kp-popup .muted { color: #5A6B66; }
+#kp-crm .kp-nosignal { color: #8A6420; font-weight: 600; }
+#kp-crm .kp-popup-order { margin-top: 4px; }
+#kp-crm .leaflet-container { font: inherit; }
+@media (max-width: 767px) {
+    #kp-crm .gps-map-wrap { grid-template-columns: 1fr; }
+    #kp-crm .gps-map { height: 55vh; }
+    #kp-crm .gps-map-list { max-height: none; }
+}
+/* Контроли Leaflet — завжди світлі, читабельні в будь-якій темі сайту (тайли теж не інвертуємо). */
+#kp-crm .leaflet-bar a, #kp-crm .leaflet-bar a:hover { background: #fff; color: #222; border-bottom-color: #ccc; }
+#kp-crm .leaflet-control-attribution { background: rgba(255, 255, 255, 0.85); color: #333; }
+#kp-crm .leaflet-control-attribution a { color: #0078a8; }
+#kp-crm .leaflet-popup-content-wrapper, #kp-crm .leaflet-popup-tip { background: #fff; color: #0D2A28; }

@@ -103,7 +103,7 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     // /api/:path* (для динамічних [param] це не гарантовано). Решта /api/* — проксі на сайт.
     const own = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map(String).filter((f) => f.endsWith('.js'))
         .map((f) => f.replace(/\\/g, '/')).sort();
-    assert.deepEqual(own, ['gps/connect.js', 'gps/disconnect.js', 'gps/sync-units.js', 'gps/test.js'], 'only the static GPS functions');
+    assert.deepEqual(own, ['gps/connect.js', 'gps/disconnect.js', 'gps/positions.js', 'gps/sync-units.js', 'gps/test.js'], 'only the static GPS functions');
     assert.equal(own.some((f) => /\[|\]/.test(f)), false, 'no dynamic [param] routes');
     for (const file of own) {
         const route = file.replace(/^gps\/|\.js$/g, '');
@@ -112,6 +112,27 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     }
     assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 } });
     assert.equal(cfg.rewrites.filter((r) => r.source.startsWith('/api')).length, 1, 'one proxy rule, unchanged');
+});
+
+test('built dist/: Leaflet from npm in /kp-assets/ as a lazy chunk, no CDN', { skip: !fs.existsSync(path.join(APP, 'dist/index.html')) && 'run npm run build first' }, () => {
+    const assets = fs.readdirSync(path.join(APP, 'dist/kp-assets'));
+    const leafletJs = assets.filter((f) => /^leaflet.*\.js$/.test(f));
+    const leafletCss = assets.filter((f) => /^leaflet.*\.css$/.test(f));
+    assert.equal(leafletJs.length, 1, 'one Leaflet chunk');
+    assert.equal(leafletCss.length, 1, 'Leaflet CSS in /kp-assets/');
+    assert.match(fs.readFileSync(path.join(APP, 'dist/kp-assets', leafletCss[0]), 'utf8'), /\.leaflet-container/);
+    const bridge = assets.find((f) => /^site-bridge-.*\.js$/.test(f));
+    const bridgeJs = fs.readFileSync(path.join(APP, 'dist/kp-assets', bridge), 'utf8');
+    assert.doesNotMatch(bridgeJs, /L\.Map|leaflet-container/, 'Leaflet is not in the main bundle (dynamic import only)');
+    assert.ok(bridgeJs.includes(leafletJs[0]), 'the bridge loads the Leaflet chunk lazily');
+    const all = fs.readdirSync(path.join(APP, 'dist'), { recursive: true }).map(String)
+        .filter((f) => /\.(js|css|html)$/.test(f) && !f.startsWith('assets') && !f.startsWith('legal') && f !== 'index.html');
+    for (const file of all) {
+        const text = fs.readFileSync(path.join(APP, 'dist', file), 'utf8');
+        assert.doesNotMatch(text, /(unpkg\.com|cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com)[^"'\s]*leaflet/i, file);
+    }
+    assert.doesNotMatch(read('dist/index.html').replace(/<!--kp:start-->[\s\S]*?<!--kp:end-->/g, ''), /leaflet/i, 'no Leaflet tags in the page');
+    assert.doesNotMatch(read('dist/index.html').match(/<!--kp:start-->[\s\S]*?<!--kp:end-->/)[0], /leaflet/i);
 });
 
 test('vercel.json: site CSP only on site pages, strict CSP everywhere else, one CSP per path', () => {
@@ -130,6 +151,17 @@ test('vercel.json: site CSP only on site pages, strict CSP everywhere else, one 
         assert.match(csp, /script-src 'self';/, pathname);
         assert.doesNotMatch(csp, /unsafe-inline|unsafe-eval/, pathname);
     }
+    // Карта GPS (2c) рендериться всередині сторінки сайту (/): тайли OSM — лише в img-src правила сторінок сайту.
+    for (const pathname of SITE_PAGES) {
+        const csp = headersFor(pathname, 'Content-Security-Policy')[0];
+        assert.match(csp, /img-src 'self' data: blob: https:\/\/\*\.googleapis\.com https:\/\/\*\.gstatic\.com https:\/\/\*\.google\.com https:\/\/tile\.openstreetmap\.org;/, pathname);
+        assert.equal((csp.match(/tile\.openstreetmap\.org/g) || []).length, 1, pathname + ': OSM only in img-src');
+        assert.doesNotMatch(csp.match(/connect-src [^;]*/)[0], /openstreetmap/, 'tiles are <img>, no connect-src');
+    }
+    // Строгий CSP решти шляхів — рівно як був.
+    const STRICT = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://*.supabase.co; "
+        + "manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+    for (const pathname of APP_FILES) assert.equal(headersFor(pathname, 'Content-Security-Policy')[0], STRICT, pathname);
     assert.deepEqual(headersFor('/kp-assets/a.js', 'Cache-Control'), ['public, max-age=31536000, immutable']);
     assert.deepEqual(headersFor('/assets/landing.js', 'Cache-Control'), ['public, max-age=604800, stale-while-revalidate=86400']);
     assert.deepEqual(headersFor('/', 'Cache-Control'), ['no-cache']);

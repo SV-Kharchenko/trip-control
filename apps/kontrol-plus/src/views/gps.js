@@ -5,6 +5,8 @@ import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import { gpsAccess } from '../lib/gate.js';
 import { gpsMessage } from '../../lib/gps/errors.js';
+import { callGpsApi } from '../lib/gps-client.js';
+import { renderGpsMap } from './gps-map.js';
 
 export const GPS_REGIONS = [
     { value: 'com', label: 'hst-api.wialon.com (основний)' },
@@ -69,25 +71,7 @@ export function tokenLink({ kind, localUrl, login }) {
     return base + '/login.html?' + params.toString().replace(/%3C/g, '<').replace(/%3E/g, '>');
 }
 
-async function callApi(app, route, body) {
-    const { data } = await app.supabase.auth.getSession();
-    const jwt = data && data.session && data.session.access_token;
-    if (!jwt) return { ok: false, error: 'Сесія завершилась — увійдіть ще раз.' };
-    let res;
-    try {
-        res = await fetch('/api/gps/' + route, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + jwt },
-            body: JSON.stringify(body || {}),
-            cache: 'no-store',
-        });
-    } catch {
-        return { ok: false, error: 'Немає зʼєднання з сервером. Перевірте інтернет.' };
-    }
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, status: res.status, error: json.error || 'Не вдалося виконати дію. Спробуйте ще раз.' };
-    return { ok: true, ...json };
-}
+const callApi = callGpsApi;
 
 export function renderGps(app) {
     const access = gpsAccess(app.context);
@@ -318,11 +302,16 @@ export function renderGps(app) {
 
     load();
 
+    // Карта (етап 2c) — для всіх ролей організації на control_plus; власника «До форми підключення» веде до форми нижче.
+    const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
+
     return h('section', { class: 'page gps-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'GPS')),
         access.canManage ? null : notice(access.seesIntegration
             ? 'Режим перегляду: підключенням і привʼязкою авто керує власник компанії.'
             : 'Режим перегляду: юніти GPS і привʼязка до авто вашої компанії.', 'info'),
+        map,
+        access.seesIntegration ? h('h2', { class: 'section-title' }, access.canManage ? 'Підключення' : 'Підключення (перегляд)') : null,
         statusBox,
         h('h2', { class: 'section-title' }, 'Юніти й авто'),
         unitsBox);
