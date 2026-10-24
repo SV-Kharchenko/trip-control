@@ -65,6 +65,14 @@ for (const file of OURS) {
 }
 check(true, 'all ' + before.length + ' earlier migrations + both Контроль+ migrations (twice) applied');
 for (const file of later) await db.exec(fs.readFileSync(new URL(file, DIR), 'utf8'));
+// Ремонти і склад (етап 3a): другий прогін — ідемпотентність.
+const REPAIRS = all.find((f) => /^\d{14}_repairs_stock\.sql$/.test(f));
+if (!REPAIRS) throw new Error('немає міграції *_repairs_stock.sql');
+const repairsSql = fs.readFileSync(new URL(REPAIRS, DIR), 'utf8');
+await db.exec(repairsSql);
+check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(repairsSql)
+    && !repairsSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
+'repairs: ' + REPAIRS + ' applied twice (idempotent), manual-apply header, no CREATE EXTENSION');
 
 // Заглушка Supabase Vault (лише для PGlite; на проді supabase_vault уже встановлено і шифрує секрети).
 await db.exec(`
@@ -588,6 +596,16 @@ await db.exec(gpsTapSql);
 const gpsTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(tapBefore);
 for (const row of gpsTap) check(row.ok, 'pgTAP gps_integrations.sql: ' + row.label);
 check(gpsTap.length === gpsPlanned, `pgTAP gps_integrations.sql: ran ${gpsTap.length} of plan(${gpsPlanned})`);
+
+// supabase/tests/repairs_stock.sql — той самий shim pgTAP.
+const repTapSql = fs.readFileSync(new URL('../../../supabase/tests/repairs_stock.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const repPlanned = Number((repTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const repBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+await db.exec(repTapSql);
+const repTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(repBefore);
+for (const row of repTap) check(row.ok, 'pgTAP repairs_stock.sql: ' + row.label);
+check(repTap.length === repPlanned, `pgTAP repairs_stock.sql: ran ${repTap.length} of plan(${repPlanned})`);
 
 if (failed) {
     console.log(failed + ' Контроль+ DB check(s) failed');
