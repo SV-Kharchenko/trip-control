@@ -71,14 +71,17 @@ export function normalizeLocalUrl(input) {
 }
 
 // Збережене api_host ('host' або 'host:port') → { host, port }; перевіряється заново на кожен запит.
+// Значення має рівно збігатися з нормалізованим: 'evil.com/@x', 'evil.com#', 'Evil.com', 'host:443' — відмова,
+// а не мовчазне перетворення на інший хост.
 export function parseApiHost(apiHost, hostKind) {
-    const value = String(apiHost || '').toLowerCase();
-    if (hostKind === 'hosting' || (!hostKind && isHostingHost(value))) {
-        if (!isHostingHost(value)) throw new GpsError('unsafe_host', 'not_allowlisted');
-        return { host: value, port: 443 };
+    if (typeof apiHost !== 'string' || !apiHost) throw new GpsError('unsafe_host', 'empty');
+    if (hostKind === 'hosting' || (!hostKind && HOSTING_HOSTS.has(apiHost))) {
+        if (!HOSTING_HOSTS.has(apiHost)) throw new GpsError('unsafe_host', 'not_allowlisted');
+        return { host: apiHost, port: 443 };
     }
-    const checked = normalizeLocalUrl('https://' + value);
+    const checked = normalizeLocalUrl('https://' + apiHost);
     if (!checked.ok) throw new GpsError('unsafe_host', checked.reason);
+    if (checked.apiHost !== apiHost) throw new GpsError('unsafe_host', 'not_normalized');
     return { host: checked.host, port: checked.port };
 }
 

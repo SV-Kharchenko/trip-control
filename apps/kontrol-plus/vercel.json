@@ -7,7 +7,7 @@
   "cleanUrls": false,
   "trailingSlash": false,
   "functions": {
-    "api/gps/[route].js": { "maxDuration": 30 }
+    "api/gps/*.js": { "maxDuration": 30 }
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://trip-control.com/api/:path*" },

@@ -45,7 +45,14 @@ export function vehicleOptions(units, fleet, unitId) {
     return fleet.filter((v) => !taken.has(v.id) || (unit && unit.vehicle_id === v.id));
 }
 
-// Посилання на форму видачі токена Wialon (токен зʼявиться в адресі як access_token=…).
+// Посилання на форму видачі токена Wialon (токен зʼявиться в адресі як access_token=…). За документацією Wialon
+// (help.wialon.com → API → Getting an access token) форма — це <host>/login.html на адресі вебінтерфейсу Wialon;
+// окремих адрес форми для серверів API .com / .eu / .us / .org документація не наводить, тож для Hosting беремо
+// hosting.wialon.com і прямо пишемо в підказці, що форма одна, а сервер API обирається окремо.
+export const TOKEN_FORM_HINT = 'Форма видачі токена — сторінка login.html на адресі, через яку ви входите у Wialon. '
+    + 'Для Wialon Hosting це hosting.wialon.com для всіх серверів API (.com / .eu / .us / .org обирається нижче окремо). '
+    + 'Якщо ви входите у Wialon через іншу адресу (наприклад, домен партнера), відкрийте login.html на ній із тими самими параметрами.';
+
 export function tokenLink({ kind, localUrl, login }) {
     const params = new URLSearchParams({
         client_id: 'TripControl', access_type: '256', activation_time: '0', duration: '0', lang: 'uk', flags: '0', user: login || '<логін>',
@@ -143,7 +150,8 @@ export function renderGps(app) {
         h('ol', { class: 'gps-steps small' },
             h('li', null, 'Створіть у Wialon окремого користувача лише з правом ', h('b', null, 'перегляду'), ' потрібних обʼєктів (авто).'),
             h('li', null, 'Увійдіть цим користувачем за посиланням нижче (підставте логін) і підтвердьте доступ.',
-                h('div', { class: 'field' }, h('label', { for: 'gps-login' }, 'Логін користувача Wialon (для посилання)'), login), link),
+                h('div', { class: 'field' }, h('label', { for: 'gps-login' }, 'Логін користувача Wialon (для посилання)'), login), link,
+                h('span', { class: 'hint gps-form-hint' }, TOKEN_FORM_HINT)),
             h('li', null, 'Після входу токен буде в адресному рядку після ', h('code', null, 'access_token='), '. Скопіюйте лише його.'),
             h('li', null, 'Ніколи не надсилайте токен у чат чи пошту — лише в це поле.')),
         h('div', { class: 'form' }, regionField, localField,
@@ -211,7 +219,8 @@ export function renderGps(app) {
             return;
         }
         const it = state.integration;
-        if (!it || it.status === 'disabled') {
+        // 'pending' без токена — лише слід невдалої спроби (ліміт перебору): показуємо форму, а не картку.
+        if (!it || it.status === 'disabled' || (it.status === 'pending' && !it.token_hint)) {
             if (access.canManage) clear(statusBox, connectForm());
             else clear(statusBox, notice('GPS ще не підключено. Підключає власник компанії.', 'info'));
             return;

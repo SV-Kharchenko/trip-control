@@ -9,6 +9,7 @@
 -- * gps_vehicles — юніт провайдера ↔ авто компанії (fleet_vehicles). Авто має бути з тієї самої організації.
 -- * gps_positions — точки руху (порожня в 2a). gps_purge_old() чистить старі точки пачками.
 -- * gps_store_token / gps_read_token / gps_delete_token — робота з токеном через Vault, лише service_role (API).
+-- * gps_connect — підключення після перевірки: поля й секрет в одній транзакції (лише service_role).
 -- * gps_map_vehicle(unit, vehicle) — мапінг юніта на авто, лише власник організації на control_plus.
 -- * gps_units() — список юнітів з назвою авто для вкладки «GPS» (директор не читає fleet_vehicles чужої організації).
 --
@@ -350,6 +351,59 @@ REVOKE ALL ON FUNCTION public.gps_delete_token(uuid) FROM PUBLIC, anon, authenti
 GRANT EXECUTE ON FUNCTION public.gps_store_token(uuid, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.gps_read_token(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.gps_delete_token(uuid) TO service_role;
+
+-- Підключення після успішної перевірки в провайдера: поля підключення й секрет у Vault в одній транзакції.
+-- Якщо збереження секрету впаде, не змінюється нічого (ні api_host / host_kind, ні старий токен) — інакше старий токен
+-- міг би піти на новий сервер. Лише service_role. Повертає рядок без токена (лише маска).
+CREATE OR REPLACE FUNCTION public.gps_connect(
+  p_org uuid, p_provider text, p_host_kind text, p_api_host text, p_account text, p_units integer, p_token text, p_user uuid
+)
+RETURNS TABLE (
+  id uuid, status text, host_kind text, api_host text, provider_account text, units_total integer, token_hint text,
+  last_checked_at timestamptz, last_ok_at timestamptz, last_error_code text
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, vault
+AS $$
+#variable_conflict use_column
+DECLARE
+  v_id uuid;
+BEGIN
+  IF NOT public.is_service_role() OR public.kp_is_client_role() THEN
+    RAISE EXCEPTION 'SERVICE_ROLE_REQUIRED' USING ERRCODE = '42501';
+  END IF;
+  INSERT INTO public.gps_integrations (org_id, provider, host_kind, api_host, status, created_by)
+  VALUES (p_org, p_provider, p_host_kind, p_api_host, 'pending', p_user)
+  ON CONFLICT ON CONSTRAINT gps_integrations_org_provider_key DO NOTHING;
+  SELECT gi.id INTO v_id
+  FROM public.gps_integrations AS gi
+  WHERE gi.org_id = p_org AND gi.provider = p_provider
+  FOR UPDATE;
+  -- Спершу секрет (той самий код, що й gps_store_token); помилка тут відкочує і вставку вище.
+  PERFORM public.gps_store_token(v_id, p_token);
+  UPDATE public.gps_integrations AS gi
+  SET host_kind = p_host_kind,
+      api_host = p_api_host,
+      status = 'active',
+      provider_account = p_account,
+      units_total = p_units,
+      last_checked_at = now(),
+      last_ok_at = now(),
+      last_error_code = NULL,
+      last_error_at = NULL,
+      consecutive_failures = 0
+  WHERE gi.id = v_id;
+  RETURN QUERY
+  SELECT gi.id, gi.status, gi.host_kind, gi.api_host, gi.provider_account, gi.units_total, gi.token_hint,
+         gi.last_checked_at, gi.last_ok_at, gi.last_error_code
+  FROM public.gps_integrations AS gi
+  WHERE gi.id = v_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.gps_connect(uuid, text, text, text, text, integer, text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.gps_connect(uuid, text, text, text, text, integer, text, uuid) TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- Mapping unit → vehicle (owner only)

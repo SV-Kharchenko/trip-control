@@ -30,6 +30,19 @@ test('local URL: normalized to https://host[:port]; path, query and fragment dro
     assert.deepEqual(parseApiHost('gps.fleet-co.com.ua:8443', 'local'), { host: 'gps.fleet-co.com.ua', port: 8443 });
 });
 
+test('stored api_host must equal its normalized form exactly (no silent rewrite to another host)', () => {
+    for (const [value, kind] of [
+        ['evil.com/@x', 'local'], ['evil.com#', 'local'], ['evil.com?x=1', 'local'], ['evil.com/', 'local'], ['Evil.com', 'local'],
+        ['gps.fleet.com:443', 'local'], ['gps.fleet.com.', 'local'], [' gps.fleet.com', 'local'], ['user@gps.fleet.com', 'local'],
+        ['HST-API.WIALON.COM', 'hosting'], ['hst-api.wialon.com/', 'hosting'], ['hst-api.wialon.com:443', 'hosting'], ['', 'local'],
+        [null, 'local'], [['gps.fleet.com'], 'local'], ['evil.com', 'hosting'],
+    ]) {
+        assert.throws(() => parseApiHost(value, kind), (e) => e instanceof GpsError && e.code === 'unsafe_host', String(value));
+    }
+    assert.deepEqual(parseApiHost('gps.fleet.com', 'local'), { host: 'gps.fleet.com', port: 443 });
+    assert.deepEqual(parseApiHost('hst-api.wialon.org', 'hosting'), { host: 'hst-api.wialon.org', port: 443 });
+});
+
 test('local URL: SSRF vectors are refused before any DNS or network', () => {
     const cases = {
         'http://gps.fleet-co.com': 'scheme',

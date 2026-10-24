@@ -33,6 +33,16 @@ export function createSupabaseStore(supabase) {
         async updateIntegration(id, patch) {
             return must(await supabase.from('gps_integrations').update(patch).eq('id', id).select(INTEGRATION_COLUMNS).single(), 'update integration');
         },
+        // Атомарно: upsert підключення + секрет у Vault (RPC gps_connect, одна транзакція). Повертає рядок без токена.
+        async connect({ orgId, provider, hostKind, apiHost, account, unitsTotal, token, userId }) {
+            const data = must(await supabase.rpc('gps_connect', {
+                p_org: orgId, p_provider: provider, p_host_kind: hostKind, p_api_host: apiHost,
+                p_account: account, p_units: unitsTotal, p_token: token, p_user: userId,
+            }), 'connect');
+            const row = Array.isArray(data) ? data[0] : data;
+            if (!row) throw new Error('gps store: connect');
+            return row;
+        },
         async storeToken(id, token) {
             return must(await supabase.rpc('gps_store_token', { p_integration: id, p_token: token }), 'store token');
         },

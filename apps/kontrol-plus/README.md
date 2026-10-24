@@ -94,7 +94,7 @@
 ## Стек
 
 Vite + vanilla JS (без фреймворку) для CRM-вкладок; сайт — як є. У браузері залежностей немає (Supabase JS вантажить сайт з CDN).
-Серверна функція `api/gps/[route].js` (Vercel) — єдина залежність `@supabase/supabase-js`.
+Серверні функції `api/gps/*.js` (Vercel) — єдина залежність `@supabase/supabase-js`.
 
 ## Локально
 
@@ -113,8 +113,11 @@ npm run check:db                # усі міграції + Контроль+ і
 ## Vercel
 
 - Framework: Vite, Output: `dist`, `vercel.json` цієї теки (rewrites `/api` і юридичних сторінок, заголовки).
-- Власна функція лише одна: `api/gps/[route].js` (`maxDuration` 30 с). Файл у `api/` має пріоритет над rewrite
-  `/api/:path*`, тож `/api/gps/*` обробляє Контроль+, а решта `/api/*` і далі йде на trip-control.com. Перевірити на preview.
+- Власні функції — лише GPS: статичні файли `api/gps/connect.js`, `test.js`, `sync-units.js`, `disconnect.js` (спільний
+  хендлер `lib/gps/vercel.js`, `maxDuration` 30 с). Саме статичні, не динамічний `[route].js`: реальний файл у `api/` має
+  пріоритет над rewrite `/api/:path*`, тож `/api/gps/*` обробляє Контроль+, а решта `/api/*` і далі йде на trip-control.com.
+  Перевірка на preview: `POST /api/gps/connect` без JWT → 401 JSON `AUTH_REQUIRED` з `Cache-Control: no-store` (від Контроль+,
+  навіть без env); будь-який інший `/api/*` — відповідь сайту.
 - Див. «Ручні налаштування власника» вище.
 
 ## GPS (Wialon), етап 2a
@@ -130,9 +133,13 @@ npm run check:db                # усі міграції + Контроль+ і
   Vault-функції, `gps_map_vehicle`, `gps_units`, `gps_purge_old`). pgTAP: `supabase/tests/gps_integrations.sql`.
 - **API** (`POST /api/gps/connect | test | sync-units | disconnect`, лише власник, `Authorization: Bearer <JWT>`):
   `connect` перевіряє токен у Wialon і лише тоді зберігає його в Supabase Vault (`gps:<integration_id>`); у таблиці —
-  лише `token_hint` («…a1b2») і посилання на секрет. Не частіше одного `connect` / `test` на 10 с на організацію.
+  лише `token_hint` («…a1b2») і посилання на секрет. Поля підключення й секрет пишуться однією транзакцією (RPC `gps_connect`):
+  якщо Vault не прийняв секрет, не змінюється нічого. Не частіше одного `connect` / `test` / `sync-units` на 10 с на організацію.
   `sync-units` оновлює юніти й повертає підказки привʼязки (назва юніта = номер авто); підказки застосовуються лише кнопкою.
 - **Токен** ніде не показується й не логується: не повертається API, не пишеться в таблиці, URL, localStorage чи логи.
+  **Увага (прод):** токен передається в базу як параметр RPC `gps_connect` / `gps_store_token` (а `gps_read_token` повертає його
+  як результат). Тому на проді не повинно бути `log_statement = 'all'` / `'mod'` чи іншого логування тексту й параметрів запитів
+  (`log_min_duration_statement` з параметрами, `pgaudit` з параметрами) для ролі `service_role`, інакше токен потрапить у логи Postgres.
 - **Wialon Hosting:** лише `hst-api.wialon.com`, `.eu`, `.us`, `.org`.
 - **Wialon Local:** адресу вводить клієнт, тож вона проходить захист від SSRF (`lib/gps/safe-host.js`): лише `https://`
   з доменним імʼям (без IP, `localhost`, `.local` / `.internal` / `.lan` / `.home`), порти 443 або 8443; перед кожним
@@ -149,13 +156,22 @@ npm run check:db                # усі міграції + Контроль+ і
 2. Увійти цим користувачем за посиланням
    `https://hosting.wialon.com/login.html?client_id=TripControl&access_type=256&activation_time=0&duration=0&lang=uk&flags=0&user=<логін>`
    (для Wialon Local — той самий шлях на адресі свого сервера). `client_id` — довільна назва застосунку.
+   За документацією Wialon (help.wialon.com → API → Getting an access token) форма — це `<host>/login.html` на адресі
+   вебінтерфейсу Wialon; окремих адрес форми для серверів API `.eu` / `.us` / `.org` документація не наводить. Тому для
+   Wialon Hosting посилання одне (`hosting.wialon.com`), а сервер API обирається у формі окремо; якщо клієнт входить у Wialon через
+   іншу адресу (наприклад, домен партнера), він відкриває `login.html` на ній. Токен Wialon — 72 символи.
 3. Після входу токен — в адресі після `access_token=`. Вставити його у вкладці «GPS» → «Підключити».
 4. Ніколи не надсилати токен у чат чи пошту.
 
 ### Обмеження 2a
 
-- Кронів і збору позицій немає; `next_poll_at` / `lock_until` / `consecutive_failures` — заготовка для 2b.
-- Ліміт `connect` / `test` тримається в памʼяті функції і за `last_checked_at` у базі (не строгий між інстансами).
+- **Етап 2b ще не реалізовано:** збирач позицій за кроном, статус «немає сигналу 30 хв», збір лише для змаплених юнітів,
+  «поточна заявка» авто = прийнятий рейс від його дати на тривалість + 1 день. `next_poll_at` / `lock_until` /
+  `consecutive_failures` у схемі — заготовка для нього; `fetchPositions` написано, але ніхто не викликає.
+- Ліміт 10 с тримається в базі (`last_checked_at`): невдалий `connect` оновлює лише `last_checked_at` і `last_error_*` наявного
+  підключення (хост, статус і токен не змінюються), а для організації без підключення лишає мінімальний слід — рядок `pending`
+  без токена (вкладка показує для нього форму підключення). Тож ліміт діє і між інстансами функції; лічильник у памʼяті —
+  додатковий. Не захищає лише від гонки двох одночасних запитів у різних інстансах (обидва можуть пройти перевірку).
 - Локально (`npm run dev`) `/api` проксіюється на trip-control.com, тож `/api/gps/*` там не працює — лише на Vercel.
 
 ## PWA / Microsoft Store

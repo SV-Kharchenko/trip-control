@@ -116,7 +116,7 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         const recent = integration && integration.last_checked_at
             && now().getTime() - new Date(integration.last_checked_at).getTime() < RATE_WINDOW_MS;
         if (recent || !limiter.hit(orgId)) {
-            throw new HttpError(429, 'RATE_LIMITED', 'Зачекайте 10 секунд перед наступною перевіркою.');
+            throw new HttpError(429, 'RATE_LIMITED', 'Зачекайте 10 секунд перед наступним запитом до Wialon.');
         }
     }
 
@@ -181,33 +181,40 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         limit(auth.orgId, existing);
         const result = await provider().validateCredentials({ apiHost, hostKind, token: body.token });
         if (!result.ok) {
-            // Невдала перевірка: токен не зберігаємо, наявне підключення не чіпаємо.
+            await recordFailedConnect(auth, existing, { hostKind, apiHost, code: result.code });
             throw new HttpError(providerStatus(result.code), result.code.toUpperCase(), gpsMessage(result.code));
         }
-        const at = now().toISOString();
-        const fields = {
-            host_kind: hostKind,
-            api_host: apiHost,
-            status: 'active',
-            provider_account: result.account,
-            units_total: result.unitsTotal,
-            last_checked_at: at,
-            last_ok_at: at,
-            last_error_code: null,
-            last_error_at: null,
-            consecutive_failures: 0,
-        };
-        const integration = existing
-            ? await store.updateIntegration(existing.id, fields)
-            : await store.insertIntegration({ org_id: auth.orgId, provider: PROVIDER, created_by: auth.user.id, ...fields });
-        let hint;
+        // Одна транзакція в БД (RPC gps_connect): поля підключення й секрет у Vault разом. Якщо збереження секрету
+        // впаде, не змінюється нічого — ні api_host / host_kind, ні старий токен.
+        let integration;
         try {
-            hint = await store.storeToken(integration.id, body.token);
+            integration = await store.connect({
+                orgId: auth.orgId, provider: PROVIDER, hostKind, apiHost, account: result.account,
+                unitsTotal: result.unitsTotal, token: body.token, userId: auth.user.id,
+            });
         } catch {
-            await store.updateIntegration(integration.id, { status: 'error', last_error_code: 'token_store', last_error_at: at });
             throw new HttpError(500, 'TOKEN_STORE', 'Не вдалося безпечно зберегти токен. Спробуйте ще раз.');
         }
-        return { status: 200, body: { ok: true, ...publicIntegration({ ...integration, token_hint: hint }) } };
+        return { status: 200, body: { ok: true, ...publicIntegration(integration) } };
+    }
+
+    // Невдалий connect: токен не зберігаємо; хост, статус і токен наявного підключення не чіпаємо. Лишаємо в БД лише
+    // час спроби (last_checked_at) і код помилки — так ліміт 10 с діє між інстансами функції. Для організації без
+    // підключення — мінімальний слід: рядок 'pending' без токена (інтерфейс показує для нього форму підключення).
+    async function recordFailedConnect(auth, existing, { hostKind, apiHost, code }) {
+        const at = now().toISOString();
+        const trace = { last_checked_at: at, last_error_code: code, last_error_at: at };
+        try {
+            if (existing) await store.updateIntegration(existing.id, trace);
+            else {
+                await store.insertIntegration({
+                    org_id: auth.orgId, provider: PROVIDER, created_by: auth.user.id, host_kind: hostKind, api_host: apiHost,
+                    status: 'pending', ...trace,
+                });
+            }
+        } catch {
+            // Слід не записався — лишається ліміт у памʼяті інстансу; відповідь клієнту та сама.
+        }
     }
 
     async function test(auth) {
@@ -231,6 +238,7 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
 
     async function syncUnits(auth) {
         const integration = await connected(auth.orgId);
+        limit(auth.orgId, integration);
         let units;
         try {
             units = await provider().listUnits(await credsOf(integration));
@@ -287,9 +295,10 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
 
     const HANDLERS = { connect, test, 'sync-units': syncUnits, disconnect };
 
-    return async function gpsHandler(req, res) {
+    // route — з імені статичного файлу api/gps/<route>.js (lib/gps/vercel.js); без нього — з URL.
+    return async function gpsHandler(req, res, forcedRoute) {
         res.setHeader('Cache-Control', 'no-store');
-        const route = routeOf(req);
+        const route = forcedRoute || routeOf(req);
         if (req.method !== 'POST') {
             res.setHeader('Allow', 'POST');
             return res.status(405).json({ code: 'METHOD_NOT_ALLOWED', error: 'Дозволено лише POST.' });

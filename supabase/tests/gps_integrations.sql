@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(23);
+SELECT plan(26);
 
 SELECT set_config(
   'request.jwt.claims',
@@ -78,6 +78,24 @@ SELECT is(
   public.gps_read_token('52000000-0000-0000-0000-00000000000a'),
   'FAKEtokenForPgTap000000000000000000000001a2b',
   'service_role: reads the token back from Vault'
+);
+
+-- gps_connect: fields and secret in one transaction; a Vault error changes nothing.
+SELECT is(
+  (SELECT token_hint FROM public.gps_connect('50000000-0000-0000-0000-00000000000b', 'wialon', 'local', 'gps.b-fleet.com',
+     'viewer', 1, 'FAKEtokenForPgTapB00000000000000000000000000b0b0', '00000000-0000-0000-0000-0000000000d3')),
+  '…b0b0',
+  'service_role: gps_connect stores fields and token, returns the mask'
+);
+SELECT throws_ok(
+  $$SELECT * FROM public.gps_connect('50000000-0000-0000-0000-00000000000b', 'wialon', 'hosting', 'hst-api.wialon.com',
+      'viewer', 1, 'short', '00000000-0000-0000-0000-0000000000d3')$$,
+  'P0001', NULL, 'service_role: gps_connect with a bad token fails'
+);
+SELECT is(
+  (SELECT api_host || '|' || host_kind FROM public.gps_integrations WHERE id = '52000000-0000-0000-0000-00000000000b'),
+  'gps.b-fleet.com|local',
+  'service_role: the failed gps_connect left host and kind untouched'
 );
 
 -- Owner of the control_plus org.

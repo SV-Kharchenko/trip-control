@@ -400,6 +400,23 @@ await service(`SELECT public.gps_store_token($1, $2)`, [iA, FAKE_TOKEN]);
 const badToken = await service(`SELECT public.gps_store_token($1, 'short')`, [iA]);
 check(!badToken.ok && /GPS_BAD_TOKEN/.test(badToken.message) && !badToken.message.includes('short'), 'gps vault: bad token refused without echo');
 
+// gps_connect: поля підключення й секрет в одній транзакції.
+const TOKEN_C = 'FAKEtokenOrgC000000000000000000000000000000000000000000000000000000c0c0';
+const gpsConnect = (org, kind, host, token, who) => service(`SELECT * FROM public.gps_connect($1, 'wialon', $2, $3, 'viewer', 5, $4, $5)`, [org, kind, host, token, who]);
+const conC = await gpsConnect(C, 'local', 'gps.c-fleet.com', TOKEN_C, OC);
+const conRow = conC.rows[0] || {};
+check(conC.ok && conRow.id === iC && conRow.status === 'active' && conRow.api_host === 'gps.c-fleet.com' && conRow.host_kind === 'local'
+    && conRow.token_hint === '…c0c0' && !JSON.stringify(conRow).includes(TOKEN_C), 'gps_connect: existing row updated, mask only in the result', conC.message);
+check((await service(`SELECT public.gps_read_token($1) AS t`, [iC])).rows[0].t === TOKEN_C, 'gps_connect: token in Vault');
+const conFail = await gpsConnect(C, 'hosting', 'hst-api.wialon.eu', 'short', OC);
+const afterFail = await one(`SELECT api_host, host_kind, status, token_hint FROM public.gps_integrations WHERE id = $1`, [iC]);
+check(!conFail.ok && /GPS_BAD_TOKEN/.test(conFail.message) && afterFail.api_host === 'gps.c-fleet.com' && afterFail.host_kind === 'local'
+    && afterFail.token_hint === '…c0c0' && (await service(`SELECT public.gps_read_token($1) AS t`, [iC])).rows[0].t === TOKEN_C,
+'gps_connect: a Vault error rolls back everything — old host and old token stay together');
+const conNew = await gpsConnect(D, 'hosting', 'hst-api.wialon.com', 'short', DIR1);
+check(!conNew.ok && (await one(`SELECT count(*)::int AS n FROM public.gps_integrations WHERE org_id = $1`, [D])).n === 0,
+    'gps_connect: a failed first connect leaves no row');
+
 for (const [name, sql] of [
     ['vault.secrets', 'SELECT * FROM vault.secrets'],
     ['vault.decrypted_secrets', 'SELECT * FROM vault.decrypted_secrets'],
@@ -407,6 +424,7 @@ for (const [name, sql] of [
     ['gps_store_token', `SELECT public.gps_store_token('${iA}', 'x1234567890')`],
     ['gps_delete_token', `SELECT public.gps_delete_token('${iA}')`],
     ['gps_purge_old', 'SELECT public.gps_purge_old(14, 5000)'],
+    ['gps_connect', `SELECT * FROM public.gps_connect('${A}', 'wialon', 'hosting', 'hst-api.wialon.com', 'x', 1, 'x1234567890', '${OA}')`],
     ['token_secret_id column', 'SELECT token_secret_id FROM public.gps_integrations'],
     ['insert gps_integrations', `INSERT INTO public.gps_integrations (org_id, provider, api_host) VALUES ('${A}', 'wialon', 'x')`],
     ['update gps_integrations', "UPDATE public.gps_integrations SET status = 'active'"],
