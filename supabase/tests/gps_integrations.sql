@@ -1,4 +1,4 @@
--- Контроль+ GPS, етап 2a (20261024090000_gps_integrations.sql).
+-- Контроль+ GPS, етап 2a (20261024111415_gps_integrations.sql).
 -- Run with pgTAP against a database that has all migrations and supabase_vault: `supabase test db`. Everything is rolled back.
 -- Locally (no Supabase stack) apps/kontrol-plus/db/check-db.mjs runs this file on PGlite with a pgTAP shim and a Vault stub.
 BEGIN;

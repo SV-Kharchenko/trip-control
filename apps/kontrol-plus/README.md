@@ -129,7 +129,7 @@ npm run check:db                # усі міграції + Контроль+ і
 - **Хто що бачить.** Вкладку бачать усі ролі організації на `control_plus` (тариф «Компанія» — ні). Власник: підключення,
   перевірка, оновлення юнітів, відключення, привʼязка. Директор: картка статусу й таблиця (перегляд). Логіст та інші: лише
   таблиця юнітів і привʼязок (перегляд). Права перевіряє база (RLS, `gps_map_vehicle`) і API, інтерфейс лише ховає кнопки.
-- **Схема:** `supabase/migrations/20261024090000_gps_integrations.sql` (`gps_integrations`, `gps_vehicles`, `gps_positions`,
+- **Схема:** `supabase/migrations/20261024111415_gps_integrations.sql` (`gps_integrations`, `gps_vehicles`, `gps_positions`,
   Vault-функції, `gps_map_vehicle`, `gps_units`, `gps_purge_old`). pgTAP: `supabase/tests/gps_integrations.sql`.
 - **API** (`POST /api/gps/connect | test | sync-units | disconnect`, лише власник, `Authorization: Bearer <JWT>`):
   `connect` перевіряє токен у Wialon і лише тоді зберігає його в Supabase Vault (`gps:<integration_id>`); у таблиці —
