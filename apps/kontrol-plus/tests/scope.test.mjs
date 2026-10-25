@@ -54,7 +54,7 @@ test('check-scope allowlist: exactly two more patterns for maintenance (3b), nei
         String(/^supabase\/migrations\/\d{14}_repairs_maintenance\.sql$/),
         String(/^supabase\/tests\/repairs_maintenance\.sql$/),
     ]);
-    for (const ok of ['supabase/migrations/20261026090000_repairs_maintenance.sql', 'supabase/tests/repairs_maintenance.sql']) {
+    for (const ok of ['supabase/migrations/20261024232246_repairs_maintenance.sql', 'supabase/tests/repairs_maintenance.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
     for (const bad of [
