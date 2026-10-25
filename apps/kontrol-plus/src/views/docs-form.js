@@ -4,7 +4,7 @@ import { h, clear, spinner, notice, toast } from '../ui.js';
 import { fmtDate, kyivDate, monthRange } from '../lib/format.js';
 import { callKpApi } from '../lib/gps-client.js';
 import {
-    CURRENCIES, DOC_TITLES, VAT_MODES, docErrorText, dueDateFor, fmtAmount, linesPayload, previewTotals, rateProblem,
+    CURRENCIES, DOC_TITLES, VAT_MODES, createDocument, docErrorText, dueDateFor, fmtAmount, linesPayload, previewTotals, rateProblem,
     tripRoute, tripsToLines, validateLines, docNumberText, MAX_LINES,
 } from '../lib/docs.js';
 import { showError } from './docs.js';
@@ -277,7 +277,7 @@ function buildForm(app, kind, route, requisites, clients) {
             if (problem) return clear(message, notice(problem));
             if (number.value && !(Number(number.value) >= 1 && Number.isInteger(Number(number.value)))) return clear(message, notice('Номер — ціле число від 1.'));
             submit.disabled = true;
-            const { data, error } = await app.supabase.rpc('kp_doc_create', {
+            const { id, errorText } = await createDocument(app, {
                 p_kind: kind,
                 p_client: clientSel.value,
                 p_doc_date: docDate.value,
@@ -289,11 +289,11 @@ function buildForm(app, kind, route, requisites, clients) {
                 p_vat_mode: vatPayer ? state.vatMode : null,
                 p_rate: cur === 'UAH' ? null : Number(rateText),
                 p_rate_date: cur === 'UAH' ? null : rateDate.value,
-            });
+            }, callKpApi);
             submit.disabled = false;
-            if (error) return clear(message, notice(docErrorText(error)));
+            if (errorText) return clear(message, notice(errorText));
             toast((kind === 'invoice' ? 'Рахунок' : 'Акт') + ' створено');
-            app.go('#/docs/' + data);
+            app.go('#/docs/' + id);
         },
     },
     h('div', { class: 'kpd-grid' },

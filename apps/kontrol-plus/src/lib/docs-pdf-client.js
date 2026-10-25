@@ -1,8 +1,8 @@
 // PDF документа в браузері: pdf-lib і шрифт вантажаться лише тут (динамічний import — окремий чанк, основний бандл
-// не росте). Підпис і печатка — з приватного бакета Storage за шляхами зі знімка продавця; немає файлу — PDF без них.
-// Файл віддаємо як Blob + <a download> (без нових доменів і без змін CSP).
+// не росте). Підпис і печатка — з приватного бакета Storage, лише знімок самого документа (<org>/docs/<id>/…, не файли
+// реквізитів); немає знімка — PDF без них. Файл віддаємо як Blob + <a download> (без нових доменів і без змін CSP).
 import { download } from '../ui.js';
-import { ASSET_BUCKET, docFileName } from './docs.js';
+import { ASSET_BUCKET, docAssetPaths, docFileName } from './docs.js';
 
 async function assetBytes(app, path) {
     if (!path) return null;
@@ -16,11 +16,11 @@ async function assetBytes(app, path) {
 }
 
 export async function buildPdfForDoc(app, doc) {
-    const seller = doc.seller || {};
+    const paths = docAssetPaths(doc);
     const [mod, signature, stamp] = await Promise.all([
         import('./pdf-docs.js'),
-        assetBytes(app, seller.signature_path),
-        assetBytes(app, seller.stamp_path),
+        assetBytes(app, paths.signature),
+        assetBytes(app, paths.stamp),
     ]);
     const fonts = await mod.loadFonts();
     return mod.buildDocPdf(doc, { fonts, images: { signature, stamp } });

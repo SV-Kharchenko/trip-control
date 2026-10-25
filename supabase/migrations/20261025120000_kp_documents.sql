@@ -23,6 +23,10 @@
 --   з ремонтів (без власного Контроль+) — KP_FORBIDDEN. Таблиці — без прямих грантів клієнтам, усе через RPC.
 -- * Storage: приватний бакет kp-doc-assets (PNG / JPEG ≤ 512 КБ), шлях <org_id>/(signature|stamp).(png|jpg);
 --   читають учасники організації, пише лише owner. Бакет створює ця міграція (ON CONFLICT DO NOTHING).
+-- * Знімок підпису й печатки: перед створенням документа сервер (/api/docs/assets, service_role) копіює поточні файли
+--   реквізитів у <org_id>/docs/<doc_id>/(signature|stamp).(png|jpg); kp_doc_create(p_id) пише в seller саме ці шляхи
+--   і без скопійованого файлу документ не створює. Писати й видаляти знімки через API не може ніхто (політик немає),
+--   читають — ті самі, хто читає документи. Заміна / видалення підпису в реквізитах знімків не торкається.
 --
 -- Лише адитивно: нові таблиці, функції, тригери й політики; у clients — нові колонки. Наявні функції
 -- (kp_org_id, kp_role, kp_can_write, kp_context, kp_trips, функції 3a / 3b), таблиці calculations, trip_actuals,
@@ -161,6 +165,22 @@ CREATE TABLE IF NOT EXISTS public.kp_documents (
 CREATE INDEX IF NOT EXISTS kp_documents_org_date_idx ON public.kp_documents (org_id, doc_date DESC);
 CREATE INDEX IF NOT EXISTS kp_documents_client_idx ON public.kp_documents (client_id, kind, status);
 CREATE INDEX IF NOT EXISTS kp_documents_parent_idx ON public.kp_documents (parent_id) WHERE parent_id IS NOT NULL;
+
+-- Підпис і печатка в документі — лише знімок цього документа (<org>/docs/<id>/…), не файл реквізитів. NOT VALID: якщо
+-- раніша редакція файлу вже десь застосована, старі рядки не заважають; нові перевіряються завжди.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'kp_documents_asset_snapshot' AND conrelid = 'public.kp_documents'::regclass) THEN
+    ALTER TABLE public.kp_documents
+      ADD CONSTRAINT kp_documents_asset_snapshot CHECK (
+        (seller ->> 'signature_path' IS NULL
+          OR seller ->> 'signature_path' IN (org_id::text || '/docs/' || id::text || '/signature.png', org_id::text || '/docs/' || id::text || '/signature.jpg'))
+        AND (seller ->> 'stamp_path' IS NULL
+          OR seller ->> 'stamp_path' IN (org_id::text || '/docs/' || id::text || '/stamp.png', org_id::text || '/docs/' || id::text || '/stamp.jpg'))
+      ) NOT VALID;
+  END IF;
+END;
+$$;
 
 -- kind і active — копія з документа: на них частковий UNIQUE «один рейс — на одному активному документі типу».
 -- calculation_id … ON DELETE SET NULL: видалення рейсу на сайті працює як раніше, рядок документа лишається.
@@ -563,13 +583,36 @@ $$;
 -- Create / cancel a document
 -- ---------------------------------------------------------------------------
 
+-- Для /api/docs/assets (викликає від імені користувача): організація і поточні файли підпису й печатки — лише тому,
+-- хто може створювати документи. Копіює файли сервер (service_role) — клієнт у <org>/docs/ писати не може.
+CREATE OR REPLACE FUNCTION public.kp_doc_assets_source()
+RETURNS TABLE (org_id uuid, signature_path text, stamp_path text)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+#variable_conflict use_column
+DECLARE
+  v_org uuid := public.kp_docs_org('write');
+BEGIN
+  RETURN QUERY
+  SELECT v_org, r.signature_path, r.stamp_path
+  FROM (SELECT 1) AS one
+  LEFT JOIN public.kp_org_requisites AS r ON r.org_id = v_org;
+END;
+$$;
+
 -- Рахунок або акт (окремими викликами, кожен — з номером своєї послідовності). p_lines: [{ title, unit, qty, price,
 -- calculation_id? }], 1…200. Ставка ПДВ — зі знімка реквізитів (vat_payer), режим — p_vat_mode або default_vat_mode.
 -- Суми, знімки seller / buyer, строк оплати (рахунок: p_due_date або doc_date + строк клієнта, NULL = 5 днів) — сервер.
+-- p_id — id з /api/docs/assets: туди вже скопійовано підпис і печатку (<org>/docs/<p_id>/…). Якщо в реквізитах є
+-- підпис чи печатка, а копії немає (або p_id не передано) — DOC_ASSETS_NOT_COPIED; без них p_id необовʼязковий.
+DROP FUNCTION IF EXISTS public.kp_doc_create(text, uuid, date, text, integer, jsonb, uuid, date, text, numeric, date);
 CREATE OR REPLACE FUNCTION public.kp_doc_create(
   p_kind text, p_client uuid, p_doc_date date, p_currency text, p_number integer DEFAULT NULL, p_lines jsonb DEFAULT NULL,
   p_parent uuid DEFAULT NULL, p_due_date date DEFAULT NULL, p_vat_mode text DEFAULT NULL, p_rate numeric DEFAULT NULL,
-  p_rate_date date DEFAULT NULL
+  p_rate_date date DEFAULT NULL, p_id uuid DEFAULT NULL
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -593,7 +636,9 @@ DECLARE
   v_due date;
   v_year integer;
   v_no integer;
-  v_doc uuid;
+  v_doc uuid := coalesce(p_id, gen_random_uuid());
+  v_sig text;
+  v_stamp text;
   v_line jsonb;
   v_n integer := 0;
   v_title text;
@@ -732,20 +777,33 @@ BEGIN
     END IF;
   END IF;
 
+  -- Знімок підпису й печатки: шлях документа з розширенням файлу реквізитів; файл уже скопійовано сервером.
+  IF p_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.kp_documents AS d WHERE d.id = p_id) THEN
+    RAISE EXCEPTION 'DOC_ID_TAKEN' USING ERRCODE = 'P0001';
+  END IF;
+  v_sig := CASE WHEN v_req.signature_path IS NOT NULL
+    THEN v_org::text || '/docs/' || v_doc::text || '/signature.' || substring(v_req.signature_path FROM '\.(png|jpg)$') END;
+  v_stamp := CASE WHEN v_req.stamp_path IS NOT NULL
+    THEN v_org::text || '/docs/' || v_doc::text || '/stamp.' || substring(v_req.stamp_path FROM '\.(png|jpg)$') END;
+  IF (v_sig IS NOT NULL AND NOT EXISTS (SELECT 1 FROM storage.objects AS o WHERE o.bucket_id = 'kp-doc-assets' AND o.name = v_sig))
+     OR (v_stamp IS NOT NULL AND NOT EXISTS (SELECT 1 FROM storage.objects AS o WHERE o.bucket_id = 'kp-doc-assets' AND o.name = v_stamp)) THEN
+    RAISE EXCEPTION 'DOC_ASSETS_NOT_COPIED' USING ERRCODE = 'P0001';
+  END IF;
+
   v_year := extract(year FROM p_doc_date)::integer;
   v_no := public.kp_doc_alloc_number(v_org, p_kind, v_year, p_number);
   BEGIN
     INSERT INTO public.kp_documents (
-      org_id, kind, number, doc_year, prefix, doc_date, client_id, parent_id, seller, buyer,
+      id, org_id, kind, number, doc_year, prefix, doc_date, client_id, parent_id, seller, buyer,
       currency, rate, rate_date, vat_mode, vat_rate, subtotal, vat_amount, total, total_uah, due_date, created_by
     ) VALUES (
-      v_org, p_kind, v_no, v_year, CASE p_kind WHEN 'invoice' THEN v_req.invoice_prefix ELSE v_req.act_prefix END,
+      v_doc, v_org, p_kind, v_no, v_year, CASE p_kind WHEN 'invoice' THEN v_req.invoice_prefix ELSE v_req.act_prefix END,
       p_doc_date, p_client, p_parent,
       jsonb_build_object(
         'legal_name', v_req.legal_name, 'legal_form', v_req.legal_form, 'edrpou', v_req.edrpou, 'ipn', v_req.ipn,
         'vat_payer', v_req.vat_payer, 'vat_number', v_req.vat_number, 'iban', v_req.iban, 'bank_name', v_req.bank_name,
         'legal_address', v_req.legal_address, 'signer_name', v_req.signer_name, 'signer_position', v_req.signer_position,
-        'doc_place', v_req.doc_place, 'signature_path', v_req.signature_path, 'stamp_path', v_req.stamp_path),
+        'doc_place', v_req.doc_place, 'signature_path', v_sig, 'stamp_path', v_stamp),
       jsonb_build_object(
         'name', v_client.name, 'legal_name', v_client.legal_name, 'legal_form', v_client.legal_form,
         'edrpou', v_client.edrpou, 'ipn', v_client.ipn, 'vat_payer', v_client.vat_payer, 'vat_number', v_client.vat_number,
@@ -754,8 +812,7 @@ BEGIN
         'contract_no', v_client.contract_no, 'contract_date', v_client.contract_date,
         'payment_terms_days', v_client.payment_terms_days),
       v_currency, v_rate, v_rate_date, v_vat_mode, v_vat_rate, v_subtotal, v_vat, v_total, round(v_total * v_rate, 2), v_due, auth.uid()
-    )
-    RETURNING id INTO v_doc;
+    );
   EXCEPTION WHEN unique_violation THEN
     RAISE EXCEPTION 'DOC_NUMBER_TAKEN' USING ERRCODE = 'P0001', DETAIL = v_no::text;
   END;
@@ -1034,15 +1091,18 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES ('kp-doc-assets', 'kp-doc-assets', false, 524288, ARRAY['image/png', 'image/jpeg'])
 ON CONFLICT (id) DO NOTHING;
 
--- Шлях: <org_id>/(signature|stamp).(png|jpg). Читають учасники організації Контроль+ (owner, logist, director),
--- пише / замінює / видаляє лише власник. Політики стосуються тільки цього бакета.
+-- Шлях: <org_id>/(signature|stamp).(png|jpg) — файли реквізитів; <org_id>/docs/<doc_id>/(signature|stamp).(png|jpg) —
+-- знімки документів. Читають учасники організації Контроль+ (owner, logist, director) — як і документи. Файли реквізитів
+-- пише / замінює / видаляє лише власник; знімки пише тільки сервер (service_role), змінити чи видалити їх через API не
+-- можна (політики INSERT / UPDATE / DELETE їх не пропускають). Політики стосуються тільки цього бакета.
 DROP POLICY IF EXISTS kp_doc_assets_select ON storage.objects;
 CREATE POLICY kp_doc_assets_select ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'kp-doc-assets'
-    AND name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(signature|stamp)\.(png|jpg)$'
+    AND name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(docs/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/)?(signature|stamp)\.(png|jpg)$'
     AND split_part(name, '/', 1) = public.kp_org_id()::text
+    AND coalesce(public.kp_role() IN ('owner', 'logist', 'director'), false)
   );
 
 DROP POLICY IF EXISTS kp_doc_assets_insert ON storage.objects;
@@ -1107,7 +1167,8 @@ BEGIN
     'public.kp_requisites_save(jsonb)',
     'public.kp_doc_trips_for_client(uuid, date, date, text)',
     'public.kp_doc_next_number(text, date)',
-    'public.kp_doc_create(text, uuid, date, text, integer, jsonb, uuid, date, text, numeric, date)',
+    'public.kp_doc_assets_source()',
+    'public.kp_doc_create(text, uuid, date, text, integer, jsonb, uuid, date, text, numeric, date, uuid)',
     'public.kp_doc_cancel(uuid, text)',
     'public.kp_doc_list(text, date, date, uuid, text)',
     'public.kp_doc_get(uuid)',

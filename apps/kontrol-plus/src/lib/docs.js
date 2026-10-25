@@ -314,7 +314,36 @@ const DOC_ERRORS = [
     [/CLIENT_ARCHIVED/, 'Клієнт в архіві — поверніть його з архіву, щоб виставити документ.'],
     [/BAD_DATE/, 'Перевірте дату.'],
     [/kp_documents_client_id_fkey/, 'Клієнта з документами не можна видалити — перенесіть його в архів.'],
+    [/DOC_ASSETS_NOT_COPIED|DOC_ID_TAKEN/, 'Не вдалося додати підпис і печатку до документа. Спробуйте ще раз.'],
 ];
+
+// Підпис / печатка в PDF — лише знімок цього документа (<org>/docs/<id>/…), ніколи не поточний файл реквізитів:
+// заміна чи видалення підпису в реквізитах виданого документа не змінює. Інший шлях — PDF без картинки.
+export function docAssetPaths(doc) {
+    const seller = (doc && doc.seller) || {};
+    const own = (kind) => {
+        const path = seller[kind + '_path'];
+        const m = /^[0-9a-f-]{36}\/docs\/([0-9a-f-]{36})\/(signature|stamp)\.(png|jpg)$/.exec(String(path || ''));
+        return m && doc.id && m[1] === doc.id && m[2] === kind ? path : null;
+    };
+    return { signature: own('signature'), stamp: own('stamp') };
+}
+
+// Створення документа: сервер копіює поточні підпис і печатку реквізитів у знімок документа (/api/docs/assets → id),
+// потім kp_doc_create з тим самим id. Реквізити змінили між кроками (DOC_ASSETS_NOT_COPIED) — ще одна спроба.
+// → { id } або { errorText }.
+export async function createDocument(app, params, callApi) {
+    let error = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+        const prep = await callApi(app, '/api/docs/assets', {});
+        if (!prep.ok) return { errorText: prep.code === 'KP_FORBIDDEN' ? docErrorText('KP_FORBIDDEN') : prep.error };
+        const res = await app.supabase.rpc('kp_doc_create', { ...params, p_id: prep.doc_id });
+        if (!res.error) return { id: res.data };
+        error = res.error;
+        if (!/DOC_ASSETS_NOT_COPIED/.test(String(error.message || ''))) break;
+    }
+    return { errorText: docErrorText(error) };
+}
 
 export function docErrorText(error) {
     const message = String((error && (error.message || error.error_description)) || error || '');

@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(206);
+SELECT plan(234);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d001","role":"service_role"}', true);
 
@@ -148,8 +148,8 @@ SELECT ok(NOT has_function_privilege('authenticated', 'public.kp_docs_org(text)'
   AND NOT has_function_privilege('authenticated', 'public.kp_document_lines_guard()', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.kp_document_payments_guard()', 'EXECUTE'),
   'internal helpers and trigger functions are closed to every API role');
-SELECT ok(has_function_privilege('authenticated', 'public.kp_doc_create(text, uuid, date, text, integer, jsonb, uuid, date, text, numeric, date)', 'EXECUTE')
-  AND NOT has_function_privilege('anon', 'public.kp_doc_create(text, uuid, date, text, integer, jsonb, uuid, date, text, numeric, date)', 'EXECUTE')
+SELECT ok(has_function_privilege('authenticated', 'public.kp_doc_create(text, uuid, date, text, integer, jsonb, uuid, date, text, numeric, date, uuid)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.kp_doc_create(text, uuid, date, text, integer, jsonb, uuid, date, text, numeric, date, uuid)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'public.kp_client_debts(date)', 'EXECUTE')
   AND NOT has_function_privilege('anon', 'public.kp_client_debts(date)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'public.kp_requisites_save(jsonb)', 'EXECUTE')
@@ -533,6 +533,94 @@ RESET ROLE;
 SELECT ok((SELECT qual FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'kp_doc_assets_delete') ~ 'kp-doc-assets'
   AND (SELECT qual FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'kp_doc_assets_delete') ~ 'owner',
   'DELETE of the files: only this bucket, only the owner');
+
+-- 12b. Знімок підпису й печатки: сервер (service_role) копіює файли реквізитів у <org>/docs/<doc_id>/…, документ
+-- посилається лише на свою копію. metadata.copy_of — «вміст» файлу: заміна підпису в реквізитах старої копії не змінює.
+SELECT ok(has_function_privilege('authenticated', 'public.kp_doc_assets_source()', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.kp_doc_assets_source()', 'EXECUTE'), 'kp_doc_assets_source: authenticated only, not anon');
+SELECT ok(EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'kp_documents_asset_snapshot' AND conrelid = 'public.kp_documents'::regclass),
+  'documents: CHECK — signature / stamp paths only of the own snapshot');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d002","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT is((SELECT org_id::text || '|' || signature_path || '|' || coalesce(stamp_path, '—') FROM public.kp_doc_assets_source()),
+  '80000000-0000-0000-0000-00000000000a|80000000-0000-0000-0000-00000000000a/signature.png|—', 'logist: snapshot source — the current signature of the organization');
+SELECT is(pg_temp.kd_msg($$SELECT public.kp_doc_create('invoice', '81000000-0000-0000-0000-000000000011', DATE '2026-10-14', 'UAH', NULL, '[{"title":"a","qty":1,"price":1}]')$$),
+  'DOC_ASSETS_NOT_COPIED', 'signature in the requisites, no p_id — document refused');
+SELECT is(pg_temp.kd_msg($$SELECT public.kp_doc_create('invoice', '81000000-0000-0000-0000-000000000011', DATE '2026-10-14', 'UAH', NULL, '[{"title":"a","qty":1,"price":1}]',
+  NULL, NULL, NULL, NULL, NULL, '83000000-0000-4000-8000-000000000001')$$), 'DOC_ASSETS_NOT_COPIED', 'p_id without the copied file — document refused');
+SELECT throws_ok($$INSERT INTO storage.objects (bucket_id, name) VALUES ('kp-doc-assets', '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000001/signature.png')$$,
+  '42501', NULL, 'logist cannot write a snapshot');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d001","role":"authenticated"}', true);
+SELECT throws_ok($$INSERT INTO storage.objects (bucket_id, name) VALUES ('kp-doc-assets', '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000001/signature.png')$$,
+  '42501', NULL, 'owner cannot write a snapshot either (only the server)');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d009","role":"authenticated"}', true);
+SELECT is(pg_temp.kd_msg($$SELECT * FROM public.kp_doc_assets_source()$$), 'KP_FORBIDDEN', 'director: no snapshot source');
+RESET ROLE;
+INSERT INTO storage.objects (bucket_id, name, metadata)
+VALUES ('kp-doc-assets', '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000001/signature.png', '{"copy_of":"signature v1"}');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d002","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+INSERT INTO t_kd VALUES ('s_old', public.kp_doc_create('invoice', '81000000-0000-0000-0000-000000000011', DATE '2026-10-14', 'UAH', NULL, '[{"title":"a","qty":1,"price":10}]',
+  NULL, NULL, NULL, NULL, NULL, '83000000-0000-4000-8000-000000000001'));
+SELECT is(pg_temp.kd_id('s_old'), '83000000-0000-4000-8000-000000000001'::uuid, 'logist creates the document with the snapshot id');
+SELECT is((pg_temp.kd_doc('s_old') -> 'seller' ->> 'signature_path') || '|' || coalesce(pg_temp.kd_doc('s_old') -> 'seller' ->> 'stamp_path', '—'),
+  '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000001/signature.png|—', 'seller keeps the snapshot path, not the requisites file');
+SELECT is(pg_temp.kd_msg($$SELECT public.kp_doc_create('invoice', '81000000-0000-0000-0000-000000000011', DATE '2026-10-14', 'UAH', NULL, '[{"title":"a","qty":1,"price":1}]',
+  NULL, NULL, NULL, NULL, NULL, '83000000-0000-4000-8000-000000000001')$$), 'DOC_ID_TAKEN', 'the id of an existing document cannot be reused');
+-- Власник замінює підпис (тепер JPEG), додає печатку і видаляє старий файл підпису.
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d001","role":"authenticated"}', true);
+SELECT lives_ok($$INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-doc-assets', '80000000-0000-0000-0000-00000000000a/signature.jpg', '{"v":2}'),
+  ('kp-doc-assets', '80000000-0000-0000-0000-00000000000a/stamp.png', '{"v":1}')$$, 'owner uploads a new signature and a stamp');
+SELECT lives_ok($$SELECT public.kp_requisites_save((SELECT j FROM t_kd_req WHERE k = 'P')
+  || '{"signature_path":"80000000-0000-0000-0000-00000000000a/signature.jpg","stamp_path":"80000000-0000-0000-0000-00000000000a/stamp.png"}')$$,
+  'owner replaces the signature and adds the stamp in the requisites');
+SELECT is(pg_temp.kd_rows($$DELETE FROM storage.objects WHERE bucket_id = 'kp-doc-assets' AND name = '80000000-0000-0000-0000-00000000000a/signature.png'$$), 1,
+  'owner deletes the old signature file');
+SELECT is(pg_temp.kd_rows($$UPDATE storage.objects SET metadata = '{}' WHERE bucket_id = 'kp-doc-assets' AND name LIKE '%/docs/%'$$), 0, 'owner cannot overwrite a snapshot');
+SELECT is(pg_temp.kd_rows($$DELETE FROM storage.objects WHERE bucket_id = 'kp-doc-assets' AND name LIKE '%/docs/%'$$), 0, 'owner cannot delete a snapshot');
+RESET ROLE;
+INSERT INTO storage.objects (bucket_id, name, metadata)
+VALUES ('kp-doc-assets', '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000002/signature.jpg', '{"copy_of":"signature v2"}');
+SET LOCAL ROLE authenticated;
+SELECT is(pg_temp.kd_msg($$SELECT public.kp_doc_create('act', '81000000-0000-0000-0000-000000000011', DATE '2026-10-14', 'UAH', NULL, '[{"title":"a","qty":1,"price":10}]',
+  NULL, NULL, NULL, NULL, NULL, '83000000-0000-4000-8000-000000000002')$$), 'DOC_ASSETS_NOT_COPIED', 'signature copied but the stamp not — document refused');
+RESET ROLE;
+INSERT INTO storage.objects (bucket_id, name, metadata)
+VALUES ('kp-doc-assets', '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000002/stamp.png', '{"copy_of":"stamp v1"}');
+SET LOCAL ROLE authenticated;
+INSERT INTO t_kd VALUES ('s_new', public.kp_doc_create('act', '81000000-0000-0000-0000-000000000011', DATE '2026-10-14', 'UAH', NULL, '[{"title":"a","qty":1,"price":10}]',
+  NULL, NULL, NULL, NULL, NULL, '83000000-0000-4000-8000-000000000002'));
+SELECT is((pg_temp.kd_doc('s_new') -> 'seller' ->> 'signature_path') || '|' || (pg_temp.kd_doc('s_new') -> 'seller' ->> 'stamp_path'),
+  '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000002/signature.jpg|80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000002/stamp.png',
+  'new document — the new signature and the stamp');
+SELECT is((pg_temp.kd_doc('s_old') -> 'seller' ->> 'signature_path') || '|' || coalesce(pg_temp.kd_doc('s_old') -> 'seller' ->> 'stamp_path', '—'),
+  '80000000-0000-0000-0000-00000000000a/docs/83000000-0000-4000-8000-000000000001/signature.png|—', 'old document still shows the old signature and no stamp');
+SELECT is((SELECT o.metadata ->> 'copy_of' FROM storage.objects AS o WHERE o.bucket_id = 'kp-doc-assets' AND o.name = pg_temp.kd_doc('s_old') -> 'seller' ->> 'signature_path'),
+  'signature v1', 'the old snapshot file is in place and unchanged');
+-- Без підпису й печатки.
+SELECT lives_ok($$SELECT public.kp_requisites_save((SELECT j FROM t_kd_req WHERE k = 'P') || '{"signature_path":null,"stamp_path":null}')$$,
+  'owner removes the signature and the stamp from the requisites');
+INSERT INTO t_kd VALUES ('s_none', public.kp_doc_create('invoice', '81000000-0000-0000-0000-000000000011', DATE '2026-10-14', 'UAH', NULL, '[{"title":"a","qty":1,"price":10}]'));
+SELECT is(coalesce(pg_temp.kd_doc('s_none') -> 'seller' ->> 'signature_path', '—') || '|' || coalesce(pg_temp.kd_doc('s_none') -> 'seller' ->> 'stamp_path', '—'),
+  '—|—', 'without a signature / stamp the document is created without them');
+SELECT is((SELECT count(*)::integer FROM storage.objects AS o WHERE o.bucket_id = 'kp-doc-assets'
+           AND o.name IN (pg_temp.kd_doc('s_old') -> 'seller' ->> 'signature_path', pg_temp.kd_doc('s_new') -> 'seller' ->> 'signature_path',
+                          pg_temp.kd_doc('s_new') -> 'seller' ->> 'stamp_path')), 3,
+  'removing the signature in the requisites keeps the snapshots of issued documents');
+-- Читання знімків — як документів.
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d002","role":"authenticated"}', true);
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-doc-assets' AND name LIKE '%/docs/%'), 3, 'logist reads the snapshots (PDF)');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d009","role":"authenticated"}', true);
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-doc-assets' AND name LIKE '%/docs/%'), 3, 'director reads the snapshots');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d005","role":"authenticated"}', true);
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-doc-assets'), 0, 'repair manager: no snapshots');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d008","role":"authenticated"}', true);
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-doc-assets' AND name LIKE '%/docs/%'), 0, 'another organization sees no snapshots');
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SET LOCAL ROLE anon;
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-doc-assets'), 0, 'anon sees no snapshots');
+RESET ROLE;
 
 -- 13. Чужа організація: нічого з документів P.
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000d008","role":"authenticated"}', true);
