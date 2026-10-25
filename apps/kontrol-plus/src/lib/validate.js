@@ -54,6 +54,9 @@ export function ibanChecksumOk(iban) {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Договір і строк оплати (етап 4a, міграція *_kp_documents.sql): колонки clients, яких до міграції ще немає.
+export const CONTRACT_KEYS = ['contract_no', 'contract_date', 'payment_terms_days'];
+
 function clean(value) {
     const text = String(value == null ? '' : value).trim();
     return text === '' ? null : text;
@@ -81,6 +84,9 @@ export function validateClient(input) {
         phone: clean(input.phone),
         email: clean(input.email) && clean(input.email).toLowerCase(),
         notes: clean(input.notes),
+        contract_no: clean(input.contract_no),
+        contract_date: clean(input.contract_date),
+        payment_terms_days: clean(input.payment_terms_days),
     };
 
     if (!data.name) errors.name = 'Вкажіть назву клієнта';
@@ -105,6 +111,15 @@ export function validateClient(input) {
     }
     if (data.email && !EMAIL.test(data.email)) errors.email = 'Некоректний email';
     if (data.notes && data.notes.length > 4000) errors.notes = 'Нотатки довші за 4000 символів';
+    if (data.contract_no && data.contract_no.length > 100) errors.contract_no = 'Номер договору — до 100 символів';
+    if (data.contract_date && (!/^\d{4}-\d{2}-\d{2}$/.test(data.contract_date) || data.contract_date < '1991-01-01' || data.contract_date > '2100-12-31')) {
+        errors.contract_date = 'Некоректна дата договору';
+    }
+    if (data.payment_terms_days !== null) {
+        const days = Number(data.payment_terms_days);
+        if (!Number.isInteger(days) || days < 0 || days > 365) errors.payment_terms_days = 'Строк оплати — ціле число від 0 до 365 днів';
+        else data.payment_terms_days = days;
+    }
 
     if (data.legal_form === 'tov' && !data.edrpou) warnings.edrpou = warnings.edrpou || 'Для ТОВ зазвичай потрібен ЄДРПОУ';
     if (data.legal_form === 'fop' && !data.ipn) warnings.ipn = warnings.ipn || 'Для ФОП зазвичай потрібен ІПН';

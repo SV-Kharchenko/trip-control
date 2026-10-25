@@ -1,4 +1,4 @@
-// Контроль+ поверх копії сайту trip-control.com: вкладки «Клієнти», «Звіт план/факт», «GPS» і «Ремонти» у навігації сайту.
+// Контроль+ поверх копії сайту trip-control.com: вкладки «Клієнти», «Звіт план/факт», «GPS», «Ремонти» і «Документи» у навігації сайту.
 // Сайт працює як є (калькулятор, огляд, історія, кабінет, команда, тариф…); тут лише додаткові розділи CRM.
 // Один клієнт Supabase на сторінку — той, що створив сайт (const supabaseClient у його класичному скрипті).
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
@@ -13,6 +13,7 @@ import { renderClientForm } from './views/client-form.js';
 import { renderReport } from './views/report.js';
 import { renderGps } from './views/gps.js';
 import { renderRepairs } from './views/repairs.js';
+import { docsAccess, isMissingFeature } from './lib/docs.js';
 import { paintRepairsBadge } from './views/repairs-maintenance.js';
 import { repairsAccess } from './lib/repairs.js';
 import { callKpApi } from './lib/gps-client.js';
@@ -30,7 +31,8 @@ function siteSupabase() {
 }
 
 // repairs — kp_repairs_context() (етап 3a): менеджер з ремонтів має доступ лише до «Ремонтів» чужої організації.
-const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null };
+// docs — чи є в базі функції документів (етап 4a): null — ще не перевіряли, false — міграцію не застосовано.
+const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null };
 // Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
 let cleanups = [];
 function runCleanups() {
@@ -88,6 +90,7 @@ function syncGpsTab() {
     if (tabs.repairs) tabs.repairs.hidden = !repairs.visible;
     if (repairs.repairsOnly || tabs.clients.hidden) tabs.clients.hidden = repairs.repairsOnly;
     if (repairs.repairsOnly || tabs.report.hidden) tabs.report.hidden = repairs.repairsOnly;
+    if (tabs.docs) tabs.docs.hidden = !(docsAccess(current).visible && state.docs === true);
 }
 
 async function refreshGpsTab() {
@@ -120,6 +123,9 @@ async function loadContext() {
     state.context = (data && data[0]) || { control_plus: false };
     state.repairs = await loadRepairsContext();
     state.contextUser = userId;
+    // «Документи» — у фоні: вкладка зʼявиться, щойно база відповість, що функції 4a є.
+    if (docsAccess(state.context).visible) loadDocsAvailability();
+    else state.docs = false;
     // Бейдж — у фоні: статус ТО великого автопарку не має затримувати відкриття розділу.
     if (state.repairs) loadRepairsBadge();
     else paintRepairsBadge(tabs.repairs, []);
@@ -136,6 +142,19 @@ async function loadRepairsBadge() {
         if (!error) rows = data || [];
     } catch { /* без бейджа */ }
     if (state.session && state.session.user.id === userId) paintRepairsBadge(tabs.repairs, rows);
+}
+
+async function loadDocsAvailability() {
+    if (!state.session) return;
+    const userId = state.session.user.id;
+    let available = false;
+    try {
+        const { error } = await state.supabase.rpc('kp_doc_next_number', { p_kind: 'invoice', p_doc_date: new Date().toISOString().slice(0, 10) });
+        available = !error || !isMissingFeature(error);
+    } catch { /* без вкладки */ }
+    if (!state.session || state.session.user.id !== userId) return;
+    state.docs = available;
+    syncGpsTab();
 }
 
 // null — розділу «Ремонти» немає (тариф «Компанія», не відповідальний або міграцію 3a ще не застосовано).
@@ -286,6 +305,7 @@ async function render() {
     runCleanups();
     let view;
     if (route.view === 'repairs') view = h('section', { class: 'page' }, notice('Розділ «Ремонти» ще не ввімкнено для вашої компанії.', 'info'));
+    else if (route.view === 'docs') view = lazyView(() => import('./views/docs.js').then((m) => m.renderDocs(app(), route)));
     else if (route.view === 'report') view = renderReport(app());
     else if (route.view === 'client-new') view = renderClientForm(app(), null);
     else if (route.view === 'client-edit') view = renderClientForm(app(), route.id);
@@ -295,6 +315,17 @@ async function render() {
     clear(root, head(), view);
     root.focus({ preventScroll: true });
     window.scrollTo(0, 0);
+}
+
+// Розділ окремим чанком (вантажиться при першому відкритті): «Документи» не збільшують основний бандл.
+function lazyView(load) {
+    const box = h('div', null, spinner());
+    load().then((el) => {
+        if (box.isConnected) box.replaceWith(el);
+    }, () => {
+        clear(box, h('section', { class: 'page' }, notice('Не вдалося завантажити розділ. Оновіть сторінку.')));
+    });
+    return box;
 }
 
 function onHash() {
@@ -317,7 +348,9 @@ function mount() {
     tabs.gps.hidden = true;
     tabs.repairs = h('button', { type: 'button', id: 'kp-nav-repairs', onclick: () => { location.hash = '#/repairs'; } }, 'Ремонти');
     tabs.repairs.hidden = true;
-    nav.append(tabs.clients, tabs.report, tabs.gps, tabs.repairs);
+    tabs.docs = h('button', { type: 'button', id: 'kp-nav-docs', onclick: () => { location.hash = '#/docs'; } }, 'Документи');
+    tabs.docs.hidden = true;
+    nav.append(tabs.clients, tabs.report, tabs.gps, tabs.repairs, tabs.docs);
     root = h('section', { id: 'kp-crm', class: 'kp-crm', 'aria-label': 'Контроль+', tabindex: '-1' });
     main.insertBefore(root, document.getElementById('studio-overview'));
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
@@ -354,6 +387,7 @@ export async function startBridge() {
             state.context = null;
             state.contextUser = null;
             state.repairs = null;
+            state.docs = null;
             syncGpsTab();
             // Supabase не можна кликати прямо з колбеку onAuthStateChange.
             if (state.route) setTimeout(render, 0);

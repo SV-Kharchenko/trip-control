@@ -1,6 +1,6 @@
 import { h, clear, spinner, notice, toast } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
-import { LEGAL_FORMS, validateClient } from '../lib/validate.js';
+import { CONTRACT_KEYS, LEGAL_FORMS, validateClient } from '../lib/validate.js';
 
 const FIELDS = [
     { section: 'Основне' },
@@ -24,11 +24,14 @@ const FIELDS = [
     { key: 'contact_name', label: 'Контактна особа' },
     { key: 'phone', label: 'Телефон', type: 'tel', autocomplete: 'off' },
     { key: 'email', label: 'Email', type: 'email', autocomplete: 'off' },
+    { section: 'Договір і оплата', contract: true },
+    { key: 'contract_no', label: 'Договір №', maxlength: 100, contract: true },
+    { key: 'contract_date', label: 'Дата договору', type: 'date', contract: true },
+    { key: 'payment_terms_days', label: 'Строк оплати рахунків, днів', type: 'number', inputmode: 'numeric', placeholder: '5', contract: true },
     { section: 'Нотатки' },
     { key: 'notes', label: 'Нотатки', type: 'textarea', maxlength: 4000 },
 ];
 
-const COLUMNS = FIELDS.filter((f) => f.key).map((f) => f.key);
 
 export function renderClientForm(app, clientId) {
     const body = h('div', null, spinner());
@@ -45,7 +48,8 @@ export function renderClientForm(app, clientId) {
         clear(body, buildForm(app, null, {}));
         return page;
     }
-    app.supabase.from('clients').select(COLUMNS.join(', ')).eq('id', clientId).maybeSingle().then(({ data, error }) => {
+    // select('*'): до міграції документів (етап 4a) колонок договору ще немає — форма працює й без них.
+    app.supabase.from('clients').select('*').eq('id', clientId).maybeSingle().then(({ data, error }) => {
         if (error && isPlanError(error)) return app.onPlanLost();
         if (error || !data) {
             clear(body, notice(error ? errorText(error) : 'Клієнта не знайдено.'));
@@ -56,13 +60,25 @@ export function renderClientForm(app, clientId) {
     return page;
 }
 
+// Нового клієнта з порожнім договором зберігаємо без цих ключів; наявного — лише якщо база вже має ці колонки.
+export function clientPayload(data, clientId, initial) {
+    const out = { ...data };
+    for (const key of CONTRACT_KEYS) {
+        const known = clientId ? Object.prototype.hasOwnProperty.call(initial || {}, key) : out[key] !== null;
+        if (!known) delete out[key];
+    }
+    return out;
+}
+
 function buildForm(app, clientId, initial) {
     const inputs = {};
+    // Наявний клієнт без колонок договору (міграцію 4a ще не застосовано) — без розділу «Договір і оплата».
+    const contractReady = !clientId || Object.prototype.hasOwnProperty.call(initial, 'contract_no');
     const hints = {};
     const message = h('div', { 'aria-live': 'polite' });
     const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, clientId ? 'Зберегти' : 'Додати клієнта');
 
-    const rows = FIELDS.map((f) => {
+    const rows = FIELDS.filter((f) => contractReady || !f.contract).map((f) => {
         if (f.section) return h('h2', { class: 'form-section' }, f.section);
         const id = 'f-' + f.key;
         let input;
@@ -79,7 +95,7 @@ function buildForm(app, clientId, initial) {
             input = h('input', {
                 id, name: f.key, type: f.type || 'text', required: f.required, maxlength: f.maxlength,
                 inputmode: f.inputmode, placeholder: f.placeholder, autocomplete: f.autocomplete || 'off',
-                class: f.mono ? 'mono' : null, value: initial[f.key] || '',
+                class: f.mono ? 'mono' : null, value: initial[f.key] === null || initial[f.key] === undefined ? '' : String(initial[f.key]),
             });
         }
         inputs[f.key] = input;
@@ -134,9 +150,10 @@ function buildForm(app, clientId, initial) {
                 return;
             }
             submit.disabled = true;
+            const payload = clientPayload(result.data, clientId, initial);
             const query = clientId
-                ? app.supabase.from('clients').update(result.data).eq('id', clientId).select('id')
-                : app.supabase.from('clients').insert(Object.assign({ org_id: app.context.org_id }, result.data)).select('id');
+                ? app.supabase.from('clients').update(payload).eq('id', clientId).select('id')
+                : app.supabase.from('clients').insert(Object.assign({ org_id: app.context.org_id }, payload)).select('id');
             const { data, error } = await query;
             submit.disabled = false;
             if (error) {

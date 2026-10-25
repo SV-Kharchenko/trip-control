@@ -2,6 +2,7 @@ import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import { LEGAL_FORMS } from '../lib/validate.js';
 import { fmtMoney, fmtNumber, fmtDate, num, STATUS_LABELS, kyivDate, monthRange } from '../lib/format.js';
+import { DOC_KIND_LABELS, PAY_STATUS_LABELS, docNumberText, fmtAmount, isMissingFeature } from '../lib/docs.js';
 
 const FORM_LABEL = Object.fromEntries(LEGAL_FORMS.map((f) => [f.value, f.label]));
 
@@ -29,8 +30,9 @@ function ibanGroups(iban) {
 export function renderClientCard(app, clientId) {
     const head = h('div', null, spinner());
     const history = h('div', null);
+    const docs = h('div', null);
     const linker = h('div', null);
-    const page = h('section', { class: 'page' }, h('a', { class: 'back', href: '#/clients' }, '← Усі клієнти'), head, history, linker);
+    const page = h('section', { class: 'page' }, h('a', { class: 'back', href: '#/clients' }, '← Усі клієнти'), head, docs, history, linker);
 
     async function load() {
         const { data, error } = await app.supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
@@ -40,6 +42,7 @@ export function renderClientCard(app, clientId) {
             return;
         }
         drawHead(data);
+        loadDocs(data);
         loadHistory();
         if (app.canWrite && !data.archived_at) drawLinker();
     }
@@ -73,6 +76,8 @@ export function renderClientCard(app, clientId) {
                     h('h1', null, c.name, c.archived_at ? h('span', { class: 'tag' }, 'архів') : null),
                     h('p', { class: 'muted' }, [FORM_LABEL[c.legal_form], c.legal_name].filter(Boolean).join(' · ') || 'Форму не вказано')),
                 h('div', { class: 'actions' },
+                    app.canWrite && !c.archived_at ? h('a', { class: 'btn btn-primary', href: '#/docs/new/invoice/' + c.id }, 'Створити рахунок') : null,
+                    app.canWrite && !c.archived_at ? h('a', { class: 'btn btn-primary', href: '#/docs/new/act/' + c.id }, 'Створити акт') : null,
                     h('button', { type: 'button', class: 'btn btn-ghost', onclick: copy }, 'Скопіювати реквізити'),
                     app.canWrite ? h('a', { class: 'btn', href: '#/clients/' + c.id + '/edit' }, 'Редагувати') : null,
                     app.canWrite ? h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => archive(c.archived_at ? null : new Date().toISOString()) },
@@ -88,13 +93,45 @@ export function renderClientCard(app, clientId) {
                     row('Банк', c.bank_name),
                     row('Юридична адреса', c.legal_address),
                     row('Поштова адреса', c.postal_address),
-                    row('Підписант', [c.signer_position, c.signer_name].filter(Boolean).join(', ')))),
+                    row('Підписант', [c.signer_position, c.signer_name].filter(Boolean).join(', ')),
+                    'contract_no' in c ? row('Договір', c.contract_no ? '№ ' + c.contract_no + (c.contract_date ? ' від ' + fmtDate(c.contract_date) : '') : null) : null,
+                    'payment_terms_days' in c ? row('Строк оплати', (c.payment_terms_days ?? 5) + ' дн.' + (c.payment_terms_days === null ? ' (за замовчуванням)' : '')) : null)),
                 h('div', { class: 'card' }, h('h2', null, 'Контакт'), h('dl', null,
                     row('Контактна особа', c.contact_name),
                     row('Телефон', c.phone ? h('a', { href: 'tel:' + c.phone.replace(/[^\d+]/g, '') }, c.phone) : null),
                     row('Email', c.email ? h('a', { href: 'mailto:' + c.email }, c.email) : null),
                     row('Нотатки', c.notes ? h('span', { class: 'pre' }, c.notes) : null),
                     row('Додано', fmtDate(c.created_at))))));
+    }
+
+    // Документи клієнта за два роки і борг (етап 4a). Без міграції документів — розділу просто немає.
+    async function loadDocs(client) {
+        const today = kyivDate();
+        const from = new Date(Date.parse(today + 'T00:00:00Z') - 720 * 86400000).toISOString().slice(0, 10);
+        const [list, debts] = await Promise.all([
+            app.supabase.rpc('kp_doc_list', { p_kind: null, p_from: from, p_to: today, p_client: clientId, p_status: null }),
+            app.supabase.rpc('kp_client_debts', { p_on: null }),
+        ]);
+        if (list.error || debts.error) {
+            if (!isMissingFeature(list.error || debts.error)) clear(docs, h('h2', { class: 'section-title' }, 'Документи'), notice(errorText(list.error || debts.error)));
+            return;
+        }
+        const rows = list.data || [];
+        const mine = (debts.data || []).filter((d) => d.client_id === clientId);
+        clear(docs, h('h2', { class: 'section-title' }, 'Документи і борг'),
+            mine.length ? h('div', { class: 'stats' }, mine.map((d) => [
+                stat('Борг, ' + d.currency, fmtAmount(d.debt, d.currency)),
+                stat('Прострочено, ' + d.currency, Number(d.overdue) > 0 ? fmtAmount(d.overdue, d.currency) + ' (' + d.overdue_days + ' дн.)' : '—')])) : null,
+            rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'table table-num' },
+                h('thead', null, h('tr', null, h('th', null, 'Дата'), h('th', null, '№'), h('th', null, 'Тип'), h('th', null, 'Сума'), h('th', null, 'Борг'), h('th', null, 'Статус'))),
+                h('tbody', null, rows.slice(0, 50).map((d) => h('tr', { class: d.status === 'cancelled' ? 'is-archived' : '' },
+                    h('td', null, fmtDate(d.doc_date)),
+                    h('td', { class: 'text' }, h('a', { href: '#/docs/' + d.id }, docNumberText(d))),
+                    h('td', { class: 'text' }, DOC_KIND_LABELS[d.kind] || d.kind),
+                    h('td', null, fmtAmount(d.total, d.currency)),
+                    h('td', null, d.debt === null || d.debt === undefined ? '—' : fmtAmount(d.debt, d.currency)),
+                    h('td', { class: 'text' }, PAY_STATUS_LABELS[d.pay_status] || d.pay_status))))))
+                : h('p', { class: 'muted' }, 'Документів ще немає.' + (app.canWrite && !client.archived_at ? ' Створіть рахунок або акт кнопками вгорі.' : '')));
     }
 
     async function loadHistory() {
@@ -137,7 +174,7 @@ export function renderClientCard(app, clientId) {
                 h('thead', null, h('tr', null,
                     h('th', null, 'Дата'), h('th', null, 'Рейс'), h('th', null, 'Статус'), h('th', null, 'Ставка'),
                     h('th', null, 'Км'), h('th', null, 'Т'), h('th', null, 'Дохід план'), h('th', null, 'Прибуток план'),
-                    h('th', null, 'Дохід факт'), h('th', null, 'Прибуток факт'), h('th', null, 'Автор'), app.canWrite ? h('th', null, '') : null)),
+                    h('th', null, 'Дохід факт'), h('th', null, 'Прибуток факт'), h('th', null, 'Автор'), app.canWrite ? h('th', null, 'Документ') : null, app.canWrite ? h('th', null, '') : null)),
                 h('tbody', null, rows.map((r) => h('tr', null,
                     h('td', null, fmtDate(r.trip_date)),
                     h('td', { class: 'text' }, r.name || [r.route_from, r.route_to].filter(Boolean).join(' — ') || '—'),
@@ -150,6 +187,8 @@ export function renderClientCard(app, clientId) {
                     h('td', null, fmtMoney(r.fact_revenue)),
                     h('td', { class: deltaClass(r.fact_profit, r.plan_profit) }, fmtMoney(r.fact_profit)),
                     h('td', { class: 'text small' }, r.author_email || '—'),
+                    app.canWrite ? h('td', { class: 'text small' }, h('a', { href: '#/docs/new/invoice/' + clientId + '/' + r.calculation_id }, 'Рахунок'), ' · ',
+                        h('a', { href: '#/docs/new/act/' + clientId + '/' + r.calculation_id }, 'Акт')) : null,
                     app.canWrite ? h('td', null, confirmButton('Відвʼязати', 'Точно?', () => unlink(r.calculation_id), 'btn btn-ghost btn-sm')) : null))))));
     }
 

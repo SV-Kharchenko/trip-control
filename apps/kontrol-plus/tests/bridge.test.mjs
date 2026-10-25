@@ -32,14 +32,14 @@ class FakeElement extends FakeNode {
 
 function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null,
     url = 'https://app.trip-control.com/', stored = null, acceptResponse = { status: 200, body: { ok: true, org_name: 'Агро А' } },
-    maintenance = [], fetchGate = null } = {}) {
+    maintenance = [], fetchGate = null, docs = 'ok' } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
     const body = new FakeElement('body');
     const storage = new Map(legacyKey ? [['kp-auth', '{"old":1}'], ['sb-qkfqjorzsxcajcneohoy-auth-token', 'site']] : []);
     if (stored) storage.set('kp_repair_invite', stored);
-    const calls = { warn: 0, listeners: 0, observers: 0, removed: [], rpcs: {}, fetch: [], replaced: [], auth: null, logs: [] };
+    const calls = { warn: 0, listeners: 0, observers: 0, removed: [], rpcs: {}, fetch: [], replaced: [], auth: null, logs: [], docsProbe: 0 };
     const loc = { hash: '', pathname: '/', search: '', href: url };
     body.append = (...nodes) => { body.children.push(...nodes); for (const n of nodes) if (n.id) byId[n.id] = n; };
     const doc = {
@@ -72,6 +72,11 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
             // Етап 3a: після kp_context міст питає ще kp_repairs_context (вкладка «Ремонти»).
             rpc: async (name) => {
                 if (!session) throw new Error(name + ' must not be called without a session');
+                // Етап 4a: чи є функції документів (вкладка «Документи»); рахується окремо від решти RPC.
+                if (name === 'kp_doc_next_number') {
+                    calls.docsProbe += 1;
+                    return docs === 'missing' ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } } : { data: 1, error: null };
+                }
                 // Етап 3b: бейдж ТО — kp_maintenance_status, лише коли «Ремонти» видно.
                 assert.ok(['kp_context', 'kp_repairs_context', 'kp_maintenance_status'].includes(name), 'unexpected rpc ' + name);
                 calls.rpcs[name] = (calls.rpcs[name] || 0) + 1;
@@ -131,15 +136,16 @@ for (const [name, opts] of [
     });
 }
 
-test('bridge: site with nav, #main-app and supabaseClient → four tabs and #kp-crm; legacy kp-auth removed once', async () => {
+test('bridge: site with nav, #main-app and supabaseClient → five tabs and #kp-crm; legacy kp-auth removed once', async () => {
     const env = setup();
     try {
         const { startBridge, LEGACY_SESSION_KEY } = await freshBridge();
         assert.equal(LEGACY_SESSION_KEY, 'kp-auth');
         assert.equal(await startBridge(), true);
-        assert.deepEqual(env.navEl.children.map((b) => b.id), ['kp-nav-clients', 'kp-nav-report', 'kp-nav-gps', 'kp-nav-repairs']);
+        assert.deepEqual(env.navEl.children.map((b) => b.id), ['kp-nav-clients', 'kp-nav-report', 'kp-nav-gps', 'kp-nav-repairs', 'kp-nav-docs']);
         assert.equal(env.navEl.children[2].hidden, true, 'GPS tab hidden without a session');
         assert.equal(env.navEl.children[3].hidden, true, 'Ремонти hidden without a session');
+        assert.equal(env.navEl.children[4].hidden, true, 'Документи hidden without a session');
         assert.equal(env.navEl.children[0].hidden, undefined, 'Клієнти / Звіт as before');
         assert.deepEqual(env.byId['main-app'].children.map((el) => el.id), ['kp-crm']);
         assert.equal(env.calls.warn, 0);
@@ -174,6 +180,31 @@ for (const [name, context, visible] of [
             const gps = env.navEl.children.find((b) => b.id === 'kp-nav-gps');
             assert.equal(gps.hidden, !visible);
             assert.equal(env.calls.rpcs.kp_context, 1, 'kp_context asked once');
+        } finally {
+            env.restore();
+        }
+    });
+}
+
+// «Документи» (етап 4a): лише control_plus (owner / logist / director) і лише коли в базі є функції 4a.
+const RM = { org_id: 'o1', org_name: 'Org', role: 'repair_manager', can_write: true, can_manage_handlers: false };
+for (const [name, context, docs, repairs, visible, probes] of [
+    ['owner, migration applied', { control_plus: true, role: 'owner' }, 'ok', null, true, 1],
+    ['logist', { control_plus: true, role: 'logist' }, 'ok', null, true, 1],
+    ['director (read only)', { control_plus: true, role: 'director' }, 'ok', null, true, 1],
+    ['migration 4a not applied', { control_plus: true, role: 'owner' }, 'missing', null, false, 1],
+    ['company plan', { control_plus: false, role: null, own_org_plan: 'company' }, 'ok', null, false, 0],
+    ['repair manager of another org', { control_plus: false, role: null, own_org_plan: 'company' }, 'ok', RM, false, 0],
+]) {
+    test(`bridge: Документи tab — ${name} → ${visible ? 'visible' : 'hidden'}`, async () => {
+        const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context, docs, repairs });
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            const tab = env.navEl.children.find((b) => b.id === 'kp-nav-docs');
+            assert.equal(tab.hidden, !visible);
+            assert.equal(env.calls.docsProbe, probes, 'the availability probe runs only for control_plus roles');
         } finally {
             env.restore();
         }
