@@ -64,6 +64,20 @@ for (const file of OURS) {
     await db.exec(sql);
 }
 check(true, 'all ' + before.length + ' earlier migrations + both Контроль+ migrations (twice) applied');
+// Заглушка схеми Supabase Storage (лише в цьому тесті; на проді storage.buckets / storage.objects уже є, RLS на objects
+// увімкнено, а anon / authenticated мають гранти — доступ вирішують політики). Потрібна міграції документів (етап 4a).
+await db.exec(`
+CREATE SCHEMA storage;
+CREATE TABLE storage.buckets (id text PRIMARY KEY, name text NOT NULL, owner uuid, public boolean DEFAULT false,
+  file_size_limit bigint, allowed_mime_types text[], created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
+CREATE TABLE storage.objects (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text REFERENCES storage.buckets (id),
+  name text NOT NULL, owner uuid, metadata jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(),
+  UNIQUE (bucket_id, name));
+ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;
+GRANT ALL ON storage.buckets, storage.objects TO anon, authenticated, service_role;
+`);
 for (const file of later) await db.exec(fs.readFileSync(new URL(file, DIR), 'utf8'));
 // Ремонти і склад (етап 3a): другий прогін — ідемпотентність.
 const REPAIRS = all.find((f) => /^\d{14}_repairs_stock\.sql$/.test(f));
@@ -83,6 +97,26 @@ await db.exec(maintSql);
 check(MAINT > REPAIRS && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(maintSql)
     && !maintSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
 'maintenance: ' + MAINT + ' (after ' + REPAIRS + ') applied twice in a row (idempotent), manual-apply header, no CREATE EXTENSION');
+// Документи (етап 4a): уже застосовано в later; ще двічі поспіль — ідемпотентність (бакет і політики Storage теж).
+const DOCS = all.find((f) => /^\d{14}_kp_documents\.sql$/.test(f));
+if (!DOCS) throw new Error('немає міграції *_kp_documents.sql');
+const docsSql = fs.readFileSync(new URL(DOCS, DIR), 'utf8');
+await db.exec(docsSql);
+await db.exec(docsSql);
+check(DOCS > MAINT && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(docsSql)
+    && !docsSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
+'documents: ' + DOCS + ' (after ' + MAINT + ') applied three times (idempotent), manual-apply header, no CREATE EXTENSION');
+const bucket = await one(`SELECT public, file_size_limit, allowed_mime_types::text AS mimes, (SELECT count(*)::int FROM storage.buckets) AS n FROM storage.buckets WHERE id = 'kp-doc-assets'`);
+check(bucket && bucket.public === false && Number(bucket.file_size_limit) === 524288 && bucket.mimes === '{image/png,image/jpeg}' && bucket.n === 1,
+    'documents: private bucket kp-doc-assets (512 KB, PNG / JPEG) created once', JSON.stringify(bucket));
+const storagePolicies = (await db.query(`SELECT policyname FROM pg_policies WHERE schemaname = 'storage' ORDER BY 1`)).rows.map((r) => r.policyname);
+check(storagePolicies.join(',') === 'kp_doc_assets_delete,kp_doc_assets_insert,kp_doc_assets_select,kp_doc_assets_update',
+    'documents: exactly four own storage.objects policies', storagePolicies.join(','));
+// Нумерація: рядок лічильника блокується до кінця транзакції (INSERT … ON CONFLICT DO UPDATE … RETURNING) — у PGlite
+// одне зʼєднання, тож паралельність перевіряємо за кодом функції; послідовні виклики — у pgTAP.
+const allocDef = (await one(`SELECT pg_get_functiondef('public.kp_doc_alloc_number(uuid, text, integer, integer)'::regprocedure) AS d`)).d;
+check(/ON CONFLICT \(org_id, kind, year\) DO UPDATE SET next_no = c\.next_no \+ 1/.test(allocDef) && /RETURNING c\.next_no - 1/.test(allocDef),
+    'documents: numbering takes the counter row lock (ON CONFLICT DO UPDATE … RETURNING)');
 
 // Заглушка Supabase Vault (лише для PGlite; на проді supabase_vault уже встановлено і шифрує секрети).
 await db.exec(`
@@ -626,6 +660,21 @@ await db.exec(mTapSql);
 const mTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(mBefore);
 for (const row of mTap) check(row.ok, 'pgTAP repairs_maintenance.sql: ' + row.label);
 check(mTap.length === mPlanned, `pgTAP repairs_maintenance.sql: ran ${mTap.length} of plan(${mPlanned})`);
+
+// supabase/tests/kp_documents.sql — той самий shim pgTAP і заглушка Storage.
+const dTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_documents.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const dPlanned = Number((dTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const dBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+await db.exec(dTapSql);
+const dTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(dBefore);
+for (const row of dTap) check(row.ok, 'pgTAP kp_documents.sql: ' + row.label);
+check(dTap.length === dPlanned, `pgTAP kp_documents.sql: ran ${dTap.length} of plan(${dPlanned})`);
+// Міграція поверх даних документів: дані на місці.
+const docsBefore = (await one(`SELECT count(*)::int AS n FROM public.kp_documents`)).n;
+await db.exec(docsSql);
+check(docsBefore > 0 && (await one(`SELECT count(*)::int AS n FROM public.kp_documents`)).n === docsBefore,
+    'documents: the migration re-applied over data keeps the documents');
 
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
 // (tripFactBasis з api/calculate.js: loadedKm + emptyKm + podachaKm по всіх авто заявки). Сайт лише читаємо.

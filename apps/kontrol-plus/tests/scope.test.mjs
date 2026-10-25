@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 6);
+    assert.equal(SCOPE_ALLOWLIST.length, 8);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -50,7 +50,7 @@ test('check-scope allowlist: exactly two more patterns for repairs (3a), neighbo
 });
 
 test('check-scope allowlist: exactly two more patterns for maintenance (3b), neighbours refused', () => {
-    assert.deepEqual(SCOPE_ALLOWLIST.slice(4).map(String), [
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(4, 6).map(String), [
         String(/^supabase\/migrations\/\d{14}_repairs_maintenance\.sql$/),
         String(/^supabase\/tests\/repairs_maintenance\.sql$/),
     ]);
@@ -82,4 +82,30 @@ test('check-scope: everything outside apps/kontrol-plus/ and the allowlist is re
         'supabase/migrations/20261012240000_fleet_vehicles.sql',
         'apps/kontrol-plus-evil/x.js',
     ]), ['index.html', 'supabase/migrations/20261012240000_fleet_vehicles.sql', 'apps/kontrol-plus-evil/x.js']);
+});
+
+test('check-scope allowlist: exactly two more patterns for documents (4a), neighbours refused', () => {
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(6).map(String), [
+        String(/^supabase\/migrations\/\d{14}_kp_documents\.sql$/),
+        String(/^supabase\/tests\/kp_documents\.sql$/),
+    ]);
+    for (const ok of ['supabase/migrations/20261025120000_kp_documents.sql', 'supabase/tests/kp_documents.sql']) {
+        assert.equal(isAllowedOutside(ok), true, ok);
+    }
+    for (const bad of [
+        'supabase/migrations/kp_documents.sql',
+        'supabase/migrations/2026102512000_kp_documents.sql',
+        'supabase/migrations/20261025120000_kp_documents.sql.bak',
+        'supabase/migrations/20261025120000_kp_documents_v2.sql',
+        'supabase/migrations/20261025120000_documents.sql',
+        'supabase/migrations/x/20261025120000_kp_documents.sql',
+        'supabase/tests/kp_documents.sql.orig',
+        'supabase/tests/documents.sql',
+        'supabase/tests/x/kp_documents.sql',
+        'supabase/migrations/20261008_week2_admin_auth_audit.sql',
+        'supabase/migrations/20261022091000_kontrol_plus_clients_reports.sql',
+        'api/calculate.js',
+        'vercel.json',
+    ]) assert.equal(isAllowedOutside(bad), false, bad);
+    assert.deepEqual(outsideScope(['apps/kontrol-plus/api/docs/rate.js', 'supabase/tests/kp_documents.sql', 'lib/trip-fact.js']), ['lib/trip-fact.js']);
 });
