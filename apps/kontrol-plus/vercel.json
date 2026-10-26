@@ -8,7 +8,8 @@
   "trailingSlash": false,
   "functions": {
     "api/gps/*.js": { "maxDuration": 30 },
-    "api/repairs/*.js": { "maxDuration": 15 }
+    "api/repairs/*.js": { "maxDuration": 15 },
+    "api/docs/*.js": { "maxDuration": 10 }
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://trip-control.com/api/:path*" },

@@ -307,3 +307,48 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
     #kp-crm .kpr-page .toolbar > * { flex: 1 1 auto; min-width: 0; }
     #kp-crm .kpr-page .toolbar > .grow, #kp-crm .kpr-page .toolbar > input, #kp-crm .kpr-page .toolbar > select { flex: 1 1 100%; }
 }
+/* Документи (етап 4a): рахунки, акти, оплати, борги, реквізити. */
+.tc-studio-nav #kp-nav-docs { white-space: nowrap; }
+#kp-crm .kpd-st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--border); white-space: nowrap; vertical-align: 2px; }
+#kp-crm .kpd-st-issued { color: var(--text); background: var(--bg); }
+#kp-crm .kpd-st-partial { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+#kp-crm .kpd-st-paid { color: var(--positive); border-color: var(--positive); }
+#kp-crm .kpd-st-overdue { color: var(--negative-text); background: var(--negative-bg); border-color: var(--negative); }
+#kp-crm .kpd-st-cancelled { color: var(--muted); text-decoration: line-through; }
+#kp-crm .kpd-center { justify-content: center; }
+#kp-crm .kpd-cancel { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#kp-crm .kpd-cancel input { min-width: 180px; }
+#kp-crm .kpd-form { display: grid; gap: 12px; }
+#kp-crm .kpd-form .form-section { margin: 12px 0 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+#kp-crm .kpd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+#kp-crm .kpd-rate { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px 16px; align-items: end; }
+#kp-crm .kpd-rate[hidden] { display: none; }
+#kp-crm .kpd-rate > .hint { grid-column: 1 / -1; }
+#kp-crm .kpd-vat-field { display: grid; gap: 6px; }
+#kp-crm .kpd-vat { margin-bottom: 0; }
+#kp-crm .kpd-lines { display: grid; gap: 6px; }
+#kp-crm .kpd-lines > .btn { justify-self: start; }
+#kp-crm .kpd-line { display: grid; grid-template-columns: minmax(200px, 1fr) 90px 80px 110px 130px auto; gap: 6px; align-items: center; }
+#kp-crm .kpd-line > .hint { grid-column: 1 / -1; margin: -2px 0 4px; }
+#kp-crm .kpd-line input { width: 100%; min-width: 0; }
+#kp-crm .kpd-line-head { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
+#kp-crm .kpd-amount { text-align: right; white-space: nowrap; }
+#kp-crm .kpd-totals { justify-content: flex-end; }
+#kp-crm .kpd-parties { margin: 0 0 14px; }
+#kp-crm .kpd-parties p { margin: 0 0 4px; }
+#kp-crm .kpd-party-title { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+#kp-crm .kpd-party-name { font-weight: 700; }
+#kp-crm .kpd-payments, #kp-crm .kpd-danger { margin-top: 16px; }
+#kp-crm .kpd-pay-form { display: grid; gap: 10px; margin-top: 12px; justify-items: start; }
+#kp-crm .kpd-pay-form .toolbar { margin: 0; width: 100%; }
+#kp-crm .kpd-asset-preview { display: flex; align-items: center; justify-content: center; min-height: 130px; margin: 0 0 8px; border: 1px dashed var(--border); border-radius: var(--radius-control); background: #fff; }
+#kp-crm .kpd-asset-preview img { max-width: 100%; max-height: 120px; object-fit: contain; }
+#kp-crm .kpd-file { position: relative; overflow: hidden; }
+#kp-crm .kpd-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; }
+@media (max-width: 767px) {
+    #kp-crm .kpd-grid, #kp-crm .kpd-rate { grid-template-columns: 1fr; }
+    #kp-crm .kpd-line { grid-template-columns: 1fr 1fr; padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--bg); }
+    #kp-crm .kpd-line > .kpd-title { grid-column: 1 / -1; }
+    #kp-crm .kpd-line-head { display: none; }
+    #kp-crm .kpd-totals { justify-content: flex-start; }
+}
