@@ -131,10 +131,10 @@ export function renderReport(app) {
     drawGroups();
     load();
 
-    return h('section', { class: 'page' },
+    return h('section', { class: 'page kp-report' },
         h('div', { class: 'page-head' }, h('h1', null, 'Звіт план/факт'), exportBtn),
         h('div', { class: 'toolbar' },
-            h('label', { for: 'r-from' }, 'З'), from, h('label', { for: 'r-to' }, 'по'), to,
+            h('div', { class: 'dates' }, h('label', { for: 'r-from' }, 'З'), from, h('label', { for: 'r-to' }, 'по'), to),
             h('div', { class: 'quick' },
                 h('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => setPeriod('month') }, 'Цей місяць'),
                 h('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => setPeriod('prev') }, 'Минулий'),

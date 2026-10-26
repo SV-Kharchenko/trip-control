@@ -250,3 +250,13 @@ test('site: history tab sits right after Overview and the bridge un-highlights i
     const bridge = fs.readFileSync(new URL('../src/bridge.js', import.meta.url), 'utf8');
     assert.match(bridge, /'studio-nav-calc', 'studio-nav-overview', 'studio-nav-history'/);
 });
+
+test('report: dates are compact and side by side, export button is not full width', () => {
+    const view = fs.readFileSync(new URL('../src/views/report.js', import.meta.url), 'utf8');
+    assert.match(view, /class: 'page kp-report'/);
+    assert.match(view, /h\('div', \{ class: 'dates' \}, h\('label', \{ for: 'r-from' \}, 'З'\), from, h\('label', \{ for: 'r-to' \}, 'по'\), to\)/);
+    const css = fs.readFileSync(new URL('../src/crm.css', import.meta.url), 'utf8');
+    assert.match(css, /\.kp-report \.toolbar \.dates input\[type="date"\] \{ flex: 0 0 auto; width: 160px;/);
+    assert.match(css, /\.kp-report \.toolbar \.dates \{ display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; \}/);
+    assert.match(css, /\.kp-report \.page-head > \.btn \{ flex: 0 0 auto; width: auto; \}/);
+});
