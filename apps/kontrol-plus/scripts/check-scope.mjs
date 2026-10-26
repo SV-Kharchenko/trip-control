@@ -21,6 +21,7 @@ export const SCOPE_ALLOWLIST = [
     /^index\.html$/,
     /^tests\/fleet-ttn-fields\.test\.mjs$/,
     /^tests\/trip-history-tab\.test\.mjs$/,
+    /^tests\/header-menu\.test\.mjs$/,
 ];
 
 export function isAllowedOutside(file) {
