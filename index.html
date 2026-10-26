@@ -2082,6 +2082,9 @@
             display: flex;
             gap: 4px;
             margin-right: auto;
+            min-width: 0;
+            overflow-x: auto;
+            scrollbar-width: thin;
         }
         body.layout-studio .tc-studio-nav button {
             border: none;
@@ -2094,6 +2097,8 @@
             border-radius: 8px;
             cursor: pointer;
             min-height: 36px;
+            white-space: nowrap;
+            flex: 0 0 auto;
         }
         body.layout-studio .tc-studio-nav button.on {
             color: var(--text-main);
@@ -2213,14 +2218,22 @@
         body.layout-studio #studio-overview { grid-column: 1 / -1; }
         body.layout-studio:not([data-studio-view="history"]) #saved-section { display: none !important; }
         body.layout-studio[data-studio-view="history"] #tc-step-strip,
-        body.layout-studio[data-studio-view="history"] #studio-columns,
         body.layout-studio[data-studio-view="history"] #studio-overview,
         body.layout-studio[data-studio-view="history"] .actions-bar,
         body.layout-studio[data-studio-view="history"] #missing-hint,
         body.layout-studio[data-studio-view="history"] #onboard-banner,
         body.layout-studio[data-studio-view="history"] #cab-warning,
         body.layout-studio[data-studio-view="history"] .tc-result-dock { display: none !important; }
-        body.layout-studio[data-studio-view="history"] #saved-section { margin-top: 0; }
+        body.layout-studio[data-studio-view="history"] #studio-left,
+        body.layout-studio[data-studio-view="history"] #studio-right > :not(#saved-section) { display: none !important; }
+        body.layout-studio[data-studio-view="history"] #studio-columns,
+        body.layout-studio[data-studio-view="history"] #studio-right {
+            display: block !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            width: 100%; max-width: 100%;
+            background: none; border: 0; box-shadow: none; padding: 0;
+        }
+        body.layout-studio[data-studio-view="history"] #saved-section { margin-top: 0; grid-column: 1 / -1; }
         body.layout-studio[data-studio-view="history"] #history-toggle { pointer-events: none; cursor: default; }
         body.layout-studio[data-studio-view="history"] #history-toggle .tc-history-chev { display: none; }
         body.layout-studio[data-studio-view="overview"] #tc-step-strip { display: none !important; }
@@ -6696,7 +6709,6 @@
                 document.body.style.overflow = '';
             }
             setStudioView('history');
-            setHistoryOpen(true);
             window.scrollTo(0, 0);
         } else if (action === 'defaults') {
             openCabinet();
@@ -8479,10 +8491,16 @@
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
         const histBtn = document.getElementById('studio-nav-history');
+        const histToggle = document.getElementById('history-toggle');
         if (calcBtn) calcBtn.classList.toggle('on', !overview && !history);
         if (overBtn) overBtn.classList.toggle('on', overview);
         if (histBtn) histBtn.classList.toggle('on', history);
         syncCompanyNav(false);
+        if (histToggle) {
+            histToggle.tabIndex = history ? -1 : 0;
+            if (history) histToggle.setAttribute('aria-disabled', 'true');
+            else histToggle.removeAttribute('aria-disabled');
+        }
         if (history) setHistoryOpen(true);
         if (overview) renderStudioOverview();
     }
@@ -13404,6 +13422,7 @@
         try { localStorage.setItem(HISTORY_OPEN_KEY, open ? '1' : '0'); } catch (e) {}
     }
     function toggleHistory() {
+        if (document.body.getAttribute('data-studio-view') === 'history') return;
         const btn = document.getElementById('history-toggle');
         setHistoryOpen(!(btn && btn.getAttribute('aria-expanded') === 'true'));
     }

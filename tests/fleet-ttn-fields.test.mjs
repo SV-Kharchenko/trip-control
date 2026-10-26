@@ -107,10 +107,6 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
         t.skip('index.html changes already in main');
         return;
     }
-    if (diff.includes('studio-nav-history')) {
-        t.skip('index.html diff is the history-tab change (tests/trip-history-tab.test.mjs), not the vehicle card');
-        return;
-    }
     const lines = html.split('\n');
     const lineOf = (needle) => lines.findIndex((l) => l.includes(needle)) + 1;
     const fleetCode = [lineOf('    let fleetVehicles = [];'), lineOf('    let fleetVehicles = [];') + 4];
@@ -119,6 +115,13 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
     const preview = [lineOf("{ id: 'preview-fleet-1', label: 'AA0001KA', make_model"), lineOf("{ id: 'preview-fleet-2', label: 'AA0002KA', make_model")];
     const inside = (n) => [fleetCode, fleetFns, css, preview].some(([a, b]) => n >= a && n <= b);
     const hunks = [...diff.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)].map((m) => [Number(m[1]), m[2] === undefined ? 1 : Number(m[2])]);
+    if (diff.includes('studio-nav-history')) {
+        // Інша зміна index.html (вкладка «Історія рейсів», tests/trip-history-tab.test.mjs): картки авто вона торкатися не має.
+        for (const [start, count] of hunks) {
+            for (let n = start; n < start + count; n += 1) assert.ok(!inside(n), 'history-tab change touches the vehicle card at line ' + n + ': ' + lines[n - 1]);
+        }
+        return;
+    }
     assert.ok(hunks.length > 0, 'index.html is changed');
     for (const [start, count] of hunks) {
         for (let n = start; n < start + Math.max(count, 1); n += 1) assert.ok(inside(n), 'changed line ' + n + ' is outside the vehicle card: ' + lines[n - 1]);

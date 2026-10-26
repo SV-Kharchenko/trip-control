@@ -47,3 +47,46 @@ test('history controls and renderer are intact; logist keeps the tab', () => {
     assert.match(html, /function renderSavedTable\(/);
     assert.doesNotMatch(html, /view-logist #studio-nav-history/);
 });
+
+test('history view keeps #studio-columns / #studio-right (where #saved-section lives) and hides the rest', () => {
+    assert.match(html, /\[data-studio-view="history"\] #studio-left,\s*body\.layout-studio\[data-studio-view="history"\] #studio-right > :not\(#saved-section\) \{ display: none !important; \}/);
+    assert.match(html, /\[data-studio-view="history"\] #studio-columns,\s*body\.layout-studio\[data-studio-view="history"\] #studio-right \{\s*display: block !important;/);
+    assert.doesNotMatch(html, /\[data-studio-view="history"\] #studio-columns[,\s]*\{?\s*display: none/);
+});
+
+test('history toggle is inert in the history view', () => {
+    assert.match(html, /histToggle\.tabIndex = history \? -1 : 0/);
+    assert.match(html, /setAttribute\('aria-disabled', 'true'\)/);
+    assert.match(fnBody('toggleHistory'), /data-studio-view'\) === 'history'\) return/);
+});
+
+// Реальний браузер: потрібні playwright-core і Chrome (PLAYWRIGHT_CHROME або стандартний шлях); інакше тест пропускається.
+test('browser: #saved-section is sized and usable in history, hidden in calc/overview', async (t) => {
+    let chromium;
+    try { ({ chromium } = await import(process.env.PLAYWRIGHT_CORE || 'playwright-core')); } catch { t.skip('playwright-core is not installed'); return; }
+    const exe = process.env.PLAYWRIGHT_CHROME || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find((p) => fs.existsSync(p));
+    if (!exe) { t.skip('no Chrome'); return; }
+    const http = await import('node:http');
+    const server = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const browser = await chromium.launch({ executablePath: exe });
+    try {
+        for (const width of [1280, 390]) {
+            const page = await browser.newPage({ viewport: { width, height: 800 } });
+            await page.goto('http://localhost:' + server.address().port + '/?preview=1', { waitUntil: 'domcontentloaded' });
+            await page.waitForFunction(() => document.body.classList.contains('layout-studio') && document.getElementById('saved-section'));
+            await page.waitForTimeout(2500);
+            const probe = (view) => page.evaluate((v) => {
+                setStudioView(v);
+                const box = document.getElementById('saved-section').getBoundingClientRect();
+                const search = document.getElementById('history-search').getBoundingClientRect();
+                return { w: box.width, h: box.height, search: search.width * search.height, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth };
+            }, view);
+            for (const view of ['calc', 'overview']) assert.equal((await probe(view)).h, 0, view + '@' + width);
+            const h = await probe('history');
+            assert.ok(h.w > 0 && h.h > 0 && h.search > 0, 'history visible @' + width);
+            assert.equal(h.overflow, false, 'no horizontal scroll @' + width);
+            await page.close();
+        }
+    } finally { await browser.close(); server.close(); }
+});

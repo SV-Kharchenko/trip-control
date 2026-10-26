@@ -90,7 +90,7 @@ test('avatar menu closes from Escape and an outside click, and does not calculat
     assert.match(menu, /switchCabTab\('company'\)|openHeaderCompany\(\)/);
     assert.match(menu, /switchCabTab\('docs'\)/);
     assert.match(menu, /switchCabTab\('costs'\)/);
-    assert.match(menu, /setHistoryOpen\(true\)/);
+    assert.match(menu, /setStudioView\('history'\)/);
     assert.equal(menu.includes("switchCabTab('s0')"), false);
     assert.match(menu, /openAdminCrm\(\)/);
     assert.match(menu, /handleLogout\(\)/);
