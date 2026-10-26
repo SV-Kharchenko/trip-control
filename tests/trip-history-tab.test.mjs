@@ -71,7 +71,7 @@ test('browser: #saved-section is sized and usable in history, hidden in calc/ove
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
     const browser = await chromium.launch({ executablePath: exe });
     try {
-        for (const width of [1280, 390]) {
+        for (const width of [1280, 1440, 390]) {
             const page = await browser.newPage({ viewport: { width, height: 800 } });
             await page.goto('http://localhost:' + server.address().port + '/?preview=1', { waitUntil: 'domcontentloaded' });
             await page.waitForFunction(() => document.body.classList.contains('layout-studio') && document.getElementById('saved-section'));
@@ -86,6 +86,17 @@ test('browser: #saved-section is sized and usable in history, hidden in calc/ove
             const h = await probe('history');
             assert.ok(h.w > 0 && h.h > 0 && h.search > 0, 'history visible @' + width);
             assert.equal(h.overflow, false, 'no horizontal scroll @' + width);
+            const fit = await page.evaluate(() => {
+                const nav = document.querySelector('.tc-studio-nav');
+                for (const [id, t] of [['clients', 'Клієнти'], ['report', 'Звіт план/факт'], ['gps', 'GPS'], ['repairs', 'Ремонти'], ['docs', 'Документи']]) {
+                    const b = document.createElement('button');
+                    b.id = 'kp-nav-' + id; b.type = 'button'; b.textContent = t; nav.append(b);
+                }
+                const wrap = document.querySelector('#saved-section .comparison-table');
+                return { navFits: nav.scrollWidth <= nav.clientWidth, tableFits: !wrap || wrap.scrollWidth <= wrap.clientWidth || getComputedStyle(wrap).display === 'none' };
+            });
+            if (width >= 1280) assert.equal(fit.navFits, true, 'nav fits without scroll @' + width);
+            assert.equal(fit.tableFits, true, 'history table fits @' + width);
             await page.close();
         }
     } finally { await browser.close(); server.close(); }

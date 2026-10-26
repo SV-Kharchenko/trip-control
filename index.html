@@ -2234,6 +2234,10 @@
             background: none; border: 0; box-shadow: none; padding: 0;
         }
         body.layout-studio[data-studio-view="history"] #saved-section { margin-top: 0; grid-column: 1 / -1; }
+        body.layout-studio[data-studio-view="history"] #saved-table .tc-history-actions { flex-wrap: wrap; min-width: 150px; max-width: 240px; }
+        body.layout-studio[data-studio-view="history"] #saved-table th,
+        body.layout-studio[data-studio-view="history"] #saved-table td { padding-left: 6px; padding-right: 6px; }
+        body.layout-studio[data-studio-view="history"] #saved-table td.tc-history-route { min-width: 110px; }
         body.layout-studio[data-studio-view="history"] #history-toggle { pointer-events: none; cursor: default; }
         body.layout-studio[data-studio-view="history"] #history-toggle .tc-history-chev { display: none; }
         body.layout-studio[data-studio-view="overview"] #tc-step-strip { display: none !important; }
@@ -2769,6 +2773,11 @@
             gap: 10px 12px;
             overflow: visible;
             margin-bottom: 0;
+        }
+        /* Контроль+ додає 5 вкладок: на вужчих екранах навігація йде окремим рядком на всю ширину, без скролу й обрізань */
+        @media (min-width: 901px) and (max-width: 1799px) {
+            body.layout-studio .tc-topbar { flex-wrap: wrap; }
+            body.layout-studio .tc-topbar:has(#kp-nav-clients) .tc-studio-nav { order: 5; flex: 1 1 100%; overflow-x: visible; }
         }
         body.layout-studio .tc-brand,
         body.layout-studio .tc-studio-nav,
