@@ -117,6 +117,30 @@ check(storagePolicies.join(',') === 'kp_doc_assets_delete,kp_doc_assets_insert,k
 const allocDef = (await one(`SELECT pg_get_functiondef('public.kp_doc_alloc_number(uuid, text, integer, integer)'::regprocedure) AS d`)).d;
 check(/ON CONFLICT \(org_id, kind, year\) DO UPDATE SET next_no = c\.next_no \+ 1/.test(allocDef) && /RETURNING c\.next_no - 1/.test(allocDef),
     'documents: numbering takes the counter row lock (ON CONFLICT DO UPDATE … RETURNING)');
+// ТТН (етап 4b): уже застосовано в later; ще двічі поспіль — ідемпотентність. Функції й таблиці 4a — без змін.
+const TTN = all.find((f) => /^\d{14}_kp_docs_ttn\.sql$/.test(f));
+if (!TTN) throw new Error('немає міграції *_kp_docs_ttn.sql');
+const ttnSql = fs.readFileSync(new URL(TTN, DIR), 'utf8');
+const fnDefs = async (names) => (await db.query(`SELECT p.oid::regprocedure::text AS f, md5(pg_get_functiondef(p.oid)) AS h FROM pg_proc AS p
+    JOIN pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = ANY ($1) ORDER BY 1`, [names])).rows.map((r) => r.f + ':' + r.h).join(',');
+const DOCS_FNS = ['kp_doc_create', 'kp_doc_cancel', 'kp_doc_list', 'kp_doc_get', 'kp_doc_alloc_number', 'kp_docs_org', 'kp_doc_next_number',
+    'kp_org_id', 'kp_role', 'kp_can_write', 'kp_context', 'kp_trips', 'fleet_vehicles_guard'];
+await db.exec(docsSql);
+const docsFnsBefore = await fnDefs(DOCS_FNS);
+await db.exec(ttnSql);
+await db.exec(ttnSql);
+check(TTN > DOCS && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(ttnSql)
+    && !ttnSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
+'waybills: ' + TTN + ' (after ' + DOCS + ') applied three times (idempotent), manual-apply header, no CREATE EXTENSION');
+check(docsFnsBefore.length > 0 && docsFnsBefore === await fnDefs(DOCS_FNS),
+    'waybills: functions of 4a, kp_* access helpers and fleet_vehicles_guard are not redefined by the migration');
+check(!/CREATE OR REPLACE FUNCTION public\.(kp_doc_(create|cancel|list|get|alloc_number|next_number|pay_status|paid|trips_for_client|assets_source)\b|kp_docs_org|kp_org_id|kp_role|kp_can_write|kp_context|kp_trips|fleet_vehicles_guard)/.test(ttnSql)
+    && !/ALTER TABLE public\.(kp_documents|kp_document_lines|calculations|trip_actuals|org_company_profiles)\b/.test(ttnSql)
+    && !/(DROP|ALTER) (POLICY|TRIGGER)[^;]*fleet_vehicles/i.test(ttnSql.replace(/^\s*--.*$/gm, '')),
+'waybills: the migration does not touch 4a functions / tables, calculations or fleet_vehicles policies and triggers');
+const ttnAlloc = (await one(`SELECT pg_get_functiondef('public.kp_ttn_alloc_number(uuid, integer, integer)'::regprocedure) AS d`)).d;
+check(/ON CONFLICT \(org_id, kind, year\) DO UPDATE SET next_no = c\.next_no \+ 1/.test(ttnAlloc) && /VALUES \(p_org, 'ttn', p_year, 2\)/.test(ttnAlloc),
+    'waybills: numbering uses the existing kp_doc_counters row (kind ttn) with the same row lock');
 
 // Заглушка Supabase Vault (лише для PGlite; на проді supabase_vault уже встановлено і шифрує секрети).
 await db.exec(`
@@ -675,6 +699,22 @@ const docsBefore = (await one(`SELECT count(*)::int AS n FROM public.kp_document
 await db.exec(docsSql);
 check(docsBefore > 0 && (await one(`SELECT count(*)::int AS n FROM public.kp_documents`)).n === docsBefore,
     'documents: the migration re-applied over data keeps the documents');
+
+// supabase/tests/kp_docs_ttn.sql — той самий shim pgTAP і заглушка Storage.
+const tTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_docs_ttn.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const tPlanned = Number((tTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const tBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+await db.exec(tTapSql);
+const tTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(tBefore);
+for (const row of tTap) check(row.ok, 'pgTAP kp_docs_ttn.sql: ' + row.label);
+check(tTap.length === tPlanned, `pgTAP kp_docs_ttn.sql: ran ${tTap.length} of plan(${tPlanned})`);
+// Міграція поверх даних ТТН: дані на місці, нові колонки авто не скидаються.
+const ttnBefore = (await one(`SELECT count(*)::int AS n, (SELECT count(*)::int FROM public.fleet_vehicles WHERE tare_t IS NOT NULL) AS v FROM public.kp_doc_ttn`));
+await db.exec(ttnSql);
+const ttnAfter = (await one(`SELECT count(*)::int AS n, (SELECT count(*)::int FROM public.fleet_vehicles WHERE tare_t IS NOT NULL) AS v FROM public.kp_doc_ttn`));
+check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAfter.v === ttnBefore.v,
+    'waybills: the migration re-applied over data keeps waybills and vehicle fields');
 
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
 // (tripFactBasis з api/calculate.js: loadedKm + emptyKm + podachaKm по всіх авто заявки). Сайт лише читаємо.

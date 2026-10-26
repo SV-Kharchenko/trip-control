@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 8);
+    assert.equal(SCOPE_ALLOWLIST.length, 12);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -17,7 +17,7 @@ test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () =
         'supabase/tests/kontrol_plus.sql',
         'supabase/tests/gps_integrations.sql.orig',
         'docs/SECRETS.md',
-        'index.html',
+        '404.html',
         'api/calculate.js',
         'vercel.json',
         'package.json',
@@ -78,14 +78,14 @@ test('check-scope: everything outside apps/kontrol-plus/ and the allowlist is re
         'apps/kontrol-plus/src/views/gps.js',
         'supabase/migrations/20261024111415_gps_integrations.sql',
         'supabase/tests/gps_integrations.sql',
-        'index.html',
+        '404.html',
         'supabase/migrations/20261012240000_fleet_vehicles.sql',
         'apps/kontrol-plus-evil/x.js',
-    ]), ['index.html', 'supabase/migrations/20261012240000_fleet_vehicles.sql', 'apps/kontrol-plus-evil/x.js']);
+    ]), ['404.html', 'supabase/migrations/20261012240000_fleet_vehicles.sql', 'apps/kontrol-plus-evil/x.js']);
 });
 
 test('check-scope allowlist: exactly two more patterns for documents (4a), neighbours refused', () => {
-    assert.deepEqual(SCOPE_ALLOWLIST.slice(6).map(String), [
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(6, 8).map(String), [
         String(/^supabase\/migrations\/\d{14}_kp_documents\.sql$/),
         String(/^supabase\/tests\/kp_documents\.sql$/),
     ]);
@@ -108,4 +108,43 @@ test('check-scope allowlist: exactly two more patterns for documents (4a), neigh
         'vercel.json',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
     assert.deepEqual(outsideScope(['apps/kontrol-plus/api/docs/rate.js', 'supabase/tests/kp_documents.sql', 'lib/trip-fact.js']), ['lib/trip-fact.js']);
+});
+
+// Етап 4b: міграція й pgTAP ТТН; index.html — лише картка авто / автопарк (рішення Свята 26.10: поля ТЗ і згортуваний
+// блок ТО / страхування), плюс один корінний тест цієї картки. Інші файли сайту — як і раніше, поза дозволом.
+test('check-scope allowlist: exactly four more patterns for waybills (4b), neighbours refused', () => {
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(8).map(String), [
+        String(/^supabase\/migrations\/\d{14}_kp_docs_ttn\.sql$/),
+        String(/^supabase\/tests\/kp_docs_ttn\.sql$/),
+        String(/^index\.html$/),
+        String(/^tests\/fleet-ttn-fields\.test\.mjs$/),
+    ]);
+    for (const ok of ['supabase/migrations/20261026120000_kp_docs_ttn.sql', 'supabase/tests/kp_docs_ttn.sql', 'index.html', 'tests/fleet-ttn-fields.test.mjs']) {
+        assert.equal(isAllowedOutside(ok), true, ok);
+    }
+    for (const bad of [
+        'index.htm',
+        'x/index.html',
+        'index.html.bak',
+        'Index.html',
+        'legal/index.html',
+        'apps/other/index.html',
+        'assets/bg-network.jpg',
+        'assets/brand/logo-dark.svg',
+        'tests/fleet-docs.test.mjs',
+        'tests/fleet-ttn-fields.test.mjs.bak',
+        'tests/x/fleet-ttn-fields.test.mjs',
+        'tests/calc-golden.test.mjs',
+        'supabase/migrations/kp_docs_ttn.sql',
+        'supabase/migrations/2026102612000_kp_docs_ttn.sql',
+        'supabase/migrations/20261026120000_kp_docs_ttn_v2.sql',
+        'supabase/migrations/20261026120000_docs_ttn.sql',
+        'supabase/tests/kp_docs_ttn.sql.orig',
+        'supabase/migrations/20261012240000_fleet_vehicles.sql',
+        'api/calculate.js',
+        'lib/trip-fact.js',
+        'vercel.json',
+        '404.html',
+    ]) assert.equal(isAllowedOutside(bad), false, bad);
+    assert.deepEqual(outsideScope(['index.html', 'tests/fleet-ttn-fields.test.mjs', 'tests/fleet-docs.test.mjs', 'assets/x.png']), ['tests/fleet-docs.test.mjs', 'assets/x.png']);
 });

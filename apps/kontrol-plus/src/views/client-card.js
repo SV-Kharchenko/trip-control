@@ -78,6 +78,7 @@ export function renderClientCard(app, clientId) {
                 h('div', { class: 'actions' },
                     app.canWrite && !c.archived_at ? h('a', { class: 'btn btn-primary', href: '#/docs/new/invoice/' + c.id }, 'Створити рахунок') : null,
                     app.canWrite && !c.archived_at ? h('a', { class: 'btn btn-primary', href: '#/docs/new/act/' + c.id }, 'Створити акт') : null,
+                    app.canWrite && !c.archived_at ? h('a', { class: 'btn btn-primary', href: '#/docs/new/ttn/' + c.id }, 'Створити ТТН') : null,
                     h('button', { type: 'button', class: 'btn btn-ghost', onclick: copy }, 'Скопіювати реквізити'),
                     app.canWrite ? h('a', { class: 'btn', href: '#/clients/' + c.id + '/edit' }, 'Редагувати') : null,
                     app.canWrite ? h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => archive(c.archived_at ? null : new Date().toISOString()) },
@@ -188,7 +189,8 @@ export function renderClientCard(app, clientId) {
                     h('td', { class: deltaClass(r.fact_profit, r.plan_profit) }, fmtMoney(r.fact_profit)),
                     h('td', { class: 'text small' }, r.author_email || '—'),
                     app.canWrite ? h('td', { class: 'text small' }, h('a', { href: '#/docs/new/invoice/' + clientId + '/' + r.calculation_id }, 'Рахунок'), ' · ',
-                        h('a', { href: '#/docs/new/act/' + clientId + '/' + r.calculation_id }, 'Акт')) : null,
+                        h('a', { href: '#/docs/new/act/' + clientId + '/' + r.calculation_id }, 'Акт'), ' · ',
+                        h('a', { href: '#/docs/new/ttn/' + clientId + '/' + r.calculation_id }, 'ТТН')) : null,
                     app.canWrite ? h('td', null, confirmButton('Відвʼязати', 'Точно?', () => unlink(r.calculation_id), 'btn btn-ghost btn-sm')) : null))))));
     }
 

@@ -222,7 +222,10 @@ test('routes: #/docs and its sub-pages; bad kinds or ids → not a route', () =>
     assert.deepEqual(parseCrmHash('#/docs/new/invoice'), { view: 'docs', sub: 'new', kind: 'invoice', client: null, calc: null });
     assert.deepEqual(parseCrmHash('#/docs/new/act/' + ID), { view: 'docs', sub: 'new', kind: 'act', client: ID, calc: null });
     assert.deepEqual(parseCrmHash('#/docs/new/act/' + ID + '/' + ID2), { view: 'docs', sub: 'new', kind: 'act', client: ID, calc: ID2 });
-    for (const hash of ['#/docs/new/ttn', '#/docs/new', '#/docs/new/act/abc', '#/docs/xyz', '#/docs/debts/1', '#/docs/new/act/' + ID + '/' + ID2 + '/x']) {
+    assert.deepEqual(parseCrmHash('#/docs/new/ttn'), { view: 'docs', sub: 'new', kind: 'ttn', client: null, calc: null }, '4b: waybill form');
+    assert.deepEqual(parseCrmHash('#/docs/ttn/' + ID), { view: 'docs', sub: 'ttn', id: ID }, '4b: waybill card');
+    assert.deepEqual(parseCrmHash('#/docs/fleet'), { view: 'docs', sub: 'fleet' }, '4b: vehicles and drivers');
+    for (const hash of ['#/docs/new/cmr', '#/docs/new', '#/docs/new/act/abc', '#/docs/xyz', '#/docs/debts/1', '#/docs/new/act/' + ID + '/' + ID2 + '/x', '#/docs/ttn', '#/docs/ttn/abc', '#/docs/fleet/1']) {
         assert.equal(parseCrmHash(hash), null, hash);
     }
     assert.equal(tabOf(parseCrmHash('#/docs/debts')), 'docs');
@@ -252,8 +255,9 @@ test('client contract fields: validation as the CHECKs; sent only when the datab
 
 test('documents views: only h() / textContent, no innerHTML / outerHTML / insertAdjacentHTML, no inline styles or dialogs', () => {
     const files = fs.readdirSync(new URL('src/views/', APP)).filter((f) => /^docs.*\.js$/.test(f));
-    assert.deepEqual(files.sort(), ['docs-card.js', 'docs-debts.js', 'docs-form.js', 'docs-requisites.js', 'docs.js']);
-    for (const file of [...files.map((f) => 'src/views/' + f), 'src/lib/docs.js', 'src/lib/pdf-docs.js', 'src/lib/pdf-docs-text.js', 'src/lib/docs-pdf-client.js', 'src/lib/amount-words.js']) {
+    assert.deepEqual(files.sort(), ['docs-card.js', 'docs-debts.js', 'docs-fleet.js', 'docs-form.js', 'docs-requisites.js', 'docs-ttn-card.js', 'docs-ttn-form.js', 'docs.js']);
+    for (const file of [...files.map((f) => 'src/views/' + f), 'src/lib/docs.js', 'src/lib/pdf-docs.js', 'src/lib/pdf-docs-text.js', 'src/lib/docs-pdf-client.js', 'src/lib/amount-words.js',
+        'src/lib/ttn.js', 'src/lib/ttn-text.js', 'src/lib/pdf-ttn.js', 'src/lib/count-words.js', 'src/lib/fleet.js', 'src/lib/xlsx.js', 'src/lib/xlsx-docs.js']) {
         const code = read(file);
         assert.doesNotMatch(code, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, file);
         assert.doesNotMatch(code, /window\.(alert|confirm|prompt)\(|\balert\(/, file);
@@ -289,11 +293,11 @@ test('built dist/: pdf-lib and the documents views are separate lazy chunks; fon
     assert.ok(fs.existsSync(new URL('dist/fonts/NotoSans-Regular.ttf', APP)) && fs.existsSync(new URL('dist/fonts/OFL.txt', APP)));
 });
 
-test('dependencies: exactly pdf-lib and @pdf-lib/fontkit added, pinned; fonts with the OFL license', () => {
+test('dependencies: pdf-lib and @pdf-lib/fontkit (4a) and fflate (4b), pinned; fonts with the OFL license', () => {
     const pkg = JSON.parse(read('package.json'));
     assert.equal(pkg.dependencies['pdf-lib'], '1.17.1');
     assert.equal(pkg.dependencies['@pdf-lib/fontkit'], '1.1.1');
-    assert.deepEqual(Object.keys(pkg.dependencies).sort(), ['@pdf-lib/fontkit', '@supabase/supabase-js', 'leaflet', 'pdf-lib']);
+    assert.deepEqual(Object.keys(pkg.dependencies).sort(), ['@pdf-lib/fontkit', '@supabase/supabase-js', 'fflate', 'leaflet', 'pdf-lib']);
     assert.deepEqual(Object.keys(pkg.devDependencies).sort(), ['@electric-sql/pglite', 'vite']);
     const lock = JSON.parse(read('package-lock.json'));
     assert.equal(lock.packages['node_modules/pdf-lib'].version, '1.17.1');
