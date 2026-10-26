@@ -63,7 +63,7 @@ function app() {
     };
 }
 
-// Кнопки «Калькулятор» / «Огляд» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
+// Кнопки «Калькулятор» / «Огляд» / «Історія рейсів» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
 function syncNav() {
     const tab = tabOf(state.route);
     if (tab) document.body.setAttribute('data-kp-view', tab);
@@ -74,7 +74,7 @@ function syncNav() {
         else button.removeAttribute('aria-current');
     }
     if (!tab) return;
-    for (const id of ['studio-nav-calc', 'studio-nav-overview']) {
+    for (const id of ['studio-nav-calc', 'studio-nav-overview', 'studio-nav-history']) {
         const button = document.getElementById(id);
         if (button && button.classList.contains('on')) button.classList.remove('on');
     }

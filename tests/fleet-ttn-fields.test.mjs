@@ -107,6 +107,10 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
         t.skip('index.html changes already in main');
         return;
     }
+    if (diff.includes('studio-nav-history')) {
+        t.skip('index.html diff is the history-tab change (tests/trip-history-tab.test.mjs), not the vehicle card');
+        return;
+    }
     const lines = html.split('\n');
     const lineOf = (needle) => lines.findIndex((l) => l.includes(needle)) + 1;
     const fleetCode = [lineOf('    let fleetVehicles = [];'), lineOf('    let fleetVehicles = [];') + 4];
