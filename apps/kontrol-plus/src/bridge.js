@@ -17,6 +17,7 @@ import { docsAccess, isMissingFeature } from './lib/docs.js';
 import { paintRepairsBadge } from './views/repairs-maintenance.js';
 import { repairsAccess } from './lib/repairs.js';
 import { callKpApi } from './lib/gps-client.js';
+import { kpVehiclesToSite, needsKpFleet } from './lib/site-fleet.js';
 
 const SITE_URL = 'https://trip-control.com';
 
@@ -142,6 +143,35 @@ async function loadRepairsBadge() {
         if (!error) rows = data || [];
     } catch { /* без бейджа */ }
     if (state.session && state.session.user.id === userId) paintRepairsBadge(tabs.repairs, rows);
+}
+
+// «Фура» калькулятора: якщо сайт (RLS) не дав жодного авто, а Контроль+ дає, підставляємо парк із kp_vehicles_list.
+async function topUpSiteFleet() {
+    try {
+        if (!state.supabase || !state.session) return;
+        if (!state.context || state.contextUser !== state.session.user.id) await loadContext();
+        // eslint-disable-next-line no-undef
+        if (!needsKpFleet(fleetVehicles, state.context)) return;
+        const { data, error } = await state.supabase.rpc('kp_vehicles_list');
+        if (error || !Array.isArray(data) || !data.length) return;
+        // eslint-disable-next-line no-undef
+        fleetVehicles = kpVehiclesToSite(data);
+        // eslint-disable-next-line no-undef
+        if (typeof renderVehicleNormSelect === 'function') renderVehicleNormSelect();
+    } catch { /* лишається порожній список, як було */ }
+}
+
+// Підміна loadFleetVehicles сайту доповнює його, а не замінює: власник і логіст отримують свої рядки як і раніше.
+function patchSiteFleet() {
+    const original = window.loadFleetVehicles;
+    if (typeof original !== 'function' || original.kpPatched) return;
+    const patched = async function (...args) {
+        const result = await original.apply(this, args);
+        await topUpSiteFleet();
+        return result;
+    };
+    patched.kpPatched = true;
+    window.loadFleetVehicles = patched;
 }
 
 async function loadDocsAvailability() {
@@ -397,7 +427,9 @@ export async function startBridge() {
     });
     window.addEventListener('hashchange', onHash);
     onHash();
+    patchSiteFleet();
     if (!state.route) await refreshGpsTab();
+    await topUpSiteFleet();
     await acceptRepairInvite();
     return true;
 }
