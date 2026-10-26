@@ -3861,7 +3861,7 @@
         /* ===== Калькулятор на одній сторінці (замінив степер): тільки токени тем сайту ===== */
         .tc-step-panel:empty { display: none; }
         body.layout-studio #tc-stepper { display: block; min-width: 0; }
-        body.layout-studio .tc-work > .card { padding: 0; background: transparent; border: none; box-shadow: none; }
+        body.layout-studio .tc-work > .card { padding: 0; background: transparent; border: none; box-shadow: none; overflow: visible; }
         .tc-op { display: flex; flex-direction: column; gap: 14px; min-width: 0; max-width: 100%; }
         .tc-op-head { min-width: 0; }
         .tc-op-eyebrow { margin: 0 0 2px; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
@@ -4004,6 +4004,30 @@
             .tc-op-title { font-size: 1.25rem; }
             .tc-op-fields { padding: 12px; }
             .tc-op-foot .tc-kb-detail { flex: 1 1 auto; justify-content: center; }
+        }
+
+        /* Фікс розкладки: одна колонка, ширина макета, явне розміщення «Детально» */
+        body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { grid-template-columns: minmax(0, 1fr); }
+        body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-left { width: 100%; }
+        #tc-op { max-width: 1100px; margin-inline: auto; width: 100%; }
+        .tc-op-a, .tc-op-b { grid-column: span 2; }
+        .tc-op-truck { grid-column: span 3; }
+        .tc-op-truck .tc-segment { display: flex; flex-wrap: wrap; gap: 4px; }
+        .tc-op-truck .tc-segment .preset-btn { flex: 1 1 auto; min-width: 0; white-space: normal; }
+        .tc-op-truck #vehicle-face { width: 100%; min-height: 40px; }
+        .tc-op-a input, .tc-op-b input { min-width: 0; width: 100%; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right { display: grid !important; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); grid-auto-rows: auto; gap: 16px; align-items: start; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-back { display: inline-flex; grid-column: 1 / -1 !important; grid-row: 1 !important; justify-self: start; width: auto; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-map-frame { grid-column: 1 !important; grid-row: 2 !important; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-side { grid-column: 2 !important; grid-row: 2 !important; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual { grid-column: 1 / -1 !important; grid-row: 3 !important; }
+        @media (max-width: 900px) {
+            .tc-op-a, .tc-op-b, .tc-op-truck { grid-column: 1 / -1; }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right { display: flex !important; flex-direction: column; }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-back { order: 0; align-self: flex-start; }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-map-frame { order: 1; }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-side { order: 2; }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual { order: 3; }
         }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
@@ -6274,8 +6298,9 @@
             const input = document.getElementById(pair[0]);
             const panel = input && input.closest('.tc-step-panel');
             const n = panel && panel.id ? parseInt(panel.id.replace('tc-step-panel-', ''), 10) : 0;
-            if (!n) return pair[1];
-            return '<button type="button" class="link-btn" onclick="showCalcStep(' + n + ')">' + pair[1] + '</button>';
+            // Клік розгортає рядок акордеону й ставить фокус у саме поле (focusMissingField, делегований обробник).
+            if (!n) return '<button type="button" class="link-btn" data-field="' + pair[0] + '">' + pair[1] + '</button>';
+            return '<button type="button" class="link-btn" onclick="showCalcStep(' + n + ')" data-field="' + pair[0] + '">' + pair[1] + '</button>';
         }).join(', ');
     }
 
@@ -6668,9 +6693,23 @@
         stepper.insertBefore(wrapper, stepper.firstChild);
         stepper.dataset.onepage = '1';
         document.body.setAttribute('data-calc-detail', '0');
+        // setStudioView() кличеться лише на клік; без атрибута правила [data-studio-view="calc"] не діють.
+        if (!document.body.getAttribute('data-studio-view')) document.body.setAttribute('data-studio-view', 'calc');
+        if (document.body.classList.contains('layout-studio')) setStudioView(document.body.getAttribute('data-studio-view'));
         updateOnePage();
     }
     // Обране авто без власної норми й без норми компанії: пальне нічим порахувати.
+    function focusMissingField(id) {
+        const input = opById(id);
+        if (!input) return;
+        openAccFor(input);
+        if (input.scrollIntoView) input.scrollIntoView({ block: 'center' });
+        if (input.focus) input.focus();
+    }
+    document.addEventListener('click', function (event) {
+        const link = event.target && event.target.closest ? event.target.closest('#missing-hint [data-field]') : null;
+        if (link) focusMissingField(link.getAttribute('data-field'));
+    });
     function opFuelMissing() {
         const load = opById('fuel-load');
         const empty = opById('fuel-empty');
@@ -6717,8 +6756,16 @@
             fuelParts.push('Немає витрати пального для ' + missingFuel.join(', '));
         } else {
             if (km) fuelParts.push(opNum(km) + ' км');
-            if (loadRaw) fuelParts.push(opNum(loadRaw, 1) + ' л/100 км');
-            if (adblue) fuelParts.push(adblue.value === 'on' ? 'AdBlue' : 'без AdBlue');
+            if (loadRaw && emptyRaw) {
+                // Оцінка за нормами: вантажений пробіг A→B і порожній (подача, а в циклічному режимі ще й назад).
+                const cyclic = (opById('return-mode') || {}).value === 'циклічний';
+                const liters = stepFieldNum('dist') * loadRaw / 100 + (stepFieldNum('podacha-dist') + (cyclic ? stepFieldNum('dist') : 0)) * emptyRaw / 100;
+                if (liters) fuelParts.push(opNum(liters) + ' л');
+            }
+            if (adblue) {
+                const rate = stepFieldNum('adblue-consumption');
+                fuelParts.push(adblue.value !== 'on' ? 'без AdBlue' : (rate && loadRaw ? 'AdBlue ' + opNum(rate / loadRaw * 100) + '%' : 'AdBlue'));
+            }
         }
         opSetText('tc-acc-sum-fuel', fuelParts.length ? fuelParts.join(' · ') : 'Сезон, ціна, витрата');
         opSetText('tc-acc-amt-fuel', result ? formatMoney(result.fuelAndAdblueTotal) : '—');
@@ -6771,12 +6818,12 @@
         const pillBox = opById('tc-op-pills');
         const pillHtml = pills.join('');
         if (pillBox && pillBox.innerHTML !== pillHtml) pillBox.innerHTML = pillHtml;
-        paintKpiBar(result, fuelOff || !(loadRaw > 0 && emptyRaw > 0));
+        paintKpiBar(result, fuelOff, !(loadRaw > 0 && emptyRaw > 0));
     }
-    function paintKpiBar(result, fuelMissing) {
+    function paintKpiBar(result, fuelMissing, noNorms) {
         const bar = opById('tc-kpi-bar');
         if (!bar) return;
-        const empty = !result || fuelMissing;
+        const empty = !result || fuelMissing || noNorms;
         bar.classList.toggle('is-empty', empty);
         bar.classList.toggle('is-miss', !!fuelMissing);
         bar.classList.toggle('is-down', !empty && Number(result.netProfit) < 0);
@@ -6835,8 +6882,9 @@
     function opSyncStickyTop() {
         const sticky = opById('sticky-top');
         if (!sticky) return;
-        // Шапка може пролистатися геть (тоді 0) або бути липкою (тоді її висота).
-        const h = Math.max(0, Math.round(sticky.getBoundingClientRect().bottom));
+        // Шапка липка — беремо її низ; інакше вона пролистується геть і зсув 0.
+        const isSticky = window.getComputedStyle(sticky).position === 'sticky';
+        const h = isSticky ? Math.max(0, Math.round(sticky.getBoundingClientRect().bottom)) : 0;
         document.documentElement.style.setProperty('--tc-sticky-h', h + 'px');
         if (!opSyncStickyTop.watching && window.ResizeObserver) {
             opSyncStickyTop.watching = true;
@@ -15510,6 +15558,13 @@
         if (stepQ >= 1 && stepQ <= 4) showCalcStep(stepQ);
         if (typeof renderChart === 'function') renderChart(42000, 28000, 6500, 12000, 8500, 3200);
         paintPreviewRouteAlts();
+        // Прев'ю: норми й результат-заглушка, щоб KPI-смуга й підсумки акордеону були заповнені.
+        [['fuel-load', '32'], ['fuel-empty', '27'], ['fuel-price', '55']].forEach(function (pair) {
+            const el = document.getElementById(pair[0]);
+            if (el && !el.value) el.value = pair[1];
+        });
+        lastExport = { payload: {}, routeName: 'preview', result: { grossIncome: 184250, netIncome: 184250, marginalIncome: 70000, ebitda: 48000, netProfit: 28450, profitabilityPct: 15.4, breakevenFullPerTon: 612, marginPerTon: 0, ebitdaPerTon: 0, fuelAndAdblueTotal: 62000, extrasTotal: 0, taxesTotal: 9000, overheadTotal: 12000 } };
+        updateOnePage();
         refreshSetupChecklist();
         // Прев’ю оплати: ?billing=pay [&billing_state=paid|soon] [&billing_role=logist]
         const billingStateQ = previewParams.get('billing_state');

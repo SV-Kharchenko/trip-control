@@ -224,3 +224,72 @@ test('browser: no horizontal scroll, KPI bar below the header, fuel row opens (1
         server.close();
     }
 });
+
+test('layout fix: default view, single column, visible overflow, sticky only when the header is sticky', () => {
+    const build = sliceBetween(onepage, 'function buildOnePage()', 'function focusMissingField(');
+    assert.match(build, /setAttribute\('data-studio-view', 'calc'\)/);
+    assert.match(build, /setStudioView\(document\.body\.getAttribute\('data-studio-view'\)\)/);
+    assert.match(html, /\[data-studio-view="calc"\]:not\(\[data-calc-detail="1"\]\) #studio-columns \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+    assert.match(html, /#tc-op \{ max-width: 1100px; margin-inline: auto;/);
+    assert.match(html, /\.tc-work > \.card \{[^}]*overflow: visible; \}/);
+    assert.match(onepage, /getComputedStyle\(sticky\)\.position === 'sticky'/);
+    assert.match(html, /#studio-right > #tc-det-side \{ grid-column: 2 !important; grid-row: 2 !important; \}/);
+    assert.match(html, /#tc-det-back \{ display: inline-flex; grid-column: 1 \/ -1 !important; grid-row: 1 !important; justify-self: start;/);
+    // Посилання «не заповнено» веде до поля, а не лише до кроку.
+    const hint = sliceBetween(html, 'function missingHintHtml(missing)', 'function showToast(');
+    assert.match(hint, /data-field=/);
+    assert.match(onepage, /function focusMissingField\(id\)/);
+    // Підсумок пального: літри й % AdBlue; червоний лейбл лише при вибраному авто; preview заповнює смугу.
+    const upd = sliceBetween(onepage, 'function updateOnePage(', 'function paintKpiBar(');
+    assert.match(upd, /' л'/);
+    assert.match(upd, /'AdBlue ' \+ opNum\(rate \/ loadRaw \* 100\) \+ '%'/);
+    assert.match(upd, /paintKpiBar\(result, fuelOff, !\(loadRaw > 0 && emptyRaw > 0\)\)/);
+    assert.match(html, /routeName: 'preview', result: \{ grossIncome: 184250/);
+});
+
+test('browser: wide form, uncut fields, sticky bar, «Детально» layout and back button (1280 / 1024)', async (t) => {
+    const browser = await loadBrowser();
+    if (!browser) { t.skip('no playwright-core / Chrome'); return; }
+    const server = createServer((req, res) => {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.end(html);
+    });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = 'http://localhost:' + server.address().port + '/index.html?preview=1';
+    try {
+        for (const width of [1280, 1024]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 } });
+            await page.goto(url, { waitUntil: 'domcontentloaded' });
+            await page.waitForSelector('#tc-kpi-bar', { timeout: 15000 });
+            const wide = await page.evaluate(() => document.getElementById('tc-op').getBoundingClientRect().width);
+            assert.ok(wide > 900, '#tc-op width ' + wide + ' at ' + width);
+            const cut = await page.evaluate(() => [...document.querySelectorAll('#tc-op-grid input:not([type="hidden"]), #tc-op-grid select')]
+                .filter((el) => el.offsetParent !== null && el.getBoundingClientRect().width > 0 && el.scrollWidth > el.clientWidth + 1 && el.tagName === 'INPUT' && el.type !== 'number')
+                .map((el) => el.id));
+            assert.deepEqual(cut, [], 'cut fields at ' + width);
+            await page.evaluate(() => window.scrollTo(0, 600));
+            const geometry = await page.evaluate(() => {
+                const bar = document.getElementById('tc-kpi-bar').getBoundingClientRect();
+                const head = document.getElementById('sticky-top').getBoundingClientRect();
+                return { top: bar.top, overlap: head.bottom > 0 && bar.top < head.bottom - 1 };
+            });
+            assert.ok(geometry.top >= 0, 'bar top ' + geometry.top);
+            assert.equal(geometry.overlap, false);
+            await page.click('#kb-detail');
+            const boxes = await page.evaluate(() => {
+                const a = document.querySelector('.tc-map-frame').getBoundingClientRect();
+                const b = document.getElementById('tc-det-side').getBoundingClientRect();
+                return { a: [a.left, a.top, a.right, a.bottom], b: [b.left, b.top, b.right, b.bottom] };
+            });
+            const [a, b] = [boxes.a, boxes.b];
+            assert.ok(a[2] <= b[0] + 1 || b[2] <= a[0] + 1 || a[3] <= b[1] + 1 || b[3] <= a[1] + 1, 'map and side overlap at ' + width);
+            await page.click('#tc-det-back');
+            assert.equal(await page.evaluate(() => document.body.getAttribute('data-calc-detail')), '0');
+            assert.equal(await page.evaluate(() => document.getElementById('tc-op').offsetParent !== null), true);
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+        server.close();
+    }
+});
