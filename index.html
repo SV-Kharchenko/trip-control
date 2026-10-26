@@ -2082,6 +2082,9 @@
             display: flex;
             gap: 4px;
             margin-right: auto;
+            min-width: 0;
+            overflow-x: auto;
+            scrollbar-width: thin;
         }
         body.layout-studio .tc-studio-nav button {
             border: none;
@@ -2094,6 +2097,8 @@
             border-radius: 8px;
             cursor: pointer;
             min-height: 36px;
+            white-space: nowrap;
+            flex: 0 0 auto;
         }
         body.layout-studio .tc-studio-nav button.on {
             color: var(--text-main);
@@ -2211,6 +2216,30 @@
         body.layout-studio #saved-section,
         body.layout-studio .actions-bar { grid-column: 1 / -1; margin-top: 16px; }
         body.layout-studio #studio-overview { grid-column: 1 / -1; }
+        body.layout-studio:not([data-studio-view="history"]) #saved-section { display: none !important; }
+        body.layout-studio[data-studio-view="history"] #tc-step-strip,
+        body.layout-studio[data-studio-view="history"] #studio-overview,
+        body.layout-studio[data-studio-view="history"] .actions-bar,
+        body.layout-studio[data-studio-view="history"] #missing-hint,
+        body.layout-studio[data-studio-view="history"] #onboard-banner,
+        body.layout-studio[data-studio-view="history"] #cab-warning,
+        body.layout-studio[data-studio-view="history"] .tc-result-dock { display: none !important; }
+        body.layout-studio[data-studio-view="history"] #studio-left,
+        body.layout-studio[data-studio-view="history"] #studio-right > :not(#saved-section) { display: none !important; }
+        body.layout-studio[data-studio-view="history"] #studio-columns,
+        body.layout-studio[data-studio-view="history"] #studio-right {
+            display: block !important;
+            grid-template-columns: minmax(0, 1fr) !important;
+            width: 100%; max-width: 100%;
+            background: none; border: 0; box-shadow: none; padding: 0;
+        }
+        body.layout-studio[data-studio-view="history"] #saved-section { margin-top: 0; grid-column: 1 / -1; }
+        body.layout-studio[data-studio-view="history"] #saved-table .tc-history-actions { flex-wrap: wrap; min-width: 150px; max-width: 240px; }
+        body.layout-studio[data-studio-view="history"] #saved-table th,
+        body.layout-studio[data-studio-view="history"] #saved-table td { padding-left: 6px; padding-right: 6px; }
+        body.layout-studio[data-studio-view="history"] #saved-table td.tc-history-route { min-width: 110px; }
+        body.layout-studio[data-studio-view="history"] #history-toggle { pointer-events: none; cursor: default; }
+        body.layout-studio[data-studio-view="history"] #history-toggle .tc-history-chev { display: none; }
         body.layout-studio[data-studio-view="overview"] #tc-step-strip { display: none !important; }
         body.layout-studio[data-studio-view="overview"] #studio-overview { display: block; }
         body.layout-studio[data-studio-view="overview"] #studio-columns { display: none !important; }
@@ -2744,6 +2773,11 @@
             gap: 10px 12px;
             overflow: visible;
             margin-bottom: 0;
+        }
+        /* Контроль+ додає 5 вкладок: на вужчих екранах навігація йде окремим рядком на всю ширину, без скролу й обрізань */
+        @media (min-width: 901px) and (max-width: 1799px) {
+            body.layout-studio .tc-topbar { flex-wrap: wrap; }
+            body.layout-studio .tc-topbar:has(#kp-nav-clients) .tc-studio-nav { order: 5; flex: 1 1 100%; overflow-x: visible; }
         }
         body.layout-studio .tc-brand,
         body.layout-studio .tc-studio-nav,
@@ -4632,6 +4666,7 @@
             <nav class="tc-studio-nav" aria-label="Розділи">
                 <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
+                <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Історія рейсів</button>
             </nav>
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
@@ -6682,10 +6717,8 @@
                 cab.style.display = 'none';
                 document.body.style.overflow = '';
             }
-            setStudioView('calc');
-            setHistoryOpen(true);
-            const sec = document.getElementById('saved-section');
-            if (sec) sec.scrollIntoView({ block: 'start' });
+            setStudioView('history');
+            window.scrollTo(0, 0);
         } else if (action === 'defaults') {
             openCabinet();
             switchCabTab('costs');
@@ -6834,8 +6867,10 @@
         if (!on) return;
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
+        const histBtn = document.getElementById('studio-nav-history');
         if (calcBtn) calcBtn.classList.remove('on');
         if (overBtn) overBtn.classList.remove('on');
+        if (histBtn) histBtn.classList.remove('on');
     }
     document.addEventListener('click', function (event) {
         const menu = document.getElementById('tc-user-menu');
@@ -8436,7 +8471,7 @@
         if (body.getAttribute('data-studio-view') !== 'overview') {
             const calcBtn = document.getElementById('studio-nav-calc');
             const overBtn = document.getElementById('studio-nav-overview');
-            if (calcBtn) calcBtn.classList.add('on');
+            if (calcBtn) calcBtn.classList.toggle('on', body.getAttribute('data-studio-view') !== 'history');
             if (overBtn) overBtn.classList.remove('on');
         }
         try { localStorage.setItem('tc_theme', next); } catch (e) {}
@@ -8460,12 +8495,22 @@
     function setStudioView(view) {
         if (!document.body.classList.contains('layout-studio')) return;
         const overview = view === 'overview';
-        document.body.setAttribute('data-studio-view', overview ? 'overview' : 'calc');
+        const history = view === 'history';
+        document.body.setAttribute('data-studio-view', overview ? 'overview' : history ? 'history' : 'calc');
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
-        if (calcBtn) calcBtn.classList.toggle('on', !overview);
+        const histBtn = document.getElementById('studio-nav-history');
+        const histToggle = document.getElementById('history-toggle');
+        if (calcBtn) calcBtn.classList.toggle('on', !overview && !history);
         if (overBtn) overBtn.classList.toggle('on', overview);
+        if (histBtn) histBtn.classList.toggle('on', history);
         syncCompanyNav(false);
+        if (histToggle) {
+            histToggle.tabIndex = history ? -1 : 0;
+            if (history) histToggle.setAttribute('aria-disabled', 'true');
+            else histToggle.removeAttribute('aria-disabled');
+        }
+        if (history) setHistoryOpen(true);
         if (overview) renderStudioOverview();
     }
     function isLightTheme() {
@@ -10657,8 +10702,8 @@
     function closeCabinet() {
         document.getElementById('cabinet-screen').style.display = 'none';
         document.body.style.overflow = '';
-        const view = document.body.getAttribute('data-studio-view') === 'overview' ? 'overview' : 'calc';
-        setStudioView(view);
+        const cur = document.body.getAttribute('data-studio-view');
+        setStudioView(cur === 'overview' || cur === 'history' ? cur : 'calc');
     }
 
     function resetCabinet() {
@@ -13386,6 +13431,7 @@
         try { localStorage.setItem(HISTORY_OPEN_KEY, open ? '1' : '0'); } catch (e) {}
     }
     function toggleHistory() {
+        if (document.body.getAttribute('data-studio-view') === 'history') return;
         const btn = document.getElementById('history-toggle');
         setHistoryOpen(!(btn && btn.getAttribute('aria-expanded') === 'true'));
     }
@@ -13554,6 +13600,8 @@
     function openSaved(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
         if (!row) return;
+        setStudioView('calc');
+        window.scrollTo(0, 0);
         const inputs = Object.assign({}, row.inputs || {});
         if (!inputs.volume && row.volume) inputs.volume = row.volume;
         if (!inputs.rate && row.rate) inputs.rate = row.rate;

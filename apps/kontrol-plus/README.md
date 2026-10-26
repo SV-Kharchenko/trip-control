@@ -495,3 +495,11 @@ npm run check:db                # усі міграції + Контроль+ і
 `public/sw.js`, `public/offline.html`. Service worker не перехоплює Supabase, інші домени й не-GET; HTML не кешує;
 кешує лише `/kp-assets/*`, `/icons/*` і офлайн-сторінку. На localhost SW не реєструється.
 Після деплою: PWABuilder → URL `https://app.trip-control.com` → пакет для Microsoft Store.
+
+### Вкладка «Історія рейсів»
+
+Окрема вкладка `#studio-nav-history` (після «Огляд») і `body[data-studio-view="history"]` живуть лише в `index.html` сайту:
+Контроль+ рендерить копію цього файлу, тому вкладку неможливо зробити з боку КП. Для цього в `SCOPE_ALLOWLIST` (`check:scope`)
+додано `index.html` (уже був для 4b) і `tests/trip-history-tab.test.mjs`; решта файлів сайту (`api/`, `lib/`, `assets/`,
+`vercel.json`) закриті. Міст лише знімає `.on` з `#studio-nav-history`, поки відкрита CRM-вкладка; MutationObserver на
+`data-studio-view` уже закриває CRM при перемиканні на «Історію рейсів».

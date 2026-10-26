@@ -231,7 +231,7 @@ test("plan gate: CRM tabs open only for plan = 'control_plus'", () => {
 // Те саме, що README → «Залежності моста від сайту». Якщо сайт перейменує щось — тест покаже, що міст треба оновити.
 test('the site still has every id / class / global the bridge depends on', () => {
     const site = fs.readFileSync(ROOT_INDEX, 'utf8');
-    for (const id of ['tc-nav-panel', 'main-app', 'sticky-top', 'studio-overview', 'studio-nav-calc', 'studio-nav-overview',
+    for (const id of ['tc-nav-panel', 'main-app', 'sticky-top', 'studio-overview', 'studio-nav-calc', 'studio-nav-overview', 'studio-nav-history',
         'missing-hint', 'onboard-banner', 'cab-warning']) {
         assert.match(site, new RegExp(`id="${id}"`), '#' + id);
     }
@@ -239,7 +239,14 @@ test('the site still has every id / class / global the bridge depends on', () =>
     assert.match(site, /<footer class="tc-legal-footer">/, '.tc-legal-footer in #main-app');
     assert.match(site, /document\.body\.setAttribute\('data-studio-view'/, 'body[data-studio-view]');
     assert.match(site, /body\.setAttribute\('data-theme', next\)/, 'body[data-theme]');
-    assert.match(site, /classList\.toggle\('on', !overview\)/, '.on marks the active nav button');
+    assert.match(site, /classList\.toggle\('on', !overview && !history\)/, '.on marks the active nav button');
     assert.match(site, /const supabaseClient = window\.supabase\.createClient\(/, 'global supabaseClient');
     assert.match(site, /document\.documentElement\.setAttribute\('data-entry', entry\)/, 'html[data-entry] for kp-entry.js');
+});
+
+test('site: history tab sits right after Overview and the bridge un-highlights it', () => {
+    const site = fs.readFileSync(ROOT_INDEX, 'utf8');
+    assert.match(site, /id="studio-nav-overview"[^>]*>Огляд<\/button>\s*<button[^>]*id="studio-nav-history"[^>]*>Історія рейсів<\/button>/);
+    const bridge = fs.readFileSync(new URL('../src/bridge.js', import.meta.url), 'utf8');
+    assert.match(bridge, /'studio-nav-calc', 'studio-nav-overview', 'studio-nav-history'/);
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 12);
+    assert.equal(SCOPE_ALLOWLIST.length, 14);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -113,7 +113,7 @@ test('check-scope allowlist: exactly two more patterns for documents (4a), neigh
 // Етап 4b: міграція й pgTAP ТТН; index.html — лише картка авто / автопарк (рішення Свята 26.10: поля ТЗ і згортуваний
 // блок ТО / страхування), плюс один корінний тест цієї картки. Інші файли сайту — як і раніше, поза дозволом.
 test('check-scope allowlist: exactly four more patterns for waybills (4b), neighbours refused', () => {
-    assert.deepEqual(SCOPE_ALLOWLIST.slice(8).map(String), [
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(8, 12).map(String), [
         String(/^supabase\/migrations\/\d{14}_kp_docs_ttn\.sql$/),
         String(/^supabase\/tests\/kp_docs_ttn\.sql$/),
         String(/^index\.html$/),
@@ -147,4 +147,25 @@ test('check-scope allowlist: exactly four more patterns for waybills (4b), neigh
         '404.html',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
     assert.deepEqual(outsideScope(['index.html', 'tests/fleet-ttn-fields.test.mjs', 'tests/fleet-docs.test.mjs', 'assets/x.png']), ['tests/fleet-docs.test.mjs', 'assets/x.png']);
+});
+
+test('check-scope allowlist: trip-history tab (index.html + its root test), neighbours refused', () => {
+    assert.equal(isAllowedOutside('index.html'), true);
+    assert.equal(isAllowedOutside('tests/trip-history-tab.test.mjs'), true);
+    assert.equal(isAllowedOutside('tests/header-menu.test.mjs'), true);
+    for (const bad of [
+        'index.htm',
+        'x/index.html',
+        'index.html.bak',
+        'assets/bg-network.jpg',
+        'tests/trip-history-tab.test.mjs.bak',
+        'tests/x/trip-history-tab.test.mjs',
+        'tests/trip-history-tab.test.js',
+        'tests/trip-history.test.mjs',
+        'tests/calc-golden.test.mjs',
+        'tests/header-menu.test.mjs.bak',
+        'tests/x/header-menu.test.mjs',
+        'api/calculate.js',
+        'vercel.json',
+    ]) assert.equal(isAllowedOutside(bad), false, bad);
 });
