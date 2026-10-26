@@ -89,16 +89,16 @@ test('check-scope allowlist: exactly two more patterns for documents (4a), neigh
         String(/^supabase\/migrations\/\d{14}_kp_documents\.sql$/),
         String(/^supabase\/tests\/kp_documents\.sql$/),
     ]);
-    for (const ok of ['supabase/migrations/20261025120000_kp_documents.sql', 'supabase/tests/kp_documents.sql']) {
+    for (const ok of ['supabase/migrations/20261026072759_kp_documents.sql', 'supabase/tests/kp_documents.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
     for (const bad of [
         'supabase/migrations/kp_documents.sql',
-        'supabase/migrations/2026102512000_kp_documents.sql',
-        'supabase/migrations/20261025120000_kp_documents.sql.bak',
-        'supabase/migrations/20261025120000_kp_documents_v2.sql',
-        'supabase/migrations/20261025120000_documents.sql',
-        'supabase/migrations/x/20261025120000_kp_documents.sql',
+        'supabase/migrations/2026102607275_kp_documents.sql',
+        'supabase/migrations/20261026072759_kp_documents.sql.bak',
+        'supabase/migrations/20261026072759_kp_documents_v2.sql',
+        'supabase/migrations/20261026072759_documents.sql',
+        'supabase/migrations/x/20261026072759_kp_documents.sql',
         'supabase/tests/kp_documents.sql.orig',
         'supabase/tests/documents.sql',
         'supabase/tests/x/kp_documents.sql',
