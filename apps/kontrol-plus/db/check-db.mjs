@@ -124,7 +124,7 @@ const ttnSql = fs.readFileSync(new URL(TTN, DIR), 'utf8');
 const fnDefs = async (names) => (await db.query(`SELECT p.oid::regprocedure::text AS f, md5(pg_get_functiondef(p.oid)) AS h FROM pg_proc AS p
     JOIN pg_namespace AS n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = ANY ($1) ORDER BY 1`, [names])).rows.map((r) => r.f + ':' + r.h).join(',');
 const DOCS_FNS = ['kp_doc_create', 'kp_doc_cancel', 'kp_doc_list', 'kp_doc_get', 'kp_doc_alloc_number', 'kp_docs_org', 'kp_doc_next_number',
-    'kp_org_id', 'kp_role', 'kp_can_write', 'kp_context', 'kp_trips', 'fleet_vehicles_guard'];
+    'kp_org_id', 'kp_role', 'kp_can_write', 'kp_context', 'kp_trips'];
 await db.exec(docsSql);
 const docsFnsBefore = await fnDefs(DOCS_FNS);
 await db.exec(ttnSql);
@@ -133,11 +133,21 @@ check(TTN > DOCS && /^-- Apply manually after review\. This file is not applied 
     && !ttnSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
 'waybills: ' + TTN + ' (after ' + DOCS + ') applied three times (idempotent), manual-apply header, no CREATE EXTENSION');
 check(docsFnsBefore.length > 0 && docsFnsBefore === await fnDefs(DOCS_FNS),
-    'waybills: functions of 4a, kp_* access helpers and fleet_vehicles_guard are not redefined by the migration');
-check(!/CREATE OR REPLACE FUNCTION public\.(kp_doc_(create|cancel|list|get|alloc_number|next_number|pay_status|paid|trips_for_client|assets_source)\b|kp_docs_org|kp_org_id|kp_role|kp_can_write|kp_context|kp_trips|fleet_vehicles_guard)/.test(ttnSql)
+    'waybills: functions of 4a and kp_* access helpers are not redefined by the migration');
+const ttnCode = ttnSql.replace(/^\s*--.*$/gm, '');
+check(!/CREATE OR REPLACE FUNCTION public\.(kp_doc_(create|cancel|list|get|alloc_number|next_number|pay_status|paid|trips_for_client|assets_source)\b|kp_docs_org|kp_org_id|kp_role|kp_can_write|kp_context|kp_trips)\b/.test(ttnSql)
     && !/ALTER TABLE public\.(kp_documents|kp_document_lines|calculations|trip_actuals|org_company_profiles)\b/.test(ttnSql)
-    && !/(DROP|ALTER) (POLICY|TRIGGER)[^;]*fleet_vehicles/i.test(ttnSql.replace(/^\s*--.*$/gm, '')),
-'waybills: the migration does not touch 4a functions / tables, calculations or fleet_vehicles policies and triggers');
+    && !/(DROP|ALTER|CREATE) POLICY[^;]*fleet_vehicles/i.test(ttnCode)
+    && !/(DROP|ALTER|CREATE) TRIGGER trg_fleet_vehicles_guard ON/i.test(ttnCode)
+    && (ttnCode.match(/(DROP|CREATE) TRIGGER[^;]*\bON public\.fleet_vehicles\b/gi) || []).every((s) => /trg_fleet_vehicles_guard_driver/.test(s)),
+'waybills: no 4a functions / tables, calculations or fleet_vehicles policies touched; on fleet_vehicles only the new driver trigger');
+// fleet_vehicles_guard: гілки service_role і власника — дослівно з міграції сайту; новий лише випадок логіста (ТТН-колонки).
+const siteGuard = fs.readFileSync(new URL('20261012240000_fleet_vehicles.sql', DIR), 'utf8').split('AS $$')[1].split('$$;')[0];
+const [guardHead, guardTail] = siteGuard.split("  IF NOT public.is_org_owner() THEN\n    RAISE EXCEPTION 'FLEET_FORBIDDEN' USING ERRCODE = '42501';\n  END IF;\n");
+const ttnGuard = ttnSql.split('CREATE OR REPLACE FUNCTION public.fleet_vehicles_guard()')[1].split('$$;')[0];
+check(Boolean(guardTail) && ttnGuard.includes(guardHead.split('BEGIN\n')[1]) && ttnGuard.includes(guardTail)
+    && /IF NOT public\.is_org_owner\(\) THEN\n    -- Логіст[\s\S]*?public\.kp_can_write\(\)[\s\S]*?\(to_jsonb\(NEW\) - v_ttn\) = \(to_jsonb\(OLD\) - v_ttn\)[\s\S]*?RAISE EXCEPTION 'FLEET_FORBIDDEN'/.test(ttnGuard),
+'waybills: fleet_vehicles_guard keeps the service_role and owner branches verbatim; non-owners only for the TTN columns');
 const ttnAlloc = (await one(`SELECT pg_get_functiondef('public.kp_ttn_alloc_number(uuid, integer, integer)'::regprocedure) AS d`)).d;
 check(/ON CONFLICT \(org_id, kind, year\) DO UPDATE SET next_no = c\.next_no \+ 1/.test(ttnAlloc) && /VALUES \(p_org, 'ttn', p_year, 2\)/.test(ttnAlloc),
     'waybills: numbering uses the existing kp_doc_counters row (kind ttn) with the same row lock');

@@ -4,10 +4,16 @@
 -- в Україні, наказ Мінтрансу № 363, у редакції наказів Мінрозвитку № 1332 від 14.11.2024 і № 1727 від 12.12.2025),
 -- поля транспортного засобу в fleet_vehicles і мінімальний довідник водіїв.
 --
--- * fleet_vehicles (таблиця сайту) — ЄДИНА зміна: нові nullable-колонки з CHECK-ами (тип ТЗ, марка / модель причепа,
---   габарити автопоїзда, тара, максимально дозволена маса, водій за замовчуванням). Наявні колонки, політики, гранти
---   й fleet_vehicles_guard не змінюються; сайт пише нові колонки напряму через RLS (лише власник — як і решту картки).
+-- * fleet_vehicles (таблиця сайту): нові nullable-колонки з CHECK-ами (тип ТЗ, марка / модель причепа, габарити
+--   автопоїзда, тара, максимально дозволена маса, водій за замовчуванням). Наявні колонки, політики й гранти не
+--   змінюються; сайт пише нові колонки напряму через RLS (лише власник — як і решту картки).
 --   Держномер тягача — наявний label, номер причепа — trailer_plate, тип причепа — trailer_type.
+--   fleet_vehicles_guard розширено рівно на один випадок: не-власник з правом запису Контроль+ (логіст, kp_can_write)
+--   може в UPDATE авто своєї компанії змінити ЛИШЕ нові ТТН-колонки; усе інше — як і раніше лише owner / service_role
+--   (гілки власника й service_role — без змін). Прямий запис логіста й надалі не проходить RLS сайту — пише він через
+--   kp_vehicle_save (SECURITY DEFINER), і guard перевіряє, що змінено тільки дозволене.
+-- * Водій за замовчуванням — лише своєї компанії: тригер trg_fleet_vehicles_guard_driver (BEFORE INSERT / UPDATE OF
+--   default_driver_id, після guard), інакше VEHICLE_DRIVER_FORBIDDEN — і для запису сайту, і для RPC.
 -- * kp_drivers — ПІБ і номер посвідчення водія (без телефонів, адрес, паспортів); деактивація замість видалення.
 -- * kp_doc_ttn + kp_doc_ttn_lines — ТТН: знімок усіх реквізитів форми на момент створення, після випуску незмінний
 --   (тригери); змінюються лише статус (анулювання) і посилання на рейс / авто, якщо їх видалили на сайті. DELETE немає.
@@ -19,11 +25,9 @@
 -- * Підпис і печатка в ТТН — лише нашої сторони (перевізник), знімок <org>/docs/<id>/… через /api/docs/assets, як у 4a.
 -- * Права: читають owner / logist / director своєї організації на control_plus; створюють ТТН, редагують поля ТЗ і
 --   водіїв — kp_can_write() (owner, logist); анулює лише owner. Таблиці — без прямих грантів клієнтам, усе через RPC.
--- * kp_vehicle_save пише fleet_vehicles від імені логіста: fleet_vehicles_guard пропускає лише власника або service_role,
---   тому функція на час одного UPDATE (лише нові колонки, лише авто своєї організації, після перевірки прав) ставить
---   у межах транзакції claims service_role і одразу повертає попередні. Guard і політики таблиці не змінюються.
 --
--- Лише адитивно: нові таблиці, функції, тригери й колонки. Функції й таблиці 4a, kp_org_id, kp_role, kp_can_write,
+-- Адитивно: нові таблиці, функції, тригери й колонки; із наявного — лише розширений fleet_vehicles_guard (вище).
+-- Функції й таблиці 4a, kp_org_id, kp_role, kp_can_write,
 -- kp_context, kp_trips, calculations, trip_actuals, org_company_profiles, функції 3a / 3b не змінюються. Ідемпотентно.
 -- Після 20261026072759_kp_documents.sql.
 
@@ -88,6 +92,97 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- Guard сайту (20261012240000_fleet_vehicles.sql) + один новий випадок: UPDATE не-власником з kp_can_write() (логіст
+-- Контроль+) авто своєї компанії, де відрізняються лише ТТН-колонки (updated_at ставить guard). Гілки service_role і
+-- власника — дослівно як були.
+CREATE OR REPLACE FUNCTION public.fleet_vehicles_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_count integer;
+  v_ttn text[] := ARRAY['vehicle_type', 'trailer_make_model', 'length_m', 'width_m', 'height_m', 'tare_t', 'max_mass_t',
+                        'default_driver_id', 'updated_at'];
+BEGIN
+  IF public.is_service_role() THEN
+    IF TG_OP = 'DELETE' THEN
+      RETURN OLD;
+    END IF;
+    NEW.label := btrim(coalesce(NEW.label, ''));
+    NEW.updated_at := now();
+    RETURN NEW;
+  END IF;
+
+  IF NOT public.is_org_owner() THEN
+    -- Логіст Контроль+: лише ТТН-колонки авто своєї компанії.
+    IF TG_OP = 'UPDATE'
+       AND public.kp_can_write()
+       AND OLD.org_id = public.current_org_id()
+       AND NEW.org_id IS NOT DISTINCT FROM OLD.org_id
+       AND (to_jsonb(NEW) - v_ttn) = (to_jsonb(OLD) - v_ttn) THEN
+      NEW.updated_at := now();
+      RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'FLEET_FORBIDDEN' USING ERRCODE = '42501';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.org_id IS DISTINCT FROM public.current_org_id() THEN
+      RAISE EXCEPTION 'FLEET_FORBIDDEN' USING ERRCODE = '42501';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  NEW.org_id := public.current_org_id();
+  IF NEW.org_id IS NULL THEN
+    RAISE EXCEPTION 'FLEET_FORBIDDEN' USING ERRCODE = '42501';
+  END IF;
+  NEW.label := btrim(coalesce(NEW.label, ''));
+  IF char_length(NEW.label) < 1 OR char_length(NEW.label) > 40 THEN
+    RAISE EXCEPTION 'FLEET_LABEL' USING ERRCODE = 'P0001';
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    SELECT count(*) INTO v_count
+    FROM public.fleet_vehicles
+    WHERE org_id = NEW.org_id;
+    IF v_count >= 100 THEN
+      RAISE EXCEPTION 'FLEET_LIMIT' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fleet_vehicles_guard() FROM PUBLIC, anon, authenticated, service_role;
+
+-- Водій за замовчуванням — лише своєї компанії (і для прямого запису сайту, і для RPC). Імʼя тригера сортується після
+-- trg_fleet_vehicles_guard, тож org_id тут уже виставлений guard-ом.
+CREATE OR REPLACE FUNCTION public.fleet_vehicles_driver_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.default_driver_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM public.kp_drivers AS d WHERE d.id = NEW.default_driver_id AND d.org_id = NEW.org_id
+  ) THEN
+    RAISE EXCEPTION 'VEHICLE_DRIVER_FORBIDDEN' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fleet_vehicles_driver_guard() FROM PUBLIC, anon, authenticated, service_role;
+
+DROP TRIGGER IF EXISTS trg_fleet_vehicles_guard_driver ON public.fleet_vehicles;
+CREATE TRIGGER trg_fleet_vehicles_guard_driver
+  BEFORE INSERT OR UPDATE OF default_driver_id ON public.fleet_vehicles
+  FOR EACH ROW EXECUTE FUNCTION public.fleet_vehicles_driver_guard();
 
 -- ---------------------------------------------------------------------------
 -- Waybills (ТТН) and cargo lines
@@ -454,7 +549,6 @@ DECLARE
   v_tare numeric;
   v_max numeric;
   v_driver uuid;
-  v_claims text;
 BEGIN
   IF p_data IS NULL OR jsonb_typeof(p_data) <> 'object' THEN
     RAISE EXCEPTION 'VEHICLE_BAD' USING ERRCODE = 'P0001';
@@ -486,16 +580,12 @@ BEGIN
     v_driver := v_old.default_driver_id;
   END IF;
 
-  -- fleet_vehicles_guard пропускає лише власника або service_role: на один UPDATE (права вже перевірено вище) —
-  -- claims service_role у межах транзакції, потім попередні claims. При помилці транзакція (або підтранзакція)
-  -- відкочується разом із set_config.
-  v_claims := current_setting('request.jwt.claims', true);
-  PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  -- Лише ТТН-колонки: fleet_vehicles_guard пропускає логіста тільки з такою зміною, водія перевіряє
+  -- trg_fleet_vehicles_guard_driver. Claims користувача не змінюються.
   UPDATE public.fleet_vehicles
   SET vehicle_type = v_type, trailer_make_model = v_trailer, length_m = v_len, width_m = v_wid, height_m = v_hgt,
       tare_t = v_tare, max_mass_t = v_max, default_driver_id = v_driver
   WHERE id = p_vehicle AND org_id = v_org;
-  PERFORM set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   RETURN true;
 END;
 $$;

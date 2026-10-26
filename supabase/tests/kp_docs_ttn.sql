@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(166);
+SELECT plan(186);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e001","role":"service_role"}', true);
 
@@ -29,8 +29,8 @@ SELECT ok(has_table_privilege('authenticated', 'public.fleet_vehicles', 'SELECT'
   AND NOT has_table_privilege('anon', 'public.fleet_vehicles', 'SELECT'),
   'fleet_vehicles: the site grants are unchanged (authenticated CRUD under RLS, anon nothing)');
 SELECT ok((SELECT tgenabled = 'O' FROM pg_trigger WHERE tgname = 'trg_fleet_vehicles_guard')
-  AND (SELECT count(*) FROM pg_trigger WHERE tgrelid = 'public.fleet_vehicles'::regclass AND NOT tgisinternal) = 1,
-  'fleet_vehicles: only the existing guard trigger, still enabled');
+  AND (SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = 'public.fleet_vehicles'::regclass AND NOT tgisinternal) = 'trg_fleet_vehicles_guard,trg_fleet_vehicles_guard_driver',
+  'fleet_vehicles: the guard trigger (still enabled) and the new driver-org trigger only');
 
 -- T: control_plus (owner e001, logist e002, директор e009, менеджер з ремонтів e005); U: control_plus (owner e008);
 -- V: тариф «Компанія» (owner e007).
@@ -245,7 +245,7 @@ SELECT is((SELECT vehicle_type || '|' || length_m || '|' || tare_t FROM public.f
   'site: the new columns are saved');
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e002","role":"authenticated"}', true);
 SELECT is(pg_temp.tt_rows($$UPDATE public.fleet_vehicles SET tare_t = 1 WHERE id = '93000000-0000-0000-0000-000000000001'$$), 0,
-  'site: a logist still cannot write fleet_vehicles directly (RLS and guard unchanged)');
+  'site: a logist still cannot write fleet_vehicles directly (site RLS unchanged)');
 SELECT is(pg_temp.tt_msg($$SELECT public.kp_vehicle_save('93000000-0000-0000-0000-000000000001',
   jsonb_build_object('vehicle_type', 'Тягач сідловий', 'trailer_make_model', 'Schmitz SKO', 'length_m', '16,5', 'width_m', 2.55, 'height_m', 4,
                      'tare_t', 15.75, 'max_mass_t', 40, 'default_driver_id', pg_temp.tt_id('drv1'), 'label', 'ЗЛАМ', 'oscpv_on', '2020-01-01'))$$), 'ok',
@@ -253,8 +253,8 @@ SELECT is(pg_temp.tt_msg($$SELECT public.kp_vehicle_save('93000000-0000-0000-000
 SELECT is((SELECT label || '|' || oscpv_on || '|' || vehicle_type || '|' || length_m || '|' || tare_t || '|' || max_mass_t || '|' || (default_driver_id = pg_temp.tt_id('drv1'))
            FROM public.fleet_vehicles WHERE id = '93000000-0000-0000-0000-000000000001'),
   'AA1111TT|2027-01-10|Тягач сідловий|16.50|15.750|40.000|true', 'kp_vehicle_save changes only the new columns (label and dates untouched)');
-SELECT ok(current_setting('request.jwt.claims') LIKE '%e002%' AND auth.uid() = '00000000-0000-0000-0000-00000000e002',
-  'kp_vehicle_save restores the caller claims');
+SELECT ok(pg_get_functiondef('public.kp_vehicle_save(uuid, jsonb)'::regprocedure) !~ '(set_config|service_role|request.jwt)',
+  'kp_vehicle_save does not touch JWT claims (no service_role substitution)');
 SELECT is(pg_temp.tt_msg($$SELECT public.kp_vehicle_save('93000000-0000-0000-0000-000000000001', '{"max_mass_t":15}')$$), 'VEHICLE_FIELD_INVALID:tare_t',
   'kp_vehicle_save: tare not below the maximum mass refused');
 SELECT is(pg_temp.tt_msg($$SELECT public.kp_vehicle_save('93000000-0000-0000-0000-000000000001', '{"length_m":31}')$$), 'VEHICLE_FIELD_INVALID:length_m',
@@ -272,6 +272,66 @@ SELECT is((SELECT label || '|' || default_driver_name || '|' || oscpv_on FROM pu
   'AA1111TT|Мельник Олег Іванович|2027-01-10', 'director reads vehicles with the waybill fields, driver and document dates');
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e008","role":"authenticated"}', true);
 SELECT is((SELECT string_agg(label, ',') FROM public.kp_vehicles_list()), 'BB0000UU', 'another org sees only its own vehicles');
+
+-- 4a. fleet_vehicles_guard: логіст — лише ТТН-колонки авто своєї компанії; усе інше — як раніше лише власник / service_role.
+-- Запис без RLS (як із SECURITY DEFINER-функції): перевіряє саме guard.
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e002","role":"authenticated"}', true);
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET tare_t = 15.8, length_m = 16.6, width_m = 2.5, height_m = 4.1, max_mass_t = 41,
+  vehicle_type = 'Тягач', trailer_make_model = 'Krone', default_driver_id = NULL WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'ok',
+  'guard: a logist may change all eight TTN columns of an own vehicle');
+SELECT is((SELECT tare_t || '|' || vehicle_type || '|' || coalesce(default_driver_id::text, '-') FROM public.fleet_vehicles WHERE id = '93000000-0000-0000-0000-000000000001'),
+  '15.800|Тягач|-', 'guard: the TTN columns are saved');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET label = 'ЗЛАМ' WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'FLEET_FORBIDDEN',
+  'guard: a logist cannot change label');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET make_model = 'Інша' WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'FLEET_FORBIDDEN',
+  'guard: a logist cannot change make_model');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET oscpv_on = DATE '2020-01-01' WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'FLEET_FORBIDDEN',
+  'guard: a logist cannot change document dates');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET tare_t = 16, trailer_plate = 'XX0000XX' WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'FLEET_FORBIDDEN',
+  'guard: a TTN column together with another column is refused');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET org_id = '90000000-0000-0000-0000-00000000000b' WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'FLEET_FORBIDDEN',
+  'guard: a logist cannot move a vehicle to another org');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET tare_t = 5 WHERE id = '93000000-0000-0000-0000-000000000021'$$), 'FLEET_FORBIDDEN',
+  'guard: a logist cannot change another company''s vehicle');
+SELECT is(pg_temp.tt_msg($$INSERT INTO public.fleet_vehicles (org_id, label, tare_t) VALUES ('90000000-0000-0000-0000-00000000000a', 'NEW1', 5)$$), 'FLEET_FORBIDDEN',
+  'guard: a logist cannot add vehicles');
+SELECT is(pg_temp.tt_msg($$DELETE FROM public.fleet_vehicles WHERE id = '93000000-0000-0000-0000-000000000002'$$), 'FLEET_FORBIDDEN',
+  'guard: a logist cannot delete vehicles');
+-- Директор і менеджер з ремонтів чужої організації (у тестовій базі кожен — власник своєї) не бачать авто під RLS сайту.
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e009","role":"authenticated"}', true);
+SELECT is(pg_temp.tt_rows($$UPDATE public.fleet_vehicles SET tare_t = 16 WHERE id = '93000000-0000-0000-0000-000000000001'$$), 0,
+  'site: a director cannot change even the TTN columns (RLS; kp_vehicle_save — KP_FORBIDDEN)');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e005","role":"authenticated"}', true);
+SELECT is(pg_temp.tt_rows($$UPDATE public.fleet_vehicles SET tare_t = 16 WHERE id = '93000000-0000-0000-0000-000000000001'$$), 0,
+  'site: a repair manager cannot change the TTN columns (RLS)');
+-- Власник — як раніше: будь-які колонки своїх авто.
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e001","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET label = 'AA1111TT', make_model = 'DAF XF 480', oscpv_on = DATE '2027-01-10', tare_t = 15.75, max_mass_t = 40,
+  length_m = 16.5, width_m = 2.55, height_m = 4, vehicle_type = 'Тягач сідловий', trailer_make_model = 'Schmitz SKO', default_driver_id = '$$
+  || pg_temp.tt_id('drv1') || $$' WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'ok', 'owner: any column of an own vehicle, as before');
+SELECT is(pg_temp.tt_rows($$UPDATE public.fleet_vehicles SET tare_t = 5 WHERE id = '93000000-0000-0000-0000-000000000021'$$), 0,
+  'owner: another company''s vehicle stays invisible to the update (RLS)');
+
+-- 4b. Водій за замовчуванням — лише своєї компанії (тригер, і для запису сайту, і для service_role).
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET default_driver_id = '$$ || pg_temp.tt_id('drvU') || $$' WHERE id = '93000000-0000-0000-0000-000000000002'$$),
+  'VEHICLE_DRIVER_FORBIDDEN', 'site: owner cannot set a driver of another company');
+SELECT is(pg_temp.tt_msg($$INSERT INTO public.fleet_vehicles (org_id, label, default_driver_id) VALUES ('90000000-0000-0000-0000-00000000000a', 'NEW2', '$$
+  || pg_temp.tt_id('drvU') || $$')$$), 'VEHICLE_DRIVER_FORBIDDEN', 'site: a new vehicle with a driver of another company refused');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET default_driver_id = '$$ || pg_temp.tt_id('drv2') || $$' WHERE id = '93000000-0000-0000-0000-000000000002'$$),
+  'ok', 'site: owner sets an own driver (even an inactive one)');
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET default_driver_id = '$$ || pg_temp.tt_id('drvU') || $$' WHERE id = '93000000-0000-0000-0000-000000000001'$$),
+  'VEHICLE_DRIVER_FORBIDDEN', 'service_role: a driver of another company refused too');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET label = 'AA1111TT' WHERE id = '93000000-0000-0000-0000-000000000001'$$), 'ok',
+  'service_role: other columns as before (driver trigger only on default_driver_id)');
+SELECT is(pg_temp.tt_msg($$UPDATE public.fleet_vehicles SET default_driver_id = NULL WHERE id = '93000000-0000-0000-0000-000000000002'$$), 'ok',
+  'clearing the default driver is fine');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e008","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
 
 -- 5. Реквізити й підказки.
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e002","role":"authenticated"}', true);

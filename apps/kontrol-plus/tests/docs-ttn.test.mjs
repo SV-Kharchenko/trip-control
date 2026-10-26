@@ -360,6 +360,20 @@ test('waybill texts: every appendix 7 field, empty ones as a dash; codes named; 
     assert.equal(CARGO_COLUMNS.length, 12, '№ з/п and graphs 1–11');
 });
 
+test('masses in figures everywhere except «масою брутто, т (словами)» (the form requires words only there)', async () => {
+    const doc = ttn({ lines: [{ sort: 1, cargo_name: 'Пшениця', unit: 'т', gross_t: 24.09, bulk: true, owner_price: true }] });
+    const words = /тонн|кілограм|\bкг\b/;
+    const fields = frontFields(doc).filter(([, value]) => words.test(value)).map(([label]) => label);
+    assert.deepEqual(fields, ['Масою брутто, т'], 'only one line in words');
+    for (const cell of Object.values(cargoCells(doc.lines[0], 0))) assert.doesNotMatch(cell, words, 'cargo table in figures');
+    for (const op of operationRows(doc)) assert.doesNotMatch(Object.values(op).join(' '), words, 'operations in figures');
+    assert.equal(operationRows(doc)[0].mass, '39,84/15,75/24,09');
+    const strings = unpack(buildDocXlsx(doc))['xl/sharedStrings.xml'];
+    assert.equal((strings.match(/тонн/g) || []).length, 1, 'Excel: words only in that line');
+    assert.match(read('src/lib/ttn-text.js'), /\['Масою брутто, т', grossWords\(doc\), '\(словами\)'\]/);
+    assert.equal((read('src/lib/ttn-text.js').match(/massInWords\(/g) || []).length, 1, 'massInWords used once');
+});
+
 function png(width, height) {
     const chunk = (type, data) => {
         const len = Buffer.alloc(4);

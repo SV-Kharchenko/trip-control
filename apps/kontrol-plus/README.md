@@ -412,12 +412,20 @@ npm run check:db                # усі міграції + Контроль+ і
 
 - **Міграція** `supabase/migrations/20261026120000_kp_docs_ttn.sql` (адитивна, ідемпотентна; після
   `20261026072759_kp_documents.sql`), тести — `supabase/tests/kp_docs_ttn.sql` (`npm run check:db`: міграція тричі поспіль
-  і ще раз поверх даних; функції 4a й `fleet_vehicles_guard` не перевизначаються — звірка `pg_get_functiondef`).
+  і ще раз поверх даних; функції 4a не перевизначаються — звірка `pg_get_functiondef`; у `fleet_vehicles_guard` гілки
+  service_role і власника звіряються дослівно з міграцією сайту).
   - `fleet_vehicles` (таблиця сайту) — **лише нові nullable-колонки** з CHECK-ами: `vehicle_type`, `trailer_make_model`
     (≤ 100, без керівних символів), `length_m` / `width_m` / `height_m` (`numeric(5,2)`, 0 < x ≤ 30; автопоїзд разом),
     `tare_t` / `max_mass_t` (`numeric(6,3)`, 0 < x ≤ 100, тара < макс. маси), `default_driver_id` → `kp_drivers`.
-    Держномер тягача — наявний `label`, причепа — `trailer_plate`, тип причепа — `trailer_type` (не дублюємо). Політики,
-    гранти й `fleet_vehicles_guard` не змінено: сайт пише нові колонки напряму, як і решту картки (лише власник).
+    Держномер тягача — наявний `label`, причепа — `trailer_plate`, тип причепа — `trailer_type` (не дублюємо). Політики
+    й гранти не змінено: сайт пише нові колонки напряму, як і решту картки (лише власник).
+  - `fleet_vehicles_guard` розширено рівно на один випадок: не-власник з `kp_can_write()` (логіст Контроль+) може в UPDATE
+    авто своєї компанії змінити **лише** вісім ТТН-колонок (`trailer_make_model`, `vehicle_type`, `length_m`, `width_m`,
+    `height_m`, `tare_t`, `max_mass_t`, `default_driver_id`); інші колонки, вставка, видалення, чуже авто — `FLEET_FORBIDDEN`.
+    Гілки власника й service_role — дослівно як були. Прямий запис логіста й далі не проходить RLS сайту; пише він через
+    `kp_vehicle_save` (SECURITY DEFINER, без жодної підміни claims).
+  - Водій за замовчуванням — лише своєї компанії: тригер `trg_fleet_vehicles_guard_driver` (BEFORE INSERT / UPDATE OF
+    `default_driver_id`, після guard) → `VEHICLE_DRIVER_FORBIDDEN` для будь-якого запису, зокрема сайту й service_role.
   - `kp_drivers` — ПІБ (≤ 200) і номер посвідчення (≤ 30), `active`; без телефонів, адрес, паспортів; до 500 на компанію;
     видалення немає — деактивація.
   - `kp_doc_ttn` + `kp_doc_ttn_lines` — ТТН і рядки вантажу (графи 1–11, до 50). **Окрема таблиця, не рядок
@@ -435,9 +443,6 @@ npm run check:db                # усі міграції + Контроль+ і
     vehicle)` (нічого не пише), `kp_ttn_next_number(date)`, `kp_ttn_create(client, doc_date, number, data, calculation, id)`,
     `kp_ttn_get(id)`, `kp_ttn_list(from, to, client, status, calculation)`, `kp_ttn_cancel(id, reason)`. Внутрішні хелпери
     (`kp_ttn_text`, `kp_ttn_num`, `kp_ttn_party`, `kp_ttn_alloc_number`, тригери) закриті для всіх ролей API.
-  - `kp_vehicle_save` для логіста: `fleet_vehicles_guard` пропускає лише власника або service_role, тому функція (після
-    перевірки прав і організації) на один `UPDATE` нових колонок ставить у межах транзакції claims service_role і одразу
-    повертає попередні (`set_config(…, true)`; при помилці — відкат разом із транзакцією). Guard не змінено.
 - **Права.** Читають owner / logist / director своєї організації на control_plus; створюють ТТН і редагують поля ТЗ і
   водіїв — owner / logist (`kp_can_write`); анулює ТТН лише owner; директор — перегляд; менеджер з ремонтів і без
   control_plus — `KP_FORBIDDEN` / `CONTROL_PLUS_REQUIRED`. Нові таблиці — RLS, без грантів клієнтам, усе через RPC.
