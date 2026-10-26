@@ -352,7 +352,7 @@ npm run check:db                # усі міграції + Контроль+ і
 кнопки «Створити рахунок» / «Створити акт» — у списку й на картці клієнта, «Рахунок» / «Акт» — у рядку рейсу в історії
 клієнта. Excel і ТТН (форма 1-ТН) — етап 4b; модель уже має `kind = 'ttn'` і лічильник для нього.
 
-- **Міграція** `supabase/migrations/20261025120000_kp_documents.sql` (адитивна, ідемпотентна; після
+- **Міграція** `supabase/migrations/20261026072759_kp_documents.sql` (адитивна, ідемпотентна; після
   `20261024232246_repairs_maintenance.sql`), тести — `supabase/tests/kp_documents.sql` (`npm run check:db`, міграція
   застосовується тричі). Нові таблиці: `kp_org_requisites`, `kp_doc_counters`, `kp_documents`, `kp_document_lines`,
   `kp_document_payments`; у `clients` — лише `contract_no`, `contract_date`, `payment_terms_days` (NULL = 5 днів).

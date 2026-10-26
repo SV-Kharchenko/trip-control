@@ -130,7 +130,7 @@ test('requisites validation: name and a code required, formats as the database C
     assert.deepEqual(Object.keys(bad.errors).sort(), ['default_vat_mode', 'edrpou', 'iban', 'invoice_prefix', 'legal_name', 'vat_number']);
     assert.equal(validateRequisites({ legal_name: 'X' }).errors.edrpou, 'Для документів потрібен ЄДРПОУ або ІПН');
     assert.ok(validateRequisites({ legal_name: 'X', ipn: '1234567890' }).warnings.iban, 'no IBAN — a warning (acts are fine)');
-    const sql = fs.readFileSync(new URL('../../../supabase/migrations/20261025120000_kp_documents.sql', import.meta.url), 'utf8');
+    const sql = fs.readFileSync(new URL('../../../supabase/migrations/20261026072759_kp_documents.sql', import.meta.url), 'utf8');
     assert.match(sql, /edrpou ~ '\^\[0-9\]\{8\}\$'/);
     assert.match(sql, /iban ~ '\^UA\[0-9\]\{27\}\$'/);
     assert.match(sql, /\^\[0-9A-Za-zА-яҐґЄєІіЇї\/\._-\]\{1,10\}\$/);
@@ -245,7 +245,7 @@ test('client contract fields: validation as the CHECKs; sent only when the datab
     assert.deepEqual(clientPayload({ ...data, contract_no: 'Д-1' }, null, {}), { name: 'X', contract_no: 'Д-1' });
     assert.deepEqual(clientPayload(data, 'c1', { name: 'X' }), { name: 'X' }, 'existing client loaded without the columns');
     assert.deepEqual(clientPayload(data, 'c1', { name: 'X', contract_no: null, contract_date: null, payment_terms_days: null }), data, 'columns exist — all sent');
-    const sql = fs.readFileSync(new URL('../../../supabase/migrations/20261025120000_kp_documents.sql', import.meta.url), 'utf8');
+    const sql = fs.readFileSync(new URL('../../../supabase/migrations/20261026072759_kp_documents.sql', import.meta.url), 'utf8');
     assert.match(sql, /char_length\(btrim\(contract_no\)\) BETWEEN 1 AND 100/);
     assert.match(sql, /payment_terms_days BETWEEN 0 AND 365/);
 });
