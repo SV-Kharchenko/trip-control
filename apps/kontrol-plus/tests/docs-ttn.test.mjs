@@ -460,7 +460,7 @@ test('new views: only h() / textContent (scanner), lazy xlsx and pdf, buttons wi
 const git = (...args) => { try { return execFileSync('git', args, { cwd: new URL('.', ROOT), encoding: 'utf8' }); } catch { return null; } };
 const mainRef = git('rev-parse', '--verify', '--quiet', 'origin/main') ? 'origin/main' : null;
 
-test('package.json: exactly one new dependency — fflate, exact version, MIT, no dependencies of its own', () => {
+test('package.json: fflate is a dependency (exact version, MIT, no dependencies of its own), no other new dependencies', () => {
     const pkg = JSON.parse(read('package.json'));
     assert.match(pkg.dependencies.fflate, /^\d+\.\d+\.\d+$/, 'exact version');
     const lock = JSON.parse(read('package-lock.json'));
@@ -473,7 +473,8 @@ test('package.json: exactly one new dependency — fflate, exact version, MIT, n
     if (base) {
         const before = JSON.parse(base);
         const added = Object.keys(pkg.dependencies).filter((k) => !(k in before.dependencies));
-        assert.deepEqual(added, ['fflate']);
+        assert.ok('fflate' in before.dependencies, 'fflate is already in main');
+        assert.deepEqual(added.filter((k) => k !== 'fflate'), [], 'no new dependencies besides fflate');
         assert.deepEqual(pkg.devDependencies, before.devDependencies, 'dev dependencies unchanged');
         for (const [k, v] of Object.entries(before.dependencies)) assert.equal(pkg.dependencies[k], v, k + ' unchanged');
     }

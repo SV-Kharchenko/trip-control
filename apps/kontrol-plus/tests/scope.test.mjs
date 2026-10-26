@@ -119,7 +119,7 @@ test('check-scope allowlist: exactly four more patterns for waybills (4b), neigh
         String(/^index\.html$/),
         String(/^tests\/fleet-ttn-fields\.test\.mjs$/),
     ]);
-    for (const ok of ['supabase/migrations/20261026120000_kp_docs_ttn.sql', 'supabase/tests/kp_docs_ttn.sql', 'index.html', 'tests/fleet-ttn-fields.test.mjs']) {
+    for (const ok of ['supabase/migrations/20261026130623_kp_docs_ttn.sql', 'supabase/tests/kp_docs_ttn.sql', 'index.html', 'tests/fleet-ttn-fields.test.mjs']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
     for (const bad of [
@@ -137,8 +137,8 @@ test('check-scope allowlist: exactly four more patterns for waybills (4b), neigh
         'tests/calc-golden.test.mjs',
         'supabase/migrations/kp_docs_ttn.sql',
         'supabase/migrations/2026102612000_kp_docs_ttn.sql',
-        'supabase/migrations/20261026120000_kp_docs_ttn_v2.sql',
-        'supabase/migrations/20261026120000_docs_ttn.sql',
+        'supabase/migrations/20261026130623_kp_docs_ttn_v2.sql',
+        'supabase/migrations/20261026130623_docs_ttn.sql',
         'supabase/tests/kp_docs_ttn.sql.orig',
         'supabase/migrations/20261012240000_fleet_vehicles.sql',
         'api/calculate.js',
