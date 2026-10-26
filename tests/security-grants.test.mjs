@@ -63,6 +63,7 @@ test('earlier migrations are not edited by this change', () => {
         ['supabase/migrations/20261025090000_repairs_stock.sql', 'supabase/migrations/20261024150255_repairs_stock.sql'],
         ['supabase/migrations/20261026090000_repairs_maintenance.sql', 'supabase/migrations/20261024232246_repairs_maintenance.sql'],
         ['supabase/migrations/20261025120000_kp_documents.sql', 'supabase/migrations/20261026072759_kp_documents.sql'],
+        ['supabase/migrations/20261026120000_kp_docs_ttn.sql', 'supabase/migrations/20261026130623_kp_docs_ttn.sql'],
     ];
     const sameBlob = (from, to) => {
         try {
