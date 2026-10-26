@@ -103,6 +103,10 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
         t.skip('no origin/main');
         return;
     }
+    if (!diff.trim()) {
+        t.skip('index.html changes already in main');
+        return;
+    }
     const lines = html.split('\n');
     const lineOf = (needle) => lines.findIndex((l) => l.includes(needle)) + 1;
     const fleetCode = [lineOf('    let fleetVehicles = [];'), lineOf('    let fleetVehicles = [];') + 4];
