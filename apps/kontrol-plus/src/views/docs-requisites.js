@@ -20,13 +20,14 @@ const FIELDS = [
     { key: 'iban', label: 'IBAN', maxlength: 40, mono: true, placeholder: 'UA00 0000 0000 0000 0000 0000 0000 0' },
     { key: 'bank_name', label: 'Банк', maxlength: 300 },
     { key: 'legal_address', label: 'Юридична адреса', type: 'textarea', maxlength: 500, wide: true },
-    { key: 'doc_place', label: 'Місце складання актів', maxlength: 200, placeholder: 'м. Київ' },
+    { key: 'doc_place', label: 'Місце складання актів і ТТН', maxlength: 200, placeholder: 'м. Київ' },
     { section: 'Підписант' },
     { key: 'signer_name', label: 'ПІБ підписанта', maxlength: 200 },
     { key: 'signer_position', label: 'Посада', maxlength: 200, placeholder: 'Директор' },
     { section: 'Нумерація і замовчування' },
     { key: 'invoice_prefix', label: 'Префікс рахунків', maxlength: 10, placeholder: 'напр. РФ-' },
     { key: 'act_prefix', label: 'Префікс актів', maxlength: 10, placeholder: 'напр. АКТ-' },
+    { key: 'ttn_prefix', label: 'Префікс ТТН', maxlength: 10, placeholder: 'напр. ТТН-' },
     { key: 'default_currency', label: 'Валюта за замовчуванням', type: 'select', options: CURRENCIES.map((c) => ({ value: c, label: c })) },
     { key: 'default_vat_mode', label: 'Ціни в документах', type: 'select', options: VAT_MODES },
 ];
@@ -49,7 +50,6 @@ function readDataUrl(blob) {
 export function requisitesPayload(row) {
     const out = {};
     for (const f of FIELDS) if (f.key) out[f.key] = row ? row[f.key] ?? null : null;
-    out.ttn_prefix = row ? row.ttn_prefix ?? null : null;
     return out;
 }
 
@@ -75,7 +75,7 @@ export function renderRequisites(app, access) {
             dd('ПДВ', row.vat_payer ? 'Платник ПДВ' + (row.vat_number ? ', ІПН ' + row.vat_number : '') : 'Не платник'),
             dd('IBAN', row.iban, true), dd('Банк', row.bank_name), dd('Адреса', row.legal_address), dd('Місце складання', row.doc_place),
             dd('Підписант', [row.signer_position, row.signer_name].filter(Boolean).join(' ')),
-            dd('Префікси', [row.invoice_prefix && 'рахунки ' + row.invoice_prefix, row.act_prefix && 'акти ' + row.act_prefix].filter(Boolean).join(', ')),
+            dd('Префікси', [row.invoice_prefix && 'рахунки ' + row.invoice_prefix, row.act_prefix && 'акти ' + row.act_prefix, row.ttn_prefix && 'ТТН ' + row.ttn_prefix].filter(Boolean).join(', ')),
             dd('За замовчуванням', row.default_currency + ', ' + ((VAT_MODES.find((m) => m.value === row.default_vat_mode) || {}).label || ''))));
     }
 
@@ -126,7 +126,7 @@ export function renderRequisites(app, access) {
                 show(result);
                 if (Object.keys(result.errors).length) return clear(message, notice('Виправте поля, позначені червоним.'));
                 submit.disabled = true;
-                const data = { ...result.data, ttn_prefix: row ? row.ttn_prefix ?? null : null };
+                const data = result.data;
                 const { error } = await app.supabase.rpc('kp_requisites_save', { p_data: data });
                 submit.disabled = false;
                 if (error) return clear(message, notice(docErrorText(error)));

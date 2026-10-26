@@ -345,6 +345,52 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 #kp-crm .kpd-asset-preview img { max-width: 100%; max-height: 120px; object-fit: contain; }
 #kp-crm .kpd-file { position: relative; overflow: hidden; }
 #kp-crm .kpd-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; }
+/* ТТН і авто (етап 4b) */
+#kp-crm .kpt-body { display: grid; gap: 12px; }
+#kp-crm .kpt-parties { gap: 12px; }
+#kp-crm .kpt-party { display: grid; gap: 8px; align-content: start; }
+#kp-crm .kpt-party .kpd-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+#kp-crm .kpt-choice { margin-bottom: 0; }
+#kp-crm .kpt-choice button:disabled { opacity: 0.45; cursor: not-allowed; }
+#kp-crm .field.kpt-missing input, #kp-crm .field.kpt-missing textarea { border-color: var(--warn); background: var(--warn-bg); }
+#kp-crm .field input[aria-invalid], #kp-crm .field textarea[aria-invalid] { border-color: var(--negative); }
+#kp-crm .kpt-lines { display: grid; gap: 8px; }
+#kp-crm .kpt-lines > .btn { justify-self: start; }
+#kp-crm .kpt-line { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--bg); }
+#kp-crm .kpt-line-main { display: grid; grid-template-columns: minmax(180px, 1fr) 60px 70px 90px 100px 110px 100px auto; gap: 6px; align-items: center; }
+#kp-crm .kpt-line-extra { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+#kp-crm .kpt-line-extra input[type="text"] { width: 170px; }
+#kp-crm .kpt-line input { min-width: 0; }
+#kp-crm .kpt-mass { justify-content: flex-start; }
+#kp-crm .kpt-op { display: grid; grid-template-columns: 120px repeat(3, minmax(70px, 1fr)) repeat(3, minmax(90px, 1fr)); gap: 6px; align-items: center; }
+#kp-crm .kpt-op input { min-width: 0; }
+#kp-crm .kpt-copies { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+#kp-crm .kpt-dl .kv { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border-soft); }
+#kp-crm .kpt-dl dt { font-weight: 600; color: var(--muted); }
+#kp-crm .kpt-dl dd { margin: 0; }
+#kp-crm .kpt-total td { font-weight: 600; }
+#kp-crm .kpt-vehicles { display: grid; gap: 12px; }
+#kp-crm .kpt-vehicle { display: grid; gap: 10px; }
+#kp-crm .kpt-vehicle-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; }
+#kp-crm .kpt-vehicle-head .mono { text-transform: uppercase; font-size: 16px; }
+#kp-crm .kpt-docs-toggle { display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+#kp-crm .kpt-chevron { margin-left: auto; color: var(--muted); }
+#kp-crm .kpt-badge { display: inline-block; min-width: 22px; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; border: 1px solid; }
+#kp-crm .kpt-badge.is-overdue { color: var(--negative-text); background: var(--negative-bg); border-color: var(--negative); }
+#kp-crm .kpt-badge.is-soon { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+#kp-crm .kpt-docs { padding: 8px 10px 0; }
+#kp-crm .kpt-docs dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; margin: 0; }
+#kp-crm .kpt-docs dd { margin: 0; }
+#kp-crm .kpt-doc-overdue dd { color: var(--negative-text); font-weight: 600; }
+#kp-crm .kpt-doc-soon dd { color: var(--warn); font-weight: 600; }
+@media (max-width: 767px) {
+    #kp-crm .kpt-party .kpd-grid, #kp-crm .kpt-line-main { grid-template-columns: 1fr 1fr; }
+    #kp-crm .kpt-line-main > .kpt-cargo { grid-column: 1 / -1; }
+    #kp-crm .kpt-op { grid-template-columns: 1fr 1fr 1fr; }
+    #kp-crm .kpt-op > b { grid-column: 1 / -1; }
+    #kp-crm .kpt-dl .kv { grid-template-columns: 1fr; gap: 2px; }
+    #kp-crm .kpt-line-extra input[type="text"] { width: 100%; }
+}
 @media (max-width: 767px) {
     #kp-crm .kpd-grid, #kp-crm .kpd-rate { grid-template-columns: 1fr; }
     #kp-crm .kpd-line { grid-template-columns: 1fr 1fr; padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--bg); }

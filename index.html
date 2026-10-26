@@ -1379,6 +1379,18 @@
             border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 0.75rem; font-family: var(--font-ui);
         }
         #cabinet-screen .tc-fleet-actions button.is-danger { color: var(--danger); border-color: var(--danger); }
+        #cabinet-screen .tc-fleet-ttn-title { margin: 4px 0 0; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        #cabinet-screen .tc-fleet-docs-block { display: grid; gap: 8px; }
+        #cabinet-screen .tc-fleet-docs-toggle {
+            display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 10px;
+            background: transparent; color: var(--text); font: inherit; font-size: 0.78rem; font-weight: 700; text-align: left; cursor: pointer;
+        }
+        #cabinet-screen .tc-fleet-docs-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        #cabinet-screen .tc-fleet-docs-toggle .tc-fleet-chevron { margin-left: auto; }
+        #cabinet-screen .tc-fleet-docs-badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 999px; border: 1px solid; font-size: 0.68rem; text-align: center; }
+        #cabinet-screen .tc-fleet-docs-badge.is-soon { color: var(--warning-text); border-color: var(--warning); }
+        #cabinet-screen .tc-fleet-docs-badge.is-overdue { color: var(--danger); border-color: var(--danger); }
+        #cabinet-screen .tc-fleet-docs[hidden] { display: none; }
         #cabinet-screen .tc-team-toolbar {
             display: flex; align-items: end; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
         }
@@ -5674,6 +5686,8 @@
     let uiPreview = false; // true лише для ?preview=1 на localhost, не для демо-акаунта
     let fleetVehicles = [];
     let fleetDeleteId = null;
+    let fleetTtnReady = false; // у базі є поля ТЗ для ТТН (міграція *_kp_docs_ttn.sql)
+    const fleetDocsOpenIds = {}; // розгорнуті блоки «ТО і Страхування» до перезавантаження сторінки
     let isAdmin = false;
     let demoForce = false; // true лише на час одного виклику calculate() з кнопки «Розрахувати»
     let currentOrgId = null;
@@ -9934,6 +9948,16 @@
     const FLEET_DOC_COLUMNS = 'id, label, oscpv_on, kasko_on, green_card_on, inspection_on, tachograph_on, service_on';
     const FLEET_NORM_COLUMNS = 'make_model, year_made, fuel_load, fuel_empty, adblue_on, adblue_consumption, trailer_plate, trailer_type, payload_t';
     const FLEET_COLUMNS = FLEET_DOC_COLUMNS + ', ' + FLEET_NORM_COLUMNS;
+    // Поля ТЗ для ТТН (Контроль+): тип, причіп, габарити автопоїзда, тара, максимально дозволена маса. Межі — як CHECK-и в базі.
+    const FLEET_TTN_COLUMNS = 'vehicle_type, trailer_make_model, length_m, width_m, height_m, tare_t, max_mass_t';
+    const FLEET_TTN_TEXT = [['vehicle_type', 'Тип ТЗ', 100], ['trailer_make_model', 'Марка / модель причепа', 100]];
+    const FLEET_TTN_NUMS = [
+        ['length_m', 'Довжина автопоїзда, м', 0.01, 30, '0.01'],
+        ['width_m', 'Ширина, м', 0.01, 30, '0.01'],
+        ['height_m', 'Висота, м', 0.01, 30, '0.01'],
+        ['tare_t', 'Тара (без вантажу), т', 0.001, 100, '0.001'],
+        ['max_mass_t', 'Макс. дозволена маса, т', 0.001, 100, '0.001']
+    ];
     function kyivTodayYmd(now) {
         const date = now instanceof Date ? now : new Date(now || Date.now());
         const parts = new Intl.DateTimeFormat('en-CA', {
@@ -9993,6 +10017,9 @@
         if (message.indexOf('FLEET_LIMIT') !== -1) return 'У списку вже 100 авто.';
         if (message.indexOf('FLEET_LABEL') !== -1) return 'Вкажи номер або назву авто, до 40 символів.';
         if (message.indexOf('FLEET_FORBIDDEN') !== -1) return 'Документи змінює власник.';
+        if (message.indexOf('fleet_vehicles_dimensions') !== -1 || message.indexOf('fleet_vehicles_mass') !== -1 || message.indexOf('fleet_vehicles_vehicle_type') !== -1 || message.indexOf('fleet_vehicles_trailer_make_model') !== -1) {
+            return 'Перевір дані для ТТН: габарити більше 0 і до 30 м, тара й макс. маса більше 0 і до 100 т (тара менша), тексти до 100 символів.';
+        }
         if (code === '23514' || message.indexOf('fleet_vehicles_fuel') !== -1 || message.indexOf('fleet_vehicles_adblue') !== -1 || message.indexOf('fleet_vehicles_year') !== -1 || message.indexOf('fleet_vehicles_make') !== -1 || message.indexOf('fleet_vehicles_trailer') !== -1 || message.indexOf('fleet_vehicles_payload') !== -1) {
             return 'Перевір норми: витрата 0,1–80, AdBlue 0,05–30, вантажопідйомність 0,1–80 т, рік 1980–2100, причіп зі списку.';
         }
@@ -10046,7 +10073,63 @@
             num('adblue_consumption', 'Витрата AdBlue, л/100 км', 0.05, 30, '0.05', vehicle.adblue_consumption) +
             text('trailer_plate', 'Держ. номер причепа', 40, vehicle.trailer_plate) +
             '<label>Тип причепа<select data-norm="trailer_type" required' + off + '>' + trailer + '</select></label>' +
-            '</div>';
+            '</div>' + fleetTtnMarkup(vehicle, owner);
+    }
+    // Дані для ТТН (Контроль+) — лише якщо в базі вже є ці колонки.
+    function fleetTtnMarkup(vehicle, owner) {
+        if (!(uiPreview || fleetTtnReady)) return '';
+        const off = owner ? '' : ' disabled';
+        const texts = FLEET_TTN_TEXT.map(function (item) {
+            return '<label>' + item[1] + '<input type="text" data-norm="' + item[0] + '" maxlength="' + item[2] + '" value="' + teamEsc(vehicle[item[0]] || '') + '"' + off + '></label>';
+        }).join('');
+        const nums = FLEET_TTN_NUMS.map(function (item) {
+            const value = vehicle[item[0]] == null ? '' : vehicle[item[0]];
+            return '<label>' + item[1] + '<input type="number" data-norm="' + item[0] + '" min="' + item[2] + '" max="' + item[3] + '" step="' + item[4] + '" value="' + teamEsc(value) + '"' + off + '></label>';
+        }).join('');
+        return '<p class="tc-fleet-ttn-title">Дані для ТТН</p><div class="tc-fleet-docs tc-fleet-ttn">' + texts + nums + '</div>';
+    }
+    // Поля ТЗ для ТТН з форми картки: порожнє → null; межі як у CHECK-ах бази; тара менша за макс. масу.
+    function readFleetTtn(card) {
+        const out = {};
+        for (let i = 0; i < FLEET_TTN_TEXT.length; i++) {
+            const item = FLEET_TTN_TEXT[i];
+            const input = card.querySelector('[data-norm="' + item[0] + '"]');
+            const value = input && input.value ? input.value.trim() : '';
+            if (value.length > item[2] || /[\u0000-\u001f\u007f]/.test(value)) return { ok: false, error: item[1] + ': до ' + item[2] + ' символів.' };
+            out[item[0]] = value || null;
+        }
+        for (let i = 0; i < FLEET_TTN_NUMS.length; i++) {
+            const item = FLEET_TTN_NUMS[i];
+            const input = card.querySelector('[data-norm="' + item[0] + '"]');
+            const raw = input && input.value ? String(input.value).trim().replace(',', '.') : '';
+            if (!raw) { out[item[0]] = null; continue; }
+            const n = Number(raw);
+            if (!/^\d+(\.\d+)?$/.test(raw) || !Number.isFinite(n) || n <= 0 || n > item[3]) {
+                return { ok: false, error: item[1] + ': більше 0 і до ' + item[3] + '.' };
+            }
+            out[item[0]] = n;
+        }
+        if (out.tare_t !== null && out.max_mass_t !== null && out.tare_t >= out.max_mass_t) {
+            return { ok: false, error: 'Тара має бути меншою за максимально дозволену масу.' };
+        }
+        return { ok: true, values: out };
+    }
+    // Бейдж на згорнутому блоці «ТО і Страхування»: кількість жовтих / червоних строків і колір найгіршого.
+    function fleetDocsBadge(overdue, soon) {
+        const count = (overdue || 0) + (soon || 0);
+        if (!count) return null;
+        return { count: count, tone: overdue > 0 ? 'overdue' : 'soon' };
+    }
+    function toggleFleetDocsBlock(id) {
+        const block = document.getElementById('fleet-docs-' + id);
+        const button = document.getElementById('fleet-docs-toggle-' + id);
+        if (!block || !button) return;
+        const open = button.getAttribute('aria-expanded') !== 'true';
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        block.hidden = !open;
+        const chevron = button.querySelector('.tc-fleet-chevron');
+        if (chevron) chevron.textContent = open ? '▴' : '▾';
+        fleetDocsOpenIds[id] = open;
     }
     function readFleetNorms(id) {
         const card = document.getElementById('fleet-card-' + id);
@@ -10104,6 +10187,11 @@
             return { ok: false, error: 'Оберіть тип причепа.' };
         }
         norms.trailer_type = trailerValue;
+        if (uiPreview || fleetTtnReady) {
+            const ttn = readFleetTtn(card);
+            if (!ttn.ok) return ttn;
+            Object.assign(norms, ttn.values);
+        }
         return { ok: true, norms: norms };
     }
     function emptyFleetNorms() {
@@ -10201,6 +10289,15 @@
             const open = fleetCardOpen(vehicle.id);
             const make = String(vehicle.make_model || '').trim();
             const bodyId = 'fleet-body-' + teamEsc(vehicle.id);
+            // Строки ТО і страхування — у згорнутому блоці; бейдж — кількість жовтих / червоних строків.
+            const docsBadge = fleetDocsBadge(cardOverdue, cardSoon);
+            const docsOpen = fleetDocsOpenIds[vehicle.id] === true;
+            const docsBlock = '<div class="tc-fleet-docs-block"><button type="button" class="tc-fleet-docs-toggle" id="fleet-docs-toggle-' + teamEsc(vehicle.id) + '"' +
+                ' aria-expanded="' + (docsOpen ? 'true' : 'false') + '" aria-controls="fleet-docs-' + teamEsc(vehicle.id) + '" onclick="toggleFleetDocsBlock(\'' + teamEsc(vehicle.id) + '\')">' +
+                '<span>Додаткова інформація про ТО і Страхування</span>' +
+                (docsBadge ? '<span class="tc-fleet-docs-badge is-' + docsBadge.tone + '" title="' + (docsBadge.tone === 'overdue' ? 'є прострочені строки' : 'строки спливають') + '">' + docsBadge.count + '</span>' : '') +
+                '<span class="tc-fleet-chevron" aria-hidden="true">' + (docsOpen ? '▴' : '▾') + '</span></button>' +
+                '<div class="tc-fleet-docs" id="fleet-docs-' + teamEsc(vehicle.id) + '"' + (docsOpen ? '' : ' hidden') + '>' + fields + '</div></div>';
             return '<article class="tc-fleet-card' + (tone ? ' is-' + tone : '') + '" id="fleet-card-' + teamEsc(vehicle.id) + '" data-id="' + teamEsc(vehicle.id) + '">' +
                 '<div class="tc-fleet-head"><button type="button" class="tc-fleet-toggle" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="' + bodyId + '" onclick="toggleFleetCard(\'' + teamEsc(vehicle.id) + '\')">' +
                 '<span class="tc-fleet-plate">' + teamEsc(vehicle.label) + '</span>' +
@@ -10209,7 +10306,7 @@
                 '<span class="tc-fleet-chevron" aria-hidden="true">' + (open ? '▴' : '▾') + '</span></button></div>' +
                 '<div class="tc-fleet-body" id="' + bodyId + '"' + (open ? '' : ' hidden') + '>' +
                 fleetNormMarkup(vehicle, owner) +
-                '<div class="tc-fleet-docs">' + fields + '</div>' + actions + '</div></article>';
+                docsBlock + actions + '</div></article>';
         }).join('');
         if (summary) summary.textContent = fleetVehicles.length ? ('Прострочено: ' + overdue + ' · скоро: ' + soon) : '';
         if (tools) tools.hidden = !fleetVehicles.length;
@@ -10219,10 +10316,17 @@
     async function loadFleetVehicles() {
         if (uiPreview || !currentOrgId) return;
         try {
+            // Спершу з полями ТЗ для ТТН; бази без них (міграцію ще не застосовано) — як раніше.
             let { data, error } = await supabaseClient
                 .from('fleet_vehicles')
-                .select(FLEET_COLUMNS)
+                .select(FLEET_COLUMNS + ', ' + FLEET_TTN_COLUMNS)
                 .order('label');
+            fleetTtnReady = !error;
+            if (error && /vehicle_type|trailer_make_model|length_m|width_m|height_m|tare_t|max_mass_t|column|schema cache/i.test(String((error && (error.message || error.details)) || error))) {
+                const plain = await supabaseClient.from('fleet_vehicles').select(FLEET_COLUMNS).order('label');
+                data = plain.data;
+                error = plain.error;
+            }
             if (error && /make_model|year_made|fuel_load|adblue_on|adblue_consumption|trailer_plate|trailer_type|payload_t|column/i.test(String((error && (error.message || error.details)) || error))) {
                 const fallback = await supabaseClient.from('fleet_vehicles').select(FLEET_DOC_COLUMNS).order('label');
                 data = fallback.data;
@@ -10323,7 +10427,7 @@
             const { data, error } = await supabaseClient.from('fleet_vehicles')
                 .update(patch)
                 .eq('id', id)
-                .select(FLEET_COLUMNS)
+                .select(fleetTtnReady ? FLEET_COLUMNS + ', ' + FLEET_TTN_COLUMNS : FLEET_COLUMNS)
                 .single();
             if (error) throw error;
             const index = fleetVehicles.findIndex(function (item) { return item.id === id; });
@@ -14736,8 +14840,8 @@
             'preview-1': { revenue: 40000, costs: 28900, plannedOverhead: 4100, profit: 7000 }
         };
         fleetVehicles = [
-            { id: 'preview-fleet-1', label: 'AA0001KA', make_model: 'Volvo FH', year_made: 2019, oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15', fuel_load: 31, fuel_empty: 26, adblue_on: true, adblue_consumption: 3, trailer_plate: 'AA1111XP', trailer_type: 'тент', payload_t: 22 },
-            { id: 'preview-fleet-2', label: 'AA0002KA', make_model: 'DAF XF', year_made: 2016, oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null, fuel_load: 35, fuel_empty: 30, adblue_on: false, adblue_consumption: null, trailer_plate: null, trailer_type: 'тент', payload_t: 18 }
+            { id: 'preview-fleet-1', label: 'AA0001KA', make_model: 'Volvo FH', year_made: 2019, oscpv_on: '2026-10-20', kasko_on: null, green_card_on: '2026-12-01', inspection_on: null, tachograph_on: null, service_on: '2026-11-15', fuel_load: 31, fuel_empty: 26, adblue_on: true, adblue_consumption: 3, trailer_plate: 'AA1111XP', trailer_type: 'тент', payload_t: 22, vehicle_type: 'Тягач сідловий', trailer_make_model: 'Krone SD', length_m: 16.5, width_m: 2.55, height_m: 4, tare_t: 15.75, max_mass_t: 40 },
+            { id: 'preview-fleet-2', label: 'AA0002KA', make_model: 'DAF XF', year_made: 2016, oscpv_on: null, kasko_on: null, green_card_on: null, inspection_on: '2026-09-01', tachograph_on: '2026-10-12', service_on: null, fuel_load: 35, fuel_empty: 30, adblue_on: false, adblue_consumption: null, trailer_plate: null, trailer_type: 'тент', payload_t: 18, vehicle_type: 'Вантажний бортовий', trailer_make_model: null, length_m: 9.8, width_m: 2.5, height_m: 3.6, tare_t: 7.2, max_mass_t: 18 }
         ];
         renderVehicleNormSelect();
         refreshHistoryPlateOptions();

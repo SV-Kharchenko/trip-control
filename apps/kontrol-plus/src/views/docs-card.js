@@ -7,7 +7,7 @@ import {
     DOC_TITLES, docErrorText, docNumberText, fmtAmount, fmtMoneyPlain, fmtQty,
 } from '../lib/docs.js';
 import { partyLines, rateLine } from '../lib/pdf-docs-text.js';
-import { showError, statusBadge, pdfButton, cancelControl } from './docs.js';
+import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
 
 export function renderDocCard(app, access, id) {
     const box = h('div', null, spinner());
@@ -39,6 +39,7 @@ export function renderDocCard(app, access, id) {
                         doc.parent ? [' · до рахунку ', h('a', { href: '#/docs/' + doc.parent.id }, '№ ' + doc.parent.number_text)] : null)),
                 h('div', { class: 'actions' },
                     pdfButton(app, doc.id, 'Завантажити PDF', 'btn btn-primary'),
+                    excelButton(app, doc.id, null, 'Excel', 'btn'),
                     isInvoice && active && access.canWrite ? h('a', { class: 'btn', href: '#/docs/new/act/' + doc.client_id }, 'Створити акт') : null)),
             doc.status === 'cancelled' ? notice('Анульовано ' + fmtDate(doc.cancelled_at) + (doc.cancelled_by_email ? ' (' + doc.cancelled_by_email + ')' : '')
                 + ': ' + (doc.cancelled_reason || '—') + '. Номер не використовується повторно.', 'error') : null,
