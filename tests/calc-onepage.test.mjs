@@ -297,7 +297,7 @@ test('browser: wide form, uncut fields, sticky bar, «Детально» layout 
 test('selects and numbers keep room for their text', () => {
     assert.ok(html.includes('.tc-op-return { grid-column: span 2; }'));
     assert.ok(html.includes('.tc-op-cell select#contract-currency { width: 100%; min-width: 130px; }'));
-    assert.ok(html.includes('.tc-op-cell input[type="number"] { min-width: 90px; }'));
+    assert.ok(html.includes('.tc-op-cell input[type="number"] { min-width: 92px; }'));
 });
 
 test('browser: no clipped selects or numbers (1280 / 1024 / 390)', async (t) => {
@@ -313,9 +313,19 @@ test('browser: no clipped selects or numbers (1280 / 1024 / 390)', async (t) => 
             await page.waitForSelector('#tc-kpi-bar', { timeout: 15000 });
             const clipped = await page.evaluate(() => ['contract-currency', 'return-mode', 'dist', 'podacha-dist', 'volume', 'rate']
                 .map((id) => document.getElementById(id))
-                .filter((el) => el && (el.scrollWidth > el.clientWidth + 1 || (el.type === 'number' && el.clientWidth < 90)))
+                .filter((el) => el && (el.scrollWidth > el.clientWidth + 1 || (el.type === 'number' && el.offsetWidth < 92)))
                 .map((el) => el.id + ':' + el.clientWidth + '/' + el.scrollWidth));
             assert.deepEqual(clipped, [], 'clipped at ' + width);
+            // Текст найдовшої опції проти ширини селекта (мінус стрілка й відступи).
+            const narrow = await page.evaluate(() => ['contract-currency', 'return-mode'].map((id) => {
+                const el = document.getElementById(id);
+                const ctx = document.createElement('canvas').getContext('2d');
+                const cs = getComputedStyle(el);
+                ctx.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+                const need = Math.max(...[...el.options].map((o) => ctx.measureText(o.text).width));
+                return { id, need: Math.ceil(need), have: el.clientWidth - 28 };
+            }).filter((r) => r.need > r.have).map((r) => r.id + ':' + r.need + '>' + r.have));
+            assert.deepEqual(narrow, [], 'option text wider than the select at ' + width);
             const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
             assert.ok(overflow <= 0, 'horizontal scroll at ' + width);
             await page.close();
