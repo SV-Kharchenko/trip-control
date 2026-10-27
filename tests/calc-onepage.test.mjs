@@ -335,3 +335,17 @@ test('browser: no clipped selects or numbers (1280 / 1024 / 390)', async (t) => 
         server.close();
     }
 });
+
+test('calculator selects use short option labels with the full text in title', () => {
+    const sel = (id) => sliceBetween(html, '<select id="' + id + '"', '</select>');
+    const currency = sel('contract-currency');
+    assert.match(currency, />грн<\/option>/);
+    assert.match(currency, />\$<\/option>/);
+    assert.match(currency, />€<\/option>/);
+    assert.match(currency, /title="Валюта ставки/);
+    const ret = sel('return-mode');
+    assert.match(ret, /<option value="циклічний">🟢 Циклічний вивіз<\/option>/);
+    assert.match(ret, /<option value="разовий" selected>⚪ Разовий, без повернення<\/option>/);
+    assert.match(ret, /title="Циклічний вивіз: весь обсяг/);
+    assert.ok(html.includes('select#return-mode { width: 100% !important; min-width: 0; }'));
+});
