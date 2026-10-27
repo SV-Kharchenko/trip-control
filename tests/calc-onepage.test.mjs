@@ -258,7 +258,7 @@ test('browser: no horizontal scroll, uncut fields, no errors on load, no taxes b
             return out;
         });
         assert.deepEqual(clipped, [], 'clipped fields' + at);
-        const heights = await page.evaluate(() => [...new Set([...document.querySelectorAll('#tc-acc-body-route .tc-in')].filter((e) => e.offsetParent).map((e) => Math.round(e.getBoundingClientRect().height)))]);
+        const heights = await page.evaluate(() => [...new Set([...document.querySelectorAll('#tc-step-panel-1 .tc-in')].filter((e) => e.offsetParent).map((e) => Math.round(e.getBoundingClientRect().height)))]);
         assert.ok(heights.length <= 1, 'unequal field heights ' + heights.join(',') + at);
         const units = await page.evaluate(() => [...document.querySelectorAll('#tc-op .tc-in > .unit')].filter((u) => u.offsetParent).filter((u) => {
             const box = u.parentElement.getBoundingClientRect();
@@ -344,7 +344,8 @@ test('fix pass: currency width, A/B inside .tc-in, no empty cells, label for «�
     const paint = sliceBetween(html, 'function renderMergedRecent()', 'function renderRecentRoutes()');
     assert.match(paint, /tc-rr-km/);
     assert.match(paint, /chip\.km > 0/);
-    assert.ok(html.includes('.tc-kb-detail { background: var(--text); color: var(--bg); border-color: var(--text); }'));
+    assert.ok(html.includes('.tc-kpi-bar .btn.tc-kb-detail,'));
+    assert.match(onepage, /const slack = Math\.max\(0, document\.documentElement\.scrollHeight/);
 });
 
 test('browser: A/B height equals other fields, no empty cells, map inside the window, currency uncut (1920 / 1440)', async (t) => {
@@ -352,7 +353,7 @@ test('browser: A/B height equals other fields, no empty cells, map inside the wi
         const at = ' at ' + width + ' ' + theme;
         const heights = await page.evaluate(() => {
             const h = (el) => Math.round(el.getBoundingClientRect().height);
-            const visible = [...document.querySelectorAll('#tc-acc-body-route .tc-in')].filter((e) => e.offsetParent);
+            const visible = [...document.querySelectorAll('#tc-step-panel-1 .tc-in')].filter((e) => e.offsetParent);
             const ab = visible.filter((e) => e.classList.contains('is-addr')).map(h);
             const rest = visible.filter((e) => !e.classList.contains('is-addr')).map(h);
             return { ab, rest };
@@ -365,5 +366,25 @@ test('browser: A/B height equals other fields, no empty cells, map inside the wi
         assert.ok(map.bottom <= map.vh + 1, 'map bottom ' + map.bottom + ' > ' + map.vh + at);
         const cur = await page.evaluate(() => { const el = document.getElementById('contract-currency'); return el.clientWidth; });
         assert.ok(cur >= 76, 'currency width ' + cur + at);
+    });
+});
+
+test('browser: sticky map after scroll 600 sits under the strip inside the window; «Детально →» is dark (1920 / 1440 / 1280)', async (t) => {
+    await withPage(t, [1920, 1440, 1280], async (page, width, theme) => {
+        const at = ' at ' + width + ' ' + theme;
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.waitForTimeout(150);
+        const g = await page.evaluate(() => {
+            const map = document.querySelector('.tc-map-frame').getBoundingClientRect();
+            const bar = document.getElementById('tc-kpi-bar').getBoundingClientRect();
+            const btn = getComputedStyle(document.getElementById('kb-detail'));
+            const parse = (c) => c.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+            const lum = (c) => { const [r, g2, b] = parse(c); return 0.299 * r + 0.587 * g2 + 0.114 * b; };
+            return { top: map.top, bottom: map.bottom, barBottom: bar.bottom, vh: window.innerHeight, btnBg: lum(btn.backgroundColor), btnFg: lum(btn.color), bgRaw: btn.backgroundColor };
+        });
+        assert.ok(g.top >= g.barBottom - 2 && g.top <= g.barBottom + 28, 'map top ' + g.top + ' vs strip bottom ' + g.barBottom + at);
+        assert.ok(g.bottom <= g.vh + 1, 'map bottom ' + g.bottom + ' > ' + g.vh + at);
+        assert.ok(Math.abs(g.btnBg - g.btnFg) > 100, 'button contrast ' + g.bgRaw + at);
+        if (theme === 'light') assert.ok(g.btnBg < 90, 'button is not dark: ' + g.bgRaw + at);
     });
 });

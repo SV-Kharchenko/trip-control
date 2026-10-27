@@ -4064,6 +4064,11 @@
         #tc-op .tc-recent-list .tc-rr-km { flex: none; color: var(--muted); font-weight: 500; font-size: var(--tc-fs-s); }
         .tc-kb-detail { background: var(--text); color: var(--bg); border-color: var(--text); }
         .tc-kb-detail:hover { background: var(--text); border-color: var(--text); opacity: 0.9; }
+
+        /* Темна кнопка «Детально →»: специфічність вища за .btn і теми */
+        body.layout-studio .tc-kpi-bar .btn.tc-kb-detail,
+        body.layout-studio[data-theme] .tc-kpi-bar .btn.tc-kb-detail { background: var(--text) !important; color: var(--bg) !important; border-color: var(--text) !important; }
+        body.layout-studio .tc-kpi-bar .btn.tc-kb-detail:hover { opacity: 0.9; }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -7029,8 +7034,11 @@
         // Мапа вміщується у вікно: від свого верху (на початку — низ шапки й смуги, при скролі — під смугою) до низу екрана.
         const right = opById('studio-right');
         if (right && window.innerWidth > 900) {
-            const top = Math.max(h + stripH, right.getBoundingClientRect().top);
-            document.documentElement.style.setProperty('--tc-map-h', Math.max(320, Math.round(window.innerHeight - top - 16)) + 'px');
+            const rect = right.getBoundingClientRect();
+            const top = Math.max(h + stripH, rect.top);
+            // Запас під колонкою (відступи, футер): без нього липка мапа наприкінці сторінки впирається в низ батька й виїжджає вгору.
+            const slack = Math.max(0, document.documentElement.scrollHeight - (rect.bottom + window.scrollY));
+            document.documentElement.style.setProperty('--tc-map-h', Math.max(320, Math.round(window.innerHeight - top - 16 - slack)) + 'px');
         }
         if (!opSyncStickyTop.watching && window.ResizeObserver) {
             opSyncStickyTop.watching = true;
