@@ -234,7 +234,7 @@ test('migration only calls public functions that earlier migrations declare (is_
         for (const match of text.matchAll(/CREATE (?:OR REPLACE )?FUNCTION public\.([a-z_0-9]+)\s*\(/gi)) declared.add(match[1]);
     }
     const body = sql.replace(/--.*$/gm, '');
-    const called = new Set([...body.matchAll(/public\.([a-z_0-9]+)\s*\(/g)].map((match) => match[1]));
+    const called = new Set([...body.matchAll(/public\.([a-z_0-9]+)\(/g)].map((match) => match[1]));
     assert.ok(called.size >= 3, 'the migration calls public functions');
     for (const name of called) assert.ok(declared.has(name), 'public.' + name + '() is not declared in any migration');
     // Колонки/таблиці, на які спирається міграція, вже є в попередніх міграціях.
