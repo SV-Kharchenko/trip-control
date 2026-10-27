@@ -1,0 +1,164 @@
+<!doctype html><html lang="uk" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Калькулятор рейсу — Trip Control v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3efe6;--card:#fdfcf8;--soft:#f6f2e9;--line:#e9e3d6;--ink:#10241f;--mute:#6b7570;--gold:#b0803f;--goldbg:#f5ecdc;--green:#1f6b4a;--greenbg:#e4f0e8;--red:#a5462f;--redbg:#f8e6df;--r:16px;--field:#fff;--map1:#efe9dc;--map2:#f7f3ea;--hero:#0f2a22;--heroink:#e8f3ec;--heroacc:#6fd6a3;
+--fs:clamp(14px,.35vw + 10.5px,16px);--fs-s:clamp(12px,.2vw + 10px,13.5px);--pad:clamp(12px,2vw,32px);--h:clamp(38px,2vw + 12px,44px);--gap:clamp(12px,1.3vw,24px)}
+[data-theme=dark]{--bg:#0f1714;--card:#16211d;--soft:#1b2823;--line:#2a3a34;--ink:#e8ece9;--mute:#93a19b;--gold:#d3a35f;--goldbg:#2e2618;--green:#5fc495;--greenbg:#173326;--red:#e0866e;--redbg:#3a1f18;--field:#111b17;--map1:#17231f;--map2:#1d2b26;--hero:#0b201a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs)/1.5 Manrope,system-ui,sans-serif}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.wrap{max-width:1840px;margin:0 auto;padding:0 var(--pad)}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 0}
+.seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.seg button{border:0;background:none;padding:6px 14px;border-radius:999px;cursor:pointer;font-weight:600;font-size:var(--fs-s);color:var(--mute)}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 4px 16px rgba(16,36,31,.06);min-width:0}
+.card h3{margin:0;padding:14px 18px;font-size:var(--fs);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px}
+.view{display:none;padding-bottom:40px}.view.on{display:block}
+.btn{height:var(--h);border:1px solid var(--line);background:var(--card);border-radius:12px;padding:0 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;min-width:0}
+.btn.pri{background:var(--green);border-color:var(--green);color:#fff}.btn.gold{background:var(--gold);border-color:var(--gold);color:#fff}
+.btn.sm{height:30px;padding:0 10px;font-size:var(--fs-s);border-radius:9px}.btn.ok{background:var(--greenbg);color:var(--green);border-color:transparent}.btn.no{background:var(--redbg);color:var(--red);border-color:transparent}
+/* ---------- A. result grid ---------- */
+.rgrid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(360px,1fr);gap:var(--gap);align-items:stretch}
+.rgrid>.card{display:flex;flex-direction:column}
+.map{position:relative;flex:1;min-height:360px;border-radius:var(--r);overflow:hidden;background:repeating-linear-gradient(45deg,var(--map1) 0 18px,var(--map2) 18px 36px)}
+.map svg{position:absolute;inset:0;width:100%;height:100%}
+.legend{position:absolute;left:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:6px}
+.legend span{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:3px 9px;font-size:var(--fs-s)}
+.hero{background:var(--hero);color:var(--heroink);border-color:var(--hero);padding:20px;gap:16px}
+.hero .lab{font-size:11px;letter-spacing:.12em;opacity:.7;font-weight:700}
+.big{font-size:clamp(34px,2.6vw + 8px,52px);font-weight:700;color:var(--heroacc);line-height:1.1}
+.kp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.kp b{display:block;font-size:clamp(15px,1vw + 4px,20px)}.kp small{opacity:.65;font-size:11px}
+.be{display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,.12);padding-top:12px;font-size:var(--fs-s);flex-wrap:wrap;gap:6px}
+.chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.hero .chip{background:rgba(111,214,163,.15);color:var(--heroacc)}
+.acts{margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.acts .btn{width:100%;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);color:var(--heroink)}
+.acts .btn.pri{background:var(--heroacc);border-color:var(--heroacc);color:#0f2a22}
+.acts .btn.gold{background:var(--gold);border-color:var(--gold);color:#fff}
+.row2{margin-top:var(--gap);align-items:stretch}.row2>.card{display:flex;flex-direction:column}
+table{width:100%;border-collapse:collapse;font-size:var(--fs-s)}td,th{padding:9px 18px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--mute);font-weight:600}
+td.n,th.n{text-align:right;white-space:nowrap}.sub td{color:var(--mute)}.tot td{font-weight:800}.tot td.n{color:var(--green)}
+.tw{flex:1}.bar{display:flex;height:10px;margin:auto 18px 16px;border-radius:6px;overflow:hidden}.bar i{display:block}
+/* ---------- B. params ---------- */
+.cgrid{display:grid;grid-template-columns:minmax(440px,580px) minmax(0,1fr);gap:var(--gap);align-items:start}
+.acc summary{list-style:none;cursor:pointer;padding:14px 18px;font-weight:700;display:flex;justify-content:space-between;border-bottom:1px solid var(--line)}
+.acc .body{padding:14px 18px;display:flex;flex-direction:column;gap:10px}
+.grp{font-size:11px;letter-spacing:.1em;color:var(--mute);font-weight:700;margin-top:6px}
+.wide label{display:block;font-size:var(--fs-s);color:var(--mute);margin-bottom:4px}
+.inp{height:var(--h);border:1px solid var(--line);background:var(--field);border-radius:10px;padding:0 12px;width:100%;min-width:0}
+.addr{display:flex;gap:8px;align-items:center}
+.badge{flex:0 0 var(--h);height:var(--h);border-radius:10px;display:grid;place-items:center;font-weight:800;background:var(--goldbg);color:var(--gold);border:1px solid var(--line)}
+.badge.b{background:var(--greenbg);color:var(--green)}
+.ir{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:var(--h)}
+.ir>span{font-size:var(--fs-s);font-weight:600}
+.u{display:flex;align-items:center;width:clamp(120px,9vw,160px);height:var(--h);border:1px solid var(--line);background:var(--field);border-radius:10px;padding:0 10px 0 0;flex:0 0 auto}
+.u input{border:0;background:none;width:100%;min-width:0;text-align:right;padding:0 6px 0 10px;outline:0;font-family:"JetBrains Mono",monospace}
+.u em{font-style:normal;color:var(--mute);font-size:var(--fs-s);white-space:nowrap}
+.u.cur{width:clamp(150px,10vw,170px)}.u select{border:0;background:none;color:var(--mute);font-size:var(--fs-s)}
+.duo{display:flex;gap:8px;align-items:center}
+.tg{width:40px;height:22px;border-radius:999px;background:var(--green);position:relative;flex:0 0 auto}.tg:after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff}
+.note{font-size:var(--fs-s);color:var(--mute);padding:14px 18px}
+/* ---------- C. history ---------- */
+.ht{table-layout:fixed}.ht td{vertical-align:middle}
+.ht .c-d{width:13%}.ht .c-r{width:auto}.ht .c-l{width:14%}.ht .c-p{width:13%}.ht .c-s{width:15%}.ht .c-a{width:20%}
+.ht td{overflow-wrap:anywhere}.ht .rt small{display:block;color:var(--mute)}
+.st-p{background:var(--goldbg);color:var(--gold)}.st-a{background:var(--greenbg);color:var(--green)}.st-r{background:var(--redbg);color:var(--red)}
+.ad{display:flex;gap:6px;flex-wrap:wrap}
+.muted{color:var(--mute)}
+@media(max-width:1180px){.rgrid,.cgrid{grid-template-columns:minmax(0,1fr)}.ht .c-l{width:12%}td,th{padding:9px 10px}}
+</style></head><body>
+<div class="wrap">
+<div class="top">
+ <div class="seg" id="tabs"><button data-v="calc">Розрахунок</button><button data-v="res" class="on">Результат</button><button data-v="hist">Історія заявок</button></div>
+ <div style="display:flex;gap:8px;flex-wrap:wrap">
+  <div class="seg" id="role"><button data-r="log" class="on">Логіст</button><button data-r="dir">Директор</button></div>
+  <div class="seg" id="theme"><button data-t="light" class="on">Світла</button><button data-t="dark">Темна</button></div>
+ </div>
+</div>
+
+<!-- A. RESULT -->
+<section class="view on" id="v-res">
+ <div class="rgrid" id="row1">
+  <div class="card" style="padding:0">
+   <div class="map">
+    <svg viewBox="0 0 600 340" preserveAspectRatio="none"><path d="M150 110 C220 120 300 130 340 130 S430 150 450 155" stroke="#10241f" stroke-width="5" fill="none"/><path d="M150 110 L160 190 L220 160 L340 130" stroke="#b0803f" stroke-width="4" fill="none"/>
+    <circle cx="150" cy="110" r="10" fill="#10241f"/><circle cx="450" cy="155" r="10" fill="#10241f"/><circle cx="105" cy="165" r="10" fill="#1f6b4a"/></svg>
+    <div class="legend"><span>П Львів → А Луцьк → В вул. Шевченка</span><span class="mono">897 км</span><span class="mono">≈ 12 год 56 хв</span><span class="mono">подача 152 км</span></div>
+   </div>
+  </div>
+  <div class="card hero">
+   <div><div class="lab">ЧИСТИЙ ПРИБУТОК</div><div class="big mono">44 648 грн</div></div>
+   <div class="kp mono"><div><b>43</b><small>грн/км</small></div><div><b>14 883</b><small>грн/добу</small></div><div><b>2 232</b><small>грн/т</small></div><div><b>32.4%</b><small>рентабельність</small></div></div>
+   <div class="be"><span>Беззбитковість <b class="mono">2 268 грн/т</b> · маржа 1 768 · EBITDA 1 786</span><span class="chip">Запас +2 232 грн/т</span></div>
+   <div class="acts">
+    <button class="btn gold" id="send">Відправити на погодження</button><button class="btn pri">Зберегти розрахунок</button>
+    <button class="btn">Експорт у PDF</button><button class="btn">Експорт у Excel</button>
+    <button class="btn">Надіслати у Viber</button><button class="btn">Надіслати в Telegram</button>
+   </div>
+  </div>
+ </div>
+ <div class="rgrid row2" id="row2">
+  <div class="card"><h3>Від доходу до прибутку</h3><div class="tw"><table>
+   <tr><td>Дохід</td><td class="n mono"><b>165 600 грн</b></td></tr><tr class="sub"><td>− ПДВ (довідково)</td><td class="n mono">27 600 грн</td></tr>
+   <tr><td>Чистий дохід</td><td class="n mono"><b>138 000 грн</b></td></tr><tr class="sub"><td>− Змінні витрати</td><td class="n mono">83 367 грн</td></tr>
+   <tr><td><b>Маржинальний дохід</b></td><td class="n mono"><b>54 633 грн</b></td></tr><tr class="sub"><td>− Накладні</td><td class="n mono">345 грн</td></tr>
+   <tr><td><b>EBITDA</b></td><td class="n mono"><b>54 288 грн</b></td></tr><tr class="sub"><td>− Амортизація, податки</td><td class="n mono">9 640 грн</td></tr>
+   <tr class="tot"><td>Чистий прибуток</td><td class="n mono">44 648 грн</td></tr></table></div>
+   <div class="bar"><i style="width:50%;background:#b0803f"></i><i style="width:23%;background:#1f6b4a"></i><i style="width:4%;background:#7fb8a8"></i><i style="width:23%;background:#d8cdb4"></i></div></div>
+  <div class="card"><h3>Статті витрат <span class="mono">93 352 грн</span></h3><div class="tw"><table>
+   <tr><th>Стаття</th><th class="n">Сума</th><th class="n">На 1 т</th><th class="n">Частка</th></tr>
+   <tr><td>Пальне (ДП завантажений + порожній + подача)</td><td class="n mono">64 070</td><td class="n mono">3 204</td><td class="n mono">68.6%</td></tr>
+   <tr><td>Рідина AdBlue</td><td class="n mono">912</td><td class="n mono">46</td><td class="n mono">1.0%</td></tr>
+   <tr><td>Зарплата екіпажу + ЄСВ (22%) + добові</td><td class="n mono">14 930</td><td class="n mono">747</td><td class="n mono">16.0%</td></tr>
+   <tr><td>ТО, шини та ремонти</td><td class="n mono">3 455</td><td class="n mono">173</td><td class="n mono">3.7%</td></tr>
+   <tr><td>Накладні до EBITDA</td><td class="n mono">345</td><td class="n mono">17</td><td class="n mono">0.4%</td></tr>
+   <tr><td>Амортизація та фінансові витрати</td><td class="n mono">9 640</td><td class="n mono">482</td><td class="n mono">10.3%</td></tr>
+   <tr class="sub"><td>Податки (ФОП / ПДВ) — довідково</td><td class="n mono">27 600</td><td class="n mono">1 380</td><td class="n">—</td></tr></table></div>
+   <div class="note">Суми в грн. ПДВ не входить у чистий дохід.</div></div>
+ </div>
+</section>
+
+<!-- B. CALC -->
+<section class="view" id="v-calc">
+ <div class="cgrid">
+  <details class="card acc" open><summary>Параметри заявки <span class="muted">▾</span></summary><div class="body">
+   <div class="wide"><label>Назва заявки</label><input class="inp" value="Луцьк — Котляри, зерно 20 т"></div>
+   <div class="grp">МАРШРУТ</div>
+   <div class="wide"><label>Звідки</label><div class="addr"><span class="badge">A</span><input class="inp" value="Луцьк, Волинська область, Україна"></div></div>
+   <div class="wide"><label>Куди</label><div class="addr"><span class="badge b">B</span><input class="inp" value="вул. Шевченка, Котляри, Харківська область, Україна"></div></div>
+   <div class="ir"><span>Відстань</span><label class="u"><input value="542"><em>км</em></label></div>
+   <div class="ir"><span>Подача авто</span><label class="u"><input value="40"><em>км</em></label></div>
+   <div class="grp">ВАНТАЖ І ТАРИФ</div>
+   <div class="ir"><span>Вага</span><label class="u"><input value="20"><em>т</em></label></div>
+   <div class="ir"><span>Розцінка</span><label class="u cur"><input value="8 280"><select><option>грн/т</option><option>€/т</option></select></label></div>
+   <div class="ir"><span>Ціна пального</span><label class="u"><input value="57.90"><em>грн/л</em></label></div>
+   <div class="ir"><span>Витрата завантаженим</span><label class="u"><input value="34"><em>л/100</em></label></div>
+   <div class="ir"><span>AdBlue</span><div class="duo"><span class="tg"></span><label class="u"><input value="2.85"><em>л/100км</em></label></div></div>
+   <div class="ir"><span>Днів у рейсі</span><label class="u"><input value="3"><em>діб</em></label></div>
+  </div></details>
+  <div class="card"><h3>Попередній результат <span class="mono" style="color:var(--green)">44 648 грн</span></h3><div class="note">Правило v3: числові поля — інлайн-рядок «підпис ↔ поле 120–160 px з одиницею всередині». На всю ширину лише назва заявки та адреси. Літери A/B — окремий чип фіксованої ширини, текст не перекривається.</div></div>
+ </div>
+</section>
+
+<!-- C. HISTORY -->
+<section class="view" id="v-hist">
+ <div class="card"><h3>Історія заявок <span class="muted" id="rl">Вигляд: логіст</span></h3>
+ <table class="ht"><colgroup><col class="c-d"><col class="c-r"><col class="c-l"><col class="c-p"><col class="c-s"><col class="c-a"></colgroup>
+ <tr><th>Дата</th><th>Назва / маршрут</th><th>Логіст</th><th class="n">Прибуток</th><th>Статус</th><th>Дії</th></tr>
+ <tbody id="hb"></tbody></table></div>
+</section>
+</div>
+<script>
+const rows=[["27.10.2026","Луцьк — Котляри","Луцьк → Котляри (Харківська обл.), 897 км","О. Мельник","44 648","p"],["26.10.2026","Львів — Київ, метал","Львів → Київ, 540 км","І. Коваль","21 310","a"],["25.10.2026","Рівне — Одеса","Рівне → Одеса, 780 км","О. Мельник","−3 120","r"],["25.10.2026","Тернопіль — Дніпро, зерно","Тернопіль → Дніпро, 820 км","І. Коваль","30 905","p"],["24.10.2026","Житомир — Полтава","Житомир → Полтава, 470 км","О. Мельник","15 402","a"]];
+const S={p:["На погодженні","st-p"],a:["Прийнята","st-a"],r:["Відхилена","st-r"]};
+let role="log";
+function draw(){document.getElementById("hb").innerHTML=rows.map(r=>{let a="";if(role=="dir")a=r[5]=="p"?'<button class="btn sm ok">Погодити</button><button class="btn sm no">Відхилити</button>':'<span class="muted">—</span>';else a=r[5]!="a"?'<button class="btn sm">Видалити</button>':'<span class="muted">—</span>';
+return `<tr><td class="mono">${r[0]}</td><td class="rt"><b>${r[1]}</b><small>${r[2]}</small></td><td>${r[3]}</td><td class="n mono">${r[4]} грн</td><td><span class="chip ${S[r[5]][1]}">${S[r[5]][0]}</span></td><td><div class="ad">${a}</div></td></tr>`}).join("");
+document.getElementById("rl").textContent="Вигляд: "+(role=="dir"?"директор":"логіст");document.getElementById("send").style.display=role=="log"?"":"none"}
+function seg(id,fn){document.querySelectorAll("#"+id+" button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#"+id+" button").forEach(x=>x.classList.remove("on"));b.classList.add("on");fn(b.dataset)})}
+seg("tabs",d=>{document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on",v.id=="v-"+d.v))});
+seg("role",d=>{role=d.r;draw()});seg("theme",d=>document.documentElement.dataset.theme=d.t);
+const q=new URLSearchParams(location.search);draw();
+if(q.get("role"))document.querySelector(`#role [data-r=${q.get("role")}]`).click();if(q.get("v"))document.querySelector(`#tabs [data-v=${q.get("v")}]`).click();if(q.get("theme"))document.querySelector(`#theme [data-t=${q.get("theme")}]`).click();
+</script></body></html>

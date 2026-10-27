@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 import { buildInviteEmail, joinedMessage, sendInviteEmail } from '../lib/invite-mail.js';
 import { sendTelegram, statusKeyboard } from '../lib/signup-notify.js';
+import { cleanRejectReason, planDelete, planTransition } from '../lib/approvals.js';
 
 // Logist seats only. The owner is a fourth person and does not consume one.
 const MAX_TEAM_SEATS = 3;
@@ -964,8 +965,106 @@ export function createTeamService(deps) {
         return { ok: true, logists_see_all: enabled };
     }
 
+    // ---- Погодження заявок (календар «Історія заявок»). Роль перевіряється тут і тригером бази. ----
+    async function loadCalculation(actor, id) {
+        const calcId = String(id || '');
+        if (!UUID_RE.test(calcId)) throw new HttpError(400, 'BAD_CALC_ID', 'Некоректна заявка.');
+        const { data, error } = await supabase
+            .from('calculations')
+            .select('id, org_id, user_id, status')
+            .eq('id', calcId)
+            .eq('org_id', actor.profile.org_id)
+            .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new HttpError(404, 'CALC_NOT_FOUND', 'Заявку не знайдено.');
+        return data;
+    }
+
+    function approvalContext(actor, calc) {
+        return {
+            role: actor.profile.org_role,
+            isAuthor: calc.user_id === actor.user.id,
+            soloMode: (actor.profile.organizations && actor.profile.organizations.work_mode) === 'solo'
+        };
+    }
+
+    function denyFrom(plan) {
+        return new HttpError(plan.status, plan.code, plan.message);
+    }
+
+    async function moveCalculation(actor, calc, to, extra = {}) {
+        const plan = planTransition(approvalContext(actor, calc), calc.status, to);
+        if (!plan.ok) throw denyFrom(plan);
+        const stamp = new Date(now()).toISOString();
+        const patch = { status: to, ...extra };
+        if (to === 'pending') Object.assign(patch, { submitted_at: stamp, decided_by: null, decided_at: null, reject_reason: null });
+        if (to === 'accepted' || to === 'rejected') {
+            patch.decided_by = actor.user.id;
+            patch.decided_at = stamp;
+        }
+        // .eq('status', ...) не дає двом рішенням затертись: хто встиг першим, той і вирішив.
+        const { data, error } = await supabase
+            .from('calculations')
+            .update(patch)
+            .eq('id', calc.id)
+            .eq('org_id', actor.profile.org_id)
+            .eq('status', calc.status)
+            .select('id, status')
+            .maybeSingle();
+        if (error) {
+            if (String(error.code) === '42501' || String(error.message || '').includes('APPROVAL_FORBIDDEN')) {
+                throw new HttpError(403, 'APPROVAL_FORBIDDEN', 'Немає прав на цю зміну статусу.');
+            }
+            throw error;
+        }
+        if (!data) throw new HttpError(409, 'STATUS_CHANGED', 'Статус заявки вже змінився. Оновіть сторінку.');
+        await audit(actor.user.id, actor.profile.org_id, 'calc_' + to, 'calculations', calc.id, { from: calc.status, to });
+        return { ok: true, id: calc.id, status: data.status };
+    }
+
+    async function submitCalc(actor, body) {
+        const calc = await loadCalculation(actor, body.id);
+        return moveCalculation(actor, calc, 'pending');
+    }
+
+    async function decideCalc(actor, body) {
+        const decision = String(body.decision || '');
+        if (decision !== 'accepted' && decision !== 'rejected') {
+            throw new HttpError(400, 'BAD_DECISION', 'Невідоме рішення.');
+        }
+        const calc = await loadCalculation(actor, body.id);
+        const extra = decision === 'rejected' ? { reject_reason: cleanRejectReason(body.reason) } : { reject_reason: null };
+        return moveCalculation(actor, calc, decision, extra);
+    }
+
+    async function completeCalc(actor, body) {
+        const calc = await loadCalculation(actor, body.id);
+        return moveCalculation(actor, calc, 'done');
+    }
+
+    async function deleteCalc(actor, body) {
+        const calc = await loadCalculation(actor, body.id);
+        const plan = planDelete(approvalContext(actor, calc), calc.status);
+        if (!plan.ok) throw denyFrom(plan);
+        const { data, error } = await supabase
+            .from('calculations')
+            .delete()
+            .eq('id', calc.id)
+            .eq('org_id', actor.profile.org_id)
+            .not('status', 'in', '(accepted,done)')
+            .select('id');
+        if (error) throw error;
+        if (!data || !data.length) throw new HttpError(409, 'STATUS_CHANGED', 'Статус заявки вже змінився. Оновіть сторінку.');
+        await audit(actor.user.id, actor.profile.org_id, 'calc_deleted', 'calculations', calc.id, { status: calc.status });
+        return { ok: true, id: calc.id };
+    }
+
     return {
         requireUser,
+        submitCalc,
+        decideCalc,
+        completeCalc,
+        deleteCalc,
         listTeam,
         inviteMember,
         inviteInfo,
@@ -1020,6 +1119,10 @@ export function createTeamHandler(deps) {
             else if (action === 'resend') result = await service.resendInvite(actor, body);
             else if (action === 'set_work_mode') result = await service.setWorkMode(actor, body);
             else if (action === 'set_logists_see_all') result = await service.setVisibility(actor, body);
+            else if (action === 'calc_submit') result = await service.submitCalc(actor, body);
+            else if (action === 'calc_decide') result = await service.decideCalc(actor, body);
+            else if (action === 'calc_complete') result = await service.completeCalc(actor, body);
+            else if (action === 'calc_delete') result = await service.deleteCalc(actor, body);
             else throw new HttpError(400, 'UNKNOWN_ACTION', 'Невідома дія.');
 
             return res.status(200).json(result);

@@ -4099,6 +4099,97 @@
         .tc-in > select.cur { min-width: 76px; }
         .tc-f-rate .tc-in > input { min-width: 70px; }
         @media (max-width: 340px) { .tc-sg.nums { grid-template-columns: minmax(0, 1fr); } }
+
+        /* ===== v3: сторінка результату, числові поля рядком, A/B-бейдж, Історія заявок, модал ===== */
+        body.layout-studio { --tc-gap: clamp(12px, 1.3vw, 24px); }
+        .tc-in > select.cur { min-width: 84px; }
+        .btn-gold { background: var(--gold); border-color: var(--gold); color: #fff; font-weight: 700; }
+        .btn-gold[hidden] { display: none !important; }
+
+        /* A/B: окремий бейдж зліва, текст адреси ніколи не лізе під літеру */
+        .tc-addr { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .tc-addr > .tc-in.is-addr { flex: 1 1 auto; min-width: 0; }
+        .tc-badge { flex: 0 0 var(--tc-h); width: var(--tc-h); height: var(--tc-h); box-sizing: border-box; display: grid; place-items: center; border-radius: 10px; font-weight: 800; background: color-mix(in srgb, var(--gold) 16%, transparent); color: var(--gold); border: 1px solid var(--border); }
+        .tc-badge.is-b { background: color-mix(in srgb, var(--positive) 16%, transparent); color: var(--positive); }
+        .tc-in.is-addr .tc-ac > input { padding-left: 12px; }
+        .tc-in.is-addr gmp-place-autocomplete { padding-left: 4px; }
+
+        /* Правило v3: числові поля — рядок «підпис ↔ вузьке поле з одиницею всередині» (120–160 px), на всю ширину лише назва й адреси */
+        #tc-op .form-row:has(> .tc-in > input[type="number"]) { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--tc-h); }
+        #tc-op .form-row:has(> .tc-in > input[type="number"]) > label { flex: 1 1 auto; min-width: 0; white-space: normal; overflow: visible; color: var(--text); font-size: var(--tc-fs-s); }
+        #tc-op .form-row:has(> .tc-in > input[type="number"]) > .tc-in { flex: 0 0 auto; width: clamp(120px, 9vw, 160px); }
+        #tc-op .tc-f-rate .form-row > .tc-in { width: clamp(160px, 10.5vw, 170px); }
+        #tc-op .tc-in > input[type="number"] { text-align: right; font-family: var(--font-mono); -moz-appearance: textfield; appearance: textfield; }
+        #tc-op .tc-in > input[type="number"]::-webkit-outer-spin-button, #tc-op .tc-in > input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        #tc-op .tc-sg:has(> .tc-f > .form-row > .tc-in > input[type="number"]), #tc-op .tc-sg:has(> .form-row > .tc-in > input[type="number"]), #tc-op .tc-sg.nums, #tc-op .tc-op-sub { grid-template-columns: minmax(0, 1fr); }
+        .tc-acc-body .tc-fuel-compact { grid-template-columns: minmax(0, 1fr); }
+        #tc-op .tc-f-rate .tc-in > input[type="number"] { min-width: 70px; }
+
+        /* Сторінка результату: одна сітка, ряд 1 (мапа + картка прибутку) і ряд 2 однакової висоти */
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-columns { padding-bottom: var(--tc-pad); }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right {
+            display: grid !important; grid-template-columns: minmax(0, 1.55fr) minmax(360px, 1fr); gap: var(--tc-gap); align-items: stretch;
+        }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-back { grid-column: 1 / -1 !important; grid-row: 1 !important; justify-self: start; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-map-frame {
+            grid-column: 1 !important; grid-row: 2 !important; position: relative; top: auto; height: auto !important; min-height: 360px !important; align-self: stretch; overflow: hidden;
+        }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-map-frame #map,
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-map-frame .lock-ph { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-side {
+            grid-column: 2 !important; grid-row: 2 !important; align-self: stretch; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 20px;
+            background: color-mix(in srgb, var(--positive) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--positive) 35%, var(--border)); border-radius: var(--radius-card);
+        }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > #dispatcher-result { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar { margin-top: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar .btn { width: 100%; min-width: 0; justify-content: center; white-space: normal; }
+        #tc-result-actions > #tc-send-approval[hidden] + .btn-success { grid-column: 1 / -1; }
+        #tc-result-actions > .btn-locked { grid-column: 1 / -1; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual {
+            grid-column: 1 / -1 !important; grid-row: 3 !important; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tc-gap); align-items: stretch;
+        }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual > .card { display: flex; flex-direction: column; margin: 0; min-width: 0; }
+        body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual > .card .tc-costs-table-wrap { flex: 1 1 auto; }
+        @media (max-width: 1180px) {
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right { grid-template-columns: minmax(0, 1fr); }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-map-frame { grid-column: 1 !important; grid-row: 2 !important; min-height: 320px !important; }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-side { grid-column: 1 !important; grid-row: 3 !important; }
+            body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual { grid-row: 4 !important; grid-template-columns: minmax(0, 1fr); }
+        }
+
+        /* Історія заявок: статуси, фіксована таблиця без горизонтального скролу */
+        .tc-status.is-pending { color: var(--gold); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); }
+        .tc-status.is-accepted, .tc-status.is-done { background: color-mix(in srgb, var(--positive) 12%, transparent); }
+        .tc-status.is-rejected { background: color-mix(in srgb, var(--negative) 12%, transparent); }
+        .tc-history-reason { display: block; margin-top: 3px; color: var(--muted); font-size: 0.7rem; white-space: normal; overflow-wrap: anywhere; }
+        .tc-history-actions button.is-ok { color: var(--positive); border-color: var(--positive); }
+        body.layout-studio #saved-table { table-layout: fixed; width: 100%; font-size: var(--tc-fs-s); }
+        body.layout-studio #saved-table col.c-d { width: 12%; }
+        body.layout-studio #saved-table col.c-r { width: auto; }
+        body.layout-studio #saved-table col.c-l { width: 15%; }
+        body.layout-studio #saved-table col.c-p { width: 13%; }
+        body.layout-studio #saved-table col.c-s { width: 14%; }
+        body.layout-studio #saved-table col.c-a { width: 22%; }
+        body.layout-studio #saved-table th, body.layout-studio #saved-table td,
+        body.layout-studio[data-studio-view="history"] #saved-table th, body.layout-studio[data-studio-view="history"] #saved-table td {
+            white-space: normal; overflow-wrap: anywhere; word-break: normal; height: auto; padding: 9px 10px; vertical-align: middle; text-align: left;
+        }
+        body.layout-studio #saved-table td.tc-history-route, body.layout-studio[data-studio-view="history"] #saved-table td.tc-history-route { min-width: 0; }
+        body.layout-studio #saved-table td small { display: block; color: var(--muted); }
+        body.layout-studio #saved-table td.c-p .tc-history-num { display: block; }
+        body.layout-studio #saved-table .tc-history-actions, body.layout-studio[data-studio-view="history"] #saved-table .tc-history-actions { flex-wrap: wrap; min-width: 0; max-width: none; }
+        body.layout-studio #saved-table .tc-history-actions button { min-height: 34px; padding: 4px 8px; }
+        body.layout-studio #saved-section .comparison-table { overflow-x: visible; }
+
+        /* Власний модал (без confirm/alert) */
+        .tc-modal { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.45); }
+        .tc-modal-card { width: min(100%, 420px); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px; display: grid; gap: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3); }
+        .tc-modal-card h3 { margin: 0; font-size: 1.05rem; }
+        .tc-modal-card p { margin: 0; color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+        .tc-modal-field { display: grid; gap: 6px; font-size: 0.78rem; color: var(--muted); }
+        .tc-modal-field textarea { width: 100%; box-sizing: border-box; text-align: left; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--input); color: var(--text); }
+        .tc-modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+        .btn.btn-danger { background: var(--negative); border-color: var(--negative); color: #fff; }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -4446,7 +4537,7 @@
           <div style="display:flex;gap:6px;align-items:center"><span class="lp-mini-btn">Факт</span><span style="font-size:12px;color:var(--muted)">доби, пробіг, простій і витрати рейсу поруч із планом</span></div>
         </div>
         <div class="lp-txt">
-          <h3>Історія рейсів і план/факт</h3>
+          <h3>Історія заявок і план/факт</h3>
           <p>Збережені розрахунки зі статусами. Для прийнятого чи виконаного рейсу вносиш факт і бачиш, де план розійшовся з реальністю.</p>
         </div>
       </article>
@@ -4630,7 +4721,7 @@
       </details>
       <details>
         <summary>Що буде з даними, коли оплата закінчиться?</summary>
-        <p>Компанія переходить у демо-режим. Історія рейсів, автопарк і команда зберігаються, повний доступ до них повертається після оплати.</p>
+        <p>Компанія переходить у демо-режим. Історія заявок, автопарк і команда зберігаються, повний доступ до них повертається після оплати.</p>
       </details>
       <details>
         <summary>Чи можна повернути гроші?</summary>
@@ -4908,7 +4999,7 @@
             <nav class="tc-studio-nav" aria-label="Розділи">
                 <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
-                <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Історія рейсів</button>
+                <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Історія заявок</button>
             </nav>
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
@@ -5558,7 +5649,7 @@
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
         <button type="button" class="tc-history-toggle" id="history-toggle" aria-expanded="false" aria-controls="history-panel" onclick="toggleHistory()">
-            <span>Історія рейсів</span>
+            <span>Історія заявок</span>
             <span class="tc-history-count" id="history-count"></span>
             <span class="tc-history-chev" aria-hidden="true">▾</span>
         </button>
@@ -5571,10 +5662,10 @@
             <select id="history-status" aria-label="Статус" onchange="historyPage=0;renderSavedTable()">
                 <option value="">Усі статуси</option>
                 <option value="draft">Чернетка</option>
-                <option value="proposed">Запропоновано</option>
-                <option value="accepted">Прийнято</option>
-                <option value="rejected">Відхилено</option>
-                <option value="done">Виконано</option>
+                <option value="pending">На погодженні</option>
+                <option value="accepted">Прийнята</option>
+                <option value="rejected">Відхилена</option>
+                <option value="done">Виконана</option>
             </select>
             <select id="history-plate" aria-label="Авто" onchange="historyPage=0;renderSavedTable()">
                 <option value="">Усі авто</option>
@@ -5670,26 +5761,19 @@
         </div>
         <div class="comparison-table">
             <table id="saved-table">
+                <colgroup><col class="c-d"><col class="c-r"><col class="c-l"><col class="c-p"><col class="c-s"><col class="c-a"></colgroup>
                 <thead>
                     <tr>
-                        <th>Дата</th>
-                        <th class="team-feature">Автор</th>
-                        <th>Маршрут</th>
-                        <th>Км</th>
-                        <th>Авто</th>
-                        <th>Тонаж</th>
-                        <th>Час</th>
-                        <th>Ставка</th>
-                        <th>Дохід</th>
-                        <th>Прибуток</th>
-                        <th>Факт</th>
-                        <th>грн/км</th>
-                        <th>Статус</th>
-                        <th>Дії</th>
+                        <th class="c-d">Дата</th>
+                        <th class="c-r">Назва / маршрут</th>
+                        <th class="c-l">Логіст</th>
+                        <th class="c-p">Прибуток</th>
+                        <th class="c-s">Статус</th>
+                        <th class="c-a">Дії</th>
                     </tr>
                 </thead>
                 <tbody id="saved-tbody">
-                    <tr><td colspan="13" style="text-align: center; color: var(--text-muted);">Немає збережених розрахунків.</td></tr>
+                    <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Немає збережених заявок.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -5707,6 +5791,7 @@
     </div>
 
     <div class="actions-bar" id="tc-result-actions" aria-label="Дії з розрахунком">
+        <button class="btn btn-gold" type="button" id="tc-send-approval" onclick="sendCurrentForApproval()" hidden>Відправити на погодження</button>
         <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
         <button class="btn full-only" onclick="window.print()">📄 Експорт у PDF</button>
         <button class="btn full-only" onclick="exportExcel()">📊 Експорт у Excel</button>
@@ -6727,14 +6812,17 @@
             const row = pair[0];
             const control = row ? Array.prototype.filter.call(row.children, function (el) { return el.matches('.tc-ac, [id$="-wrap"]'); })[0] : null;
             if (!control) return;
-            const box = document.createElement('div');
-            box.className = 'tc-in is-addr';
+            const wrap = document.createElement('div');
+            wrap.className = 'tc-addr';
             const mark = document.createElement('span');
-            mark.className = 'ic';
+            mark.className = 'tc-badge' + (pair[1] === 'B' ? ' is-b' : '');
             mark.textContent = pair[1];
             mark.setAttribute('aria-hidden', 'true');
-            row.insertBefore(box, control);
-            box.appendChild(mark);
+            const box = document.createElement('div');
+            box.className = 'tc-in is-addr';
+            row.insertBefore(wrap, control);
+            wrap.appendChild(mark);
+            wrap.appendChild(box);
             box.appendChild(control);
         });
         // Тариф + валюта в одному полі: select валюти — суфікс всередині рамки, підпис «грн/т» ховаємо (id лишається для коду).
@@ -7452,6 +7540,7 @@
         return src.slice(0, 2).toUpperCase();
     }
     function syncHeaderChrome() {
+        syncApprovalUi();
         const logistView = viewIsLogist();
         document.body.classList.toggle('view-logist', logistView);
         document.body.classList.toggle('view-director', !logistView);
@@ -12792,7 +12881,7 @@
             let error = null;
             const full = await supabaseClient
                 .from('calculations')
-                .select('id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days')
+                .select('id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days, submitted_at, decided_at, decided_by, reject_reason')
                 .order('created_at', { ascending: false });
             data = full.data;
             error = full.error;
@@ -12823,7 +12912,11 @@
                 trailerType: (r.results && r.results.trailerType) || r.trailer_type,
                 vehiclesCount: r.vehicles_count,
                 tonnage: r.tonnage,
-                tripDays: r.trip_days
+                tripDays: r.trip_days,
+                submittedAt: r.submitted_at || null,
+                decidedAt: r.decided_at || null,
+                decidedBy: r.decided_by || null,
+                rejectReason: r.reject_reason || ''
             }));
             await loadCalcVehicleLinks();
             await loadRouteTemplates();
@@ -12935,6 +13028,7 @@
         if (!currentOrgId) { showToast('Не вдалося визначити компанію. Оновіть сторінку.', 3600); return; }
         const snapshot = Object.assign({}, lastCalcData);
         const keptClient = clientNameValue();
+        let savedId = null;
         const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces());
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
@@ -12960,6 +13054,7 @@
             }));
             renderSavedTable();
             showToast(linkNote || 'Розрахунок збережено', linkNote ? 4200 : 2200);
+            savedId = data.id;
         } catch (e) {
             const message = dbErrorText(e);
             if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) showToast(demoSaveLimitText(), 4200);
@@ -12976,24 +13071,125 @@
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' }
             }).then(res => console.log('Успішно відправлено у Google Таблицю!')).catch(err => console.error('Помилка відправки:', err));
         }
+        return savedId;
     }
 
     async function removeSaved(id) {
-        if (historyDeleteId !== id) {
-            historyDeleteId = id;
-            renderSavedTable();
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return;
+        const status = historyFields(row).status;
+        if (status === 'accepted' || status === 'done') {
+            showToast('Прийняту заявку видалити не можна.', 3600, 'error');
             return;
         }
-        historyDeleteId = null;
+        const answer = await tcModal({
+            title: 'Видалити заявку?',
+            text: historyRouteLabel(historyFields(row)) + ' буде видалено без можливості відновлення.',
+            confirmText: 'Видалити',
+            danger: true
+        });
+        if (!answer.ok) return;
         try {
-            const { error } = await supabaseClient.from('calculations').delete().eq('id', id);
-            if (error) throw error;
+            if (!uiPreview) await teamApi('POST', { action: 'calc_delete', id: id });
             savedCalculations = savedCalculations.filter(c => c.id !== id);
             renderSavedTable();
-            showToast('Розрахунок видалено');
+            showToast('Заявку видалено');
         } catch (e) {
-            showToast('Не вдалося видалити розрахунок.');
+            showToast(approvalErrorText(e), 4200, 'error');
         }
+    }
+
+    // ===== Погодження заявок: сервер (api/team.js + тригер у базі) вирішує, хто що може =====
+    function approvalErrorText(e) {
+        const code = String((e && e.code) || '');
+        if (code === 'OWNER_ONLY') return 'Погоджувати чи відхиляти заявки може лише директор.';
+        if (code === 'ACCEPTED_LOCKED') return 'Прийняту заявку видалити не можна.';
+        return String((e && e.message) || 'Не вдалося виконати дію із заявкою.');
+    }
+    function tcModal(options) {
+        return new Promise(function (resolve) {
+            const previous = document.activeElement;
+            const overlay = document.createElement('div');
+            overlay.className = 'tc-modal';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-labelledby', 'tc-modal-title');
+            overlay.innerHTML = '<div class="tc-modal-card">' +
+                '<h3 id="tc-modal-title">' + escHtml(options.title) + '</h3>' +
+                '<p>' + escHtml(options.text || '') + '</p>' +
+                (options.input ? '<label class="tc-modal-field">' + escHtml(options.inputLabel || '') + '<textarea id="tc-modal-input" maxlength="500" rows="3"></textarea></label>' : '') +
+                '<div class="tc-modal-actions">' +
+                '<button type="button" class="btn" data-act="cancel">Скасувати</button>' +
+                '<button type="button" class="btn ' + (options.danger ? 'btn-danger' : 'btn-success') + '" data-act="ok">' + escHtml(options.confirmText || 'Так') + '</button>' +
+                '</div></div>';
+            const finish = function (ok) {
+                const field = overlay.querySelector('#tc-modal-input');
+                const value = field ? field.value.trim() : '';
+                overlay.remove();
+                document.removeEventListener('keydown', onKey, true);
+                if (previous && previous.focus) previous.focus();
+                resolve({ ok: ok, value: value });
+            };
+            const onKey = function (event) {
+                if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+            };
+            overlay.addEventListener('click', function (event) {
+                if (event.target === overlay) finish(false);
+                const act = event.target && event.target.getAttribute ? event.target.getAttribute('data-act') : null;
+                if (act === 'ok') finish(true);
+                if (act === 'cancel') finish(false);
+            });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(overlay);
+            const focusTarget = overlay.querySelector('#tc-modal-input') || overlay.querySelector('[data-act="ok"]');
+            if (focusTarget) focusTarget.focus();
+        });
+    }
+    async function runApproval(id, action, body, nextStatus, okText, extra) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return false;
+        try {
+            if (!uiPreview) await teamApi('POST', Object.assign({ action: action, id: id }, body || {}));
+            row.status = nextStatus;
+            if (nextStatus === 'pending') { row.submittedAt = new Date().toISOString(); row.rejectReason = ''; }
+            if (nextStatus === 'accepted' || nextStatus === 'rejected') row.decidedAt = new Date().toISOString();
+            if (extra) Object.assign(row, extra);
+            renderSavedTable();
+            showToast(okText, 2400, 'ok');
+            return true;
+        } catch (e) {
+            showToast(approvalErrorText(e), 4200, 'error');
+            return false;
+        }
+    }
+    async function submitForApproval(id) {
+        return runApproval(id, 'calc_submit', null, 'pending', 'Заявку відправлено на погодження');
+    }
+    async function approveRequest(id) {
+        return runApproval(id, 'calc_decide', { decision: 'accepted' }, 'accepted', 'Заявку прийнято');
+    }
+    async function rejectRequest(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return false;
+        const answer = await tcModal({
+            title: 'Відхилити заявку?',
+            text: historyRouteLabel(historyFields(row)),
+            input: true,
+            inputLabel: 'Причина (необов’язково)',
+            confirmText: 'Відхилити',
+            danger: true
+        });
+        if (!answer.ok) return false;
+        return runApproval(id, 'calc_decide', { decision: 'rejected', reason: answer.value }, 'rejected', 'Заявку відхилено', { rejectReason: answer.value });
+    }
+    // Кнопка на сторінці результату: зберегти розрахунок і відразу подати на погодження.
+    async function sendCurrentForApproval() {
+        const id = await saveCalculation();
+        if (id) await submitForApproval(id);
+    }
+    function syncApprovalUi() {
+        const send = document.getElementById('tc-send-approval');
+        if (send) send.hidden = approvalRole() !== 'logist';
     }
 
     // Кнопка одноразового переносу старих розрахунків з браузера в хмару
@@ -13356,10 +13552,10 @@
 
     const TRIP_STATUSES = [
         ['draft', 'Чернетка'],
-        ['proposed', 'Запропоновано'],
-        ['accepted', 'Прийнято'],
-        ['rejected', 'Відхилено'],
-        ['done', 'Виконано']
+        ['pending', 'На погодженні'],
+        ['accepted', 'Прийнята'],
+        ['rejected', 'Відхилена'],
+        ['done', 'Виконана']
     ];
     const TRIP_FIELD_MAP = [
         ['calcType', 'calc-type'], ['returnMode', 'return-mode'], ['roadQuality', 'road-quality'],
@@ -13382,7 +13578,7 @@
     ];
 
     function historyColumnCount() {
-        return currentWorkMode === 'team' ? 14 : 13;
+        return 6;
     }
     function actualTripProfit(revenue, costs, plannedOverhead) {
         const income = Number(revenue);
@@ -13472,7 +13668,8 @@
             to = parsed.to;
         }
         return {
-            status: row.status || 'draft',
+            status: row.status === 'proposed' ? 'pending' : (row.status || 'draft'),
+            rejectReason: row.rejectReason || '',
             date: row.tripDate || row.createdAt,
             from: from,
             to: to,
@@ -13835,21 +14032,34 @@
         downloadHistoryFile(filename, buf, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         showToast('Excel: ' + records.length + ' рядків');
     }
+    // Роль для погодження: власник у виді «Директор» — директор; логіст (і власник у виді «Логіст») — логіст.
+    function approvalRole() {
+        if (currentOrgRole === 'logist') return 'logist';
+        return currentOrgRole === 'owner' && uiView === 'logist' ? 'logist' : 'director';
+    }
     function historyActions(row) {
         const id = escHtml(row.id);
         if (!canEditSaved(row)) return '<span class="tc-history-meta">лише перегляд</span>';
         const status = historyFields(row).status;
-        const options = TRIP_STATUSES.map(function (item) {
-            return '<option value="' + item[0] + '"' + (item[0] === status ? ' selected' : '') + '>' + item[1] + '</option>';
-        }).join('');
-        const removeLabel = historyDeleteId === row.id ? 'Підтвердити' : 'Видалити';
-        return '<div class="tc-history-actions">' +
-            '<button type="button" onclick="openSaved(\'' + id + '\')">Відкрити</button>' +
-            '<button type="button" onclick="duplicateSaved(\'' + id + '\')">Дублювати</button>' +
-            factButton(row) +
-            '<select aria-label="Статус рейсу" onchange="setTripStatus(\'' + id + '\', this.value)">' + options + '</select>' +
-            '<button type="button" class="is-danger" onclick="removeSaved(\'' + id + '\')">' + removeLabel + '</button>' +
-            '</div>';
+        const mine = row.userId === currentUserId;
+        const director = approvalRole() === 'director';
+        const button = function (label, handler, cls) {
+            return '<button type="button"' + (cls ? ' class="' + cls + '"' : '') + ' onclick="' + handler + '(\'' + id + '\')">' + label + '</button>';
+        };
+        const parts = [button('Відкрити', 'openSaved')];
+        if (director && currentOrgRole === 'owner' && status === 'pending') {
+            parts.push(button('Погодити', 'approveRequest', 'is-ok'));
+            parts.push(button('Відхилити', 'rejectRequest', 'is-danger'));
+        }
+        if (mine && (status === 'draft' || status === 'rejected')) {
+            if (currentOrgRole === 'owner' && currentWorkMode === 'solo') parts.push(button('Прийняти', 'approveRequest', 'is-ok'));
+            else parts.push(button('Відправити', 'submitForApproval'));
+        }
+        const fact = factButton(row);
+        if (fact) parts.push(fact);
+        if (status === 'accepted') parts.push('<button type="button" onclick="setTripStatus(\'' + id + '\', \'done\')">Виконано</button>');
+        if (status !== 'accepted' && status !== 'done') parts.push(button('Видалити', 'removeSaved', 'is-danger'));
+        return '<div class="tc-history-actions">' + parts.join('') + '</div>';
     }
     function factButton(row) {
         const fields = historyFields(row);
@@ -14332,50 +14542,49 @@
             if (cards) cards.innerHTML = '<p class="tc-history-meta">' + message + '</p>';
             return;
         }
-        const moneyCell = function (value) {
-            const neg = ' class="tc-history-num' + (Number(value) < 0 ? ' is-neg' : '') + '"';
-            return '<td' + neg + '>' + (value === null || value === undefined ? '—' : displayMinus(formatMoney(value))) + '</td>';
+        const profitHtml = function (row, fields) {
+            const neg = fields.profit !== null && fields.profit !== undefined && Number(fields.profit) < 0 ? ' is-neg' : '';
+            const actual = tripActuals[row.id];
+            const fact = actual && Number.isFinite(actual.profit)
+                ? '<small class="' + (factIsAlert(actual.profit, fields.profit, factAlertPct()) ? 'tc-fact-alert' : '') + '">факт ' + displayMinus(formatMoney(actual.profit)) + '</small>'
+                : '';
+            return '<span class="tc-history-num' + neg + '">' + (fields.profit === null || fields.profit === undefined ? '—' : displayMinus(formatMoney(fields.profit))) + '</span>' + fact;
+        };
+        const metaLine = function (fields) {
+            const unit = fields.currency && fields.currency !== 'UAH' ? fields.currency : 'грн';
+            const parts = [];
+            if (fields.km) parts.push(formatHistoryNum(fields.km, 0) + ' км');
+            if (fields.cars) parts.push(formatHistoryNum(fields.cars, 0) + ' авто');
+            if (fields.tons) parts.push(formatHistoryNum(fields.tons, 1) + ' т');
+            if (fields.rate !== null && fields.rate !== undefined && fields.rate !== '') parts.push(fields.rate + ' ' + unit);
+            if (fields.client) parts.push(fields.client);
+            return parts.join(' · ');
+        };
+        const statusHtml = function (fields) {
+            return '<span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span>' +
+                (fields.status === 'rejected' && fields.rejectReason ? '<small class="tc-history-reason">' + escHtml(fields.rejectReason) + '</small>' : '');
         };
         tbody.innerHTML = slice.map(function (row) {
             const fields = historyFields(row);
-            const unit = fields.currency && fields.currency !== 'UAH' ? fields.currency : 'грн';
-            const perKmClass = ' class="tc-history-num' + (fields.perKm !== null && fields.perKm < 0 ? ' is-neg' : '') + '"';
             return '<tr>' +
-                '<td>' + escHtml(formatHistoryDate(fields.date)) + '</td>' +
-                '<td class="team-feature">' + escHtml(savedAuthorLabel(row.userId)) + '</td>' +
-                '<td class="tc-history-route"><b>' + escHtml(historyRouteLabel(fields)) + '</b>' +
-                (fields.client ? '<br><small>' + escHtml(fields.client) + '</small>' : '') +
-                '<br><small>' + escHtml(fields.trailer || '') + '</small></td>' +
-                '<td>' + formatHistoryNum(fields.km, 0) + '</td>' +
-                '<td>' + formatHistoryNum(fields.cars, 0) + '</td>' +
-                '<td>' + formatHistoryNum(fields.tons, 1) + '</td>' +
-                '<td>' + formatHistoryDays(fields.days) + '</td>' +
-                '<td>' + escHtml(fields.rate == null || fields.rate === '' ? '—' : fields.rate) + ' ' + escHtml(unit) + '</td>' +
-                moneyCell(fields.revenue) +
-                moneyCell(fields.profit) +
-                factCell(row, fields) +
-                '<td' + perKmClass + '>' + (fields.perKm === null ? '—' : displayMinus(formatHistoryNum(fields.perKm, 0))) + '</td>' +
-                '<td><span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span></td>' +
-                '<td>' + historyActions(row) + '</td>' +
+                '<td class="c-d">' + escHtml(formatHistoryDate(fields.date)) + '</td>' +
+                '<td class="tc-history-route c-r"><b>' + escHtml(historyRouteLabel(fields)) + '</b>' +
+                (metaLine(fields) ? '<small>' + escHtml(metaLine(fields)) + '</small>' : '') + '</td>' +
+                '<td class="c-l">' + escHtml(savedAuthorLabel(row.userId)) + '</td>' +
+                '<td class="c-p">' + profitHtml(row, fields) + '</td>' +
+                '<td class="c-s">' + statusHtml(fields) + '</td>' +
+                '<td class="c-a">' + historyActions(row) + '</td>' +
                 '</tr>';
         }).join('');
         if (!cards) return;
         cards.innerHTML = slice.map(function (row) {
             const fields = historyFields(row);
-            const unit = fields.currency && fields.currency !== 'UAH' ? fields.currency : 'грн';
             return '<article class="tc-history-card"><b>' + escHtml(historyRouteLabel(fields)) + '</b>' +
-                '<div class="tc-history-meta">' + escHtml(formatHistoryDate(fields.date)) +
-                (currentWorkMode === 'team' ? ' · ' + escHtml(savedAuthorLabel(row.userId)) : '') +
+                '<div class="tc-history-meta">' + escHtml(formatHistoryDate(fields.date)) + ' · ' + escHtml(savedAuthorLabel(row.userId)) +
                 ' · <span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span></div>' +
-                '<div class="tc-history-meta">' + formatHistoryNum(fields.km, 0) + ' км · ' +
-                formatHistoryNum(fields.cars, 0) + ' авто · ' + formatHistoryNum(fields.tons, 1) + ' т · ' +
-                formatHistoryDays(fields.days) +
-                (fields.client ? ' · ' + escHtml(fields.client) : '') + '</div>' +
-                '<div class="tc-history-meta">Ставка ' + escHtml(fields.rate == null || fields.rate === '' ? '—' : fields.rate) + ' ' + escHtml(unit) +
-                ' · дохід ' + (fields.revenue == null ? '—' : displayMinus(formatMoney(fields.revenue))) +
-                ' · прибуток ' + (fields.profit == null ? '—' : displayMinus(formatMoney(fields.profit))) +
-                ' · факт ' + (tripActuals[row.id] ? displayMinus(formatMoney(tripActuals[row.id].profit)) : '—') +
-                ' · ' + (fields.perKm === null ? '—' : displayMinus(formatHistoryNum(fields.perKm, 0))) + ' грн/км</div>' +
+                '<div class="tc-history-meta">' + escHtml(metaLine(fields)) + '</div>' +
+                '<div class="tc-history-meta">Прибуток ' + (fields.profit == null ? '—' : displayMinus(formatMoney(fields.profit))) +
+                (fields.status === 'rejected' && fields.rejectReason ? ' · ' + escHtml(fields.rejectReason) : '') + '</div>' +
                 historyActions(row) + '</article>';
         }).join('');
     }
@@ -14469,49 +14678,6 @@
         if (!inputs.destination && row.routeTo) inputs.destination = row.routeTo;
         if (!inputs.clientName && row.clientName) inputs.clientName = row.clientName;
         applyTripInputs(inputs, row.routeName || row.name);
-    }
-    async function duplicateSaved(id) {
-        const row = savedCalculations.find(function (item) { return item.id === id; });
-        if (!row) return;
-        if (isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
-            showToast('Демо: вже збережено ' + DEMO_MAX_SAVED + ' розрахунки.');
-            return;
-        }
-        const snapshot = Object.assign({}, row);
-        delete snapshot.id;
-        delete snapshot.userId;
-        delete snapshot.createdAt;
-        delete snapshot.inputs;
-        const name = (row.routeName || row.name || 'Рейс') + ' (копія)';
-        snapshot.routeName = name;
-        try {
-            const { data, error } = await supabaseClient.from('calculations').insert({
-                org_id: currentOrgId,
-                user_id: currentUserId,
-                name: name,
-                inputs: row.inputs || {},
-                results: snapshot
-            }).select('id').single();
-            if (error) throw error;
-            const linkNote = await saveCalcVehicles(data.id, (row.inputs && row.inputs.vehicles) || []);
-            savedCalculations.unshift(Object.assign({}, snapshot, {
-                id: data.id,
-                userId: currentUserId,
-                status: 'draft',
-                createdAt: new Date().toISOString(),
-                inputs: row.inputs || {}
-            }));
-            historyPage = 0;
-            renderSavedTable();
-            showToast(linkNote || 'Копію збережено як чернетку', linkNote ? 4200 : 2200);
-        } catch (e) {
-            const message = dbErrorText(e);
-            if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) {
-                showToast('Демо: вже збережено ' + DEMO_MAX_SAVED + ' розрахунки. Видаліть один або отримайте повний доступ.', 4200);
-            } else {
-                showToast('Не вдалося дублювати: ' + message, 4200);
-            }
-        }
     }
     async function setTripStatus(id, status) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
