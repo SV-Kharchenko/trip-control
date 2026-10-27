@@ -407,6 +407,7 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 #kp-crm .kp-report .toolbar .dates input[type="date"] { flex: 0 0 auto; width: 160px; min-width: 0; }
 #kp-crm .kp-report .toolbar .quick { margin-left: auto; }
 @media (max-width: 767px) {
-    #kp-crm .kp-report .toolbar .dates input[type="date"] { flex: 1 1 0; width: auto; max-width: 160px; }
+    #kp-crm .kp-report .toolbar .dates { width: 100%; }
+    #kp-crm .kp-report .toolbar .dates > input[type="date"] { flex: 1 1 0 !important; width: 0 !important; min-width: 0 !important; max-width: none !important; }
     #kp-crm .kp-report .toolbar .quick { margin-left: 0; flex: 1 1 100%; }
 }
