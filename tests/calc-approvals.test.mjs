@@ -215,8 +215,31 @@ test('migration: columns, statuses, trigger and delete policy', () => {
     assert.match(sql, /CREATE TRIGGER trg_calculations_enforce_approval\s+BEFORE INSERT OR UPDATE ON public\.calculations/);
     assert.match(sql, /ERRCODE = '42501'/);
     assert.match(sql, /status NOT IN \('accepted', 'done'\)/);
-    assert.match(sql, /IF NOT v_admin THEN\s+RAISE EXCEPTION 'APPROVAL_FORBIDDEN: only the owner decides'/);
+    assert.match(sql, /IF NOT v_owner THEN\s+RAISE EXCEPTION 'APPROVAL_FORBIDDEN: only the owner decides'/);
     assert.equal(/GRANT .* TO anon/i.test(sql), false);
     // Міграція не застосовується автоматично: лише файл у supabase/migrations.
     assert.match(sql, /НЕ застосовувати на прод/);
+});
+
+test('migration only calls public functions that earlier migrations declare (is_org_admin does not exist in prod)', async () => {
+    const { readdirSync } = await import('node:fs');
+    const dir = new URL('../supabase/migrations/', import.meta.url);
+    const target = '20261027120000_calc_approvals.sql';
+    const sql = readFileSync(new URL(target, dir), 'utf8');
+    assert.equal(sql.includes('is_org_admin'), false);
+    assert.ok(sql.includes('public.is_org_owner()'));
+    const declared = new Set();
+    for (const name of readdirSync(dir).filter((file) => file.endsWith('.sql'))) {
+        const text = readFileSync(new URL(name, dir), 'utf8');
+        for (const match of text.matchAll(/CREATE (?:OR REPLACE )?FUNCTION public\.([a-z_0-9]+)\s*\(/gi)) declared.add(match[1]);
+    }
+    const body = sql.replace(/--.*$/gm, '');
+    const called = new Set([...body.matchAll(/public\.([a-z_0-9]+)\s*\(/g)].map((match) => match[1]));
+    assert.ok(called.size >= 3, 'the migration calls public functions');
+    for (const name of called) assert.ok(declared.has(name), 'public.' + name + '() is not declared in any migration');
+    // Колонки/таблиці, на які спирається міграція, вже є в попередніх міграціях.
+    const earlier = readdirSync(dir).filter((file) => file.endsWith('.sql') && file !== target).map((file) => readFileSync(new URL(file, dir), 'utf8')).join('\n');
+    assert.match(earlier, /ADD COLUMN IF NOT EXISTS work_mode text/);
+    assert.match(earlier, /calculations_status_check/);
+    assert.match(earlier, /org_role/);
 });

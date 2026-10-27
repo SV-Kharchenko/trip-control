@@ -44,7 +44,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_uid uuid := auth.uid();
-  v_admin boolean;
+  v_owner boolean;
   v_solo boolean;
 BEGIN
   IF v_uid IS NULL THEN
@@ -69,10 +69,10 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  v_admin := public.is_org_admin();
+  v_owner := public.is_org_owner();
 
   IF NEW.status = 'pending' AND OLD.status IN ('draft', 'rejected') THEN
-    IF OLD.user_id <> v_uid AND NOT v_admin THEN
+    IF OLD.user_id <> v_uid AND NOT v_owner THEN
       RAISE EXCEPTION 'APPROVAL_FORBIDDEN: only the author submits' USING ERRCODE = '42501';
     END IF;
     NEW.submitted_at := now();
@@ -83,7 +83,7 @@ BEGIN
   END IF;
 
   IF NEW.status IN ('accepted', 'rejected') AND OLD.status = 'pending' THEN
-    IF NOT v_admin THEN
+    IF NOT v_owner THEN
       RAISE EXCEPTION 'APPROVAL_FORBIDDEN: only the owner decides' USING ERRCODE = '42501';
     END IF;
     NEW.decided_by := v_uid;
@@ -95,7 +95,7 @@ BEGIN
   -- «Сам»: власник без логістів приймає власну заявку без погодження.
   IF NEW.status = 'accepted' AND OLD.status IN ('draft', 'rejected') THEN
     SELECT o.work_mode = 'solo' INTO v_solo FROM public.organizations AS o WHERE o.id = OLD.org_id;
-    IF v_admin AND OLD.user_id = v_uid AND COALESCE(v_solo, false) THEN
+    IF v_owner AND OLD.user_id = v_uid AND COALESCE(v_solo, false) THEN
       NEW.decided_by := v_uid;
       NEW.decided_at := now();
       NEW.reject_reason := NULL;
@@ -105,7 +105,7 @@ BEGIN
   END IF;
 
   IF NEW.status = 'done' AND OLD.status = 'accepted' THEN
-    IF OLD.user_id = v_uid OR v_admin THEN
+    IF OLD.user_id = v_uid OR v_owner THEN
       RETURN NEW;
     END IF;
   END IF;
@@ -131,5 +131,5 @@ CREATE POLICY calculations_delete_role ON public.calculations
   USING (
     org_id = public.current_org_id()
     AND status NOT IN ('accepted', 'done')
-    AND (public.is_org_admin() OR user_id = auth.uid())
+    AND (public.is_org_owner() OR user_id = auth.uid())
   );
