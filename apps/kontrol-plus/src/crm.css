@@ -399,3 +399,16 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
     #kp-crm .kpd-line-head { display: none; }
     #kp-crm .kpd-totals { justify-content: flex-start; }
 }
+
+/* Звіт план/факт: компактні дати в одну лінію, «Експорт CSV» — звичайна кнопка поруч із заголовком */
+#kp-crm .kp-report .page-head { align-items: center; }
+#kp-crm .kp-report .page-head > .btn { flex: 0 0 auto; width: auto; }
+#kp-crm .kp-report .toolbar { flex-wrap: wrap; }
+#kp-crm .kp-report .toolbar .dates { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+#kp-crm .kp-report .toolbar .dates input[type="date"] { flex: 0 0 auto; width: 160px; min-width: 0; }
+#kp-crm .kp-report .toolbar .quick { margin-left: auto; }
+@media (max-width: 767px) {
+    #kp-crm .kp-report .toolbar .dates { width: 100%; }
+    #kp-crm .kp-report .toolbar .dates > input[type="date"] { flex: 1 1 0 !important; width: 0 !important; min-width: 0 !important; max-width: none !important; }
+    #kp-crm .kp-report .toolbar .quick { margin-left: 0; flex: 1 1 100%; }
+}
