@@ -4093,6 +4093,7 @@
         #tc-op .tc-op-sub .form-row:has(#calc-type) { grid-column: 1 / -1; }
         #tc-op .tc-op-sub .form-row:has(#calc-type) > label { min-height: 0; }
         #tc-op .tc-in > select { text-overflow: ellipsis; }
+        #tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -6694,6 +6695,10 @@
             if (el) vehicleMore.appendChild(el);
         });
 
+        // Рядки, що лежали в panel1, беремо ДО очищення: після textContent = '' getElementById їх уже не знайде.
+        const distRow = opRowOf('dist');
+        const podachaRow = opRowOf('podacha-dist');
+        const podachaInfo = opById('podacha-info');
         panel1.textContent = '';
         panel1.classList.add('tc-sec-body');
         if (nameRow) {
@@ -6702,8 +6707,8 @@
         }
         panel1.appendChild(opGroup('two', [opCell('tc-f-a', 'Звідки', [fromFull, fromDemo]), opCell('tc-f-b', 'Куди', [toFull, toDemo])]));
         panel1.appendChild(opGroup('', [
-            opCell('tc-f-dist', 'Відстань', [opRowOf('dist')]),
-            opCell('tc-f-podacha', 'Подача авто', [opRowOf('podacha-dist'), opById('podacha-info')]),
+            opCell('tc-f-dist', 'Відстань', [distRow]),
+            opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo]),
             opCell('tc-f-weight', 'Вага вантажу', [opRowOf('volume')]),
             rate
         ]));
@@ -9606,7 +9611,7 @@
         }
     }
     function onTrailerChange() {
-        if (!currentSessionToken) return; // Не запускати якщо не авторизовані
+        // Видимість полів рефа/промивки оновлюємо завжди (і в демо, і без входу); без токена calculate() сама виходить.
         syncTrailerExtras();
         calculate();
     }
