@@ -260,3 +260,25 @@ test('report: dates are compact and side by side, export button is not full widt
     assert.match(css, /\.kp-report \.toolbar \.dates \{ display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; \}/);
     assert.match(css, /\.kp-report \.page-head > \.btn \{ flex: 0 0 auto; width: auto; \}/);
 });
+
+test('one-page calculator: built copy carries the new layout and the fleet falls back to kp_vehicles_list', async () => {
+    const site = fs.readFileSync(ROOT_INDEX, 'utf8');
+    assert.match(site, /stepper.id = 'tc-stepper'/);
+    assert.match(site, /function buildOnePage\(\)/);
+    assert.match(site, /id = 'tc-kpi-bar'/);
+    const { kpVehiclesToSite, needsKpFleet } = await import('../src/lib/site-fleet.js');
+    const rows = kpVehiclesToSite([{ id: 'v1', label: 'AA1111AA', payload_t: 22, trailer_type: 'тент', service_on: '2026-12-01' }]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].label, 'AA1111AA');
+    assert.equal(rows[0].fuel_load, null);
+    assert.equal(rows[0].payload_t, 22);
+    assert.equal(needsKpFleet([], { control_plus: true, role: 'director' }), true);
+    assert.equal(needsKpFleet([{ id: 'x' }], { control_plus: true, role: 'director' }), false);
+    assert.equal(needsKpFleet([], { control_plus: false }), false);
+    assert.equal(needsKpFleet([], null), false);
+    const bridge = fs.readFileSync(new URL('../src/bridge.js', import.meta.url), 'utf8');
+    assert.match(bridge, /rpc\('kp_vehicles_list'\)/);
+    assert.match(bridge, /window\.loadFleetVehicles = patched/);
+    const css = fs.readFileSync(new URL('../src/crm.css', import.meta.url), 'utf8');
+    assert.match(css, /body\[data-kp-view\] #tc-kpi-bar/);
+});

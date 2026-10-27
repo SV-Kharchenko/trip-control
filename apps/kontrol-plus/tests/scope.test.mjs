@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 14);
+    assert.equal(SCOPE_ALLOWLIST.length, 15);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -167,5 +167,19 @@ test('check-scope allowlist: trip-history tab (index.html + its root test), neig
         'tests/x/header-menu.test.mjs',
         'api/calculate.js',
         'vercel.json',
+    ]) assert.equal(isAllowedOutside(bad), false, bad);
+});
+
+test('check-scope allowlist: one-page calculator (index.html + its root test), neighbours refused', () => {
+    assert.equal(isAllowedOutside('index.html'), true);
+    assert.equal(isAllowedOutside('tests/calc-onepage.test.mjs'), true);
+    for (const bad of [
+        'tests/calc-onepage.test.mjs.bak',
+        'tests/x/calc-onepage.test.mjs',
+        'tests/calc-onepage.test.js',
+        'tests/calc-onepage-extra.test.mjs',
+        'tests/calc-stepper.test.mjs',
+        'tests/calc-golden.test.mjs',
+        'api/calculate.js',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });

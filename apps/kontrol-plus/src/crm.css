@@ -3,6 +3,7 @@
 #kp-crm { display: none; }
 body[data-kp-view] #kp-crm { display: block; grid-column: 1 / -1; }
 body[data-kp-view] #main-app > :not(#sticky-top):not(#kp-crm):not(.tc-legal-footer),
+body[data-kp-view] #tc-kpi-bar,
 body[data-kp-view] #missing-hint,
 body[data-kp-view] #onboard-banner,
 body[data-kp-view] #cab-warning { display: none !important; }
