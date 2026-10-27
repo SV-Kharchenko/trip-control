@@ -80,7 +80,7 @@ FROM (VALUES
   ('08', 'accepted', '2026-09-08', '{}'),
   ('10', 'accepted', '2026-09-10', '{"returnMode":"разовий","dist":"100"}'),
   ('11', 'draft',    '2026-09-11', '{"returnMode":"разовий","dist":"100"}'),
-  ('12', 'proposed', '2026-09-12', '{"returnMode":"разовий","dist":"100"}'),
+  ('12', 'pending', '2026-09-12', '{"returnMode":"разовий","dist":"100"}'),
   ('13', 'rejected', '2026-09-13', '{"returnMode":"разовий","dist":"100"}'),
   ('14', 'accepted', '2026-09-14', '{"returnMode":"циклічний","dist":"100","normWeight":"25","isRoundTrip":true,"rtTransferDist":"20","rtBackhaulDist":"80","rtReturnDist":"30","rtTotalVolume":"25"}'),
   ('15', 'accepted', '2026-09-15', '{"returnMode":"циклічний","dist":"100","normWeight":"25","podachaDist":"40"}'),

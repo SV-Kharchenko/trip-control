@@ -58,10 +58,10 @@ test('history tools and the migrate box are styled by classes', () => {
 test('deficit badge, cascade per-ton note and history sums show the typographic minus', () => {
     assert.match(html, /beGapEl\.innerText = displayMinus\(`Дефіцит \$\{beShown\(gap\)\} \$\{beUnit\}`\);/);
     assert.match(html, /tc-cascade-note">на 1 т: ' \+ displayMinus\(numPlain\(row\.perTon\)\)/);
-    const table = sliceBetween(html, 'const moneyCell = function (value) {', 'function shiftHistoryPage(');
-    assert.match(table, /'—' : displayMinus\(formatMoney\(value\)\)/);
-    assert.match(table, /'—' : displayMinus\(formatHistoryNum\(fields\.perKm, 0\)\)\) \+ '<\/td>'/);
-    assert.match(table, /прибуток ' \+ \(fields\.profit == null \? '—' : displayMinus\(formatMoney\(fields\.profit\)\)\)/);
+    const table = sliceBetween(html, 'const profitHtml = function (row, fields) {', 'function shiftHistoryPage(');
+    assert.match(table, /'—' : displayMinus\(formatMoney\(fields\.profit\)\)\)/);
+    assert.match(table, /факт ' \+ displayMinus\(formatMoney\(actual\.profit\)\)/);
+    assert.match(table, /Прибуток ' \+ \(fields\.profit == null \? '—' : displayMinus\(formatMoney\(fields\.profit\)\)\)/);
     const fact = sliceBetween(html, 'function factCell(row, fields)', 'function syncFactAlertControl()');
     assert.match(fact, /displayMinus\(formatMoney\(actual\.profit\)\)/);
     // форматери й експорт лишаються з ASCII-дефісом

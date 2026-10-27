@@ -38,6 +38,7 @@ export function fmtDate(value) {
 export const STATUS_LABELS = {
     draft: 'Чернетка',
     proposed: 'Запропоновано',
+    pending: 'На погодженні',
     accepted: 'Прийнято',
     rejected: 'Відхилено',
     done: 'Виконано',
