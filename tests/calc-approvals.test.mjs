@@ -208,7 +208,7 @@ test('transition matrix and reject reason cleanup', () => {
 });
 
 test('migration: columns, statuses, trigger and delete policy', () => {
-    const sql = readFileSync(new URL('../supabase/migrations/20261027120000_calc_approvals.sql', import.meta.url), 'utf8');
+    const sql = readFileSync(new URL('../supabase/migrations/20261027140559_calc_approvals.sql', import.meta.url), 'utf8');
     for (const column of ['submitted_at', 'decided_by', 'decided_at', 'reject_reason']) assert.ok(sql.includes('ADD COLUMN IF NOT EXISTS ' + column), column);
     assert.ok(sql.includes("CHECK (status IN ('draft', 'pending', 'accepted', 'rejected', 'done'))"));
     assert.ok(sql.includes("WHERE status = 'proposed'"));
@@ -224,7 +224,7 @@ test('migration: columns, statuses, trigger and delete policy', () => {
 test('migration only calls public functions that earlier migrations declare (is_org_admin does not exist in prod)', async () => {
     const { readdirSync } = await import('node:fs');
     const dir = new URL('../supabase/migrations/', import.meta.url);
-    const target = '20261027120000_calc_approvals.sql';
+    const target = '20261027140559_calc_approvals.sql';
     const sql = readFileSync(new URL(target, dir), 'utf8');
     assert.equal(sql.includes('is_org_admin'), false);
     assert.ok(sql.includes('public.is_org_owner()'));

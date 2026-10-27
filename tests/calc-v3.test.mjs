@@ -71,7 +71,7 @@ test('history: 6 columns, fixed layout without horizontal scroll, status chips, 
 });
 
 test('migration file is new, idempotent and untouched by deploy scripts', () => {
-    const sql = readFileSync(new URL('../supabase/migrations/20261027120000_calc_approvals.sql', import.meta.url), 'utf8');
+    const sql = readFileSync(new URL('../supabase/migrations/20261027140559_calc_approvals.sql', import.meta.url), 'utf8');
     assert.match(sql, /НЕ застосовувати на прод/);
     assert.ok(sql.includes('ADD COLUMN IF NOT EXISTS') && sql.includes('DROP POLICY IF EXISTS') && sql.includes('DROP TRIGGER IF EXISTS'));
 });
