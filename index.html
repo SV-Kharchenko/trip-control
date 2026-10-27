@@ -4069,6 +4069,30 @@
         body.layout-studio .tc-kpi-bar .btn.tc-kb-detail,
         body.layout-studio[data-theme] .tc-kpi-bar .btn.tc-kb-detail { background: var(--text) !important; color: var(--bg) !important; border-color: var(--text) !important; }
         body.layout-studio .tc-kpi-bar .btn.tc-kb-detail:hover { opacity: 0.9; }
+
+        /* Полірування v2: один режим адрес, динамічні поля за типом причепа, KPI-смуга, AdBlue, підписи */
+        #tc-op [hidden] { display: none !important; }
+        #tc-op .demo-only { display: none; }
+        body.demo-mode #tc-op .demo-only { display: grid; }
+        body.demo-mode #tc-op .full-only { display: none !important; }
+        #tc-op .form-row.dynamic-field:not(.active) { display: none; }
+        .tc-kpi-bar { padding-block: 20px; align-items: center; }
+        .tc-kpi-bar::before { inset: 10px var(--tc-pad); }
+        .tc-kb-m { display: flex; flex-direction: column; justify-content: center; gap: 2px; line-height: 1.25; min-width: 0; }
+        .tc-kb-m small, .tc-kb-m b { line-height: 1.25; }
+        .tc-kb-detail { align-self: center; }
+        .tc-sr { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; opacity: 0; pointer-events: none; }
+        .tc-in > .tc-switch { flex: 1 1 auto; display: flex; align-items: center; gap: 10px; height: 100%; padding: 0 12px; border: 0; background: none; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; text-align: left; }
+        .tc-switch .knob { position: relative; flex: none; width: 36px; height: 20px; border-radius: 999px; background: var(--border); transition: background 0.15s; }
+        .tc-switch .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--surface); transition: transform 0.15s; }
+        .tc-switch[aria-checked="true"] .knob { background: var(--positive); }
+        .tc-switch[aria-checked="true"] .knob::after { transform: translateX(16px); }
+        .tc-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+        #tc-op .tc-op-sub { grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+        #tc-op .tc-op-sub .form-row > label { white-space: normal; overflow: visible; display: flex; align-items: flex-end; min-height: 2.6em; }
+        #tc-op .tc-op-sub .form-row:has(#calc-type) { grid-column: 1 / -1; }
+        #tc-op .tc-op-sub .form-row:has(#calc-type) > label { min-height: 0; }
+        #tc-op .tc-in > select { text-overflow: ellipsis; }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -5494,7 +5518,7 @@
         <input type="number" id="fuel-load" step="0.1" oninput="calculate()">
         <input type="number" id="fuel-empty" step="0.1" oninput="calculate()">
         <div class="form-row dynamic-field active" id="field-adblue-consumption">
-            <input type="number" id="adblue-consumption" step="0.05" oninput="calculate()">
+            <input type="number" id="adblue-consumption" step="0.05" value="2.85" oninput="calculate()">
         </div>
         <div class="form-row dynamic-field active" id="field-adblue-price">
             <input type="number" id="adblue-price" step="0.5" oninput="calculate()">
@@ -6729,6 +6753,12 @@
         fuelBadge.className = 'tc-op-badge';
         fuelBadge.id = 'tc-fuel-badge';
         fuelBadge.hidden = true;
+        // AdBlue: поле витрати (л/100км) поруч із перемикачем; сховане поле з кабінету більше не єдине джерело.
+        const adblueSel = opById('adblue-enable');
+        const adblueRow = adblueSel ? adblueSel.closest('.form-row') : null;
+        const adblueRate = opMoveField('adblue-consumption', 'Витрата AdBlue', 'л/100км');
+        if (adblueRate) adblueRate.id = 'tc-adblue-rate-row';
+        if (adblueRow && adblueRate) adblueRow.after(adblueRate);
         if (fuelPanel) {
             fuelPanel.classList.add('tc-sec-body');
             fuelPanel.insertBefore(fuelBadge, fuelPanel.firstChild);
@@ -6766,6 +6796,24 @@
         if (extrasPanel) acc.appendChild(opAccRow('extras', '3', 'Додаткові параметри', extrasPanel, false));
         acc.appendChild(opAccRow('recent', '↺', 'Останні маршрути', recentBody, true));
         opWrapFields(acc);
+        // Використання AdBlue: перемикач замість select (select лишається джерелом значення для коду).
+        const adblueBox = adblueRow ? adblueRow.querySelector('.tc-in') : null;
+        if (adblueBox && adblueSel) {
+            const sw = document.createElement('button');
+            sw.type = 'button';
+            sw.id = 'tc-adblue-switch';
+            sw.className = 'tc-switch';
+            sw.setAttribute('role', 'switch');
+            sw.setAttribute('aria-label', 'Використання AdBlue');
+            sw.innerHTML = '<i class="knob" aria-hidden="true"></i><span></span>';
+            sw.addEventListener('click', function () {
+                adblueSel.value = adblueSel.value === 'on' ? 'off' : 'on';
+                onAdblueToggle();
+                updateOnePage();
+            });
+            adblueSel.classList.add('tc-sr');
+            adblueBox.insertBefore(sw, adblueSel);
+        }
 
         const back = document.createElement('button');
         back.type = 'button';
@@ -6864,6 +6912,16 @@
     function updateOnePage(given) {
         if (!opById('tc-op')) return;
         opSweepCells();
+        const adSel = opById('adblue-enable');
+        const adOn = !adSel || adSel.value === 'on';
+        const adSwitch = opById('tc-adblue-switch');
+        if (adSwitch) {
+            adSwitch.setAttribute('aria-checked', adOn ? 'true' : 'false');
+            const adText = adSwitch.querySelector('span');
+            if (adText) adText.textContent = adOn ? 'Увімкнено' : 'Вимкнено';
+        }
+        const adRateRow = opById('tc-adblue-rate-row');
+        if (adRateRow) adRateRow.hidden = !adOn;
         const result = given !== undefined ? given : opResult();
         const km = stepFieldNum('dist') + stepFieldNum('podacha-dist');
         const missingFuel = opFuelMissing();
@@ -6890,7 +6948,7 @@
             }
             if (adblue) {
                 const rate = stepFieldNum('adblue-consumption');
-                fuelParts.push(adblue.value !== 'on' ? 'без AdBlue' : (rate && loadRaw ? 'AdBlue ' + opNum(rate / loadRaw * 100) + '%' : 'AdBlue'));
+                fuelParts.push(adblue.value !== 'on' ? 'без AdBlue' : (rate ? 'AdBlue ' + opNum(rate, 2) + ' л/100км' : 'AdBlue'));
             }
         }
         opSetText('tc-acc-sum-fuel', fuelParts.length ? fuelParts.join(' · ') : 'Сезон, ціна, витрата');
