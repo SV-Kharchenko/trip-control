@@ -3914,8 +3914,8 @@
         body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > :not(.tc-map-frame) { display: none !important; }
         body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
             position: sticky; top: calc(var(--tc-sticky-h, 0px) + var(--tc-strip-h, 66px));
-            height: calc(100vh - var(--tc-sticky-h, 0px) - var(--tc-strip-h, 66px) - var(--tc-pad)) !important;
-            min-height: 420px !important; max-height: none !important; width: 100%; display: block; overflow: hidden;
+            height: var(--tc-map-h, calc(100vh - var(--tc-sticky-h, 0px) - var(--tc-strip-h, 66px) - var(--tc-pad))) !important;
+            min-height: 320px !important; max-height: none !important; width: 100%; display: block; overflow: hidden;
             border-radius: var(--radius-card);
         }
         body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) .tc-map-frame #map,
@@ -4046,6 +4046,24 @@
         @media (max-width: 480px) {
             .tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 10px); }
         }
+
+        /* Фікс v2: валюта, адреси A/B, підпис «Фура», «Очистити», онбординг, км у списку, темна кнопка */
+        .tc-f[hidden] { display: none !important; }
+        .tc-in > select.cur { min-width: 84px; }
+        .tc-in.is-addr { overflow: visible; position: relative; }
+        .tc-in > .ic { flex: none; padding-left: 12px; color: var(--gold); font-weight: 800; }
+        .tc-in.is-addr > .tc-ac, .tc-in.is-addr > [id$="-wrap"] { flex: 1 1 auto; min-width: 0; height: 100%; display: flex; align-items: center; position: relative; }
+        .tc-in.is-addr .tc-ac > input { flex: 1; min-width: 0; width: 100%; height: 100%; padding: 0 12px 0 8px; border: 0; background: none; box-shadow: none; outline: 0; text-align: left; font-size: inherit; min-height: 0; }
+        .tc-in.is-addr gmp-place-autocomplete { width: 100%; height: 100%; border: 0; background: none; color-scheme: inherit; }
+        .tc-f-lab { font-size: var(--tc-fs-s); font-weight: 600; color: var(--muted); line-height: 1.3; }
+        .tc-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .tc-panel-clear { height: var(--tc-h); min-height: 44px; white-space: nowrap; }
+        #tc-op > #onboard-banner { margin: 0; border-radius: 0; border-inline: 0; }
+        #tc-op .tc-recent-list .tc-rr { display: flex; justify-content: space-between; gap: 10px; }
+        #tc-op .tc-recent-list .tc-rr > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        #tc-op .tc-recent-list .tc-rr-km { flex: none; color: var(--muted); font-weight: 500; font-size: var(--tc-fs-s); }
+        .tc-kb-detail { background: var(--text); color: var(--bg); border-color: var(--text); }
+        .tc-kb-detail:hover { background: var(--text); border-color: var(--text); opacity: 0.9; }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -6598,7 +6616,8 @@
 
         const head = document.createElement('div');
         head.className = 'tc-panel-head';
-        head.innerHTML = '<div class="tc-panel-eyebrow">Калькулятор рейсу</div><h2 class="tc-panel-title">Параметри заявки</h2>';
+        head.innerHTML = '<div><div class="tc-panel-eyebrow">Калькулятор рейсу</div><h2 class="tc-panel-title">Параметри заявки</h2></div>'
+            + '<button type="button" class="btn tc-panel-clear" id="tc-clear" onclick="clearCalcForm()">Очистити</button>';
 
         const bar = document.createElement('div');
         bar.id = 'tc-kpi-bar';
@@ -6630,6 +6649,10 @@
         const truckRow = opById('vehicle-norm-row');
 
         const truck = opCell('tc-f-truck', 'Фура', [truckRow]);
+        const truckLab = document.createElement('label');
+        truckLab.className = 'tc-f-lab';
+        truckLab.textContent = 'Фура';
+        truck.insertBefore(truckLab, truck.firstChild);
         const noTruck = document.createElement('span');
         noTruck.className = 'tc-f-notruck';
         noTruck.textContent = 'Автопарк порожній — додайте авто в кабінеті';
@@ -6660,6 +6683,21 @@
         panel1.appendChild(vehicleMore);
         if (demoNote) panel1.appendChild(demoNote);
 
+        // Звідки / Куди: той самий .tc-in, що й в інших полів, маркер A/B зліва (випадаючий список підказок не обрізається).
+        [[fromFull, 'A'], [toFull, 'B'], [fromDemo, 'A'], [toDemo, 'B']].forEach(function (pair) {
+            const row = pair[0];
+            const control = row ? Array.prototype.filter.call(row.children, function (el) { return el.matches('.tc-ac, [id$="-wrap"]'); })[0] : null;
+            if (!control) return;
+            const box = document.createElement('div');
+            box.className = 'tc-in is-addr';
+            const mark = document.createElement('span');
+            mark.className = 'ic';
+            mark.textContent = pair[1];
+            mark.setAttribute('aria-hidden', 'true');
+            row.insertBefore(box, control);
+            box.appendChild(mark);
+            box.appendChild(control);
+        });
         // Тариф + валюта в одному полі: select валюти — суфікс всередині рамки, підпис «грн/т» ховаємо (id лишається для коду).
         opWrapFields(panel1);
         const rateBox = rateRow ? rateRow.querySelector('.tc-in') : null;
@@ -6739,7 +6777,8 @@
         const wrapper = document.createElement('div');
         wrapper.id = 'tc-op';
         wrapper.className = 'tc-op tc-panel';
-        [head, acc].forEach(function (node) { wrapper.appendChild(node); });
+        const onboard = opById('onboard-banner');
+        [head, onboard, acc].forEach(function (node) { if (node) wrapper.appendChild(node); });
         stepper.querySelectorAll('.tc-step-panel').forEach(function (el) { el.hidden = false; });
         stepper.insertBefore(wrapper, stepper.firstChild);
         stepper.dataset.onepage = '1';
@@ -6762,11 +6801,23 @@
         }, true);
 
         stepper.dataset.onepage = '1';
+        if (window.MutationObserver) new MutationObserver(opSweepCells).observe(document.body, { attributes: true, attributeFilter: ['class'] });
         document.body.setAttribute('data-calc-detail', '0');
         // setStudioView() кличеться лише на клік; без атрибута правила [data-studio-view="calc"] не діють.
         if (!document.body.getAttribute('data-studio-view')) document.body.setAttribute('data-studio-view', 'calc');
         if (document.body.classList.contains('layout-studio')) setStudioView(document.body.getAttribute('data-studio-view'));
         updateOnePage();
+    }
+    // Клітинка, у якої всі поля сховані (demo-only / full-only тощо), не лишає дірки в сітці.
+    function opSweepCells() {
+        document.querySelectorAll('#tc-op .tc-f').forEach(function (cell) {
+            if (cell.classList.contains('tc-f-truck')) return;
+            const live = Array.prototype.some.call(cell.children, function (el) {
+                if (el.id === 'podacha-info') return false;
+                return !el.hidden && window.getComputedStyle(el).display !== 'none';
+            });
+            cell.hidden = !live;
+        });
     }
     function focusMissingField(id) {
         const input = opById(id);
@@ -6807,6 +6858,7 @@
     }
     function updateOnePage(given) {
         if (!opById('tc-op')) return;
+        opSweepCells();
         const result = given !== undefined ? given : opResult();
         const km = stepFieldNum('dist') + stepFieldNum('podacha-dist');
         const missingFuel = opFuelMissing();
@@ -6879,6 +6931,23 @@
         const pillHtml = pills.join('');
         if (pillBox && pillBox.innerHTML !== pillHtml) pillBox.innerHTML = pillHtml;
         paintKpiBar(result, fuelOff, !(loadRaw > 0 && emptyRaw > 0));
+    }
+    // «Очистити»: скидає введене в заявці (назва, адреси, числа, вибір авто); норми компанії лишаються.
+    function clearCalcForm() {
+        clearVehicleNormChoice();
+        ['route-name', 'dist', 'podacha-dist', 'volume', 'rate'].forEach(function (id) {
+            const el = opById(id);
+            if (el) el.value = '';
+        });
+        setPlaceText('osm-from-wrap', 'osm-from', '');
+        setPlaceText('osm-to-wrap', 'osm-to', '');
+        setPlaceText('osm-base-wrap', 'osm-base', '');
+        Object.keys(opTouched).forEach(function (key) { delete opTouched[key]; });
+        opAttempted = false;
+        markInvalidFields([]);
+        updateRouteBar();
+        updateOnePage(null);
+        calculate();
     }
     function opToggleRecent() {
         opRecentExpanded = !opRecentExpanded;
@@ -6955,7 +7024,14 @@
         const h = isSticky ? Math.max(0, Math.round(sticky.getBoundingClientRect().bottom)) : 0;
         document.documentElement.style.setProperty('--tc-sticky-h', h + 'px');
         const bar = opById('tc-kpi-bar');
-        if (bar) document.documentElement.style.setProperty('--tc-strip-h', Math.round(bar.getBoundingClientRect().height) + 'px');
+        const stripH = bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+        if (bar) document.documentElement.style.setProperty('--tc-strip-h', stripH + 'px');
+        // Мапа вміщується у вікно: від свого верху (на початку — низ шапки й смуги, при скролі — під смугою) до низу екрана.
+        const right = opById('studio-right');
+        if (right && window.innerWidth > 900) {
+            const top = Math.max(h + stripH, right.getBoundingClientRect().top);
+            document.documentElement.style.setProperty('--tc-map-h', Math.max(320, Math.round(window.innerHeight - top - 16)) + 'px');
+        }
         if (!opSyncStickyTop.watching && window.ResizeObserver) {
             opSyncStickyTop.watching = true;
             const ro = new ResizeObserver(opSyncStickyTop);
@@ -7143,6 +7219,7 @@
                 at: chipTime(item.at),
                 tie: index,
                 kind: 'saved',
+                km: Number(item && item.km) || 0,
                 id: item.id
             });
         });
@@ -7157,6 +7234,7 @@
                 at: chipTime(item.at),
                 tie: 1000 + index,
                 kind: 'local',
+                km: Number(item && item.km) || 0,
                 index: item && item.index != null ? item.index : index
             });
         });
@@ -7181,10 +7259,10 @@
         const local = readRecentRoutes();
         const savedItems = savedCalculations.map(function (row) {
             const fields = historyFields(row);
-            return { from: fields.from, to: fields.to, at: row.createdAt, id: row.id };
+            return { from: fields.from, to: fields.to, km: fields.km, at: row.createdAt, id: row.id };
         });
         const localItems = local.map(function (item, index) {
-            return { from: item.from, to: item.to, at: item.at, index: index };
+            return { from: item.from, to: item.to, km: item.km, at: item.at, index: index };
         });
         const chips = mergeRecentChips(savedItems, localItems, 12);
         const sumEl = document.getElementById('tc-acc-sum-recent');
@@ -7193,7 +7271,7 @@
         // Компактно: «Місто → Місто», повна адреса в title; до 5 і кнопка «ще».
         const city = function (text) { return escHtml(String(text || '').split(',')[0].trim()); };
         box.innerHTML = chips.slice(0, opRecentExpanded ? chips.length : 5).map(function (chip) {
-            const label = city(chip.from) + ' → ' + city(chip.to);
+            const label = '<span>' + city(chip.from) + ' → ' + city(chip.to) + '</span>' + (chip.km > 0 ? '<span class="tc-rr-km">' + opNum(chip.km) + ' км</span>' : '');
             const title = escHtml(chip.from + ' → ' + chip.to);
             if (chip.kind === 'saved') return '<button type="button" class="tc-rr" title="' + title + '" onclick="openSaved(\'' + escHtml(chip.id) + '\')">' + label + '</button>';
             return '<button type="button" class="tc-rr" title="' + title + '" onclick="applyRecentRoute(' + chip.index + ')">' + label + '</button>';

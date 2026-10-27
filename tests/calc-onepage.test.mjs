@@ -46,7 +46,8 @@ test('KPI strip is a direct child of #main-app, sticky and wide as the content',
 test('two columns: panel minmax(380px, 40%) + sticky full-height map; ≤900 strip → map 260px → panel', () => {
     assert.match(css, /grid-template-columns: minmax\(380px, 40%\) minmax\(0, 1fr\);/);
     assert.match(css, /position: sticky; top: calc\(var\(--tc-sticky-h, 0px\) \+ var\(--tc-strip-h, 66px\)\);/);
-    assert.match(css, /height: calc\(100vh - var\(--tc-sticky-h, 0px\) - var\(--tc-strip-h, 66px\) - var\(--tc-pad\)\) !important;/);
+    assert.match(css, /height: var\(--tc-map-h, calc\(100vh - var\(--tc-sticky-h, 0px\) - var\(--tc-strip-h, 66px\) - var\(--tc-pad\)\)\) !important;/);
+    assert.match(onepage, /setProperty\('--tc-map-h'/);
     assert.match(css, /#studio-right \{ align-self: stretch; display: block !important;/);
     assert.match(css, /#studio-right \{ order: -1;/);
     assert.match(css, /height: 260px !important;/);
@@ -321,5 +322,48 @@ test('browser: «Детально» layout and back button (1280 / 1024 / 390)',
         await page.click('#tc-det-back');
         assert.equal(await page.evaluate(() => document.body.getAttribute('data-calc-detail')), '0');
         assert.equal(await page.evaluate(() => document.getElementById('tc-op').offsetParent !== null), true);
+    });
+});
+
+test('fix pass: currency width, A/B inside .tc-in, no empty cells, label for «Фура», clear button, onboarding, km, dark button', () => {
+    assert.ok(html.includes('.tc-in > select.cur { min-width: 84px; }'));
+    assert.match(build, /box\.className = 'tc-in is-addr'/);
+    assert.match(build, /mark\.textContent = pair\[1\]/);
+    assert.ok(html.includes('.tc-in.is-addr { overflow: visible; position: relative; }'));
+    assert.match(onepage, /function opSweepCells\(\)/);
+    assert.match(onepage, /cell\.hidden = !live/);
+    assert.match(onepage, /new MutationObserver\(opSweepCells\)/);
+    assert.ok(html.includes('.tc-f[hidden] { display: none !important; }'));
+    assert.match(build, /truckLab\.textContent = 'Фура'/);
+    assert.match(build, /id=\"tc-clear\" onclick=\"clearCalcForm\(\)\">Очистити/);
+    const clear = sliceBetween(onepage, 'function clearCalcForm()', 'function opToggleRecent()');
+    assert.match(clear, /clearVehicleNormChoice\(\)/);
+    assert.match(clear, /calculate\(\)/);
+    assert.equal(clear.includes('fetch('), false);
+    assert.match(build, /\[head, onboard, acc\]/);
+    const paint = sliceBetween(html, 'function renderMergedRecent()', 'function renderRecentRoutes()');
+    assert.match(paint, /tc-rr-km/);
+    assert.match(paint, /chip\.km > 0/);
+    assert.ok(html.includes('.tc-kb-detail { background: var(--text); color: var(--bg); border-color: var(--text); }'));
+});
+
+test('browser: A/B height equals other fields, no empty cells, map inside the window, currency uncut (1920 / 1440)', async (t) => {
+    await withPage(t, [1920, 1440], async (page, width, theme) => {
+        const at = ' at ' + width + ' ' + theme;
+        const heights = await page.evaluate(() => {
+            const h = (el) => Math.round(el.getBoundingClientRect().height);
+            const visible = [...document.querySelectorAll('#tc-acc-body-route .tc-in')].filter((e) => e.offsetParent);
+            const ab = visible.filter((e) => e.classList.contains('is-addr')).map(h);
+            const rest = visible.filter((e) => !e.classList.contains('is-addr')).map(h);
+            return { ab, rest };
+        });
+        assert.ok(heights.ab.length >= 2, 'A/B fields found' + at);
+        for (const v of heights.ab) assert.ok(Math.abs(v - heights.rest[0]) <= 1, 'A/B height ' + v + ' vs ' + heights.rest[0] + at);
+        const empty = await page.evaluate(() => [...document.querySelectorAll('#tc-op .tc-f')].filter((c) => c.offsetParent && !c.classList.contains('tc-f-truck') && c.getBoundingClientRect().height > 0 && !c.querySelector('input:not([type="hidden"]), select, .tc-ac, [id$="-wrap"]')).map((c) => c.className));
+        assert.deepEqual(empty, [], 'empty cells' + at);
+        const map = await page.evaluate(() => { const r = document.querySelector('.tc-map-frame').getBoundingClientRect(); return { top: r.top, bottom: r.bottom, vh: window.innerHeight }; });
+        assert.ok(map.bottom <= map.vh + 1, 'map bottom ' + map.bottom + ' > ' + map.vh + at);
+        const cur = await page.evaluate(() => { const el = document.getElementById('contract-currency'); return el.clientWidth; });
+        assert.ok(cur >= 76, 'currency width ' + cur + at);
     });
 });
