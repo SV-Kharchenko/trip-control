@@ -207,7 +207,7 @@ test('CRM routes live in the hash and never collide with site hashes', () => {
     assert.deepEqual(parseCrmHash('#/clients/new'), { view: 'client-new' });
     assert.deepEqual(parseCrmHash('#/clients/9b2f'), { view: 'client', id: '9b2f' });
     assert.deepEqual(parseCrmHash('#/clients/9b2f/edit'), { view: 'client-edit', id: '9b2f' });
-    assert.deepEqual(parseCrmHash('#/report'), { view: 'report' });
+    assert.deepEqual(parseCrmHash('#/report'), { view: 'report', sub: 'main' });
     for (const hash of ['', '#', '#calculator', '#access_token=x&type=recovery', '#/clients/a/b/c', '#/reports', '#/report/x']) {
         assert.equal(parseCrmHash(hash), null, hash);
     }

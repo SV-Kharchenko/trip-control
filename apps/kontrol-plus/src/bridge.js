@@ -4,7 +4,8 @@
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
 import { h, clear, spinner, notice, toast } from './ui.js';
 import { errorText } from './lib/errors.js';
-import { parseCrmHash, tabOf } from './lib/route.js';
+import { legacyRedirect, parseCrmHash, tabOf } from './lib/route.js';
+import { navIcon } from './nav-icons.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
 import { renderClients } from './views/clients.js';
@@ -64,14 +65,50 @@ function app() {
     };
 }
 
+// Пункти меню: порядок як у макеті. «Огляд» і «Розрахунки» ведуть на сторінки сайту, решта — на hash-маршрути Контроль+.
+function go(hash) {
+    return () => { location.hash = hash; };
+}
+function openSite(view) {
+    return () => {
+        leave();
+        if (typeof setStudioView === 'function') setStudioView(view); // eslint-disable-line no-undef
+    };
+}
+// [ключ, підпис, обробник, схований до перевірки доступу]
+export const NAV_ITEMS = [
+    ['overview', 'Огляд', openSite('overview'), false],
+    ['calc', 'Розрахунки', openSite('calc'), false],
+    ['clients', 'Клієнти', go('#/clients'), false],
+    ['fleet', 'Автопарк', go('#/fleet'), true],
+    ['drivers', 'Водії', go('#/drivers'), true],
+    ['repairs', 'Ремонти', go('#/repairs'), true],
+    ['gps', 'GPS', go('#/gps'), true],
+    ['docs', 'Документи', go('#/docs'), true],
+    ['report', 'План/факт', go('#/report'), false],
+    ['stats', 'Статистика', go('#/stats'), false],
+    ['company', 'Реквізити компанії', go('#/company'), true],
+];
+
+// Верх меню = низ шапки сайту, поки вона в кадрі (шапка пролистується, меню лишається біля верху вікна).
+function syncNavTop() {
+    const head = document.getElementById('sticky-top');
+    if (!head || typeof head.getBoundingClientRect !== 'function') return;
+    const bottom = Math.max(0, Math.round(head.getBoundingClientRect().bottom));
+    document.documentElement.style.setProperty('--kp-nav-top', bottom + 'px');
+}
+
 // Кнопки «Калькулятор» / «Огляд» / «Історія заявок» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
 function syncNav() {
     const tab = tabOf(state.route);
     if (tab) document.body.setAttribute('data-kp-view', tab);
     else document.body.removeAttribute('data-kp-view');
+    // Поза розділами Контроль+ підсвічуємо сайт: «Огляд» або «Розрахунки» (калькулятор з історією заявок).
+    const siteView = document.body.getAttribute('data-studio-view');
+    const active = tab || (siteView === 'overview' ? 'overview' : 'calc');
     for (const [name, button] of Object.entries(tabs)) {
-        button.classList.toggle('on', name === tab);
-        if (name === tab) button.setAttribute('aria-current', 'page');
+        button.classList.toggle('on', name === active);
+        if (name === active) button.setAttribute('aria-current', 'page');
         else button.removeAttribute('aria-current');
     }
     if (!tab) return;
@@ -89,9 +126,13 @@ function syncGpsTab() {
     // «Ремонти» — за kp_repairs_context(); менеджеру з ремонтів без власного Контроль+ — лише ця вкладка.
     const repairs = repairsAccess(current ? state.repairs : null, current);
     if (tabs.repairs) tabs.repairs.hidden = !repairs.visible;
-    if (repairs.repairsOnly || tabs.clients.hidden) tabs.clients.hidden = repairs.repairsOnly;
-    if (repairs.repairsOnly || tabs.report.hidden) tabs.report.hidden = repairs.repairsOnly;
-    if (tabs.docs) tabs.docs.hidden = !(docsAccess(current).visible && state.docs === true);
+    // Менеджер з ремонтів чужої організації бачить лише «Ремонти»; решта розділів — як і раніше за ролями й тарифом.
+    for (const key of ['clients', 'report', 'stats', 'overview', 'calc']) {
+        if (tabs[key] && (repairs.repairsOnly || tabs[key].hidden)) tabs[key].hidden = repairs.repairsOnly;
+    }
+    // Документи, Автопарк, Водії, Реквізити компанії спираються на функції 4a/4b: з'являються після перевірки.
+    const docsOn = docsAccess(current).visible && state.docs === true;
+    for (const key of ['docs', 'fleet', 'drivers', 'company']) if (tabs[key]) tabs[key].hidden = !docsOn;
 }
 
 async function refreshGpsTab() {
@@ -336,7 +377,13 @@ async function render() {
     let view;
     if (route.view === 'repairs') view = h('section', { class: 'page' }, notice('Розділ «Ремонти» ще не ввімкнено для вашої компанії.', 'info'));
     else if (route.view === 'docs') view = lazyView(() => import('./views/docs.js').then((m) => m.renderDocs(app(), route)));
-    else if (route.view === 'report') view = renderReport(app());
+    else if (route.view === 'report') {
+        view = renderReport(app(), route.sub, route.sub === 'debts'
+            ? lazyView(() => import('./views/docs-debts.js').then((m) => m.renderDebts(app()))) : null);
+    } else if (route.view === 'fleet') view = lazyView(() => import('./views/fleet.js').then((m) => m.renderFleetPage(app(), route.sub)));
+    else if (route.view === 'drivers') view = lazyView(() => import('./views/drivers.js').then((m) => m.renderDrivers(app())));
+    else if (route.view === 'company') view = lazyView(() => import('./views/company.js').then((m) => m.renderCompany(app())));
+    else if (route.view === 'stats') view = lazyView(() => import('./views/stats.js').then((m) => m.renderStats(app())));
     else if (route.view === 'client-new') view = renderClientForm(app(), null);
     else if (route.view === 'client-edit') view = renderClientForm(app(), route.id);
     else if (route.view === 'client') view = renderClientCard(app(), route.id);
@@ -359,7 +406,10 @@ function lazyView(load) {
 }
 
 function onHash() {
-    const route = parseCrmHash(location.hash);
+    // Старі підвкладки «Документів» переїхали: Авто й водії → Автопарк, Реквізити → Реквізити компанії, Борги → План/факт.
+    const moved = legacyRedirect(location.hash);
+    if (moved) history.replaceState(null, '', location.pathname + location.search + moved);
+    const route = parseCrmHash(moved || location.hash);
     if (!route) {
         leave();
         return;
@@ -372,15 +422,21 @@ function mount() {
     const nav = document.querySelector('#tc-nav-panel .tc-studio-nav');
     const main = document.getElementById('main-app');
     if (!nav || !main) return false;
-    tabs.clients = h('button', { type: 'button', id: 'kp-nav-clients', onclick: () => { location.hash = '#/clients'; } }, 'Клієнти');
-    tabs.report = h('button', { type: 'button', id: 'kp-nav-report', onclick: () => { location.hash = '#/report'; } }, 'Звіт план/факт');
-    tabs.gps = h('button', { type: 'button', id: 'kp-nav-gps', onclick: () => { location.hash = '#/gps'; } }, 'GPS');
-    tabs.gps.hidden = true;
-    tabs.repairs = h('button', { type: 'button', id: 'kp-nav-repairs', onclick: () => { location.hash = '#/repairs'; } }, 'Ремонти');
-    tabs.repairs.hidden = true;
-    tabs.docs = h('button', { type: 'button', id: 'kp-nav-docs', onclick: () => { location.hash = '#/docs'; } }, 'Документи');
-    tabs.docs.hidden = true;
-    nav.append(tabs.clients, tabs.report, tabs.gps, tabs.repairs, tabs.docs);
+    // Ліве вертикальне меню замість кнопок у навігації сайту (на ≤1024 — лише іконки з підказками).
+    for (const [key, label, onclick, hidden] of NAV_ITEMS) {
+        const button = h('button', { type: 'button', id: 'kp-nav-' + key, title: label, onclick }, navIcon(key), h('span', { class: 'lb' }, label));
+        button.kpIcon = button.children[0];
+        if (hidden) button.hidden = true;
+        tabs[key] = button;
+    }
+    const side = h('aside', { id: 'kp-side', class: 'kp-side', 'aria-label': 'Меню кабінету' },
+        h('nav', { id: 'kp-nav-list', class: 'kp-nav' }, NAV_ITEMS.map(([key]) => tabs[key])));
+    if (main.parentNode && typeof main.parentNode.insertBefore === 'function') main.parentNode.insertBefore(side, main);
+    else document.body.append(side);
+    document.body.classList.add('kp-nav-on');
+    syncNavTop();
+    window.addEventListener('scroll', syncNavTop, { passive: true });
+    window.addEventListener('resize', syncNavTop);
     root = h('section', { id: 'kp-crm', class: 'kp-crm', 'aria-label': 'Контроль+', tabindex: '-1' });
     main.insertBefore(root, document.getElementById('studio-overview'));
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.

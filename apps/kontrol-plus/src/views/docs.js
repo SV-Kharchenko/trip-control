@@ -1,5 +1,5 @@
-// Вкладка «Документи» (етапи 4a, 4b): підвкладки «Документи» (список рахунків, актів і ТТН, створення, картка),
-// «Борги», «Авто й водії» (поля ТЗ для ТТН), «Реквізити». Права — з kp_context(): пишуть owner / logist, анулює й змінює
+// Вкладка «Документи» (етапи 4a, 4b): підвкладки Усі · Договори · ТТН / 2-ТН · Акти · Інше (список рахунків, актів і ТТН, створення, картка).
+// «Борги» живуть у «План/факт», «Авто й водії» — в «Автопарку» і «Водіях», «Реквізити» — у «Реквізитах компанії». Права — з kp_context(): пишуть owner / logist, анулює й змінює
 // реквізити лише owner, директор — перегляд. Кнопки без права приховані, але база однаково перевіряє кожну дію.
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtDate, kyivDate, monthRange, daysBetween } from '../lib/format.js';
@@ -11,20 +11,24 @@ import { downloadDocPdf, downloadDocXlsx, downloadTtnPdf } from '../lib/docs-pdf
 import { isPlanError } from '../lib/errors.js';
 import { renderDocForm } from './docs-form.js';
 import { renderDocCard } from './docs-card.js';
-import { renderDebts } from './docs-debts.js';
-import { renderRequisites } from './docs-requisites.js';
 import { renderTtnForm } from './docs-ttn-form.js';
 import { renderTtnCard } from './docs-ttn-card.js';
-import { renderFleet } from './docs-fleet.js';
 
 export function docsTabs() {
     return [
-        { sub: 'list', hash: '#/docs', label: 'Документи' },
-        { sub: 'debts', hash: '#/docs/debts', label: 'Борги' },
-        { sub: 'fleet', hash: '#/docs/fleet', label: 'Авто й водії' },
-        { sub: 'requisites', hash: '#/docs/requisites', label: 'Реквізити' },
+        { key: 'all', hash: '#/docs', label: 'Усі' },
+        { key: 'contracts', hash: '#/docs/tab/contracts', label: 'Договори' },
+        { key: 'ttn', hash: '#/docs/tab/ttn', label: 'ТТН / 2-ТН' },
+        { key: 'acts', hash: '#/docs/tab/acts', label: 'Акти' },
+        { key: 'other', hash: '#/docs/tab/other', label: 'Інше' },
     ];
 }
+
+const TAB_KIND = { ttn: 'ttn', acts: 'act' };
+const EMPTY_TABS = {
+    contracts: ['Договорів ще немає', 'Договір із клієнтом з’явиться тут і підтягне реквізити компанії.'],
+    other: ['Тут будуть інші файли', 'Довіреності, страхові поліси, сканкопії — усе, що не потрапляє в інші вкладки.'],
+};
 
 // Документ за id і видом: рахунок / акт — kp_doc_get, ТТН — kp_ttn_get.
 async function fetchDoc(app, id, kind) {
@@ -172,13 +176,14 @@ export function listTotals(rows) {
     return out;
 }
 
-function renderDocList(app, access) {
+function renderDocList(app, access, presetKind = '') {
     const range = monthRange(kyivDate());
     const from = h('input', { type: 'date', value: range.from, 'aria-label': 'Період з' });
     const to = h('input', { type: 'date', value: range.to, 'aria-label': 'Період по' });
     const kind = h('select', { 'aria-label': 'Тип документа' },
         h('option', { value: '' }, 'Усі документи'), h('option', { value: 'invoice' }, 'Рахунки'), h('option', { value: 'act' }, 'Акти'),
         h('option', { value: 'ttn' }, 'ТТН'));
+    kind.value = presetKind;
     const status = h('select', { 'aria-label': 'Статус' }, STATUS_FILTERS.map((s) => h('option', { value: s.value }, s.label)));
     const client = h('select', { 'aria-label': 'Клієнт' }, h('option', { value: '' }, 'Усі клієнти'));
     const list = h('div', { class: 'list' }, spinner());
@@ -253,21 +258,19 @@ function renderDocList(app, access) {
 export function renderDocs(app, route) {
     const access = docsAccess(app.context);
     const sub = route.sub || 'list';
-    const current = sub === 'new' || sub === 'doc' || sub === 'ttn' ? 'list' : sub;
+    const currentKey = route.tab || 'all';
     let body;
     if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть власник і логіст.', 'info');
     else if (sub === 'new' && route.kind === 'ttn') body = renderTtnForm(app, access, route);
     else if (sub === 'new') body = renderDocForm(app, access, route);
     else if (sub === 'doc') body = renderDocCard(app, access, route.id);
     else if (sub === 'ttn') body = renderTtnCard(app, access, route.id);
-    else if (sub === 'fleet') body = renderFleet(app, access);
-    else if (sub === 'debts') body = renderDebts(app, access);
-    else if (sub === 'requisites') body = renderRequisites(app, access);
-    else body = renderDocList(app, access);
+    else if (EMPTY_TABS[route.tab]) body = h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, EMPTY_TABS[route.tab][0]), h('p', { class: 'muted' }, EMPTY_TABS[route.tab][1])));
+    else body = renderDocList(app, access, TAB_KIND[route.tab] || '');
     return h('section', { class: 'page kpr-page kpd-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'Документи')),
         h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи документів' }, docsTabs().map((t) =>
-            h('a', { href: t.hash, class: 'kpr-tab' + (t.sub === current ? ' on' : ''), 'aria-current': t.sub === current ? 'page' : null }, t.label))),
+            h('a', { href: t.hash, class: 'kpr-tab' + (t.key === currentKey ? ' on' : ''), 'aria-current': t.key === currentKey ? 'page' : null }, t.label))),
         access.canWrite ? null : notice('Режим перегляду: директор бачить документи, ТТН, оплати, борги й авто, але не змінює їх.', 'info'),
         body);
 }
