@@ -1,0 +1,118 @@
+<!doctype html><html lang="uk" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Калькулятор рейсу — Trip Control v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f3efe6;--card:#fdfcf8;--soft:#f6f2e9;--line:#e9e3d6;--ink:#10241f;--mute:#6b7570;--gold:#b0803f;--goldbg:#f5ecdc;--green:#1f6b4a;--greenbg:#e4f0e8;--red:#a5462f;--redbg:#f8e6df;--r:16px;--field:#fff;--map1:#efe9dc;--map2:#f7f3ea;
+--fs:clamp(14px,.35vw + 10.5px,16px);--fs-s:clamp(12px,.2vw + 10px,13.5px);--pad:clamp(12px,2vw,32px);--h:clamp(40px,2.4vw + 10px,46px);--strip:clamp(72px,5vw,88px)}
+[data-theme=dark]{--bg:#0f1714;--card:#16211d;--soft:#1b2823;--line:#2a3a34;--ink:#e8ece9;--mute:#93a19b;--gold:#d3a35f;--goldbg:#2e2618;--green:#5fc495;--greenbg:#173326;--red:#e0866e;--redbg:#3a1f18;--field:#111b17;--map1:#17231f;--map2:#1d2b26}
+*{box-sizing:border-box}html,body{overflow-x:clip}body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs)/1.5 Manrope,system-ui,sans-serif}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+.wrap{max-width:1840px;margin:0 auto;padding:0 var(--pad)}
+.strip{position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0}
+.kpi{min-height:calc(var(--strip) - 20px);background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 4px 16px rgba(16,36,31,.06);display:grid;grid-template-columns:auto repeat(4,minmax(0,1fr)) auto auto;gap:clamp(10px,1.5vw,28px);align-items:center;padding:10px clamp(12px,1.5vw,24px)}
+.brand{font-weight:800;font-size:clamp(15px,1vw,18px);white-space:nowrap}.brand span{color:var(--gold)}
+.m small{display:block;font-size:var(--fs-s);color:var(--mute);font-weight:600;white-space:nowrap}
+.m b{font:700 clamp(15px,1.1vw,20px) "JetBrains Mono",monospace;white-space:nowrap}.m.net b{font-size:clamp(18px,1.6vw,28px);color:var(--green)}
+.btn{font-weight:700;border-radius:10px;padding:0 16px;height:var(--h);cursor:pointer;border:1px solid var(--line);background:var(--field);display:inline-flex;gap:8px;align-items:center;white-space:nowrap}
+.btn.pri{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.ico{width:var(--h);padding:0;justify-content:center}
+.grid{display:grid;grid-template-columns:minmax(380px,40%) minmax(0,1fr);gap:clamp(12px,1.2vw,20px);padding-bottom:var(--pad);align-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px clamp(14px,1.3vw,22px);border-bottom:1px solid var(--line)}
+.ph h1{margin:0;font-size:clamp(17px,1.2vw,22px);font-weight:800}.eyebrow{color:var(--gold);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+details{border-bottom:1px solid var(--line)}details:last-child{border-bottom:0}
+summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:14px clamp(14px,1.3vw,22px);font-weight:700}
+summary::-webkit-details-marker{display:none}summary .sum{margin-left:auto;color:var(--mute);font-weight:600;font-size:var(--fs-s);text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+summary::after{content:"▾";color:var(--mute);transition:.2s;flex:none}details[open] summary::after{transform:rotate(180deg)}
+details[open] .sum{display:none}summary .n{width:24px;height:24px;border-radius:8px;background:var(--goldbg);color:var(--gold);display:grid;place-items:center;font-size:12px;flex:none}
+.body{padding:2px clamp(14px,1.3vw,22px) 18px;display:grid;gap:12px}
+.sg{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,130px),1fr))}
+.sg.two{grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr))}
+.f{display:grid;gap:5px;min-width:0}.f label{font-size:var(--fs-s);font-weight:600;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.in{display:flex;align-items:center;height:var(--h);background:var(--field);border:1px solid var(--line);border-radius:10px;min-width:0;overflow:hidden}
+.in:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px var(--goldbg)}
+.in input,.in select{flex:1;min-width:0;width:100%;border:0;background:none;padding:0 12px;height:100%;outline:0;font-weight:500}
+.in select{cursor:pointer}.in .u{padding-right:12px;color:var(--mute);font-size:var(--fs-s);font-weight:600;white-space:nowrap;flex:none}
+.in .ic{padding-left:12px;color:var(--gold);font-weight:800;flex:none}
+.in select.cur{flex:none;width:auto;border-left:1px solid var(--line);padding:0 8px;background:var(--soft)}
+.seg{display:grid;grid-template-columns:1fr 1fr;height:var(--h);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{border:0;padding:0 4px;font-size:var(--fs-s);border-radius:7px;background:none;font-weight:600;cursor:pointer;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.seg button.on{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.err{display:none;color:var(--red);font-size:12px;font-weight:600}
+body.demo-err .bad .in{border-color:var(--red);background:var(--redbg)}body.demo-err .bad .err{display:block}
+.recent{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.recent li{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600}
+.recent li:hover{background:var(--soft)}.recent li span{color:var(--mute);font-weight:500;font-size:var(--fs-s);white-space:nowrap}
+.more{border:0;background:none;color:var(--gold);font-weight:700;cursor:pointer;justify-self:start;padding:4px 10px}
+.map{position:sticky;top:var(--strip);height:calc(100vh - var(--strip) - var(--pad));min-height:420px;border-radius:var(--r);border:1px solid var(--line);overflow:hidden;background:linear-gradient(135deg,var(--map1),var(--map2))}
+.map svg{position:absolute;inset:0;width:100%;height:100%}
+.glass{position:absolute;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(6px);border-radius:999px;box-shadow:0 2px 8px rgba(16,36,31,.12);padding:6px 12px;font-size:var(--fs-s);font-weight:600}
+.demo{position:fixed;left:12px;bottom:12px;z-index:30;font-size:12px;height:34px}
+@media(max-width:1180px){.kpi{grid-template-columns:repeat(4,minmax(0,1fr)) auto auto}.brand{display:none}}
+@media(max-width:900px){:root{--strip:auto}
+ .kpi{grid-template-columns:repeat(2,minmax(0,1fr)) auto;gap:6px 12px}.kpi .m:nth-of-type(n){min-width:0}
+ .kpi .ico{grid-column:3;grid-row:1}.kpi .pri{grid-column:1/-1;justify-content:center}
+ .grid{grid-template-columns:minmax(0,1fr)}.map{position:relative;top:0;height:260px;min-height:0;order:-1}}
+</style></head><body>
+<div class="strip"><div class="wrap"><div class="kpi">
+ <div class="brand">Trip<span>Control</span></div>
+ <div class="m net"><small>Чистий прибуток</small><b>+14 870 грн</b></div>
+ <div class="m"><small>грн/км</small><b>27,54</b></div>
+ <div class="m"><small>Беззбитковість</small><b>1 657 грн/т</b></div>
+ <div class="m"><small>Маржа</small><b>31,0%</b></div>
+ <div class="acts" style="display:contents"><button class="btn pri">Детально →</button>
+ <button class="btn ico" id="theme" title="Змінити тему">◐</button></div>
+</div></div></div>
+<div class="wrap grid">
+ <section class="panel">
+  <div class="ph"><div><div class="eyebrow">Калькулятор рейсу</div><h1>Параметри заявки</h1></div><button class="btn">Очистити</button></div>
+  <details open><summary><span class="n">1</span>Назва / маршрут заявки<span class="sum">Київ → Львів · 540 км</span></summary><div class="body">
+   <div class="f"><label>Назва заявки</label><div class="in"><input value="Зерно, Київ — Львів"></div></div>
+   <div class="sg two">
+    <div class="f bad"><label>Звідки</label><div class="in"><span class="ic">A</span><input value="Київ, вул. Промислова 4"></div><div class="err">Вкажіть адресу завантаження</div></div>
+    <div class="f"><label>Куди</label><div class="in"><span class="ic">B</span><input value="Львів, вул. Городоцька 355"></div></div>
+   </div>
+   <div class="sg">
+    <div class="f"><label>Відстань</label><div class="in"><input value="540" inputmode="decimal"><span class="u">км</span></div></div>
+    <div class="f"><label>Подача авто</label><div class="in"><input value="35"><span class="u">км</span></div></div>
+    <div class="f bad"><label>Вага вантажу</label><div class="in"><input value="20"><span class="u">т</span></div><div class="err">Більше 0</div></div>
+    <div class="f"><label>Тариф</label><div class="in"><input value="2 400"><select class="cur"><option>грн/т</option><option>$/т</option><option>€/т</option></select></div></div>
+   </div>
+   <div class="sg two">
+    <div class="f"><label>Повернення</label><div class="in"><select><option>Порожнім</option><option>З вантажем</option><option>Без повернення</option></select></div></div>
+    <div class="f"><label>Фура</label><div class="seg"><button class="on">Весь автопарк</button><button>Вибір авто</button></div></div>
+   </div></div></details>
+  <details><summary><span class="n">2</span>Пальне<span class="sum">600 км · 192 л · AdBlue 5%</span></summary><div class="body"><div class="sg">
+   <div class="f"><label>Витрата порожнім</label><div class="in"><input value="28"><span class="u">л/100</span></div></div>
+   <div class="f"><label>Витрата з вантажем</label><div class="in"><input value="34"><span class="u">л/100</span></div></div>
+   <div class="f"><label>Ціна пального</label><div class="in"><input value="54,90"><span class="u">грн/л</span></div></div>
+   <div class="f"><label>AdBlue</label><div class="in"><input value="5"><span class="u">%</span></div></div>
+  </div></div></details>
+  <details><summary><span class="n">3</span>Додаткові параметри<span class="sum">Дороги, стоянка, добові</span></summary><div class="body"><div class="sg">
+   <div class="f"><label>Платні дороги</label><div class="in"><input value="0"><span class="u">грн</span></div></div>
+   <div class="f"><label>Стоянка</label><div class="in"><input value="300"><span class="u">грн</span></div></div>
+   <div class="f"><label>Добові водію</label><div class="in"><input value="800"><span class="u">грн</span></div></div>
+   <div class="f"><label>Інші витрати</label><div class="in"><input value="500"><span class="u">грн</span></div></div>
+  </div></div></details>
+  <details open><summary><span class="n">↺</span>Останні маршрути<span class="sum">5</span></summary><div class="body">
+   <ul class="recent">
+    <li title="Одеса, вул. Портова 1 → Львів, вул. Городоцька 355">Одеса → Львів<span>790 км</span></li>
+    <li title="Київ, вул. Промислова 4 → Дніпро, просп. Слобожанський 31">Київ → Дніпро<span>480 км</span></li>
+    <li title="Вінниця → Ягодин (кордон)">Вінниця → Ягодин<span>420 км</span></li>
+    <li title="Харків → Полтава">Харків → Полтава<span>145 км</span></li>
+    <li title="Миколаїв → Ізмаїл">Миколаїв → Ізмаїл<span>310 км</span></li>
+   </ul><button class="more">ще 12 →</button></div></details>
+ </section>
+ <div class="map" role="img" aria-label="Карта маршруту (заглушка)">
+  <svg viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice"><g stroke="var(--line)" stroke-width="1" opacity=".9"><path d="M0 120H800M0 260H800M0 400H800M0 520H800M140 0V600M330 0V600M520 0V600M690 0V600"/></g>
+  <path d="M640 210 C560 230 520 300 450 310 S300 330 250 360 S170 390 140 400" fill="none" stroke="var(--gold)" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="640" cy="210" r="12" fill="var(--green)" stroke="#fff" stroke-width="3"/><circle cx="140" cy="400" r="12" fill="var(--red)" stroke="#fff" stroke-width="3"/></svg>
+  <div class="glass" style="left:14px;top:14px">Київ → Львів · <b class="mono">540 км</b> · ~7 год</div>
+  <div class="glass" style="right:14px;bottom:14px">Карта (заглушка)</div>
+ </div>
+</div>
+<button class="btn demo" id="demo">Демо: помилки</button>
+<script>
+theme.onclick=()=>{const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark'};
+demo.onclick=()=>document.body.classList.toggle('demo-err');
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{b.parentNode.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')});
+</script></body></html>
