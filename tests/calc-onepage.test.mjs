@@ -235,7 +235,7 @@ async function withPage(t, widths, fn) {
     }
 }
 
-const WIDTHS = [1920, 1440, 1280, 1024, 390];
+const WIDTHS = [1920, 1440, 1366, 1280, 1024, 390];
 
 test('browser: no horizontal scroll, uncut fields, no errors on load, no taxes block (1920 … 390)', async (t) => {
     await withPage(t, WIDTHS, async (page, width, theme) => {
@@ -579,4 +579,10 @@ test('browser: #podacha-dist visible exactly once with its km unit in every mode
             assert.deepEqual(vis, [ref, ref, wash, wash], 'trailer ' + type + at);
         }
     });
+});
+
+test('numbers group is 2x2 so the rate with its currency keeps room', () => {
+    assert.ok(build.includes("opGroup('nums', ["));
+    assert.ok(html.includes('.tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }'));
+    assert.ok(html.includes('.tc-f-rate .tc-in > input { min-width: 70px; }'));
 });

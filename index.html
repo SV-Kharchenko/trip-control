@@ -4094,6 +4094,11 @@
         #tc-op .tc-op-sub .form-row:has(#calc-type) > label { min-height: 0; }
         #tc-op .tc-in > select { text-overflow: ellipsis; }
         #tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }
+        /* Числа заявки: 2×2 (Відстань | Подача, Вага | Тариф), щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
+        .tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .tc-in > select.cur { min-width: 76px; }
+        .tc-f-rate .tc-in > input { min-width: 70px; }
+        @media (max-width: 340px) { .tc-sg.nums { grid-template-columns: minmax(0, 1fr); } }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -6706,7 +6711,7 @@
             panel1.appendChild(nameRow);
         }
         panel1.appendChild(opGroup('two', [opCell('tc-f-a', 'Звідки', [fromFull, fromDemo]), opCell('tc-f-b', 'Куди', [toFull, toDemo])]));
-        panel1.appendChild(opGroup('', [
+        panel1.appendChild(opGroup('nums', [
             opCell('tc-f-dist', 'Відстань', [distRow]),
             opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo]),
             opCell('tc-f-weight', 'Вага вантажу', [opRowOf('volume')]),
