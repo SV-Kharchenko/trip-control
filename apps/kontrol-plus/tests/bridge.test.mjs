@@ -153,7 +153,7 @@ test('bridge: site with nav, #main-app and supabaseClient → five tabs and #kp-
             'без сесії: GPS, Ремонти, Документи, Автопарк, Водії, Реквізити сховані');
         assert.equal(env.body.classList.contains('kp-nav-on'), true);
         assert.equal(env.navEl.children.length, 0, 'the site nav is left alone');
-        assert.deepEqual(env.byId['main-app'].children.map((el) => el.id), ['kp-crm']);
+        assert.deepEqual(env.byId['main-app'].children.map((el) => el.id), ['kp-crm', 'kp-calc-tabs']);
         assert.equal(env.calls.warn, 0);
         assert.deepEqual(env.calls.removed, ['kp-auth'], 'only the legacy key, never the site session');
         assert.equal(env.storage.get('sb-qkfqjorzsxcajcneohoy-auth-token'), 'site');

@@ -503,3 +503,41 @@ body.kp-nav-on #studio-nav-overview { display: none; }
 #kp-crm .kps-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: baseline; }
 #kp-crm .kps-gold { background: var(--gold); }
 #kp-crm .kps-green { background: var(--positive); }
+
+/* ===== Правки кабінету: шапка, вкладки «Розрахунків», реквізити, документи, статистика ===== */
+/* Шапка сайту в кабінеті: «Калькулятор», «Історія заявок», «Огляд» живуть у лівому меню / вкладках «Розрахунків» — у шапці їх немає */
+body.kp-nav-on #studio-nav-calc, body.kp-nav-on #studio-nav-overview, body.kp-nav-on #studio-nav-history, body.kp-nav-on .tc-studio-nav { display: none !important; }
+@media (min-width: 901px) {
+    body.kp-nav-on.layout-studio .tc-topbar { flex-wrap: nowrap; }
+    body.kp-nav-on .tc-nav-panel { min-width: 0; flex: 1 1 auto; }
+    body.kp-nav-on .tc-meta { min-width: 0; overflow: hidden; }
+}
+.kp-calc-tabs { display: none; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--border); }
+body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) .kp-calc-tabs { display: flex; }
+.kp-calc-tabs button { border: 0; background: none; padding: 10px 14px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
+.kp-calc-tabs button.on { color: var(--text); border-color: var(--gold); }
+
+/* Реквізити: «Зберегти» звичайної ширини справа внизу, «Підпис і печатка» — група всередині картки */
+#kp-crm .kpr-req .form .actions .btn { width: auto; flex: 0 0 auto; }
+#kp-crm .kpr-req .kpr-assets { margin-top: 6px; }
+#kp-crm .kpr-req .kpr-asset { display: grid; grid-template-columns: 160px auto; column-gap: 12px; justify-content: start; align-items: start; padding: 6px 0; }
+#kp-crm .kpr-req .kpr-asset > label { font-weight: 600; font-size: 13px; padding-top: 6px; }
+#kp-crm .kpr-req .kpr-asset-body { grid-column: 2; display: grid; gap: 6px; width: 240px; max-width: 100%; }
+#kp-crm .kpr-req .kpr-asset .kpd-asset-preview { min-height: 90px; margin: 0; }
+#kp-crm .kpr-req .kpr-asset .hint { margin: 0; }
+@media (max-width: 560px) {
+    #kp-crm .kpr-req .kpr-asset { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .kpr-req .kpr-asset > label, #kp-crm .kpr-req .kpr-asset-body { grid-column: 1; }
+}
+
+/* Документи: компактні фільтри (підпис зліва, поле за змістом) */
+#kp-crm .kpd-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+#kp-crm .kpd-f { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+#kp-crm .kpd-f input { width: 150px; flex: 0 0 auto; }
+#kp-crm .kpd-f select { width: auto; max-width: 200px; flex: 0 0 auto; }
+#kp-crm .kpd-filters > .kpd-f { flex: 0 0 auto; }
+
+/* Статистика: значення KPI не переносяться */
+#kp-crm .kps-tiles { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+#kp-crm .kps-tile b { white-space: nowrap; font-size: clamp(15px, 0.9vw + 8px, 22px); }
+#kp-crm .kps-tile small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

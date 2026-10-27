@@ -91,21 +91,38 @@ export const NAV_ITEMS = [
 ];
 
 // Верх меню = низ шапки сайту, поки вона в кадрі (шапка пролистується, меню лишається біля верху вікна).
+export function navTopPx(headBottom) {
+    const n = Math.round(Number(headBottom));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
 function syncNavTop() {
     const head = document.getElementById('sticky-top');
     if (!head || typeof head.getBoundingClientRect !== 'function') return;
-    const bottom = Math.max(0, Math.round(head.getBoundingClientRect().bottom));
-    document.documentElement.style.setProperty('--kp-nav-top', bottom + 'px');
+    document.documentElement.style.setProperty('--kp-nav-top', navTopPx(head.getBoundingClientRect().bottom) + 'px');
+}
+// Висота шапки рахується одразу, ще раз після першого кадру і далі при будь-якій зміні розміру шапки (шрифти, перенос рядків).
+function watchHeader() {
+    syncNavTop();
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(syncNavTop);
+    const head = document.getElementById('sticky-top');
+    if (head && typeof ResizeObserver === 'function') new ResizeObserver(syncNavTop).observe(head);
 }
 
 // Кнопки «Калькулятор» / «Огляд» / «Історія заявок» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
 function syncNav() {
+    syncNavTop();
     const tab = tabOf(state.route);
     if (tab) document.body.setAttribute('data-kp-view', tab);
     else document.body.removeAttribute('data-kp-view');
     // Поза розділами Контроль+ підсвічуємо сайт: «Огляд» або «Розрахунки» (калькулятор з історією заявок).
     const siteView = document.body.getAttribute('data-studio-view');
     const active = tab || (siteView === 'overview' ? 'overview' : 'calc');
+    const historyTab = document.getElementById('kp-calc-tab-history');
+    const calcTab = document.getElementById('kp-calc-tab-calc');
+    if (historyTab && calcTab) {
+        historyTab.classList.toggle('on', siteView === 'history');
+        calcTab.classList.toggle('on', siteView !== 'history');
+    }
     for (const [name, button] of Object.entries(tabs)) {
         button.classList.toggle('on', name === active);
         if (name === active) button.setAttribute('aria-current', 'page');
@@ -434,11 +451,16 @@ function mount() {
     if (main.parentNode && typeof main.parentNode.insertBefore === 'function') main.parentNode.insertBefore(side, main);
     else document.body.append(side);
     document.body.classList.add('kp-nav-on');
-    syncNavTop();
+    watchHeader();
     window.addEventListener('scroll', syncNavTop, { passive: true });
     window.addEventListener('resize', syncNavTop);
     root = h('section', { id: 'kp-crm', class: 'kp-crm', 'aria-label': 'Контроль+', tabindex: '-1' });
     main.insertBefore(root, document.getElementById('studio-overview'));
+    // «Розрахунок» і «Історія заявок» — вкладки всередині «Розрахунків» (кнопки з верхньої шапки сайту прибрано, щоб не дублювати меню).
+    const calcTabs = h('nav', { id: 'kp-calc-tabs', class: 'kp-calc-tabs', 'aria-label': 'Розрахунки' },
+        h('button', { type: 'button', id: 'kp-calc-tab-calc', onclick: openSite('calc') }, 'Розрахунок'),
+        h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Історія заявок'));
+    main.insertBefore(calcTabs, root);
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
     new MutationObserver((records) => {
         if (records.some((r) => r.attributeName === 'data-studio-view')) leave();

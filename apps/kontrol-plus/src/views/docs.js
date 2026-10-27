@@ -176,6 +176,9 @@ export function listTotals(rows) {
     return out;
 }
 
+// Компактне inline-поле фільтра: підпис зліва, поле за змістом.
+const labeled = (text, control) => h('label', { class: 'kpd-f' }, h('span', null, text), control);
+
 function renderDocList(app, access, presetKind = '') {
     const range = monthRange(kyivDate());
     const from = h('input', { type: 'date', value: range.from, 'aria-label': 'Період з' });
@@ -219,7 +222,7 @@ function renderDocList(app, access, presetKind = '') {
             .sort((a, b) => String(b.doc_date).localeCompare(String(a.doc_date)) || String(a.kind).localeCompare(String(b.kind)) || Number(b.number) - Number(a.number));
         if (!rows.length) {
             clear(list, h('div', { class: 'empty' }, h('p', null, 'За цей період документів немає.'),
-                access.canWrite ? h('div', { class: 'actions kpd-center' }, createButtons()) : null));
+                access.canWrite ? h('p', { class: 'muted small' }, 'Створіть рахунок, акт або ТТН кнопками вгорі.') : null));
             return;
         }
         const totals = listTotals(rows);
@@ -250,7 +253,7 @@ function renderDocList(app, access, presetKind = '') {
     for (const el of [from, to, kind, status, client]) el.addEventListener('change', load);
     loadClients().then(load, load);
     return h('div', null,
-        h('div', { class: 'toolbar' }, from, to, kind, status, client),
+        h('div', { class: 'toolbar kpd-filters' }, labeled('Період з', from), labeled('по', to), labeled('Тип', kind), labeled('Статус', status), labeled('Клієнт', client)),
         access.canWrite ? h('div', { class: 'toolbar' }, createButtons()) : null,
         list);
 }

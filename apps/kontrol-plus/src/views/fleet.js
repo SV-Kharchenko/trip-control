@@ -45,7 +45,7 @@ export function renderFleetPage(app, sub = 'cars') {
     const access = docsAccess(app.context);
     const current = sub === 'trailers' ? 'trailers' : 'cars';
     const today = kyivDate();
-    const plate = h('input', { type: 'search', id: 'kpf-plate', placeholder: 'напр. 4821', autocomplete: 'off', 'aria-label': 'Фільтр за держномером' });
+    const plate = h('input', { type: 'text', id: 'kpf-plate', placeholder: 'напр. 4821', autocomplete: 'off', 'aria-label': 'Фільтр за держномером' });
     const clearBtn = h('button', { type: 'button', class: 'kpf-clear', 'aria-label': 'Очистити фільтр', hidden: true }, '×');
     const body = h('div', null, spinner());
     let rows = [];

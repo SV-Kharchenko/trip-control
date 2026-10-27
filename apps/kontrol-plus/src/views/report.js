@@ -52,7 +52,7 @@ export function reportTabs(current) {
 export function renderReport(app, sub = 'main', debtsView = null) {
     if (sub === 'debts') {
         return h('section', { class: 'page kpr-page kp-report' },
-            h('div', { class: 'page-head' }, h('h1', null, 'Звіт план/факт')),
+            h('div', { class: 'page-head' }, h('h1', null, 'План/факт')),
             reportTabs('debts'),
             debtsView);
     }
@@ -149,7 +149,7 @@ export function renderReport(app, sub = 'main', debtsView = null) {
     load();
 
     return h('section', { class: 'page kp-report' },
-        h('div', { class: 'page-head' }, h('h1', null, 'Звіт план/факт'), exportBtn),
+        h('div', { class: 'page-head' }, h('h1', null, 'План/факт'), exportBtn),
         reportTabs('main'),
         h('div', { class: 'toolbar' },
             h('div', { class: 'dates' }, h('label', { for: 'r-from' }, 'З'), from, h('label', { for: 'r-to' }, 'по'), to),
