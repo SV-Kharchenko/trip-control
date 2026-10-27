@@ -83,7 +83,8 @@ test('panel «Параметри заявки»: 4 accordion rows, fields in the
     const upd = sliceBetween(onepage, 'function updateOnePage(', 'function opToggleRecent(');
     assert.match(upd, /stepSummaryText\(1\)/);
     assert.match(upd, /' л'/);
-    assert.match(upd, /'AdBlue ' \+ opNum\(rate \/ loadRaw \* 100\) \+ '%'/);
+    assert.match(upd, /'AdBlue ' \+ opNum\(rate, 2\) \+ ' л\/100км'/);
+    assert.match(upd, /'без AdBlue'/);
     assert.match(upd, /'Немає витрати пального для '/);
     assert.match(upd, /if \(fuelOff && !opFuelWasMissing\) setAccOpen\('fuel', true\)/);
     assert.match(build, /Вкажіть витрату — без неї пальне не рахується/);
@@ -234,7 +235,7 @@ async function withPage(t, widths, fn) {
     }
 }
 
-const WIDTHS = [1920, 1440, 1280, 1024, 390];
+const WIDTHS = [1920, 1440, 1366, 1280, 1024, 390];
 
 test('browser: no horizontal scroll, uncut fields, no errors on load, no taxes block (1920 … 390)', async (t) => {
     await withPage(t, WIDTHS, async (page, width, theme) => {
@@ -387,4 +388,201 @@ test('browser: sticky map after scroll 600 sits under the strip inside the windo
         assert.ok(Math.abs(g.btnBg - g.btnFg) > 100, 'button contrast ' + g.bgRaw + at);
         if (theme === 'light') assert.ok(g.btnBg < 90, 'button is not dark: ' + g.bgRaw + at);
     });
+});
+
+test('polish: one address mode, dynamic trailer fields, KPI strip alignment, AdBlue switch with 2.85, uncut extras', () => {
+    // 1. Демо — лише OSM-пара, повний доступ — лише Google-пара; ID-селектор .form-row більше не перебиває .demo-only.
+    assert.ok(css.includes('#tc-op .demo-only { display: none; }'));
+    assert.ok(css.includes('body.demo-mode #tc-op .demo-only { display: grid; }'));
+    assert.ok(css.includes('body.demo-mode #tc-op .full-only { display: none !important; }'));
+    assert.match(build, /\[fromFull, toFull\]\.forEach\(function \(row\) \{ if \(row\) row\.classList\.add\('full-only'\); \}\)/);
+    assert.match(build, /\[fromDemo, toDemo\]\.forEach\(function \(row\) \{ if \(row\) row\.classList\.add\('demo-only'\); \}\)/);
+    assert.equal((html.match(/id="podacha-dist"/g) || []).length, 1);
+    assert.equal((html.match(/id="osm-demo-from"/g) || []).length, 1);
+    assert.equal((html.match(/id="osm-from-wrap"/g) || []).length, 1);
+    // 2. Смуга: відступи по вертикалі більші за вихід підпису, рядки по центру.
+    assert.ok(css.includes('.tc-kpi-bar { padding-block: 20px; align-items: center; }'));
+    assert.ok(css.includes('.tc-kpi-bar::before { inset: 10px var(--tc-pad); }'));
+    // 3. Поля реф/промивка видно лише для свого типу причепа.
+    assert.ok(css.includes('#tc-op .form-row.dynamic-field:not(.active) { display: none; }'));
+    const sync = sliceBetween(html, 'function syncTrailerExtras()', 'function onTrailerChange()');
+    assert.match(sync, /trailer === 'рефрижератор'/);
+    assert.match(sync, /trailer === 'цистерна'/);
+    // 4. AdBlue: перемикач + поле витрати 2.85 (value), заголовок із л/100км.
+    assert.match(html, /<input type="number" id="adblue-consumption" step="0\.05" value="2\.85"/);
+    assert.match(build, /sw\.setAttribute\('role', 'switch'\)/);
+    assert.match(build, /adblueSel\.value = adblueSel\.value === 'on' \? 'off' : 'on';\n\s+onAdblueToggle\(\);/);
+    assert.match(onepage, /adRateRow\.hidden = !adOn/);
+    assert.match(html, /<option value="on" selected>Увімкнено<\/option>\s*<option value="off">Вимкнено<\/option>/);
+    // 5. Підписи в «Додаткових параметрах» переносяться, select не ріже значення.
+    assert.ok(css.includes('#tc-op .tc-op-sub .form-row > label { white-space: normal;'));
+    assert.ok(css.includes('#tc-op .tc-op-sub .form-row:has(#calc-type) { grid-column: 1 / -1; }'));
+});
+
+test('browser: one A/B pair and one «Подача» in each mode; KPI labels inside the strip; trailer fields; AdBlue; uncut extras', async (t) => {
+    await withPage(t, [1440, 1024], async (page, width, theme) => {
+        const at = ' at ' + width + ' ' + theme;
+        // Режими: preview = демо (body.demo-mode); повний доступ — те саме без класу.
+        for (const demo of [true, false]) {
+            await page.evaluate((on) => document.body.classList.toggle('demo-mode', on), demo);
+            await page.waitForTimeout(80);
+            const seen = await page.evaluate(() => {
+                const vis = (sel) => [...document.querySelectorAll('#tc-op ' + sel)].filter((e) => e.offsetParent !== null).length;
+                return { from: vis('#osm-from-wrap, #osm-demo-from'), to: vis('#osm-to-wrap, #osm-demo-to'), base: vis('#osm-base-wrap, #osm-demo-base'), podacha: vis('#podacha-dist') };
+            });
+            assert.equal(seen.from, 1, 'A pair (demo=' + demo + ')' + at);
+            assert.equal(seen.to, 1, 'B pair (demo=' + demo + ')' + at);
+            assert.ok(seen.base <= 1, 'base (demo=' + demo + ')' + at);
+            assert.equal(seen.podacha, 1, 'podacha (demo=' + demo + ')' + at);
+        }
+        const labels = await page.evaluate(() => {
+            const bar = document.getElementById('tc-kpi-bar').getBoundingClientRect();
+            return [...document.querySelectorAll('#tc-kpi-bar .tc-kb-m, #tc-kpi-bar .tc-kb-detail')].map((el) => {
+                const r = el.getBoundingClientRect();
+                return r.top >= bar.top + 8 && r.bottom <= bar.bottom - 8;
+            });
+        });
+        assert.ok(labels.every(Boolean), 'KPI cells outside the strip' + at);
+        await page.evaluate(() => document.getElementById('tc-acc-extras').querySelector('.tc-acc-head').click());
+        for (const [type, ref, wash] of [['зерновоз', false, false], ['рефрижератор', true, false], ['тент', false, false], ['цистерна', false, true]]) {
+            await page.evaluate((v) => { const el = document.getElementById('trailer-type'); el.value = v; syncTrailerExtras(); }, type);
+            const vis = await page.evaluate(() => ['field-ref-consumption', 'field-ref-hours', 'field-wash-cost', 'field-wash-freq'].map((id) => document.getElementById(id).offsetParent !== null));
+            assert.deepEqual(vis, [ref, ref, wash, wash], 'trailer ' + type + at);
+        }
+        const ad = await page.evaluate(() => {
+            document.querySelector('#tc-acc-fuel .tc-acc-head').click();
+            const rate = document.getElementById('adblue-consumption');
+            const sw = document.getElementById('tc-adblue-switch');
+            const on = { value: rate.value, shown: document.getElementById('tc-adblue-rate-row').offsetParent !== null, checked: sw.getAttribute('aria-checked') };
+            sw.click();
+            const off = { shown: document.getElementById('tc-adblue-rate-row').offsetParent !== null, sel: document.getElementById('adblue-enable').value };
+            document.querySelector('#tc-acc-fuel .tc-acc-head').click();
+            return { on, off, sum: document.getElementById('tc-acc-sum-fuel').textContent };
+        });
+        assert.equal(ad.on.value, '2.85');
+        assert.equal(ad.on.shown, true);
+        assert.equal(ad.on.checked, 'true');
+        assert.equal(ad.off.shown, false);
+        assert.equal(ad.off.sel, 'off');
+        assert.match(ad.sum, /без AdBlue/);
+        const clipped = await page.evaluate(() => [...document.querySelectorAll('#tc-acc-extras .tc-op-sub label, #tc-acc-extras .tc-in > select')]
+            .filter((e) => e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1).map((e) => e.id || e.textContent.slice(0, 20)));
+        assert.deepEqual(clipped, [], 'clipped extras' + at);
+    });
+});
+
+// ----- jsdom (якщо встановлено; інакше пропускається): справжнє завантаження сторінки без Chrome -----
+async function bootDom() {
+    let JSDOM;
+    try { ({ JSDOM } = await import('jsdom')); } catch {
+        try {
+            const { createRequire } = await import('node:module');
+            ({ JSDOM } = createRequire(process.env.JSDOM_PATH || import.meta.url)('jsdom'));
+        } catch { return null; }
+    }
+    const dom = new JSDOM(html, {
+        url: 'http://localhost/index.html?preview=1',
+        runScripts: 'dangerously',
+        pretendToBeVisual: true,
+        beforeParse(w) {
+            const deep = () => new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : deep()), apply: () => deep() });
+            w.supabase = { createClient: () => deep() };
+            w.ResizeObserver = class { observe() {} };
+            w.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
+            w.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
+        },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return dom;
+}
+
+test('jsdom: #dist and #podacha-dist are in the panel once, trailer type updates fields without and with a session', async (t) => {
+    const dom = await bootDom();
+    if (!dom) { t.skip('no jsdom'); return; }
+    try {
+        const w = dom.window;
+        const d = w.document;
+        for (const id of ['dist', 'podacha-dist', 'volume', 'rate', 'return-mode']) {
+            const matches = d.querySelectorAll('#' + id);
+            assert.equal(matches.length, 1, id);
+            assert.ok(matches[0].closest('#tc-op .tc-f'), id + ' sits in a grid cell');
+        }
+        const unit = d.getElementById('podacha-dist').parentElement.querySelector('.unit');
+        assert.equal(unit && unit.textContent, 'км');
+        assert.ok(d.getElementById('podacha-dist').closest('.tc-f-podacha'));
+        assert.ok(d.getElementById('dist').closest('.tc-f-dist'));
+        const trailer = d.getElementById('trailer-type');
+        const ids = ['field-ref-consumption', 'field-ref-hours', 'field-wash-cost', 'field-wash-freq'];
+        const run = (label) => {
+            for (const [type, ref, wash] of [['зерновоз', false, false], ['рефрижератор', true, false], ['тент', false, false], ['цистерна', false, true]]) {
+                trailer.value = type;
+                w.onTrailerChange();
+                assert.deepEqual(ids.map((id) => d.getElementById(id).classList.contains('active')), [ref, ref, wash, wash], label + ' ' + type);
+            }
+        };
+        run('no session');
+        w.eval('currentSessionToken = "fake-token"');
+        run('with session');
+    } finally {
+        dom.window.close();
+    }
+});
+
+test('jsdom: extras grid has no empty info slot; trip-volume-info collapses when empty', async (t) => {
+    const dom = await bootDom();
+    if (!dom) { t.skip('no jsdom'); return; }
+    try {
+        const d = dom.window.document;
+        const info = d.getElementById('trip-volume-info');
+        assert.ok(info && info.closest('.tc-op-sub'));
+        assert.equal(info.textContent.trim(), '');
+        assert.ok(css.includes('#tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }') || html.includes('#tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }'));
+    } finally {
+        dom.window.close();
+    }
+});
+
+test('static: onTrailerChange syncs fields before the session guard; rows are captured before panel1 is cleared', () => {
+    const fn = sliceBetween(html, 'function onTrailerChange()', 'let vehicleNormBaseline');
+    assert.equal(fn.includes('currentSessionToken'), false, 'no early exit before the fields sync');
+    assert.match(fn, /syncTrailerExtras\(\);\s+calculate\(\);/);
+    assert.match(sliceBetween(html, 'async function calculate()', 'Обов'), /if \(!currentSessionToken\) return;/);
+    assert.ok(build.indexOf('const distRow = opRowOf') < build.indexOf("panel1.textContent = ''"));
+    assert.ok(build.indexOf('const podachaRow = opRowOf') < build.indexOf("panel1.textContent = ''"));
+    assert.match(build, /opCell\('tc-f-podacha', 'Подача авто', \[podachaRow, podachaInfo\]\)/);
+});
+
+test('browser: #podacha-dist visible exactly once with its km unit in every mode; no zero-height grid items in extras (1920 / 1440 / 1280 / 1024 / 390)', async (t) => {
+    await withPage(t, WIDTHS, async (page, width, theme) => {
+        const at = ' at ' + width + ' ' + theme;
+        for (const demo of [true, false]) {
+            await page.evaluate((on) => document.body.classList.toggle('demo-mode', on), demo);
+            await page.waitForTimeout(60);
+            const seen = await page.evaluate(() => {
+                const all = [...document.querySelectorAll('#podacha-dist')].filter((e) => e.offsetParent !== null);
+                const unit = all[0] && all[0].parentElement.querySelector('.unit');
+                const base = [...document.querySelectorAll('#osm-base-wrap, #osm-demo-base')].filter((e) => e.offsetParent !== null).length;
+                return { km: all.length, unit: unit ? unit.textContent : null, base };
+            });
+            assert.equal(seen.km, 1, 'podacha-dist visible (demo=' + demo + ')' + at);
+            assert.equal(seen.unit, 'км');
+            assert.ok(seen.base <= 1, 'parking address field (demo=' + demo + ')' + at);
+        }
+        await page.evaluate(() => document.querySelector('#tc-acc-extras .tc-acc-head').click());
+        const flat = await page.evaluate(() => [...document.querySelectorAll('#tc-acc-extras .tc-op-sub > *')].filter((e) => e.offsetParent !== null && e.getBoundingClientRect().height === 0).map((e) => e.id || e.className));
+        assert.deepEqual(flat, [], 'zero-height items in extras' + at);
+        for (const type of ['зерновоз', 'рефрижератор', 'тент', 'цистерна']) {
+            await page.selectOption('#trailer-type', type);
+            const vis = await page.evaluate(() => ['field-ref-consumption', 'field-ref-hours', 'field-wash-cost', 'field-wash-freq'].map((id) => document.getElementById(id).offsetParent !== null));
+            const ref = type === 'рефрижератор';
+            const wash = type === 'цистерна';
+            assert.deepEqual(vis, [ref, ref, wash, wash], 'trailer ' + type + at);
+        }
+    });
+});
+
+test('numbers group is 2x2 so the rate with its currency keeps room', () => {
+    assert.ok(build.includes("opGroup('nums', ["));
+    assert.ok(html.includes('.tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }'));
+    assert.ok(html.includes('.tc-f-rate .tc-in > input { min-width: 70px; }'));
 });
