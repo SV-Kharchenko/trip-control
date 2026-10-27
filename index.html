@@ -4029,6 +4029,17 @@
             body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-side { order: 2; }
             body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual { order: 3; }
         }
+
+        /* Селекти й числа не обрізаються: «Повернення» на дві колонки, валюта і числа мають мінімум під текст */
+        .tc-op-truck { grid-column: span 2; }
+        .tc-op-return { grid-column: span 2; }
+        .tc-op-return select { width: 100%; min-width: 0; text-overflow: clip; }
+        .tc-op-cell select#contract-currency { width: 100%; min-width: 130px; }
+        .tc-op-cell input[type="number"] { min-width: 90px; }
+        @media (max-width: 900px) {
+            .tc-op-return { grid-column: 1 / -1; }
+            .tc-op-return select { font-size: 0.78rem; padding-inline: 6px; }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>

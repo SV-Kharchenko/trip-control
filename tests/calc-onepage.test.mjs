@@ -293,3 +293,35 @@ test('browser: wide form, uncut fields, sticky bar, «Детально» layout 
         server.close();
     }
 });
+
+test('selects and numbers keep room for their text', () => {
+    assert.ok(html.includes('.tc-op-return { grid-column: span 2; }'));
+    assert.ok(html.includes('.tc-op-cell select#contract-currency { width: 100%; min-width: 130px; }'));
+    assert.ok(html.includes('.tc-op-cell input[type="number"] { min-width: 90px; }'));
+});
+
+test('browser: no clipped selects or numbers (1280 / 1024 / 390)', async (t) => {
+    const browser = await loadBrowser();
+    if (!browser) { t.skip('no playwright-core / Chrome'); return; }
+    const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = 'http://localhost:' + server.address().port + '/index.html?preview=1';
+    try {
+        for (const width of [1280, 1024, 390]) {
+            const page = await browser.newPage({ viewport: { width, height: 900 } });
+            await page.goto(url, { waitUntil: 'domcontentloaded' });
+            await page.waitForSelector('#tc-kpi-bar', { timeout: 15000 });
+            const clipped = await page.evaluate(() => ['contract-currency', 'return-mode', 'dist', 'podacha-dist', 'volume', 'rate']
+                .map((id) => document.getElementById(id))
+                .filter((el) => el && (el.scrollWidth > el.clientWidth + 1 || (el.type === 'number' && el.clientWidth < 90)))
+                .map((el) => el.id + ':' + el.clientWidth + '/' + el.scrollWidth));
+            assert.deepEqual(clipped, [], 'clipped at ' + width);
+            const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            assert.ok(overflow <= 0, 'horizontal scroll at ' + width);
+            await page.close();
+        }
+    } finally {
+        await browser.close();
+        server.close();
+    }
+});
