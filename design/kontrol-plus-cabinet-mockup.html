@@ -89,7 +89,7 @@ tbody tr:hover{background:var(--row-hover)}
 .form{max-width:640px;margin-inline:auto}
 .form .ir{display:grid;grid-template-columns:160px auto;justify-content:start;align-items:center;gap:12px}
 .form .ir .fld{margin:0}
-.w-xxl{--w:360px}.w-sel{--w:100px}.w-c{--w:140px}
+.w-xxl{--w:360px}.w-ph{--w:170px}.w-sel{--w:100px}.w-c{--w:140px}
 .group{padding:4px 0 8px;border-bottom:1px solid var(--border-soft)}
 .group:last-of-type{border-bottom:0}
 .group h4{margin:12px 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold)}
@@ -161,8 +161,7 @@ tbody tr:hover{background:var(--row-hover)}
    <div class="head"><div><div class="eyebrow">Контроль+</div><h1 id="h-fleet">Автопарк</h1></div><button class="btn pri" type="button">+ Додати</button></div>
    <div class="tabs" role="tablist"><button class="tab on" role="tab" type="button" data-p="fl-cars">Авто</button><button class="tab" role="tab" type="button" data-p="fl-trailers">Причепи</button></div>
    <div class="filter">
-    <label class="ir" style="min-height:0;gap:10px"><span>Держномер</span><span class="fld w-m"><input id="plate" placeholder="AA 0000 XX" autocomplete="off"></span></label>
-    <div class="chips" id="plates" aria-label="Швидкий фільтр за номером"><button class="chip on" type="button">Усі</button><button class="chip" type="button">AA 4821 KT</button><button class="chip" type="button">AA 1190 BH</button><button class="chip" type="button">BC 7705 OA</button></div>
+    <label class="ir" style="min-height:0;gap:10px"><span>Держномер</span><span class="fld w-m"><input id="plate" type="search" placeholder="напр. 4821" autocomplete="off" aria-label="Фільтр за держномером"></span></label>
    </div>
    <div class="pane on" id="fl-cars"><div class="card"><div class="tw"><table>
     <thead><tr><th>Номер</th><th>Марка / модель</th><th>Тип</th><th>Стан</th><th class="n">Пробіг</th><th>Найближче ТО</th></tr></thead>
@@ -171,12 +170,14 @@ tbody tr:hover{background:var(--row-hover)}
      <tr><td class="mono">AA 1190 BH</td><td>Volvo FH 460</td><td>Тягач</td><td><span class="badge b-mute">На стоянці</span></td><td class="n mono">188 640 км</td><td>за 41 день</td></tr>
      <tr><td class="mono">BC 7705 OA</td><td>MAN TGX 18.510</td><td>Тягач</td><td><span class="badge b-bad">Ремонт</span></td><td class="n mono">312 900 км</td><td><span class="badge b-bad">прострочено</span></td></tr>
      <tr><td class="mono">AA 3302 IK</td><td>Iveco Stralis</td><td>Тягач</td><td><span class="badge b-ok">В рейсі</span></td><td class="n mono">97 250 км</td><td>за 78 днів</td></tr>
+     <tr class="nf" hidden><td colspan="6" class="empty">Нічого не знайдено</td></tr>
     </tbody></table></div></div></div>
    <div class="pane" id="fl-trailers"><div class="card"><div class="tw"><table>
     <thead><tr><th>Номер</th><th>Марка / модель</th><th>Тип</th><th>Стан</th><th class="n">Пробіг</th><th>Найближче ТО</th></tr></thead>
     <tbody>
      <tr><td class="mono">AA 2210 XP</td><td>Schmitz Cargobull</td><td>Зерновоз</td><td><span class="badge b-ok">В рейсі</span></td><td class="n mono">402 000 км</td><td>за 19 днів</td></tr>
      <tr><td class="mono">AA 9051 XP</td><td>Krone SD</td><td>Тент</td><td><span class="badge b-mute">На стоянці</span></td><td class="n mono">215 480 км</td><td>за 55 днів</td></tr>
+     <tr class="nf" hidden><td colspan="6" class="empty">Нічого не знайдено</td></tr>
     </tbody></table></div></div></div>
   </section>
 
@@ -269,7 +270,7 @@ tbody tr:hover{background:var(--row-hover)}
     <div class="group"><h4>Основне</h4>
      <div class="ir"><span>Назва</span><span class="fld w-xxl"><input value="ТОВ «Агро-Транс»"></span></div>
      <div class="ir"><span>Форма</span><span class="fld w-sel"><select><option>ТОВ</option><option>ФОП</option></select></span></div>
-     <div class="ir"><span>ЄДРПОУ / ІПН</span><span class="fld w-c"><input class="r" value="43215678"></span></div>
+     <div class="ir"><span>ЄДРПОУ / ІПН</span><span class="fld w-c"><input value="43215678"></span></div>
      <div class="ir"><span>Платник ПДВ</span><span class="fld w-sel"><select><option>Так</option><option>Ні</option></select></span></div>
     </div>
     <div class="group"><h4>Адреси</h4>
@@ -277,12 +278,12 @@ tbody tr:hover{background:var(--row-hover)}
      <div class="ir"><span>Фактична</span><span class="fld w-xxl"><input value="43000, м. Луцьк, вул. Промислова, 4"></span></div>
     </div>
     <div class="group"><h4>Банк</h4>
-     <div class="ir"><span>IBAN</span><span class="fld w-xl"><input class="r" value="UA213223130000026007233566001"></span></div>
+     <div class="ir"><span>IBAN</span><span class="fld w-xl"><input value="UA213223130000026007233566001"></span></div>
      <div class="ir"><span>Банк</span><span class="fld w-l"><input value="АТ КБ «ПриватБанк»"></span></div>
-     <div class="ir"><span>МФО</span><span class="fld w-c"><input class="r" value="305299"></span></div>
+     <div class="ir"><span>МФО</span><span class="fld w-c"><input value="305299"></span></div>
     </div>
     <div class="group"><h4>Контакти</h4>
-     <div class="ir"><span>Телефон</span><span class="fld w-c"><input class="r" value="+380 332 12 34 56"></span></div>
+     <div class="ir"><span>Телефон</span><span class="fld w-ph"><input value="+380 332 12 34 56"></span></div>
      <div class="ir"><span>Email</span><span class="fld w-l"><input value="office@agro-trans.example"></span></div>
      <div class="ir"><span>Підписант</span><span class="fld w-l"><input value="Кравченко Андрій Вікторович"></span></div>
      <div class="ir"><span>Посада</span><span class="fld w-m"><input value="Директор"></span></div>
@@ -310,12 +311,24 @@ tbody tr:hover{background:var(--row-hover)}
       });
     });
   });
-  $$('#plates .chip').forEach(function (c) {
-    c.addEventListener('click', function () {
-      $$('#plates .chip').forEach(function (x) { x.classList.toggle('on', x === c); });
-      $('#plate').value = c.textContent === 'Усі' ? '' : c.textContent;
+  // Нормалізація номера: без пробілів і дефісів, верхній регістр, кирилиця -> латиниця (А В С Е І К М Н О Р Т Х).
+  function normPlate(s) {
+    var map = { 'А': 'A', 'В': 'B', 'С': 'C', 'Е': 'E', 'І': 'I', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 'Р': 'P', 'Т': 'T', 'Х': 'X' };
+    return String(s == null ? '' : s).toUpperCase().replace(/[\s\-\u2010-\u2015]+/g, '').replace(/[АВСЕІКМНОРТХ]/g, function (c) { return map[c]; });
+  }
+  function filterPlates() {
+    var q = normPlate($('#plate').value);
+    $$('#fl-cars tbody, #fl-trailers tbody').forEach(function (body) {
+      var shown = 0;
+      $$('tr:not(.nf)', body).forEach(function (tr) {
+        var hit = !q || normPlate(tr.cells[0].textContent).indexOf(q) !== -1;
+        tr.hidden = !hit;
+        if (hit) shown++;
+      });
+      $('tr.nf', body).hidden = shown > 0;
     });
-  });
+  }
+  $('#plate').addEventListener('input', filterPlates);
   $$('#drivers li').forEach(function (li) {
     li.addEventListener('click', function () { $$('#drivers li').forEach(function (x) { x.classList.toggle('on', x === li); }); });
   });

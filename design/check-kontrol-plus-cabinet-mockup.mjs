@@ -28,7 +28,7 @@ assert.deepEqual(menu, [
 for (const [key] of menu) assert.ok(ids.includes('s-' + key), 'section s-' + key);
 
 const need = [
-    'fl-cars', 'fl-trailers', 'plate', 'plates', 'drivers', 'dc-contracts', 'dc-ttn', 'dc-acts', 'dc-other', 'pf-main', 'pf-debts',
+    'fl-cars', 'fl-trailers', 'plate', 'drivers', 'dc-contracts', 'dc-ttn', 'dc-acts', 'dc-other', 'pf-main', 'pf-debts',
 ];
 for (const id of need) assert.ok(ids.includes(id), id);
 for (const text of ['Авто', 'Причепи', 'Договори', 'ТТН / 2-ТН', 'Акти', 'Інше', 'Борги', 'Експорт CSV', 'Зберегти', 'Картка водія', 'Закріплене авто']) {
@@ -53,4 +53,32 @@ assert.equal((html.match(/<svg viewBox="0 0 400 180"/g) || []).length, 2, 'two i
 assert.equal(/https?:\/\//.test(html.replace(/\.example/g, '')), false, 'no external dependencies');
 assert.match(html, /data-theme="light"/);
 assert.match(html, /\[data-theme=dark\]/);
+
+// ---- Автопарк: без чіпів, живий фільтр за номером ----
+const fleet = html.slice(html.indexOf('<section class="sec" id="s-fleet"'), html.indexOf('</section>', html.indexOf('<section class="sec" id="s-fleet"')));
+assert.equal(/class="chip/.test(fleet), false, 'no chips in #s-fleet');
+assert.equal(ids.includes('plates'), false, 'no #plates');
+assert.match(fleet, /<input id="plate" type="search" placeholder="напр\. 4821"/);
+assert.equal((fleet.match(/<tr class="nf" hidden><td colspan="6" class="empty">Нічого не знайдено<\/td><\/tr>/g) || []).length, 2, 'empty row in both tables');
+const normSource = html.match(/function normPlate\(s\) \{[\s\S]*?\n  \}/);
+assert.ok(normSource, 'normPlate is in the page script');
+const normPlate = new Function(normSource[0] + '\nreturn normPlate;')();
+assert.equal(normPlate('аа 4821 кт'), normPlate('AA4821KT'));
+assert.equal(normPlate('аа 4821 кт'), 'AA4821KT');
+assert.equal(normPlate('AA-4821-KT'), 'AA4821KT');
+assert.equal(normPlate(null), '');
+const plates = [...fleet.matchAll(/<td class="mono">([A-Z]{2} \d{4} [A-Z]{2})<\/td>/g)].map((m) => m[1]);
+assert.ok(plates.length >= 6);
+const find = (query) => plates.filter((p) => !normPlate(query) || normPlate(p).includes(normPlate(query)));
+assert.ok(find('4821').includes('AA 4821 KT'));
+assert.ok(find('AA4821').includes('AA 4821 KT'));
+assert.ok(find('аа 48').includes('AA 4821 KT'));
+assert.deepEqual(find('zzzz'), []);
+assert.equal(find('').length, plates.length, 'empty query shows everything');
+assert.match(html, /\$\('#plate'\)\.addEventListener\('input', filterPlates\)/);
+// ---- Реквізити: телефон 170px, цифрові поля ліворуч ----
+const co = html.slice(html.indexOf('<section class="sec" id="s-company"'), html.indexOf('</section>', html.indexOf('<section class="sec" id="s-company"')));
+assert.match(html, /\.w-ph\{--w:170px\}/);
+assert.match(co, /<span>Телефон<\/span><span class="fld w-ph">/);
+assert.equal(/class="r"/.test(co), false, 'no right-aligned inputs in #s-company');
 console.log('OK: меню (8), секції, підвкладки, таблиці, форма реквізитів, 2 графіки, Dark/Light — без зовнішніх залежностей.');
