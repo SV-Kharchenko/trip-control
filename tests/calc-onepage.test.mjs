@@ -372,7 +372,7 @@ test('browser: units stay on the input line at 390', async (t) => {
                 const cell = u.closest('.tc-op-cell').getBoundingClientRect();
                 const ur = u.getBoundingClientRect();
                 const ir = input.getBoundingClientRect();
-                return { id: input.id, dy: Math.abs(ur.top - ir.top), out: ur.right > cell.right + 1 };
+                return { id: input.id, dy: Math.abs((ur.top + ur.bottom) / 2 - (ir.top + ir.bottom) / 2), out: ur.right > cell.right + 1 };
             })
             .filter((r) => r.dy >= 8 || r.out)
             .map((r) => r.id + ':' + r.dy + (r.out ? ' outside' : '')));
