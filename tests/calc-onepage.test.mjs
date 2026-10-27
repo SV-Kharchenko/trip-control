@@ -349,3 +349,37 @@ test('calculator selects use short option labels with the full text in title', (
     assert.match(ret, /title="Циклічний вивіз: весь обсяг/);
     assert.ok(html.includes('select#return-mode { width: 100% !important; min-width: 0; }'));
 });
+
+test('mobile rows keep input and unit side by side', () => {
+    assert.ok(html.includes('.tc-op-cell > .form-row { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }'));
+    assert.ok(html.includes('.tc-op-cell > .form-row > .unit { flex: 0 0 auto; white-space: nowrap; }'));
+});
+
+test('browser: units stay on the input line at 390', async (t) => {
+    const browser = await loadBrowser();
+    if (!browser) { t.skip('no playwright-core / Chrome'); return; }
+    const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const url = 'http://localhost:' + server.address().port + '/index.html?preview=1';
+    try {
+        const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+        await page.goto(url, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('#tc-kpi-bar', { timeout: 15000 });
+        const bad = await page.evaluate(() => [...document.querySelectorAll('#tc-op-grid .form-row > .unit')]
+            .filter((u) => u.offsetParent !== null)
+            .map((u) => {
+                const input = u.parentElement.querySelector('input');
+                const cell = u.closest('.tc-op-cell').getBoundingClientRect();
+                const ur = u.getBoundingClientRect();
+                const ir = input.getBoundingClientRect();
+                return { id: input.id, dy: Math.abs(ur.top - ir.top), out: ur.right > cell.right + 1 };
+            })
+            .filter((r) => r.dy >= 8 || r.out)
+            .map((r) => r.id + ':' + r.dy + (r.out ? ' outside' : '')));
+        assert.deepEqual(bad, []);
+        await page.close();
+    } finally {
+        await browser.close();
+        server.close();
+    }
+});

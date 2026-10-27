@@ -4043,7 +4043,9 @@
         }
 
         @media (max-width: 480px) {
-            body.layout-studio .tc-op .tc-op-cell > .form-row { grid-template-columns: minmax(0, 1fr); }
+            body.layout-studio .tc-op .tc-op-cell > .form-row { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+            body.layout-studio .tc-op .tc-op-cell > .form-row > :is(input, select) { flex: 1 1 auto; min-width: 0; }
+            body.layout-studio .tc-op .tc-op-cell > .form-row > .unit { flex: 0 0 auto; white-space: nowrap; }
             body.layout-studio .tc-op .tc-op-cell select#contract-currency,
             body.layout-studio .tc-op .tc-op-cell select#return-mode { width: 100% !important; min-width: 0; }
         }
