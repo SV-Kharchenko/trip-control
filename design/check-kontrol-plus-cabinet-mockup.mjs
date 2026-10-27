@@ -20,10 +20,10 @@ assert.deepEqual(stack, [], 'unclosed tags: ' + stack.join(','));
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
 assert.equal(new Set(ids).size, ids.length, 'duplicate ids');
 
-const menu = [...html.matchAll(/<button type="button" data-s="([a-z]+)"[^>]*><span class="ic"[^>]*>[^<]*<\/span><span class="lb">([^<]+)<\/span>/g)].map((m) => [m[1], m[2]]);
+const menu = [...html.matchAll(/<button type="button" data-s="([a-z]+)"[^>]*><span class="ic"[^>]*><svg[\s\S]*?<\/svg><\/span><span class="lb">([^<]+)<\/span>/g)].map((m) => [m[1], m[2]]);
 assert.deepEqual(menu, [
     ['overview', 'Огляд'], ['calc', 'Розрахунки'], ['fleet', 'Автопарк'], ['drivers', 'Водії'],
-    ['docs', 'Документи'], ['planfact', 'План/факт'], ['stats', 'Статистика компанії'], ['company', 'Реквізити компанії'],
+    ['docs', 'Документи'], ['planfact', 'План/факт'], ['stats', 'Статистика'], ['company', 'Реквізити компанії'],
 ]);
 for (const [key] of menu) assert.ok(ids.includes('s-' + key), 'section s-' + key);
 
@@ -37,9 +37,19 @@ for (const text of ['Авто', 'Причепи', 'Договори', 'ТТН / 
 for (const col of ['Номер', 'Марка / модель', 'Тип', 'Стан', 'Пробіг', 'Найближче ТО']) assert.ok(html.includes('<th>' + col + '</th>') || html.includes('<th class="n">' + col + '</th>'), col);
 for (const group of ['Основне', 'Адреси', 'Банк', 'Контакти']) assert.ok(html.includes('<h4>' + group + '</h4>'), group);
 for (const label of ['Назва', 'ЄДРПОУ / ІПН', 'Платник ПДВ', 'Юридична', 'Фактична', 'IBAN', 'Банк', 'МФО', 'Телефон', 'Email', 'Підписант', 'Посада']) assert.ok(html.includes('<span>' + label + '</span>'), label);
-assert.match(html, /\.form\{max-width:760px;margin-inline:auto\}/);
+assert.match(html, /\.form\{max-width:640px;margin-inline:auto\}/);
+assert.match(html, /\.form \.ir\{display:grid;grid-template-columns:160px auto;justify-content:start;align-items:center;gap:12px\}/);
+const company = html.slice(html.indexOf('<section class="sec" id="s-company"'), html.indexOf('</section>', html.indexOf('<section class="sec" id="s-company"')));
+assert.equal(/margin-left:auto|space-between/.test(company), false, 'no margin-left:auto / space-between inside #s-company');
+assert.equal((company.match(/<div class="ir">/g) || []).length, 13, 'company rows');
+const formCss = html.slice(html.indexOf('.form .ir{'), html.indexOf('}', html.indexOf('.form .ir{')));
+assert.equal(/margin-left:auto|space-between/.test(formCss), false, 'form rows css');
+const navHtml = html.slice(html.indexOf('<nav class="nav"'), html.indexOf('</nav>'));
+assert.equal((navHtml.match(/<span class="ic" aria-hidden="true"><svg /g) || []).length, 8, 'menu icons are inline svg');
+assert.equal(/[▦∑⛟☺▤⇄◔☰]/.test(navHtml), false, 'no font glyph icons');
+assert.equal((html.match(/<h1 id="h-stats">Статистика<\/h1>/g) || []).length, 1);
 assert.match(html, /@media\(max-width:1024px\)\{\s*:root\{--nav:64px\}/);
-assert.equal((html.match(/<svg viewBox/g) || []).length, 2, 'two inline charts');
+assert.equal((html.match(/<svg viewBox="0 0 400 180"/g) || []).length, 2, 'two inline charts');
 assert.equal(/https?:\/\//.test(html.replace(/\.example/g, '')), false, 'no external dependencies');
 assert.match(html, /data-theme="light"/);
 assert.match(html, /\[data-theme=dark\]/);
