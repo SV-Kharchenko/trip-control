@@ -4143,7 +4143,6 @@
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > #dispatcher-result { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar { margin-top: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar .btn { width: 100%; min-width: 0; justify-content: center; white-space: normal; }
-        #tc-result-actions > #tc-send-approval[hidden] + .btn-success { grid-column: 1 / -1; }
         #tc-result-actions > .btn-locked { grid-column: 1 / -1; }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual {
             grid-column: 1 / -1 !important; grid-row: 3 !important; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tc-gap); align-items: stretch;
@@ -4190,6 +4189,10 @@
         .tc-modal-field textarea { width: 100%; box-sizing: border-box; text-align: left; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--input); color: var(--text); }
         .tc-modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
         .btn.btn-danger { background: var(--negative); border-color: var(--negative); color: #fff; }
+
+        /* v3: приховані .dynamic-field (реф / промивка) не мають перебиватися правилом «підпис ↔ поле» */
+        #tc-op .form-row.dynamic-field:not(.active) { display: none !important; }
+        #tc-result-actions:not(:has(#tc-send-approval:not([hidden]), #tc-accept-own:not([hidden]))) > .btn-success { grid-column: 1 / -1; }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -4532,7 +4535,7 @@
             <span class="lp-tc-status lp-is-accepted">Прийнято</span>
           </div>
           <div class="lp-status-row">
-            <span class="lp-tc-status lp-is-draft">Чернетка</span><span class="lp-tc-status lp-is-proposed">Запропоновано</span><span class="lp-tc-status lp-is-accepted">Прийнято</span><span class="lp-tc-status lp-is-rejected">Відхилено</span><span class="lp-tc-status lp-is-done">Виконано</span>
+            <span class="lp-tc-status lp-is-draft">Чернетка</span><span class="lp-tc-status lp-is-proposed">На погодженні</span><span class="lp-tc-status lp-is-accepted">Прийнято</span><span class="lp-tc-status lp-is-rejected">Відхилено</span><span class="lp-tc-status lp-is-done">Виконано</span>
           </div>
           <div style="display:flex;gap:6px;align-items:center"><span class="lp-mini-btn">Факт</span><span style="font-size:12px;color:var(--muted)">доби, пробіг, простій і витрати рейсу поруч із планом</span></div>
         </div>
@@ -5792,6 +5795,7 @@
 
     <div class="actions-bar" id="tc-result-actions" aria-label="Дії з розрахунком">
         <button class="btn btn-gold" type="button" id="tc-send-approval" onclick="sendCurrentForApproval()" hidden>Відправити на погодження</button>
+        <button class="btn btn-gold" type="button" id="tc-accept-own" onclick="acceptCurrentRequest()" hidden>Прийняти заявку</button>
         <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
         <button class="btn full-only" onclick="window.print()">📄 Експорт у PDF</button>
         <button class="btn full-only" onclick="exportExcel()">📊 Експорт у Excel</button>
@@ -7008,6 +7012,7 @@
         if (el && el.textContent !== text) el.textContent = text;
     }
     function updateOnePage(given) {
+        syncApprovalUi();
         if (!opById('tc-op')) return;
         opSweepCells();
         const adSel = opById('adblue-enable');
@@ -13187,9 +13192,17 @@
         const id = await saveCalculation();
         if (id) await submitForApproval(id);
     }
+    // Логіст (і власник у виді «Логіст») відправляє на погодження; власник у режимі «Сам» одразу приймає; власник із логістами — нічого.
     function syncApprovalUi() {
         const send = document.getElementById('tc-send-approval');
+        const accept = document.getElementById('tc-accept-own');
+        const solo = currentOrgRole === 'owner' && currentWorkMode === 'solo' && approvalRole() === 'director';
         if (send) send.hidden = approvalRole() !== 'logist';
+        if (accept) accept.hidden = !solo;
+    }
+    async function acceptCurrentRequest() {
+        const id = await saveCalculation();
+        if (id) await approveRequest(id);
     }
 
     // Кнопка одноразового переносу старих розрахунків з браузера в хмару

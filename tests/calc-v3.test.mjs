@@ -261,3 +261,55 @@ test('browser: «Історія заявок» has no horizontal scroll at 1024 
         assert.ok(over.page <= 0 && over.table <= 0, 'history overflow ' + JSON.stringify(over) + ' at ' + width + ' ' + theme);
     });
 });
+
+test('dynamic trailer fields stay hidden unless active; visible ones keep the «label + narrow field» look', () => {
+    assert.ok(css.includes('#tc-op .form-row.dynamic-field:not(.active) { display: none !important; }'));
+    assert.ok(css.indexOf('.form-row.dynamic-field:not(.active) { display: none !important; }') > css.indexOf('.form-row:has(> .tc-in > input[type="number"]) { display: flex;'));
+    assert.equal(html.includes('lp-is-proposed">Запропоновано'), false);
+    assert.ok(html.includes('lp-is-proposed">На погодженні'));
+});
+
+test('jsdom: approval button after calculate() — logist sees «Відправити», team owner sees nothing, solo owner sees «Прийняти заявку»', async (t) => {
+    const dom = await bootDom();
+    if (!dom) { t.skip('no jsdom'); return; }
+    try {
+        const w = dom.window;
+        const d = w.document;
+        const visible = (id) => {
+            const el = d.getElementById(id);
+            return !el.hidden && w.getComputedStyle(el).display !== 'none';
+        };
+        const scenario = async (role, view, mode) => {
+            w.eval('currentOrgRole = ' + JSON.stringify(role) + '; uiView = ' + JSON.stringify(view) + '; currentWorkMode = ' + JSON.stringify(mode) + '; currentSessionToken = "fake";');
+            await w.calculate();
+            return { send: visible('tc-send-approval'), accept: visible('tc-accept-own') };
+        };
+        assert.deepEqual(await scenario('logist', 'director', 'team'), { send: true, accept: false }, 'logist');
+        assert.deepEqual(await scenario('owner', 'director', 'team'), { send: false, accept: false }, 'owner with logists');
+        assert.deepEqual(await scenario('owner', 'director', 'solo'), { send: false, accept: true }, 'owner, mode «Сам»');
+        assert.equal(d.getElementById('tc-accept-own').textContent, 'Прийняти заявку');
+        assert.equal(d.getElementById('tc-send-approval').textContent, 'Відправити на погодження');
+        // Кнопки лежать у картці результату поруч із «Зберегти розрахунок».
+        const bar = d.getElementById('tc-result-actions');
+        assert.ok(bar.contains(d.getElementById('tc-send-approval')) && bar.contains(d.getElementById('tc-accept-own')));
+    } finally {
+        dom.window.close();
+    }
+});
+
+test('jsdom: ref / wash fields follow the trailer type and the visible ones are not hidden by the new row rule', async (t) => {
+    const dom = await bootDom();
+    if (!dom) { t.skip('no jsdom'); return; }
+    try {
+        const w = dom.window;
+        const d = w.document;
+        const ids = ['field-ref-consumption', 'field-ref-hours', 'field-wash-cost', 'field-wash-freq'];
+        for (const [type, ref, wash] of [['зерновоз', false, false], ['рефрижератор', true, false], ['тент', false, false], ['цистерна', false, true]]) {
+            d.getElementById('trailer-type').value = type;
+            w.onTrailerChange();
+            assert.deepEqual(ids.map((id) => d.getElementById(id).classList.contains('active')), [ref, ref, wash, wash], type);
+        }
+    } finally {
+        dom.window.close();
+    }
+});
