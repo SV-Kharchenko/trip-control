@@ -39,3 +39,36 @@ test('п.1: міграція підпису акта — окрема табли
     }
     for (const m of sql.replace(/--.*$/gm, '').matchAll(/public\.([a-z_0-9]+)\(/g)) assert.ok(declared.has(m[1]), m[1]);
 });
+
+// ---- 2. ТТН в Excel: графа 5 — назва одиниці, число — у кількості / масі ----
+test('п.2: «Одиниця вимірювання» — назва, число переїжджає в кількість і масу (Excel, PDF-текст, збереження)', async () => {
+    const { normalizeCargoLine } = await import('../src/lib/ttn.js');
+    const { cargoCells, cargoTotals, CARGO_COLUMNS } = await import('../src/lib/ttn-text.js');
+    const { ttnSheet } = await import('../src/lib/xlsx-docs.js');
+    assert.deepEqual(normalizeCargoLine({ unit: '22', places: '', gross_t: '' }), { unit: 'т', places: 22, gross_t: 22 });
+    assert.deepEqual(normalizeCargoLine({ unit: '22,5', places: null, gross_t: 20 }), { unit: 'т', places: null, gross_t: 20 });
+    assert.deepEqual(normalizeCargoLine({ unit: 'кг', places: 3 }), { unit: 'кг', places: 3 }, 'назва лишається як є');
+    assert.equal(normalizeCargoLine({ unit: ' 5 ', places: 7, gross_t: 9 }).places, 7, 'заповнені графи не чіпаємо');
+
+    const doc = {
+        kind: 'ttn', status: 'issued', number: 1, doc_date: '2026-10-27', cargo_gross_t: 22, operations: [],
+        lines: [
+            { cargo_name: 'Пшениця', unit: '22', places: null, gross_t: null },
+            { cargo_name: 'Ящики', unit: 'шт', places: 40, price: 10, amount: 400, gross_t: 1.2 },
+        ],
+    };
+    const sheet = ttnSheet(doc);
+    const unitCol = CARGO_COLUMNS.findIndex((c) => c.key === 'unit');
+    const placesCol = CARGO_COLUMNS.findIndex((c) => c.key === 'places');
+    const grossCol = CARGO_COLUMNS.findIndex((c) => c.key === 'gross_t');
+    assert.equal(CARGO_COLUMNS[unitCol].no, '5');
+    const dataRows = sheet.rows.filter((r) => r[1] && (r[1].v === 'Пшениця' || r[1].v === 'Ящики'));
+    assert.equal(dataRows.length, 2);
+    assert.equal(dataRows[0][unitCol].v, 'т', 'у графі 5 — назва одиниці, а не 22');
+    assert.equal(dataRows[0][placesCol].v, 22);
+    assert.equal(dataRows[0][grossCol].v, 22);
+    assert.equal(dataRows[1][unitCol].v, 'шт');
+    assert.equal(dataRows[1][placesCol].v, 40);
+    assert.equal(cargoCells(doc.lines[0], 0).unit, 'т');
+    assert.equal(cargoTotals(doc).places, '62');
+});

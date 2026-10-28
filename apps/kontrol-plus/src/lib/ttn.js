@@ -211,11 +211,28 @@ export function ttnPayload(d) {
             op: o.op, gross_t: num(o.gross_t), tare_t: num(o.tare_t), net_t: num(o.net_t),
             arrival: text(o.arrival), departure: text(o.departure), idle: text(o.idle),
         })),
-        lines: (d.lines || []).map((l) => ({
+        lines: (d.lines || []).map(normalizeCargoLine).map((l) => ({
             cargo_name: text(l.cargo_name), animal_id: text(l.animal_id), animal_kind: text(l.animal_kind), temperature: text(l.temperature),
             unit: text(l.unit), places: num(l.places), price: l.owner_price ? null : num(l.price), owner_price: Boolean(l.owner_price),
             amount: num(l.amount), packaging: text(l.packaging), docs: text(l.docs), gross_t: num(l.gross_t), bulk: Boolean(l.bulk),
         })),
+    };
+}
+
+// Графа 5 «Одиниця вимірювання» — назва (т, кг, шт…). Якщо туди вписали число (кількість), одиниця стає «т», а число йде в
+// «Кількість місць» і «Маса брутто» (лише в порожні графи).
+export const DEFAULT_UNIT = 'т';
+export function normalizeCargoLine(line) {
+    const l = line || {};
+    const unit = String(l.unit === null || l.unit === undefined ? '' : l.unit).trim();
+    if (!/^\d+(?:[.,]\d+)?$/.test(unit)) return l;
+    const value = Number(unit.replace(',', '.'));
+    const empty = (v) => v === null || v === undefined || v === '';
+    return {
+        ...l,
+        unit: DEFAULT_UNIT,
+        places: empty(l.places) && Number.isInteger(value) ? value : l.places,
+        gross_t: empty(l.gross_t) ? value : l.gross_t,
     };
 }
 

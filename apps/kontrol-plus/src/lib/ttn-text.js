@@ -5,6 +5,7 @@ import { amountInWords } from './amount-words.js';
 import { massInWords, massTriple, placesInWords } from './count-words.js';
 import { fmtDate } from './format.js';
 import { dateWords, fmtMoneyPlain, docNumberText } from './docs.js';
+import { normalizeCargoLine } from './ttn.js';
 
 export const DASH = '—';
 export const APPENDIX_REF = 'Додаток 7 до Правил перевезень вантажів автомобільним транспортом в Україні (пункт 11.1 глави 11)';
@@ -160,7 +161,8 @@ export function frontFields(doc) {
 }
 
 // Комірки рядка вантажу (текстом; числа — у форматі uk-UA).
-export function cargoCells(line, index) {
+export function cargoCells(rawLine, index) {
+    const line = normalizeCargoLine(rawLine);
     return {
         n: String(index + 1),
         cargo_name: line.cargo_name || DASH,
@@ -178,7 +180,7 @@ export function cargoCells(line, index) {
 }
 
 export function cargoTotals(doc) {
-    const lines = doc.lines || [];
+    const lines = (doc.lines || []).map(normalizeCargoLine);
     const places = lines.some((l) => l.places !== null && l.places !== undefined) ? lines.reduce((s, l) => s + Number(l.places || 0), 0) : null;
     const amount = lines.some((l) => l.amount !== null && l.amount !== undefined) ? lines.reduce((s, l) => s + Math.round(Number(l.amount || 0) * 100), 0) / 100 : null;
     return {

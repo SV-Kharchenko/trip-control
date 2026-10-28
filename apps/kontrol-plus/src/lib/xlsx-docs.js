@@ -4,6 +4,7 @@
 import { buildXlsx, XLSX_MIME } from './xlsx.js';
 import { DOC_TITLES, dateWords, docNumberText } from './docs.js';
 import { contractText, partyLines, rateLine, totalWords, totalsRows } from './pdf-docs-text.js';
+import { normalizeCargoLine } from './ttn.js';
 import {
     APPENDIX_REF, CARGO_COLUMNS, FOOTNOTES, FORM_NO, cancelledLine, cargoCells, cargoTotals, frontFields, operationRows, ttnHeading,
 } from './ttn-text.js';
@@ -144,7 +145,7 @@ export function ttnSheet(doc) {
     b.line('ВІДОМОСТІ ПРО ВАНТАЖ', 'bold');
     b.row(CARGO_COLUMNS.map((c) => ({ v: c.title, s: 'head' })), { height: 80 });
     b.row(CARGO_COLUMNS.map((c) => ({ v: c.no, s: 'head' })));
-    (doc.lines || []).forEach((line, i) => {
+    (doc.lines || []).map(normalizeCargoLine).forEach((line, i) => {
         const cells = cargoCells(line, i);
         b.row(CARGO_COLUMNS.map((c) => {
             if (c.key === 'n') return { v: i + 1, s: 'int' };

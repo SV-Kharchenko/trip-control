@@ -238,7 +238,7 @@ function buildForm(app, route, clients, drivers, vehicles) {
         return h('div', { class: 'kpt-line', 'data-line': String(index) },
             h('div', { class: 'kpt-line-main' },
                 bind('cargo_name', { maxlength: 500, 'aria-label': 'Найменування вантажу, рядок ' + n, placeholder: 'Найменування вантажу / № контейнера', class: 'kpt-cargo' }),
-                bind('unit', { maxlength: 20, 'aria-label': 'Одиниця, рядок ' + n, placeholder: 'т' }),
+                bind('unit', { maxlength: 20, 'aria-label': 'Одиниця вимірювання (т, кг, шт), рядок ' + n, placeholder: 'од.: т, кг, шт', title: 'Назва одиниці вимірювання: т, кг, шт. Кількість вписуйте в «місць» і «брутто, т»' }),
                 bind('places', { inputmode: 'numeric', 'aria-label': 'Кількість місць, рядок ' + n, placeholder: 'місць' }),
                 line.owner_price ? h('span', { class: 'muted small' }, 'ОЦВТ') : bind('price', { inputmode: 'decimal', 'aria-label': 'Ціна без ПДВ, рядок ' + n, placeholder: 'ціна' }),
                 bind('amount', { inputmode: 'decimal', 'aria-label': 'Сума з ПДВ, рядок ' + n, placeholder: 'сума' }),
