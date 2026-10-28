@@ -42,24 +42,14 @@ test('each of the 6 annual overhead fields has a hint with «Річна»; texts
         assert.equal(source.includes('розподіляються на рейс'), false);
     }
     assert.equal(landingJs.includes(H.intro), false);
-    assert.equal(html.split(H.intro).length - 1, 1);
+    assert.equal(html.split(H.intro).length - 1, 0, 'у застосунку підказок витратної частини більше немає');
     assert.equal((hintsJs.match(/var COST_HINTS = \{/g) || []).length, 1);
 });
 
-test('cabinet «Витратна частина»: «?» next to each overhead label, text under the field, intro above the block', () => {
-    const cab = html.slice(html.indexOf('const CAB_SECTIONS = ['), html.indexOf("{ title: 'Пальне та AdBlue'"));
-    const keys = [...cab.matchAll(/\{ key: '(\w+)', id: '(overhead-[\w-]+)'/g)].map((m) => [m[2], m[1]]);
-    assert.deepEqual(Object.fromEntries(keys), OVERHEADS, 'cabinet keys = hint keys');
+test('cabinet no longer has the «Витратна частина» block with overhead hints', () => {
+    assert.equal(html.includes('function fieldHtml(f) {'), false);
+    assert.equal(html.includes('cab-hint-'), false);
     assert.match(html, /<script src="\/assets\/cost-hints\.js\?v=[\d-]+" defer><\/script>\n\s+<script src="\/assets\/landing\.js/);
-    const fieldHtml = html.slice(html.indexOf('function fieldHtml(f) {'), html.indexOf('function profileFieldHtml(f) {'));
-    assert.match(fieldHtml, /if \(hints && hints\.fields\[f\.key\]\) \{/);
-    assert.match(fieldHtml, /hints\.button\(f\.key, 'cab-hint-', f\.label\)/);
-    assert.match(fieldHtml, /hints\.text\(f\.key, 'cab-hint-'\)/);
-    // Fallback note (if cost-hints.js did not load) is the same intro, no words on how sums are split.
-    const fallback = html.match(/\{ n: '1', title: 'Витрати автопарку', note: window\.TcCostHints \? window\.TcCostHints\.intro : '([^']+)', sec: CAB_SECTIONS\[0\], sum: true \},/);
-    assert.ok(fallback, 'card 1 note');
-    assert.equal(fallback[1], H.intro);
-    assert.match(html, /#cabinet-screen \.tc-hint-head > label \{/);
 });
 
 test('landing panel step 5: the same hints for every overhead field there', () => {

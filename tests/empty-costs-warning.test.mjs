@@ -112,7 +112,7 @@ function fakeElement(tag) {
 }
 
 function warningUi({ role, fields = {} }) {
-    const start = html.indexOf('    function openCostsCabinet() {');
+    const start = html.indexOf('    // Усі статті вводяться в калькуляторі');
     const end = html.indexOf('    function applyCalcResult(');
     assert.ok(start > 0 && end > start);
     const box = fakeElement('div');
@@ -148,22 +148,18 @@ const OVERHEAD_WARNINGS = [{ key: 'amort', label: 'Амортизація' }, { 
 const WARNING_TEXT = '⚠ Не заповнено: Амортизація, Фінансові витрати (кредити). Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
 const REEF_WARNINGS = [{ key: 'refHours', label: 'Години роботи рефрижератора' }, { key: 'refFuelRate', label: 'Витрата пального рефрижератора' }];
 
-test('owner sees the warning with a button to the cabinet costs tab', () => {
-    const ui = warningUi({ role: 'owner' });
-    ui.render({ warnings: OVERHEAD_WARNINGS });
-    assert.equal(ui.box.hidden, false);
-    assert.equal(ui.full().children[0].textContent, WARNING_TEXT);
-    assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в кабінеті']);
-    ui.buttons()[0].click();
-    assert.deepEqual(ui.calls, ['openCabinet', 'tab:costs']);
-});
-
-test('logist gets a note instead of the cabinet button', () => {
-    const ui = warningUi({ role: 'logist' });
-    ui.render({ warnings: OVERHEAD_WARNINGS });
-    assert.equal(ui.box.hidden, false);
-    assert.equal(ui.buttons().length, 0);
-    assert.equal(ui.full().textContent, WARNING_TEXT + 'Попросіть власника заповнити в кабінеті.');
+test('overhead warnings are shown for owner and logist without a cabinet button or note', () => {
+    for (const role of ['owner', 'logist']) {
+        const ui = warningUi({ role });
+        ui.render({ warnings: OVERHEAD_WARNINGS });
+        assert.equal(ui.box.hidden, false);
+        assert.equal(ui.full().children[0].textContent, WARNING_TEXT);
+        assert.equal(ui.buttons().length, 0);
+        assert.equal(ui.full().textContent, WARNING_TEXT);
+        assert.deepEqual(ui.calls, []);
+    }
+    assert.equal(html.includes('openCostsCabinet'), false, '«Значення за замовчуванням» прибрано разом зі сторінкою');
+    assert.equal(html.includes('Заповнити в кабінеті'), false);
 });
 
 test('trip-only warnings focus the calculator field instead of the cabinet', () => {
@@ -219,26 +215,16 @@ const MIXED_WARNINGS = [
     { key: 'washFreq', label: 'Промивок на рік' }
 ];
 
-test('mixed warnings: owner gets both the cabinet and the calculator button', () => {
-    const ui = warningUi({ role: 'owner', fields: { 'wash-cost': 4, 'wash-freq': 4 } });
-    ui.render({ warnings: MIXED_WARNINGS });
-    assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в кабінеті', 'Заповнити в калькуляторі']);
-    assert.equal(ui.full().textContent.includes('Попросіть власника'), false);
-    ui.buttons()[1].click();
-    assert.deepEqual(ui.calls, ['step:4']);
-    assert.equal(ui.inputs['wash-cost'].focused, true);
-    ui.buttons()[0].click();
-    assert.deepEqual(ui.calls, ['step:4', 'openCabinet', 'tab:costs']);
-});
-
-test('mixed warnings: logist gets the note and the calculator button', () => {
-    const ui = warningUi({ role: 'logist', fields: { 'ref-fuel-rate': 4, 'ref-hours': 4 } });
-    ui.render({ warnings: [{ key: 'fin', label: 'Фінансові витрати (кредити)' }, { key: 'refHours', label: 'Години роботи рефрижератора' }] });
-    assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
-    assert.equal(ui.full().children[1].textContent, 'Попросіть власника заповнити в кабінеті.');
-    ui.buttons()[0].click();
-    assert.equal(ui.inputs['ref-hours'].focused, true);
-    assert.equal(ui.inputs['ref-fuel-rate'].focused, false);
+test('mixed warnings: only the calculator button, no cabinet button or note', () => {
+    for (const role of ['owner', 'logist']) {
+        const ui = warningUi({ role, fields: { 'wash-cost': 4, 'wash-freq': 4 } });
+        ui.render({ warnings: MIXED_WARNINGS });
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        assert.equal(ui.full().textContent.includes('Попросіть власника'), false);
+        ui.buttons()[0].click();
+        assert.deepEqual(ui.calls, ['step:4']);
+        assert.equal(ui.inputs['wash-cost'].focused, true);
+    }
 });
 
 test('mobile: the collapsed dock shows only a short line that opens the dock', () => {
@@ -248,10 +234,9 @@ test('mobile: the collapsed dock shows only a short line that opens the dock', (
     assert.equal(ui.short().type, 'button');
     ui.short().click();
     assert.deepEqual(ui.dock, [true]);
-    // Обидві дії згортають док перед переходом.
-    ui.buttons()[1].click();
+    // Дія згортає док перед переходом.
     ui.buttons()[0].click();
-    assert.deepEqual(ui.dock, [true, false, false]);
+    assert.deepEqual(ui.dock, [true, false]);
     const one = warningUi({ role: 'owner' });
     one.render({ warnings: [{ key: 'amort', label: 'Амортизація' }] });
     assert.equal(one.short().textContent, '⚠ Не заповнено: 1 стаття');
@@ -282,38 +267,4 @@ test('no warnings, no block', () => {
     assert.match(html, /<div class="tc-cost-warn" id="cost-warnings" role="status" hidden><\/div>/);
     assert.match(html, /renderCostWarnings\(result\);\s*renderChart\(/);
     assert.match(html, /function clearCalcVisuals\(\) \{\s*paintProfitHero\(null\);\s*renderCostWarnings\(null\);/);
-});
-
-test('cabinet shows 2.5 as a placeholder and never writes it into the field', () => {
-    const start = html.indexOf('    function syncCabAdbluePlaceholder() {');
-    const end = html.indexOf('    function refreshCabEmptyHints() {');
-    assert.ok(start > 0 && end > start);
-    const fields = { 'cab-adblueEnable': { value: 'on' }, 'cab-adblueConsumption': { value: '', placeholder: '' } };
-    const sync = new Function('document', 'DEFAULT_ADBLUE_RATE', html.slice(start, end) + '\nreturn syncCabAdbluePlaceholder;')(
-        { getElementById: (id) => fields[id] || null }, 2.5);
-    sync();
-    assert.equal(fields['cab-adblueConsumption'].placeholder, '2.5 (типово)');
-    assert.equal(fields['cab-adblueConsumption'].value, '');
-    fields['cab-adblueEnable'].value = 'off';
-    sync();
-    assert.equal(fields['cab-adblueConsumption'].placeholder, '');
-    assert.equal(fields['cab-adblueConsumption'].value, '');
-    assert.match(html, /const DEFAULT_ADBLUE_RATE = 2\.5;/);
-    assert.match(html, /addEventListener\('change', syncCabAdbluePlaceholder\)/);
-    assert.doesNotMatch(html, /fillCabAdblueDefault|rate\.value = DEFAULT_ADBLUE_RATE/);
-    // Стартовий шаблон лишається 2.85, тому S0 не змінюється.
-    assert.match(html, /adblueConsumption: 2\.85,/);
-});
-
-test('cabinet highlights empty optional costs', () => {
-    assert.match(html, /<small class="cab-empty-hint" hidden>Порожньо = 0 у розрахунку<\/small>/);
-    const list = html.match(/const CAB_OPTIONAL_COST_KEYS = \[([^\]]+)\]/)[1];
-    for (const key of ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin', 'driverRateLoad', 'driverRateEmpty', 'driverPctVal', 'perDiem', 'toCost', 'tireCost', 'tireCount']) {
-        assert.match(list, new RegExp("'" + key + "'"));
-    }
-    for (const required of ['totalFleet', 'toPeriod', 'tireMileage', 'fuelPrice']) {
-        assert.doesNotMatch(list, new RegExp("'" + required + "'"));
-    }
-    assert.match(html, /row\.classList\.toggle\('is-empty-cost', empty\);/);
-    assert.match(html, /syncCabAdbluePlaceholder\(\);\s*refreshCabEmptyHints\(\);/);
 });
