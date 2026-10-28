@@ -941,6 +941,24 @@ export function routeVariantResults(body, vehicleList) {
     return out;
 }
 
+// Повний розрахунок заявки тими самими функціями, що й POST /api/calculate (обов'язкові поля, розбиття по авто,
+// calculateTrip / sumVehicleTrips). Для сервера, який перераховує заявку без довіри до цифр клієнта (api/team.js).
+// Повертає { result } або { status, code, error }.
+export function recalculateRequest(body, vehicles) {
+    const input = { ...(body || {}) };
+    delete input.routeVariantKm;
+    if (Array.isArray(vehicles) && vehicles.length) input.vehicles = vehicles;
+    const missing = missingRequiredFields(input);
+    if (missing.length) {
+        return { status: 400, code: 'MISSING_FIELDS', error: 'Заповніть: ' + missing.map(k => REQUIRED_FIELD_LABELS[k]).join(', '), fields: missing };
+    }
+    const split = vehicleAssignmentsFromBody(input);
+    if (split && split.error) return split.error;
+    const computed = split ? sumVehicleTrips(input, split.list) : calculateTrip(input);
+    if (!computed || computed.status) return computed || { status: 400, code: 'CALC_FAILED', error: 'Не вдалося порахувати.' };
+    return { result: computed };
+}
+
 export const REQUIRED_FIELD_LABELS = {
     dist: 'Відстань', volume: 'Обсяг', normWeight: 'Норма завантаження', carsCount: 'Кількість авто',
     daysPerTrip: 'Днів на рейс', rate: 'Ставка', fuelLoad: 'Витрата з вантажем', fuelEmpty: 'Витрата порожнім',
