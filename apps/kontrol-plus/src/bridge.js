@@ -65,6 +65,11 @@ function app() {
     };
 }
 
+// Вставляє вузол одразу після шапки (#sticky-top); без шапки в DOM — перед fallback.
+export function insertAfterHeader(main, node, header, fallback) {
+    main.insertBefore(node, header && header.nextSibling ? header.nextSibling : fallback);
+}
+
 // Пункти меню: порядок як у макеті. «Огляд» і «Розрахунки» ведуть на сторінки сайту, решта — на hash-маршрути Контроль+.
 function go(hash) {
     return () => { location.hash = hash; };
@@ -460,7 +465,8 @@ function mount() {
     const calcTabs = h('nav', { id: 'kp-calc-tabs', class: 'kp-calc-tabs', 'aria-label': 'Розрахунки' },
         h('button', { type: 'button', id: 'kp-calc-tab-calc', onclick: openSite('calc') }, 'Розрахунок'),
         h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Історія заявок'));
-    main.insertBefore(calcTabs, root);
+    // Одразу під шапкою, над калькулятором (#studio-columns сайт перебудовує, тому прив'язуємось до шапки, а не до нього).
+    insertAfterHeader(main, calcTabs, document.getElementById('sticky-top'), root);
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
     new MutationObserver((records) => {
         if (records.some((r) => r.attributeName === 'data-studio-view')) leave();

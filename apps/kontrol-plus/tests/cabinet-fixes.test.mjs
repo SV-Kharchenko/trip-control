@@ -72,3 +72,17 @@ test('статистика: значення KPI не переносяться',
     assert.match(read('src/views/stats.js'), /'Дохід на км'/);
     assert.match(read('src/views/stats.js'), /' грн\/км'/);
 });
+
+test('вкладки «Розрахунок / Історія заявок» вставляються одразу після шапки, над калькулятором', async () => {
+    const { insertAfterHeader } = await import('../src/bridge.js');
+    const calls = [];
+    const main = { insertBefore: (node, ref) => calls.push([node, ref]) };
+    const root = { name: 'kp-crm' };
+    const afterHeader = { name: 'tc-kpi-bar-or-columns' };
+    insertAfterHeader(main, 'tabs', { nextSibling: afterHeader }, root);
+    assert.deepEqual(calls[0], ['tabs', afterHeader], 'перед тим, що йде за шапкою (#studio-columns / KPI-смуга), а не після калькулятора');
+    insertAfterHeader(main, 'tabs', null, root);
+    assert.deepEqual(calls[1], ['tabs', root], 'без шапки — старе місце перед #kp-crm');
+    assert.match(bridge, /insertAfterHeader\(main, calcTabs, document\.getElementById\('sticky-top'\), root\);/);
+    assert.equal(/main\.insertBefore\(calcTabs, root\)/.test(bridge), false);
+});
