@@ -7094,8 +7094,10 @@
         const dist = stepFieldNum('dist');
         const podacha = stepFieldNum('podacha-dist');
         if (dist) pills.push('<span class="tc-op-pill">' + opNum(dist) + ' км</span>');
-        if (typeof lastDirectionsResponse !== 'undefined' && lastDirectionsResponse && lastDirectionsResponse.routes && lastDirectionsResponse.routes[0]) {
-            const min = routeTotals(lastDirectionsResponse.routes[0]).min;
+        const pickedRoute = lastDirectionsResponse && lastDirectionsResponse.routes
+            ? lastDirectionsResponse.routes[(typeof mainRouteView !== 'undefined' && mainRouteView && mainRouteView.idx) || 0] || lastDirectionsResponse.routes[0] : null;
+        if (pickedRoute) {
+            const min = routeTotals(pickedRoute).min;
             if (min > 0) pills.push('<span class="tc-op-pill">≈ ' + Math.floor(min / 60) + ' год ' + (min % 60) + ' хв</span>');
         }
         if (podacha) pills.push('<span class="tc-op-pill is-dashed">подача ' + opNum(podacha) + ' км</span>');
@@ -13041,6 +13043,8 @@
         const keptClient = clientNameValue();
         let savedId = null;
         const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces());
+        const routeVariant = currentRouteVariant();
+        if (routeVariant) inputs.routeVariant = routeVariant;
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
         try {
@@ -14993,9 +14997,9 @@
     function tcMapPalette() {
         const light = document.body.getAttribute('data-theme') === 'light';
         return light
-            ? { main: '#0D2A29', back: '#B08A4C', teal: '#2F8F86', onTeal: '#FFFFFF', accent: '#0D2A29', onAccent: '#F4EFE5',
+            ? { alt: '#9AA39F', altText: '#3F514C', main: '#0D2A29', back: '#B08A4C', teal: '#2F8F86', onTeal: '#FFFFFF', accent: '#0D2A29', onAccent: '#F4EFE5',
                 ring: '#FFFFFF', stop: '#FFFDF8', stopRing: '#6B7D78', poi: '#FFFDF8', poiRing: '#CDBF9F' }
-            : { main: '#7C9CFF', back: '#E0B25A', teal: '#4FD1C5', onTeal: '#0B0E14', accent: '#7C9CFF', onAccent: '#0B0E14',
+            : { alt: '#6B7486', altText: '#C9CEDA', main: '#7C9CFF', back: '#E0B25A', teal: '#4FD1C5', onTeal: '#0B0E14', accent: '#7C9CFF', onAccent: '#0B0E14',
                 ring: '#0E1117', stop: '#161B24', stopRing: '#8B93A3', poi: '#161B24', poiRing: '#6B7486' };
     }
 
@@ -15030,6 +15034,22 @@
         return path;
     }
 
+    // Плашка варіанта маршруту: «км · год хв». Вибраний — темний, решта — сірі.
+    function routeVariantText(route) {
+        const t = routeTotals(route);
+        return t.km + ' км · ' + Math.floor(t.min / 60) + ' год ' + (t.min % 60) + ' хв';
+    }
+    function tcMapPillIcon(text, fill, color, ring) {
+        const w = Math.max(70, Math.round(text.length * 7 + 18));
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="26" viewBox="0 0 ' + w + ' 26">' +
+            '<rect x="1" y="1" width="' + (w - 2) + '" height="24" rx="12" fill="' + fill + '" stroke="' + ring + '" stroke-width="2"/>' +
+            '<text x="' + (w / 2) + '" y="13" dy="0.36em" text-anchor="middle" font-family="Manrope, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="' + color + '">' + escHtml(text) + '</text></svg>';
+        return {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+            scaledSize: new google.maps.Size(w, 26),
+            anchor: new google.maps.Point(w / 2, 13)
+        };
+    }
     function addRouteMarker(position, icon, title, zIndex) {
         if (!position) return;
         routeOverlays.push(new google.maps.Marker({ position: position, map: map, icon: icon, title: title, zIndex: zIndex, cursor: 'default' }));
@@ -15057,10 +15077,37 @@
             }
             const mainPath = [];
             legs.slice(feedLegs).forEach(function (leg) { legPath(leg).forEach(function (p) { mainPath.push(p); }); });
+            // Інші варіанти (до 3 разом із вибраним): сірі лінії, клік — перерахунок під цей варіант.
+            const variants = ((view.response && view.response.routes) || []).slice(0, ROUTE_ALT_MAX);
+            if (variants.length > 1 && !feedLegs) {
+                variants.forEach(function (r, i) {
+                    if (i === view.idx) return;
+                    const line = new google.maps.Polyline({
+                        path: r.overview_path || [], map: map, clickable: true, zIndex: 1,
+                        strokeColor: pal.alt, strokeWeight: 5, strokeOpacity: 0.9
+                    });
+                    line.addListener('click', function () { selectRouteAlternative(i); });
+                    routeOverlays.push(line);
+                });
+            }
             routeOverlays.push(new google.maps.Polyline({
-                path: mainPath, map: map, clickable: false, zIndex: 2,
+                path: mainPath, map: map, clickable: false, zIndex: 3,
                 strokeColor: pal.main, strokeWeight: 5, strokeOpacity: 0.95
             }));
+            if (variants.length > 1 && !feedLegs) {
+                variants.forEach(function (r, i) {
+                    const path = r.overview_path || [];
+                    if (!path.length) return;
+                    const on = i === view.idx;
+                    const pill = new google.maps.Marker({
+                        position: path[Math.floor(path.length / 2)], map: map, cursor: on ? 'default' : 'pointer', zIndex: on ? 30 : 25,
+                        title: on ? 'Вибраний варіант' : 'Вибрати цей варіант',
+                        icon: tcMapPillIcon(routeVariantText(r), on ? pal.main : pal.stop, on ? pal.onAccent : pal.altText, on ? pal.ring : pal.alt)
+                    });
+                    pill.addListener('click', function () { selectRouteAlternative(i); });
+                    routeOverlays.push(pill);
+                });
+            }
             for (let i = feedLegs + 1; i < legs.length; i++) addRouteMarker(legs[i].start_location, stop, 'Проміжна зупинка', 10);
             if (feedLegs) addRouteMarker(legs[0].start_location, pin('П', pal.teal, pal.onTeal), 'Подача', 20);
             if (legs.length > feedLegs) {
@@ -15419,6 +15466,18 @@
         runAttempt(canTryAlts);
     }
 
+    const ROUTE_ALT_MAX = 3;
+
+    // Вибраний варіант маршруту — зберігається разом із розрахунком (calculations.inputs.routeVariant).
+    function currentRouteVariant() {
+        const view = mainRouteView;
+        const routes = view && view.response && view.response.routes ? view.response.routes : [];
+        const route = view ? routes[view.idx] : null;
+        if (!route) return null;
+        const t = routeTotals(route);
+        return { index: view.idx, count: Math.min(routes.length, ROUTE_ALT_MAX), summary: route.summary ? String(route.summary) : '', km: t.km, minutes: t.min };
+    }
+
     function routeTotals(route) {
         let meters = 0, seconds = 0;
         (route.legs || []).forEach(function (leg) {
@@ -15431,7 +15490,7 @@
     function renderRouteAlternatives(response, selectedIdx) {
         const box = document.getElementById('map-route-alts');
         if (!box) return;
-        const routes = (response && response.routes) || [];
+        const routes = ((response && response.routes) || []).slice(0, ROUTE_ALT_MAX);
         if (routes.length < 2) {
             box.classList.remove('visible');
             box.innerHTML = '';
@@ -15439,12 +15498,11 @@
         }
         box.classList.add('visible');
         box.innerHTML = routes.map(function (r, i) {
-            const t = routeTotals(r);
             const active = i === selectedIdx ? ' active' : '';
             const label = (r.summary && String(r.summary).trim()) ? r.summary : ('Варіант ' + (i + 1));
             return '<button type="button" class="tc-map-alt' + active + '" onclick="selectRouteAlternative(' + i + ')">' +
                 '<b>' + escHtml(label) + '</b>' +
-                '<span>' + t.km + ' км · ~' + t.min + ' хв</span></button>';
+                '<span>' + routeVariantText(r) + '</span></button>';
         }).join('');
     }
 
@@ -15459,7 +15517,7 @@
 
     function applyMainRoute(response, routeIndex, baseQuery, fromQuery, toQuery, statusEl) {
         try {
-            const routes = (response && response.routes) || [];
+            const routes = ((response && response.routes) || []).slice(0, ROUTE_ALT_MAX);
             if (!routes.length) throw new Error('порожня відповідь Directions');
             const idx = Math.max(0, Math.min(Number(routeIndex) || 0, routes.length - 1));
             if (!directionsRenderer) throw new Error('DirectionsRenderer не ініціалізовано');
