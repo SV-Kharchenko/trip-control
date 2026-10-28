@@ -248,11 +248,15 @@
             background: linear-gradient(90deg, #0b4f3c 0%, #127a58 48%, #1aa56e 100%);
             color: #fff; border: none;
             padding: 10px 14px; border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 0.88rem;
-            display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-width: 150px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto; width: auto; min-width: 0;
             font-family: var(--font-ui); transition: filter 0.15s, transform 0.15s;
             box-shadow: 0 8px 20px rgba(18,122,88,0.32);
         }
         .btn:hover { filter: brightness(1.08); transform: translateY(-1px); color: #fff; }
+        /* Кнопка за розміром тексту скрізь (кабінет, Автопарк, картки, форми). Повна ширина — лише явно: .btn-block.
+           Панель дій калькулятора розтягує свої кнопки сама. */
+        .btn-block { display: flex; width: 100%; flex: 1 1 100%; }
+        .actions-bar .btn { flex: 1; min-width: 150px; }
         .btn-success {
             background: linear-gradient(90deg, #0b4f3c 0%, #127a58 48%, #1aa56e 100%);
             color: #fff;
@@ -1500,6 +1504,9 @@
         #cabinet-screen .tc-note-actions { display: flex; gap: 6px; flex-wrap: wrap; }
         #cabinet-screen .tc-note-actions .btn, #cabinet-screen .tc-note-actions button { width: auto; min-height: 36px; padding: 0 12px; font-size: 0.85rem; text-decoration: none; }
         #cabinet-screen .cab-card-head .btn { width: auto; min-height: 36px; padding: 0 12px; font-size: 0.85rem; }
+        /* Кнопки кабінету: за розміром тексту; «Позначити все прочитаним» — праворуч над списком. */
+        #cabinet-screen .btn:not(.btn-block) { flex: none; width: auto; }
+        #cabinet-screen #cab-notes-all { margin-left: auto; }
         #cabinet-screen .tc-member-actions button,
         #cabinet-screen .tc-invite-link button {
             min-height: 40px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 10px;
@@ -1563,15 +1570,11 @@
             #cabinet-screen .cab-overhead-sum { flex-direction: column; align-items: flex-start; }
             .auth-mode-grid { grid-template-columns: 1fr; }
             #cabinet-screen .tc-mode-row { grid-template-columns: 1fr; }
-            #cabinet-screen #cab-mode-btn,
-            #cabinet-screen .tc-team-toolbar .btn { width: 100%; }
-            #cabinet-screen .tc-report-actions { display: grid; }
-            #cabinet-screen .tc-report-actions .btn { width: 100%; }
+            #cabinet-screen .tc-report-actions { display: flex; flex-wrap: wrap; }
             #cabinet-screen .tc-fleet-docs { grid-template-columns: 1fr; }
             #cabinet-screen .tc-fleet-toggle { gap: 6px; font-size: 0.78rem; }
             #cabinet-screen .tc-fleet-status { font-size: 0.66rem; }
-            #cabinet-screen .tc-fleet-add { display: grid; }
-            #cabinet-screen .tc-fleet-add .btn { width: 100%; }
+            #cabinet-screen .tc-fleet-add { flex-wrap: wrap; }
             #cabinet-screen .tc-member-row { grid-template-columns: 1fr; }
             #cabinet-screen .tc-member-actions { justify-content: flex-start; }
             #cabinet-screen .tc-team-summary { align-items: flex-start; }
