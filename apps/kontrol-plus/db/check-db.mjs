@@ -1229,6 +1229,29 @@ for (const [index, [name, extra]] of planCases.entries()) {
     const ownerFleet = await user(OA)(`UPDATE public.fleet_vehicles SET label = 'AA1234BB' WHERE id = $1 RETURNING id`, [vehId]);
     check(ownerFleet.ok && ownerFleet.rows.length === 1, 'director cabinet: the owner edits the fleet', ownerFleet.message);
 
+    // Причепи і водії — теж «Автопарк»: той самий guard-тригер, 403 без права, зі збереженням з правом.
+    const trailer = await service(`INSERT INTO public.fleet_trailers (org_id, plate) VALUES ($1, 'GT0001') RETURNING id`, [A]);
+    check(trailer.ok, 'director cabinet: fixture trailer created', trailer.message);
+    const trailerId = trailer.rows[0] && trailer.rows[0].id;
+    const driver = await service(`SELECT public.kp_driver_save(NULL, 'Петренко Петро', 'AB123456', true) AS id`);
+    const driverRow = await service(`INSERT INTO public.kp_drivers (org_id, full_name) VALUES ($1, 'Водій Фікстура') RETURNING id`, [A]);
+    check(driverRow.ok, 'director cabinet: fixture driver created', driverRow.message || driver.message);
+    const driverId = driverRow.rows[0] && driverRow.rows[0].id;
+    await setPerm(LA, { fleet: false, sign: true });
+    const noTrailer = await user(LA)(`SELECT public.kp_trailer_save($1, '{"make_model":"Krone"}'::jsonb)`, [trailerId]);
+    check(denied(noTrailer), 'director cabinet: without "edit fleet" kp_trailer_save gives 403', noTrailer.message);
+    const noDriver = await user(LA)(`SELECT public.kp_driver_save($1, 'Змінений Водій', 'ZZ000000', true)`, [driverId]);
+    check(denied(noDriver), 'director cabinet: without "edit fleet" kp_driver_save (update) gives 403', noDriver.message);
+    const noNewDriver = await user(LA)(`SELECT public.kp_driver_save(NULL, 'Новий Водій', 'NN111111', true)`);
+    check(denied(noNewDriver), 'director cabinet: without "edit fleet" a new driver cannot be added', noNewDriver.message);
+    await setPerm(LA, { fleet: true, sign: true });
+    const okTrailer = await user(LA)(`SELECT public.kp_trailer_save($1, '{"make_model":"Krone"}'::jsonb) AS ok`, [trailerId]);
+    check(okTrailer.ok && okTrailer.rows[0].ok === true, 'director cabinet: with "edit fleet" a logist saves the trailer', okTrailer.message);
+    const okDriver = await user(LA)(`SELECT public.kp_driver_save($1, 'Змінений Водій', 'ZZ000000', true) AS id`, [driverId]);
+    check(okDriver.ok, 'director cabinet: with "edit fleet" a logist saves the driver', okDriver.message);
+    const ownerDriver = await user(OA)(`SELECT public.kp_driver_save($1, 'Власник Змінив', 'OW000000', true) AS id`, [driverId]);
+    check(ownerDriver.ok, 'director cabinet: the owner always saves drivers', ownerDriver.message);
+
     // Реквізити з підписом і печаткою + документи.
     const REQ = JSON.stringify({ legal_name: 'ТОВ «Тест Перевезення»', legal_form: 'tov', edrpou: '12345678', vat_payer: false, iban: 'UA21 3223 1300 0002 6007 2335 6600 1',
         bank_name: 'АТ «Тест Банк»', legal_address: 'м. Київ, вул. Тестова, 1', signer_name: 'Петренко Петро', signer_position: 'Директор', doc_place: 'м. Київ',

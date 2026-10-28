@@ -24,6 +24,8 @@
 --   DROP TRIGGER IF EXISTS trg_calculations_notify_pending ON public.calculations;
 --   DROP TRIGGER IF EXISTS trg_clients_member_guard ON public.clients;
 --   DROP TRIGGER IF EXISTS trg_fleet_vehicles_member_guard ON public.fleet_vehicles;
+--   DROP TRIGGER IF EXISTS trg_fleet_trailers_member_guard ON public.fleet_trailers;
+--   DROP TRIGGER IF EXISTS trg_kp_drivers_member_guard ON public.kp_drivers;
 --   DROP TRIGGER IF EXISTS trg_kp_documents_member_guard ON public.kp_documents;
 --   Потім заново виконати CREATE OR REPLACE FUNCTION kp_doc_create, kp_doc_assets_source з 20261026072759_kp_documents.sql і
 --   kp_ttn_create з 20261026130623_kp_docs_ttn.sql (повертає оригінальні тіла).
@@ -254,6 +256,17 @@ CREATE TRIGGER trg_clients_member_guard
 DROP TRIGGER IF EXISTS trg_fleet_vehicles_member_guard ON public.fleet_vehicles;
 CREATE TRIGGER trg_fleet_vehicles_member_guard
   BEFORE INSERT OR UPDATE OR DELETE ON public.fleet_vehicles
+  FOR EACH ROW EXECUTE FUNCTION public.fleet_vehicles_member_guard();
+
+-- Причепи і водії — частина Автопарку: те саме право «fleet» (kp_trailer_save, kp_driver_save і прямі зміни).
+DROP TRIGGER IF EXISTS trg_fleet_trailers_member_guard ON public.fleet_trailers;
+CREATE TRIGGER trg_fleet_trailers_member_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.fleet_trailers
+  FOR EACH ROW EXECUTE FUNCTION public.fleet_vehicles_member_guard();
+
+DROP TRIGGER IF EXISTS trg_kp_drivers_member_guard ON public.kp_drivers;
+CREATE TRIGGER trg_kp_drivers_member_guard
+  BEFORE INSERT OR UPDATE OR DELETE ON public.kp_drivers
   FOR EACH ROW EXECUTE FUNCTION public.fleet_vehicles_member_guard();
 
 DROP TRIGGER IF EXISTS trg_kp_documents_member_guard ON public.kp_documents;
