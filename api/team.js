@@ -971,7 +971,7 @@ export function createTeamService(deps) {
         if (!UUID_RE.test(calcId)) throw new HttpError(400, 'BAD_CALC_ID', 'Некоректна заявка.');
         const { data, error } = await supabase
             .from('calculations')
-            .select('id, org_id, user_id, status')
+            .select('id, org_id, user_id, status, inputs, results')
             .eq('id', calcId)
             .eq('org_id', actor.profile.org_id)
             .maybeSingle();
@@ -1027,6 +1027,41 @@ export function createTeamService(deps) {
         return moveCalculation(actor, calc, 'pending');
     }
 
+    // Погоджений директором варіант маршруту. Заявка зберігає всі варіанти Google (inputs.routeVariants) і вибір логіста
+    // (inputs.routeVariant.index). Без variantIndex погоджується варіант логіста. Якщо директор вибрав інший, км і прибуток
+    // заявки (inputs.dist / podachaDist, results.*) перераховуються з розрахунку цього варіанта, а в approved_variant лишається
+    // і його вибір, і вибір логіста. Стара заявка без варіантів погоджується як раніше.
+    const VARIANT_RESULT_KEYS = ['grossIncome', 'marginalIncome', 'ebitda', 'netProfit', 'profitabilityPct'];
+    function approvedRoutePatch(calc, rawIndex, actor) {
+        const inputs = calc.inputs && typeof calc.inputs === 'object' ? calc.inputs : {};
+        const variants = Array.isArray(inputs.routeVariants) ? inputs.routeVariants : [];
+        if (!variants.length) return {};
+        const logistIndex = inputs.routeVariant && Number.isInteger(inputs.routeVariant.index) ? inputs.routeVariant.index : 0;
+        const asked = rawIndex === undefined || rawIndex === null ? logistIndex : rawIndex;
+        const chosen = Number.isInteger(asked) ? variants.find(item => item && item.index === asked) : null;
+        if (!chosen) throw new HttpError(400, 'BAD_VARIANT', 'Такого варіанта маршруту в заявці немає.');
+        const patch = {
+            approved_variant: {
+                index: chosen.index,
+                km: chosen.km,
+                minutes: chosen.minutes,
+                podachaKm: chosen.podachaKm,
+                summary: chosen.summary || '',
+                logistIndex,
+                netProfit: chosen.netProfit,
+                decidedBy: actor.user.id,
+                decidedAt: new Date(now()).toISOString()
+            }
+        };
+        if (chosen.index !== logistIndex) {
+            patch.inputs = { ...inputs, dist: chosen.mainKm, podachaDist: chosen.podachaKm };
+            const results = calc.results && typeof calc.results === 'object' ? calc.results : {};
+            patch.results = { ...results, dist: chosen.mainKm, podachaDist: chosen.podachaKm };
+            for (const key of VARIANT_RESULT_KEYS) if (chosen[key] !== undefined) patch.results[key] = chosen[key];
+        }
+        return patch;
+    }
+
     async function decideCalc(actor, body) {
         const decision = String(body.decision || '');
         if (decision !== 'accepted' && decision !== 'rejected') {
@@ -1034,6 +1069,7 @@ export function createTeamService(deps) {
         }
         const calc = await loadCalculation(actor, body.id);
         const extra = decision === 'rejected' ? { reject_reason: cleanRejectReason(body.reason) } : { reject_reason: null };
+        if (decision === 'accepted') Object.assign(extra, approvedRoutePatch(calc, body.variantIndex, actor));
         return moveCalculation(actor, calc, decision, extra);
     }
 

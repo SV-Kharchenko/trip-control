@@ -243,3 +243,81 @@ test('migration only calls public functions that earlier migrations declare (is_
     assert.match(earlier, /calculations_status_check/);
     assert.match(earlier, /org_role/);
 });
+
+// ---- Вибір варіанта маршруту директором ----
+const VARIANTS = [
+    { index: 0, summary: 'E40', km: 815, minutes: 582, mainKm: 815, podachaKm: 40, path: '', grossIncome: 90000, marginalIncome: 12000, ebitda: 12000, netProfit: 6600, profitabilityPct: 7.3, fuelAndAdblueTotal: 56000 },
+    { index: 1, summary: 'M06', km: 844, minutes: 600, mainKm: 844, podachaKm: 40, path: '', grossIncome: 90000, marginalIncome: 9800, ebitda: 9800, netProfit: 4400, profitabilityPct: 4.9, fuelAndAdblueTotal: 58100 }
+];
+const withVariants = (extra = {}) => ({
+    id: calcId(1), user_id: LOGIST, status: 'pending',
+    inputs: { dist: 815, podachaDist: 40, routeVariant: { index: 0, km: 815 }, routeVariants: VARIANTS },
+    results: { dist: 815, podachaDist: 40, netProfit: 6600, grossIncome: 90000 },
+    ...extra
+});
+
+test('director approves another variant: approved_variant saved, km and profit recalculated, logist choice kept', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    const res = await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 1 });
+    assert.equal(res.status, 200);
+    const row = fake.state.calculations[0];
+    assert.equal(row.status, 'accepted');
+    assert.equal(row.approved_variant.index, 1);
+    assert.equal(row.approved_variant.logistIndex, 0);
+    assert.equal(row.approved_variant.km, 844);
+    assert.equal(row.inputs.dist, 844);
+    assert.equal(row.inputs.routeVariant.index, 0, 'вибір логіста лишається в заявці');
+    assert.equal(row.inputs.routeVariants.length, 2, 'усі варіанти лишаються');
+    assert.equal(row.results.netProfit, 4400);
+    assert.equal(row.results.dist, 844);
+});
+
+test('approving without variantIndex keeps the logist variant and does not touch km or profit', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    const res = await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted' });
+    assert.equal(res.status, 200);
+    const row = fake.state.calculations[0];
+    assert.equal(row.approved_variant.index, 0);
+    assert.equal(row.inputs.dist, 815);
+    assert.equal(row.results.netProfit, 6600);
+});
+
+test('unknown variant is refused and the request stays pending; logist cannot choose', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    for (const variantIndex of [2, -1, 1.5, 'x']) {
+        const res = await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex });
+        assert.equal(res.status, 400, String(variantIndex));
+        assert.equal(res.payload.code, 'BAD_VARIANT');
+    }
+    assert.equal(fake.state.calculations[0].status, 'pending');
+    const logist = await call(fake, 'logist-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 1 });
+    assert.equal(logist.status, 403);
+    assert.equal(fake.state.calculations[0].approved_variant, undefined);
+});
+
+test('old request without stored variants is approved as before, with or without variantIndex', async () => {
+    const fake = createFake();
+    seed(fake, [
+        { id: calcId(1), user_id: LOGIST, status: 'pending', inputs: { dist: 500, routeVariant: { index: 0, km: 500 } }, results: { netProfit: 1000 } },
+        { id: calcId(2), user_id: LOGIST, status: 'pending' }
+    ]);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 0 })).status, 200);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(2), decision: 'accepted' })).status, 200);
+    for (const row of fake.state.calculations) {
+        assert.equal(row.status, 'accepted');
+        assert.equal(row.approved_variant, undefined);
+    }
+    assert.equal(fake.state.calculations[0].inputs.dist, 500);
+    assert.equal(fake.state.calculations[0].results.netProfit, 1000);
+});
+
+test('rejecting never writes a variant', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'rejected', variantIndex: 1 })).status, 200);
+    assert.equal(fake.state.calculations[0].approved_variant, undefined);
+    assert.equal(fake.state.calculations[0].inputs.dist, 815);
+});

@@ -1862,6 +1862,20 @@
         }
         .tc-modal-close:hover, .tc-modal-close:focus-visible { border-color: var(--accent); }
         .tc-modal-lead { margin: 0 0 14px; color: var(--muted); font-size: 0.86rem; line-height: 1.45; }
+        /* Огляд заявки на погодженні: карта з перемикачами варіантів (ті самі .tc-map-alt, що й у калькуляторі) */
+        .tc-review-card { width: min(100%, 760px); }
+        .tc-review-map { position: relative; margin-bottom: 12px; }
+        .tc-review-map #tc-review-map { height: 340px; border-radius: 10px; border: 1px solid var(--border-soft); overflow: hidden; }
+        .tc-review-sum { display: grid; gap: 6px; margin-bottom: 14px; }
+        .tc-review-sum > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--input); font-size: 0.86rem; }
+        .tc-review-sum span { color: var(--muted); }
+        .tc-review-card .tc-modal-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .tc-review-card .tc-modal-actions .btn { flex: 0 0 auto; width: auto; min-width: 0; }
+        .tc-history-variants { color: var(--muted); }
+        @media (max-width: 900px) {
+            .tc-review-map .tc-map-alts { position: static; width: 100%; max-height: none; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; margin: 0 0 8px; }
+            .tc-review-map .tc-map-alts .tc-map-alt { flex: 0 0 auto; }
+        }
         .tc-help-rows { display: grid; gap: 10px; margin-bottom: 16px; }
         .tc-help-row {
             display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 10px;
@@ -12603,6 +12617,9 @@
             refreshVehicleTonnage();
         }
         const payload = readTripPayload();
+        // Розрахунок усіх варіантів маршруту тим самим запитом: потрібен для заявки (вибір директора).
+        const variantKm = routeVariantKmList();
+        if (variantKm) payload.routeVariantKm = variantKm;
         const chosenCount = fleetChoiceActive() ? chosenFleetVehicles().length : 0;
         if (chosenCount && (!(payload.vehicles && payload.vehicles.length === chosenCount) || payload.vehicles.some(function (item) { return !(Number(item.tonnage) > 0); }))) {
             setDemoHint('Вкажи тоннаж кожного обраного авто.', true);
@@ -12783,10 +12800,17 @@
         try {
             let data = null;
             let error = null;
-            const full = await supabaseClient
+            const fullColumns = 'id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days, submitted_at, decided_at, decided_by, reject_reason';
+            let full = await supabaseClient
                 .from('calculations')
-                .select('id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days, submitted_at, decided_at, decided_by, reject_reason')
+                .select(fullColumns + ', approved_variant')
                 .order('created_at', { ascending: false });
+            if (full.error && /approved_variant/i.test(String(full.error.message || full.error))) {
+                full = await supabaseClient
+                    .from('calculations')
+                    .select(fullColumns)
+                    .order('created_at', { ascending: false });
+            }
             data = full.data;
             error = full.error;
             if (error && /column|schema cache/i.test(String(error.message || error))) {
@@ -12820,7 +12844,8 @@
                 submittedAt: r.submitted_at || null,
                 decidedAt: r.decided_at || null,
                 decidedBy: r.decided_by || null,
-                rejectReason: r.reject_reason || ''
+                rejectReason: r.reject_reason || '',
+                approvedVariant: r.approved_variant || null
             }));
             await loadCalcVehicleLinks();
             await loadRouteTemplates();
@@ -12934,8 +12959,11 @@
         const keptClient = clientNameValue();
         let savedId = null;
         const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces());
+        delete inputs.routeVariantKm;
         const routeVariant = currentRouteVariant();
         if (routeVariant) inputs.routeVariant = routeVariant;
+        const routeVariants = storedRouteVariants();
+        if (routeVariants) inputs.routeVariants = routeVariants;
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
         try {
@@ -13010,6 +13038,7 @@
         const code = String((e && e.code) || '');
         if (code === 'OWNER_ONLY') return 'Погоджувати чи відхиляти заявки може лише директор.';
         if (code === 'ACCEPTED_LOCKED') return 'Прийняту заявку видалити не можна.';
+        if (code === 'BAD_VARIANT') return 'Такого варіанта маршруту в заявці немає. Оновіть сторінку.';
         return String((e && e.message) || 'Не вдалося виконати дію із заявкою.');
     }
     function tcModal(options) {
@@ -13071,8 +13100,20 @@
     async function submitForApproval(id) {
         return runApproval(id, 'calc_submit', null, 'pending', 'Заявку відправлено на погодження');
     }
-    async function approveRequest(id) {
-        return runApproval(id, 'calc_decide', { decision: 'accepted' }, 'accepted', 'Заявку прийнято');
+    // variantIndex — вибір директора: сервер зберігає погоджений варіант і перераховує прибуток заявки на нього.
+    // Без нього заявка, що на погодженні й має кілька варіантів, відкривається в огляді з картою.
+    async function approveRequest(id, variantIndex) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (row && variantIndex === undefined && historyFields(row).status === 'pending' && requestVariants(row).length > 1 && currentOrgRole === 'owner') {
+            openApprovalReview(id);
+            return false;
+        }
+        const body = { decision: 'accepted' };
+        if (Number.isInteger(variantIndex)) body.variantIndex = variantIndex;
+        const done = await runApproval(id, 'calc_decide', body, 'accepted', 'Заявку прийнято');
+        // Сервер міг перерахувати км і прибуток під погоджений варіант — перечитуємо заявки.
+        if (done && Number.isInteger(variantIndex) && !uiPreview) await loadSavedCalculations();
+        return done;
     }
     async function rejectRequest(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
@@ -13903,6 +13944,173 @@
         a.remove();
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
     }
+    // Варіанти маршруту заявки: збережені (inputs.routeVariants) і вибір логіста (inputs.routeVariant.index).
+    function requestVariants(row) {
+        const list = row && row.inputs && Array.isArray(row.inputs.routeVariants) ? row.inputs.routeVariants : [];
+        return list.filter(function (v) { return v && Number.isInteger(v.index) && Number(v.km) > 0; });
+    }
+    function logistVariantIndex(row) {
+        const picked = row && row.inputs && row.inputs.routeVariant;
+        return picked && Number.isInteger(picked.index) ? picked.index : 0;
+    }
+    // «логіст: варіант 1, 815 км» і, коли директор погодив, «директор погодив: варіант 2, 844 км».
+    function variantNoteText(row) {
+        const variants = requestVariants(row);
+        if (!variants.length) return '';
+        const logist = variants.find(function (v) { return v.index === logistVariantIndex(row); });
+        const parts = [];
+        if (logist) parts.push('логіст: варіант ' + (logist.index + 1) + ', ' + formatHistoryNum(logist.km, 0) + ' км');
+        const approved = row.approvedVariant;
+        if (approved && Number.isInteger(approved.index)) {
+            parts.push('директор погодив: варіант ' + (approved.index + 1) + ', ' + formatHistoryNum(approved.km, 0) + ' км');
+        }
+        return parts.join(' · ');
+    }
+
+    // ===== Погодження: директор бачить усі варіанти маршруту й погоджує вибраний =====
+    let approvalReview = null;
+    function reviewVariantsOf(row) {
+        const stored = requestVariants(row);
+        if (stored.length) return stored;
+        // Стара заявка без збережених варіантів: один маршрут із полів заявки.
+        const f = historyFields(row);
+        const picked = row.inputs && row.inputs.routeVariant;
+        return [{
+            index: 0,
+            km: f.km || 0,
+            minutes: picked && Number(picked.minutes) > 0 ? Number(picked.minutes) : null,
+            path: '',
+            netProfit: f.profit,
+            grossIncome: f.revenue,
+            legacy: true
+        }];
+    }
+    function reviewDrawMap(state) {
+        const holder = document.getElementById('tc-review-map');
+        if (!holder) return;
+        const pal = tcMapPalette();
+        if (typeof google === 'undefined' || !google.maps || !state.variants.some(function (v) { return v.path; })) {
+            holder.hidden = true;
+            return;
+        }
+        holder.hidden = false;
+        if (!state.map) state.map = new google.maps.Map(holder, { disableDefaultUI: true, zoomControl: true, gestureHandling: 'cooperative', backgroundColor: pal.stop });
+        state.lines.forEach(function (o) { o.setMap(null); });
+        state.lines = [];
+        const bounds = new google.maps.LatLngBounds();
+        const selected = state.variants.find(function (v) { return v.index === state.selected; });
+        state.variants.forEach(function (v) {
+            const path = decodeRoutePath(v.path);
+            if (!path.length) return;
+            const on = v === selected;
+            path.forEach(function (p) { bounds.extend(p); });
+            const line = new google.maps.Polyline({
+                path: path, map: state.map, clickable: !on, zIndex: on ? 3 : 1,
+                strokeColor: on ? pal.main : pal.alt, strokeWeight: 5, strokeOpacity: on ? 0.95 : 0.9
+            });
+            if (!on) line.addListener('click', function () { reviewSelect(v.index); });
+            state.lines.push(line);
+        });
+        const path = selected ? decodeRoutePath(selected.path) : [];
+        if (path.length) {
+            const pin = function (position, letter) {
+                state.lines.push(new google.maps.Marker({ position: position, map: state.map, zIndex: 21, cursor: 'default',
+                    icon: tcMapDotIcon(28, pal.accent, pal.ring, letter, pal.onAccent) }));
+            };
+            pin(path[0], 'A');
+            pin(path[path.length - 1], 'B');
+        }
+        if (!state.fitted) { state.map.fitBounds(bounds); state.fitted = true; }
+    }
+    function reviewSelect(index) {
+        if (!approvalReview) return;
+        approvalReview.selected = index;
+        reviewRender();
+    }
+    function reviewRender() {
+        const state = approvalReview;
+        if (!state) return;
+        const selected = state.variants.find(function (v) { return v.index === state.selected; }) || state.variants[0];
+        const logist = state.variants.find(function (v) { return v.index === state.logist; }) || state.variants[0];
+        const alts = document.getElementById('tc-review-alts');
+        if (alts) {
+            const many = state.variants.length > 1;
+            alts.classList.toggle('visible', many);
+            alts.innerHTML = many ? state.variants.map(function (v) {
+                return '<button type="button" class="tc-map-alt' + (v.index === selected.index ? ' active' : '') + '" aria-pressed="' + (v.index === selected.index) + '" data-variant="' + v.index + '">' +
+                    escHtml('Варіант ' + (v.index + 1) + ' · ' + variantKmMinText(v.km, v.minutes || 0)) + '</button>';
+            }).join('') : '';
+        }
+        const money = function (value) { return value == null || value === '' ? '—' : displayMinus(formatMoney(value)); };
+        const delta = selected.netProfit != null && logist.netProfit != null ? selected.netProfit - logist.netProfit : null;
+        const deltaText = delta === null || selected.index === logist.index ? '' : ' (' + (delta > 0 ? '+' : '') + formatMoney(delta) + ' до варіанта логіста)';
+        const rows = [
+            ['Прибуток', money(selected.netProfit) + deltaText],
+            ['Дохід', money(selected.grossIncome)],
+            ['Пальне й AdBlue', money(selected.fuelAndAdblueTotal)],
+            ['Відстань', formatHistoryNum(selected.km, 0) + ' км' + (selected.podachaKm > 0 ? ' + подача ' + formatHistoryNum(selected.podachaKm, 0) + ' км' : '')]
+        ];
+        const sum = document.getElementById('tc-review-sum');
+        if (sum) sum.innerHTML = rows.map(function (r) { return '<div><span>' + escHtml(r[0]) + '</span><b>' + escHtml(r[1]) + '</b></div>'; }).join('');
+        const ok = document.getElementById('tc-review-ok');
+        if (ok) ok.textContent = state.variants.length > 1 ? 'Погодити варіант ' + (selected.index + 1) : 'Погодити';
+        reviewDrawMap(state);
+    }
+    function closeApprovalReview() {
+        const overlay = document.getElementById('tc-review');
+        if (overlay) overlay.remove();
+        document.removeEventListener('keydown', closeApprovalReviewKey, true);
+        approvalReview = null;
+    }
+    function closeApprovalReviewKey(event) {
+        if (event.key === 'Escape') { event.preventDefault(); closeApprovalReview(); }
+    }
+    function openApprovalReview(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return;
+        closeApprovalReview();
+        const variants = reviewVariantsOf(row);
+        const logist = variants.some(function (v) { return v.index === logistVariantIndex(row); }) ? logistVariantIndex(row) : variants[0].index;
+        approvalReview = { id: id, variants: variants, logist: logist, selected: logist, map: null, lines: [], fitted: false };
+        const overlay = document.createElement('div');
+        overlay.className = 'tc-modal';
+        overlay.id = 'tc-review';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'tc-review-title');
+        overlay.innerHTML = '<div class="tc-modal-card tc-review-card">' +
+            '<div class="tc-modal-head"><h2 id="tc-review-title">' + escHtml(historyRouteLabel(historyFields(row))) + '</h2>' +
+            '<button type="button" class="tc-modal-close" data-act="close" aria-label="Закрити">✕</button></div>' +
+            '<p class="tc-modal-lead">' + escHtml(variantNoteText(row) || (savedAuthorLabel(row.userId) + ' · заявка на погодженні')) + '</p>' +
+            '<div class="tc-review-map"><div class="tc-map-alts" id="tc-review-alts" aria-label="Варіанти маршруту"></div><div id="tc-review-map" hidden></div></div>' +
+            '<div class="tc-review-sum" id="tc-review-sum"></div>' +
+            '<div class="tc-modal-actions">' +
+            '<button type="button" class="btn" data-act="open">У калькулятор</button>' +
+            '<button type="button" class="btn btn-danger" data-act="reject">Відхилити</button>' +
+            '<button type="button" class="btn btn-success" id="tc-review-ok" data-act="ok">Погодити</button>' +
+            '</div></div>';
+        overlay.addEventListener('click', async function (event) {
+            if (event.target === overlay) { closeApprovalReview(); return; }
+            const target = event.target && event.target.closest ? event.target.closest('[data-act], [data-variant]') : null;
+            if (!target) return;
+            if (target.hasAttribute('data-variant')) { reviewSelect(Number(target.getAttribute('data-variant'))); return; }
+            const act = target.getAttribute('data-act');
+            if (act === 'close') closeApprovalReview();
+            else if (act === 'open') { closeApprovalReview(); openSaved(id); }
+            else if (act === 'reject') { if (await rejectRequest(id)) closeApprovalReview(); }
+            else if (act === 'ok') {
+                const picked = approvalReview ? approvalReview.selected : undefined;
+                const hasVariants = approvalReview && !approvalReview.variants[0].legacy;
+                if (await approveRequest(id, hasVariants ? picked : undefined)) closeApprovalReview();
+            }
+        });
+        document.addEventListener('keydown', closeApprovalReviewKey, true);
+        document.body.appendChild(overlay);
+        reviewRender();
+        const ok = overlay.querySelector('#tc-review-ok');
+        if (ok) ok.focus();
+    }
+
     async function exportHistory(kind) {
         if (isDemo) return;
         const fromEl = document.getElementById('history-from');
@@ -13996,8 +14204,10 @@
         const button = function (label, handler, cls) {
             return '<button type="button"' + (cls ? ' class="' + cls + '"' : '') + ' onclick="' + handler + '(\'' + id + '\')">' + label + '</button>';
         };
-        const parts = [button('Відкрити', 'openSaved')];
-        if (director && currentOrgRole === 'owner' && status === 'pending') {
+        const reviewing = director && currentOrgRole === 'owner' && status === 'pending';
+        // Заявка на погодженні відкривається в огляді з картою й варіантами маршруту; у калькулятор — кнопкою звідти.
+        const parts = [button('Відкрити', reviewing ? 'openApprovalReview' : 'openSaved')];
+        if (reviewing) {
             parts.push(button('Погодити', 'approveRequest', 'is-ok'));
             parts.push(button('Відхилити', 'rejectRequest', 'is-danger'));
         }
@@ -14520,7 +14730,8 @@
             return '<tr>' +
                 '<td class="c-d">' + escHtml(formatHistoryDate(fields.date)) + '</td>' +
                 '<td class="tc-history-route c-r"><b>' + escHtml(historyRouteLabel(fields)) + '</b>' +
-                (metaLine(fields) ? '<small>' + escHtml(metaLine(fields)) + '</small>' : '') + '</td>' +
+                (metaLine(fields) ? '<small>' + escHtml(metaLine(fields)) + '</small>' : '') +
+                (variantNoteText(row) ? '<small class="tc-history-variants">' + escHtml(variantNoteText(row)) + '</small>' : '') + '</td>' +
                 '<td class="c-l">' + escHtml(savedAuthorLabel(row.userId)) + '</td>' +
                 '<td class="c-p">' + profitHtml(row, fields) + '</td>' +
                 '<td class="c-s">' + statusHtml(fields) + '</td>' +
@@ -14534,6 +14745,7 @@
                 '<div class="tc-history-meta">' + escHtml(formatHistoryDate(fields.date)) + ' · ' + escHtml(savedAuthorLabel(row.userId)) +
                 ' · <span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span></div>' +
                 '<div class="tc-history-meta">' + escHtml(metaLine(fields)) + '</div>' +
+                (variantNoteText(row) ? '<div class="tc-history-meta tc-history-variants">' + escHtml(variantNoteText(row)) + '</div>' : '') +
                 '<div class="tc-history-meta">Прибуток ' + (fields.profit == null ? '—' : displayMinus(formatMoney(fields.profit))) +
                 (fields.status === 'rejected' && fields.rejectReason ? ' · ' + escHtml(fields.rejectReason) : '') + '</div>' +
                 historyActions(row) + '</article>';
@@ -14964,12 +15176,15 @@
     }
 
     // Підпис перемикача варіанта: «Варіант N · км · год хв». Плашок на лініях немає — вони налазили одна на одну.
+    function variantKmMinText(km, min) {
+        return km + ' км · ' + Math.floor(min / 60) + ' год ' + (min % 60) + ' хв';
+    }
     function routeVariantLabel(route, i) {
         return 'Варіант ' + (i + 1) + ' · ' + routeVariantText(route);
     }
     function routeVariantText(route) {
         const t = routeTotals(route.altRoute || route);
-        return t.km + ' км · ' + Math.floor(t.min / 60) + ' год ' + (t.min % 60) + ' хв';
+        return variantKmMinText(t.km, t.min);
     }
     function addRouteMarker(position, icon, title, zIndex) {
         if (!position) return;
@@ -15396,6 +15611,97 @@
         if (!route) return null;
         const t = routeTotals(route);
         return { index: view.idx, count: Math.min(routes.length, ROUTE_ALT_MAX), summary: route.summary ? String(route.summary) : '', km: t.km, minutes: t.min };
+    }
+
+    // Шлях варіанта в заявці — encoded polyline (precision 5), не більше ROUTE_PATH_MAX точок.
+    const ROUTE_PATH_MAX = 1200;
+    function encodeRoutePath(path) {
+        const list = (path || []).map(function (p) {
+            return typeof p.lat === 'function' ? [p.lat(), p.lng()] : [Number(p.lat), Number(p.lng)];
+        }).filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
+        const step = list.length > ROUTE_PATH_MAX ? Math.ceil(list.length / ROUTE_PATH_MAX) : 1;
+        const picked = list.filter(function (p, i) { return i % step === 0 || i === list.length - 1; });
+        const chunk = function (value) {
+            let v = value < 0 ? ~(value << 1) : value << 1;
+            let out = '';
+            while (v >= 0x20) { out += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+            return out + String.fromCharCode(v + 63);
+        };
+        let lat = 0, lng = 0, text = '';
+        picked.forEach(function (p) {
+            const la = Math.round(p[0] * 1e5), ln = Math.round(p[1] * 1e5);
+            text += chunk(la - lat) + chunk(ln - lng);
+            lat = la; lng = ln;
+        });
+        return text;
+    }
+    function decodeRoutePath(text) {
+        const src = String(text || '');
+        const out = [];
+        let i = 0, lat = 0, lng = 0;
+        const next = function () {
+            let result = 0, shift = 0, b;
+            do {
+                if (i >= src.length) return null;
+                b = src.charCodeAt(i++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            return (result & 1) ? ~(result >> 1) : (result >> 1);
+        };
+        while (i < src.length) {
+            const dLat = next();
+            const dLng = next();
+            if (dLat === null || dLng === null) break;
+            lat += dLat; lng += dLng;
+            out.push({ lat: lat / 1e5, lng: lng / 1e5 });
+        }
+        return out;
+    }
+
+    // Км кожного варіанта Google так, як їх ставить applyMainRoute: подача — перший відрізок, решта — рейс.
+    function routeVariantKmList() {
+        const view = mainRouteView;
+        const routes = view && view.response && view.response.routes ? view.response.routes.slice(0, ROUTE_ALT_MAX) : [];
+        if (routes.length < 2) return null;
+        const meters = function (leg) { return (leg && leg.distance && leg.distance.value) || 0; };
+        return routes.map(function (route, i) {
+            const legs = route.legs || [];
+            const feed = !!view.feed && legs.length >= 2;
+            const main = legs.reduce(function (acc, leg, k) { return feed && k === 0 ? acc : acc + meters(leg); }, 0);
+            return { index: i, dist: Math.round(main / 1000), podachaDist: feed ? Math.round(meters(legs[0]) / 1000) : 0 };
+        });
+    }
+    // Усі варіанти Google для заявки: км, час, шлях і розрахунок кожного (variantResults відповіді /api/calculate).
+    function storedRouteVariants() {
+        const view = mainRouteView;
+        const routes = view && view.response && view.response.routes ? view.response.routes.slice(0, ROUTE_ALT_MAX) : [];
+        const results = lastExport && lastExport.result && Array.isArray(lastExport.result.variantResults) ? lastExport.result.variantResults : [];
+        const kms = routeVariantKmList();
+        if (!kms || !results.length) return null;
+        const out = [];
+        routes.forEach(function (route, i) {
+            const calc = results.find(function (item) { return item.index === i; });
+            // Розрахунок мав бути зроблений саме для цих км, інакше варіант не зберігаємо.
+            if (!calc || calc.dist !== kms[i].dist || calc.podachaDist !== kms[i].podachaDist) return;
+            const main = route.altRoute || route;
+            out.push({
+                index: i,
+                summary: route.summary ? String(route.summary).slice(0, 80) : '',
+                km: kms[i].dist,
+                minutes: routeTotals(main).min,
+                mainKm: kms[i].dist,
+                podachaKm: kms[i].podachaDist,
+                path: encodeRoutePath(main.overview_path || []),
+                grossIncome: calc.grossIncome,
+                marginalIncome: calc.marginalIncome,
+                ebitda: calc.ebitda,
+                netProfit: calc.netProfit,
+                profitabilityPct: calc.profitabilityPct,
+                fuelAndAdblueTotal: calc.fuelAndAdblueTotal
+            });
+        });
+        return out.length > 1 ? out : null;
     }
 
     function routeTotals(route) {

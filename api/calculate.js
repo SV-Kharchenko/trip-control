@@ -917,6 +917,30 @@ async function tripFactRequest(req, res) {
 
 // Обов'язкові поля: без них результат був би вигаданим. Разовий рейс: «Обсяг» не потрібен
 // (обсяг = норма × авто). Увімкнений кругорейс: обсяг і розцінка зворотного вантажу та плече C→D.
+// Варіанти маршруту Google (до ROUTE_VARIANT_MAX): той самий розрахунок з км кожного варіанта. Формули не змінюються —
+// лише викликається calculateTrip / sumVehicleTrips із підміненими dist і podachaDist. Результат іде в заявку, щоб директор
+// міг вибрати варіант і бачити прибуток без нового запиту.
+export const ROUTE_VARIANT_MAX = 3;
+export const ROUTE_VARIANT_KEYS = ['grossIncome', 'marginalIncome', 'ebitda', 'netProfit', 'profitabilityPct', 'fuelAndAdblueTotal'];
+export function routeVariantResults(body, vehicleList) {
+    const asked = body && Array.isArray(body.routeVariantKm) ? body.routeVariantKm.slice(0, ROUTE_VARIANT_MAX) : [];
+    const out = [];
+    for (const item of asked) {
+        const dist = Number(item && item.dist);
+        const podachaDist = Number(item && item.podachaDist) || 0;
+        const index = Number(item && item.index);
+        if (!(dist > 0) || !Number.isInteger(index) || index < 0 || index >= ROUTE_VARIANT_MAX) continue;
+        const variantBody = { ...body, dist, podachaDist };
+        delete variantBody.routeVariantKm;
+        const computed = vehicleList ? sumVehicleTrips(variantBody, vehicleList) : calculateTrip(variantBody);
+        if (!computed || computed.status) continue;
+        const row = { index, dist, podachaDist };
+        for (const key of ROUTE_VARIANT_KEYS) row[key] = computed[key];
+        out.push(row);
+    }
+    return out;
+}
+
 export const REQUIRED_FIELD_LABELS = {
     dist: 'Відстань', volume: 'Обсяг', normWeight: 'Норма завантаження', carsCount: 'Кількість авто',
     daysPerTrip: 'Днів на рейс', rate: 'Ставка', fuelLoad: 'Витрата з вантажем', fuelEmpty: 'Витрата порожнім',
@@ -1057,10 +1081,14 @@ export default async function handler(req, res) {
         if (computed.status) {
             return res.status(computed.status).json({ code: computed.code, error: computed.error });
         }
-        return res.status(200).json({
+        const response = {
             demo: demoInfo, // null для повного доступу, {used, limit} для демо
             ...computed
-        });
+        };
+        if (Array.isArray(reqBody.routeVariantKm) && reqBody.routeVariantKm.length) {
+            response.variantResults = routeVariantResults(reqBody, vehicleSplit ? vehicleSplit.list : null);
+        }
+        return res.status(200).json(response);
 
     } catch (err) {
         console.error('Calculation error:', err);

@@ -20,7 +20,7 @@ test('п.2: перемикачі варіантів — «Варіант N · к
     const response = { routes: [{ summary: 'E40', legs: [leg(815, 582)] }, { summary: 'M06', legs: [leg(844, 600)] }] };
     const box = { innerHTML: '', classList: { on: false, add() { this.on = true; }, remove() { this.on = false; } } };
     const context = vm.createContext({ document: { getElementById: () => box }, escHtml: (x) => String(x) });
-    vm.runInContext(['const ROUTE_ALT_MAX = 3;', fnSource('routeTotals'), fnSource('routeVariantText'), fnSource('routeVariantLabel'), fnSource('renderRouteAlternatives')].join('\n'), context);
+    vm.runInContext(['const ROUTE_ALT_MAX = 3;', fnSource('routeTotals'), fnSource('variantKmMinText'), fnSource('routeVariantText'), fnSource('routeVariantLabel'), fnSource('renderRouteAlternatives')].join('\n'), context);
     vm.runInContext('renderRouteAlternatives(' + JSON.stringify(response) + ', 1)', context);
     assert.equal(box.classList.on, true);
     assert.match(box.innerHTML, /Варіант 1 · 815 км · 9 год 42 хв<\/button>/);

@@ -1087,6 +1087,28 @@ for (const [index, [name, extra]] of planCases.entries()) {
     // Подача — один раз на авто заявки (computeTrip у зрізі: podachaDist × carsCount, carsCount = 1).
     check(basis.podachaKm === (Number(body.podachaDist) || 0) * body.vehicles.length, `trip km: feed = podachaDist × vehicles (${name}): ${basis.podachaKm}`);
 }
+// Погоджений варіант маршруту (20261030090000): пише лише сервіс, клієнт ні вставити, ні змінити не може.
+{
+    const variantSql = fs.readFileSync(new URL('20261030090000_calc_approved_variant.sql', DIR), 'utf8');
+    await db.exec(variantSql);
+    check(true, 'approved variant: migration re-applied (idempotent)');
+    const forged = await user(OA)(`INSERT INTO public.calculations (user_id, org_id, name, inputs, results, approved_variant)
+        VALUES ($1, $2, 'Підробка', '{}'::jsonb, '{}'::jsonb, '{"index":1,"km":1}'::jsonb) RETURNING id, approved_variant`, [OA, A]);
+    check(forged.ok && forged.rows[0].approved_variant === null, 'approved variant: an INSERT by the client cannot set it', forged.message);
+    const variantCalc = forged.rows[0].id;
+    const clientUpdate = await user(OA)(`UPDATE public.calculations SET approved_variant = '{"index":0}'::jsonb WHERE id = $1`, [variantCalc]);
+    check(!clientUpdate.ok && clientUpdate.code === '42501', 'approved variant: the client cannot update it (no column grant)', clientUpdate.message);
+    const svc = await service(`UPDATE public.calculations SET approved_variant = '{"index":1,"km":844,"logistIndex":0}'::jsonb WHERE id = $1 RETURNING approved_variant`, [variantCalc]);
+    check(svc.ok && svc.rows[0].approved_variant.index === 1, 'approved variant: the service writes it', svc.message);
+    const badShape = await service(`UPDATE public.calculations SET approved_variant = '[1]'::jsonb WHERE id = $1`, [variantCalc]);
+    check(!badShape.ok, 'approved variant: only a JSON object is accepted', badShape.message);
+    const tooBig = await service(`UPDATE public.calculations SET approved_variant = jsonb_build_object('x', repeat('a', 5000)) WHERE id = $1`, [variantCalc]);
+    check(!tooBig.ok, 'approved variant: a huge value is refused', tooBig.message);
+    // Зміна inputs / results сервісом (інший вибір директора) перераховує distance_km і profit у тригері історії.
+    const recalc = await service(`UPDATE public.calculations SET inputs = '{"dist":844,"podachaDist":40}'::jsonb, results = '{"netProfit":4400}'::jsonb WHERE id = $1 RETURNING distance_km, profit`, [variantCalc]);
+    check(recalc.ok && Number(recalc.rows[0].distance_km) === 884 && Number(recalc.rows[0].profit) === 4400, 'approved variant: km and profit follow the approved variant', recalc.message || JSON.stringify(recalc.rows));
+    await service(`DELETE FROM public.calculations WHERE id = $1`, [variantCalc]);
+}
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
 if (failed) {
