@@ -3954,6 +3954,7 @@
         /* Сітки полів: 4 → 2 → 1 колонки за шириною */
         .tc-sg { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); min-width: 0; }
         .tc-sg.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
+        .tc-sg.one { grid-template-columns: minmax(0, 1fr); }
         .tc-f { display: grid; gap: 5px; min-width: 0; align-content: start; }
         .tc-f-notruck { display: none; font-size: var(--tc-fs-s); color: var(--muted); }
         .tc-f-truck:has(#vehicle-norm-row[hidden]) .tc-f-notruck { display: block; }
@@ -4094,7 +4095,7 @@
         #tc-op .tc-op-sub .form-row:has(#calc-type) > label { min-height: 0; }
         #tc-op .tc-in > select { text-overflow: ellipsis; }
         #tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }
-        /* Числа заявки: 2×2 (Відстань | Подача, Вага | Тариф), щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
+        /* Числа заявки: Відстань | Вага вантажу | Тариф у сітці 2 колонки, щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
         .tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .tc-in > select.cur { min-width: 76px; }
         .tc-f-rate .tc-in > input { min-width: 70px; }
@@ -6771,10 +6772,10 @@
         const demoNote = opById('tc-demo-fields-note');
         const truckRow = opById('vehicle-norm-row');
 
-        const truck = opCell('tc-f-truck', 'Фура', [truckRow]);
+        const truck = opCell('tc-f-truck', 'ТЗ (транспортний засіб)', [truckRow]);
         const truckLab = document.createElement('label');
         truckLab.className = 'tc-f-lab';
-        truckLab.textContent = 'Фура';
+        truckLab.textContent = 'ТЗ (транспортний засіб)';
         truck.insertBefore(truckLab, truck.firstChild);
         const noTruck = document.createElement('span');
         noTruck.className = 'tc-f-notruck';
@@ -6799,14 +6800,14 @@
             panel1.appendChild(nameRow);
         }
         panel1.appendChild(opGroup('two', [opCell('tc-f-a', 'Звідки', [fromFull, fromDemo]), opCell('tc-f-b', 'Куди', [toFull, toDemo])]));
+        panel1.appendChild(opGroup('one', [opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo])]));
+        if (routeTools) panel1.appendChild(routeTools);
         panel1.appendChild(opGroup('nums', [
             opCell('tc-f-dist', 'Відстань', [distRow]),
-            opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo]),
             opCell('tc-f-weight', 'Вага вантажу', [opRowOf('volume')]),
             rate
         ]));
         panel1.appendChild(opGroup('two', [opCell('tc-f-return', 'Повернення', [opRowOf('return-mode')]), truck]));
-        if (routeTools) panel1.appendChild(routeTools);
         panel1.appendChild(vehicleMore);
         if (demoNote) panel1.appendChild(demoNote);
 

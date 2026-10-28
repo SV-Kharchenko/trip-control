@@ -62,10 +62,12 @@ test('panel «Параметри заявки»: 4 accordion rows, fields in the
     assert.deepEqual(rows, ['route:Назва / маршрут заявки', 'fuel:Пальне', 'extras:Додаткові параметри', 'recent:Останні маршрути']);
     assert.match(build, /opAccRow\('route', '1', 'Назва \/ маршрут заявки', panel1, true\)/);
     assert.match(build, /opAccRow\('recent', '↺', 'Останні маршрути', recentBody, true\)/);
-    const order = build.slice(build.indexOf('panel1.appendChild(nameRow)'), build.indexOf('if (routeTools)'));
+    const order = build.slice(build.indexOf('panel1.appendChild(nameRow)'), build.indexOf('panel1.appendChild(vehicleMore)'));
     const at = (needle) => order.indexOf(needle);
-    assert.ok(at("'Звідки'") > -1 && at("'Звідки'") < at("'Куди'") && at("'Куди'") < at("'Відстань'"));
-    assert.ok(at("'Відстань'") < at("'Подача авто'") && at("'Подача авто'") < at("'Вага вантажу'") && at("'Вага вантажу'") < at('rate'));
+    // П.11: Звідки–Куди → Подача → «Розрахувати відстань» (route tools) → Відстань, Вага, Тариф → Повернення, ТЗ.
+    assert.ok(at("'Звідки'") > -1 && at("'Звідки'") < at("'Куди'") && at("'Куди'") < at("'Подача авто'"));
+    assert.ok(at("'Подача авто'") < at('if (routeTools)') && at('if (routeTools)') < at("'Відстань'"));
+    assert.ok(at("'Відстань'") < at("'Вага вантажу'") && at("'Вага вантажу'") < at('rate'));
     assert.ok(at('rate') < at("'Повернення'") && at("'Повернення'") < at('truck]'));
     // Блок «Податки і накладні» прибрано з UI; поля лишаються в прихованому #main-sync-fields.
     assert.equal(/Податки і накладні/.test(build), false);
@@ -335,7 +337,7 @@ test('fix pass: currency width, A/B inside .tc-in, no empty cells, label for «�
     assert.match(onepage, /cell\.hidden = !live/);
     assert.match(onepage, /new MutationObserver\(opSweepCells\)/);
     assert.ok(html.includes('.tc-f[hidden] { display: none !important; }'));
-    assert.match(build, /truckLab\.textContent = 'Фура'/);
+    assert.match(build, /truckLab\.textContent = 'ТЗ \(транспортний засіб\)'/);
     assert.match(build, /id=\"tc-clear\" onclick=\"clearCalcForm\(\)\">Очистити/);
     const clear = sliceBetween(onepage, 'function clearCalcForm()', 'function opToggleRecent()');
     assert.match(clear, /clearVehicleNormChoice\(\)/);
