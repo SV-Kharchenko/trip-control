@@ -73,6 +73,10 @@ VALUES ('92000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-0000000
         'Рейс іншого клієнта', '{"origin":"м. Біла Церква","destination":"м. Умань"}'::jsonb, '{}'::jsonb, 'accepted', DATE '2026-10-21'),
        ('92000000-0000-0000-0000-000000000021', '90000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000e008',
         'Чужий рейс', '{"origin":"A","destination":"B"}'::jsonb, '{}'::jsonb, 'accepted', DATE '2026-10-20');
+-- Тригер погодження ставить draft на INSERT; ТТН з рейсу вимагає прийнятої заявки (20261029100000) — приймаємо як сервіс.
+ALTER TABLE public.calculations DISABLE TRIGGER trg_calculations_enforce_approval;
+UPDATE public.calculations SET status = 'accepted' WHERE id IN ('92000000-0000-0000-0000-000000000001', '92000000-0000-0000-0000-000000000002', '92000000-0000-0000-0000-000000000021');
+ALTER TABLE public.calculations ENABLE TRIGGER trg_calculations_enforce_approval;
 INSERT INTO public.calculation_clients (calculation_id, client_id)
 VALUES ('92000000-0000-0000-0000-000000000001', '91000000-0000-0000-0000-000000000011'),
        ('92000000-0000-0000-0000-000000000002', '91000000-0000-0000-0000-000000000012'),
