@@ -4,7 +4,7 @@ import { errorText } from './errors.js';
 import { fmtDate, kyivDate } from './format.js';
 import { digitsOnly, normalizeIban, edrpouChecksumOk, ipnChecksumOk, ibanChecksumOk, LEGAL_FORMS } from './validate.js';
 
-export const DOC_KIND_LABELS = { invoice: 'Рахунок', act: 'Акт', ttn: 'ТТН' };
+export const DOC_KIND_LABELS = { invoice: 'Рахунок', act: 'Акт', ttn: 'ТТН', trip_sheet: 'Подорожній' };
 export const DOC_TITLES = { invoice: 'Рахунок на оплату', act: 'Акт надання послуг' };
 export const PAY_STATUS_LABELS = {
     issued: 'Виставлено',
