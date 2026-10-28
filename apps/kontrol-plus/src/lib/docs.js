@@ -24,6 +24,9 @@ export function docStatusKey(kind, payStatus, signed = false) {
 }
 
 // Подорожній лист: Видано → Закрито | Анульовано (збігається з TS_STATUS_LABELS у lib/trip-sheet.js).
+// ТТН і подорожній лист з рейсу створюються лише з ПРИЙНЯТОЇ заявки (accepted | done), так само перевіряє база.
+export const CALC_DOC_HINT = 'Спершу прийміть заявку';
+export const calcAccepted = (status) => status === 'accepted' || status === 'done';
 export const TRIP_STATUS_LABELS = { issued: 'Видано', closed: 'Закрито', cancelled: 'Анульовано' };
 
 export function docStatusLabel(kind, payStatus, signed = false) {

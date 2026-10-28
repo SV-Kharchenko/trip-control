@@ -1,10 +1,10 @@
 // Картка подорожнього листа в компактному стилі 1С (підпис зліва, значення поруч): Шапка, ТЗ і водій, Завдання, Виїзд,
-// Повернення, Розрахунок. Видано → «Закрити лист» (дані повернення; пробіг і витрату рахує сервер, тут — той самий розрахунок
-// наперед), Закрито / Анульовано — лише перегляд. Анулює лише власник. Нижче — ТТН цього ж рейсу.
+// Повернення, Розрахунок. Видано → поля повернення можна зберігати до закриття («Зберегти повернення») і «Закрити лист» (пробіг і
+// витрату рахує сервер, тут — той самий розрахунок наперед), Закрито / Анульовано — лише перегляд. Анулює лише власник. Нижче — ТТН цього ж рейсу.
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtDate, shiftDate } from '../lib/format.js';
 import { docNumberText } from '../lib/docs.js';
-import { calcTripSheet, closePayload, fmtDateTime, isoToLocal, tsErrorText, tsHeading, tsSections } from '../lib/trip-sheet.js';
+import { NORM_NEEDS_LOADED_KM, calcTripSheet, closePayload, fmtDateTime, isoToLocal, tsErrorText, tsHeading, tsSections } from '../lib/trip-sheet.js';
 import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
 
 const fmt1 = (n) => (n === null || n === undefined ? '—' : String(n).replace('.', ','));
@@ -34,9 +34,10 @@ export function renderTripSheetCard(app, access, id) {
     }
 
     function closeForm(doc) {
-        const at = h('input', { type: 'datetime-local', id: 'ts-return-at', value: isoToLocal(new Date().toISOString()), 'aria-label': 'Дата і час повернення' });
-        const odo = h('input', { type: 'text', id: 'ts-return-odo', inputmode: 'numeric', 'aria-label': 'Спідометр при поверненні' });
-        const left = h('input', { type: 'text', id: 'ts-return-left', inputmode: 'decimal', 'aria-label': 'Залишок пального при поверненні' });
+        const saved = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
+        const at = h('input', { type: 'datetime-local', id: 'ts-return-at', value: isoToLocal(doc.return_at || new Date().toISOString()), 'aria-label': 'Дата і час повернення' });
+        const odo = h('input', { type: 'text', id: 'ts-return-odo', inputmode: 'numeric', value: saved(doc.return_odometer), 'aria-label': 'Спідометр при поверненні' });
+        const left = h('input', { type: 'text', id: 'ts-return-left', inputmode: 'decimal', value: saved(doc.return_fuel_left), 'aria-label': 'Залишок пального при поверненні' });
         const preview = h('div', { class: 'kpr-totals', 'aria-live': 'polite' });
         const message = h('div', { 'aria-live': 'polite' });
         const task = doc.task || {};
@@ -48,31 +49,45 @@ export function renderTripSheetCard(app, access, id) {
         const redraw = () => {
             const r = current();
             if (r.distance_km === null) return clear(preview, h('span', { class: 'muted small' }, 'Внесіть спідометр і залишок пального — покажемо пробіг і витрату.'));
+            const noLoaded = r.fuel_norm === null && !String(task.loaded_km ?? '').trim();
             clear(preview,
+                h('span', null, 'Норми: ', h('b', null, fmt1(veh.fuel_load) + ' / ' + fmt1(veh.fuel_empty) + ' л/100 км'), ' (з вантажем / порожній)'),
                 h('span', null, 'Пробіг: ', h('b', null, fmt1(r.distance_km) + ' км')),
                 h('span', null, 'Факт: ', h('b', null, fmt1(r.fuel_actual) + ' л')),
-                h('span', null, 'За нормою: ', h('b', null, r.fuel_norm === null ? '—' : fmt1(r.fuel_norm) + ' л')),
+                h('span', { title: noLoaded ? NORM_NEEDS_LOADED_KM : null }, 'За нормою: ', h('b', null, r.fuel_norm === null ? '—' : fmt1(r.fuel_norm) + ' л'),
+                    noLoaded ? h('small', { class: 'muted' }, ' ' + NORM_NEEDS_LOADED_KM) : null),
                 h('span', null, 'Різниця: ', h('b', null, r.fuel_diff === null ? '—' : (r.fuel_diff > 0 ? '+' : '') + fmt1(r.fuel_diff) + ' л')),
                 Object.values(r.errors).length ? h('span', { class: 'hint hint-error' }, Object.values(r.errors)[0]) : null);
         };
         odo.addEventListener('input', redraw);
         left.addEventListener('input', redraw);
         const row = (label, control, cls) => h('div', { class: 'field kpc-row' }, h('label', null, label), h('span', { class: 'kpc-box ' + cls }, control));
+        const values = () => closePayload({ return_at: at.value, return_odometer: odo.value, return_fuel_left: left.value });
+        // Зберегти повернення без закриття: поля редагуються, доки лист «Видано». Порожнє поле очищає збережене значення.
+        const saveDraft = async () => {
+            clear(message);
+            const { error } = await app.supabase.rpc('kp_trip_sheet_return_save', { p_id: doc.id, p_data: values() });
+            if (error) return clear(message, notice(tsErrorText(error)));
+            toast('Дані повернення збережено');
+            load();
+        };
         const run = async () => {
             clear(message);
             const r = current();
             if (Object.keys(r.errors).length) return clear(message, notice(Object.values(r.errors)[0]));
-            const { error } = await app.supabase.rpc('kp_trip_sheet_close', { p_id: doc.id, p_data: closePayload({ return_at: at.value, return_odometer: odo.value, return_fuel_left: left.value }) });
+            const { error } = await app.supabase.rpc('kp_trip_sheet_close', { p_id: doc.id, p_data: values() });
             if (error) return clear(message, notice(tsErrorText(error)));
             toast('Лист закрито');
             load();
         };
         redraw();
         return h('div', { class: 'card kpc', id: 'ts-close' },
-            h('h3', { class: 'kpc-section' }, 'Закрити лист (дані повернення)'),
+            h('h3', { class: 'kpc-section' }, 'Повернення (змінюється до закриття листа)'),
             row('Дата і час повернення', at, 'kpc-w-m'), row('Спідометр, км', odo, 'kpc-w-s'), row('Залишок пального, л', left, 'kpc-w-s'),
             preview, message,
-            h('div', { class: 'actions kpc-actions' }, confirmButton('Закрити лист', 'Після закриття лист не змінюється. Закрити?', run, 'btn btn-primary')));
+            h('div', { class: 'actions kpc-actions' },
+                h('button', { type: 'button', class: 'btn', id: 'ts-return-save', onclick: saveDraft }, 'Зберегти повернення'),
+                confirmButton('Закрити лист', 'Після закриття лист не змінюється. Закрити?', run, 'btn btn-primary')));
     }
 
     function draw(doc) {

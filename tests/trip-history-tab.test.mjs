@@ -15,7 +15,7 @@ test('history tab button follows Overview', () => {
     const over = html.indexOf('id="studio-nav-overview"');
     const hist = html.indexOf('id="studio-nav-history"');
     assert.ok(over > 0 && hist > over);
-    assert.match(html, /id="studio-nav-history" onclick="setStudioView\('history'\)">Історія заявок<\/button>/);
+    assert.match(html, /id="studio-nav-history" onclick="setStudioView\('history'\)">Заявки<\/button>/);
 });
 
 test('setStudioView supports the history view and toggles the tab', () => {

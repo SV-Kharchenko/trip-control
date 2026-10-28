@@ -522,8 +522,10 @@
         }
         .tc-map-alt:hover { border-color: var(--steel); }
         .tc-map-alt.active { border-color: var(--success); box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 40%, transparent); }
-        .tc-map-alt b { display: block; font-size: 0.78rem; margin-bottom: 2px; }
-        .tc-map-alt span { color: var(--text-muted); }
+        /* Перемикач варіанта: один рядок «Варіант N · км · час»; вибраний — темний, решта — світлі. */
+        .tc-map-alt { white-space: nowrap; font-weight: 600; }
+        .tc-map-alt.active { background: #0D2A29; color: #F4EFE5; border-color: #0D2A29; box-shadow: none; }
+        body:not([data-theme="light"]) .tc-map-alt.active { background: #7C9CFF; color: #0B0E14; border-color: #7C9CFF; }
         .tc-lower {
             display: block; margin-bottom: 12px;
         }
@@ -541,6 +543,25 @@
         .tc-fuel-compact .form-row .unit { display: none; }
         .tc-fuel-compact .form-row label { margin-bottom: 0; }
         #main-sync-fields { display: none !important; }
+        /* Витрати і накладні: компактно, як у 1С — підпис зліва, вузьке поле поруч. */
+        .tc-costs-rows .tc-costs-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .tc-costs-rows .tc-costs-sub { font-weight: 700; font-size: var(--tc-fs-s, 0.8rem); color: var(--muted); }
+        .tc-costs-rows .tc-costs-note { margin: 0; font-size: var(--tc-fs-s, 0.8rem); color: var(--muted); }
+        .tc-costs-rows .form-row,
+        body.layout-studio .tc-costs-rows .form-row { display: flex; align-items: center; gap: 8px; margin: 0; }
+        .tc-costs-rows .form-row > label,
+        body.layout-studio .tc-costs-rows .form-row > label { flex: 0 0 190px; margin: 0; }
+        .tc-costs-rows .form-row .tc-in,
+        .tc-costs-rows .form-row > select { flex: 0 0 150px; width: 150px; max-width: 100%; }
+        #driver-km-box .form-row + .form-row { margin-top: 6px; }
+        .tc-costs-rows .tc-costs-group > .form-row + *,
+        .tc-costs-rows .tc-costs-group > * + .form-row { margin-top: 0; }
+        @media (max-width: 560px) {
+            .tc-costs-rows .form-row > label,
+            body.layout-studio .tc-costs-rows .form-row > label { flex: 1 1 auto; min-width: 0; }
+            .tc-costs-rows .form-row .tc-in,
+            .tc-costs-rows .form-row > select { flex-basis: 130px; width: 130px; }
+        }
         .tc-costs-body {
             display: grid; grid-template-columns: 120px minmax(0, 1fr);
             gap: 12px 16px; align-items: center;
@@ -1860,6 +1881,20 @@
         }
         .tc-modal-close:hover, .tc-modal-close:focus-visible { border-color: var(--accent); }
         .tc-modal-lead { margin: 0 0 14px; color: var(--muted); font-size: 0.86rem; line-height: 1.45; }
+        /* Огляд заявки на погодженні: карта з перемикачами варіантів (ті самі .tc-map-alt, що й у калькуляторі) */
+        .tc-review-card { width: min(100%, 760px); }
+        .tc-review-map { position: relative; margin-bottom: 12px; }
+        .tc-review-map #tc-review-map { height: 340px; border-radius: 10px; border: 1px solid var(--border-soft); overflow: hidden; }
+        .tc-review-sum { display: grid; gap: 6px; margin-bottom: 14px; }
+        .tc-review-sum > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--input); font-size: 0.86rem; }
+        .tc-review-sum span { color: var(--muted); }
+        .tc-review-card .tc-modal-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+        .tc-review-card .tc-modal-actions .btn { flex: 0 0 auto; width: auto; min-width: 0; }
+        .tc-history-variants { color: var(--muted); }
+        @media (max-width: 900px) {
+            .tc-review-map .tc-map-alts { position: static; width: 100%; max-height: none; flex-direction: row; flex-wrap: nowrap; overflow-x: auto; margin: 0 0 8px; }
+            .tc-review-map .tc-map-alts .tc-map-alt { flex: 0 0 auto; }
+        }
         .tc-help-rows { display: grid; gap: 10px; margin-bottom: 16px; }
         .tc-help-row {
             display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 10px;
@@ -2610,11 +2645,11 @@
             color: var(--text);
             border-color: var(--border);
         }
-        body.layout-studio .tc-map-alt span { color: var(--muted); }
         body.layout-studio .tc-map-alt.active {
-            border-color: var(--accent);
-            box-shadow: inset 3px 0 0 var(--accent);
+            background: #0D2A29; color: #F4EFE5; border-color: #0D2A29;
+            box-shadow: none;
         }
+        body.layout-studio:not([data-theme="light"]) .tc-map-alt.active { background: #7C9CFF; color: #0B0E14; border-color: #7C9CFF; }
         body.layout-studio .tc-route-bar { display: none !important; }
         @media (max-width: 900px) {
             body.layout-studio .tc-map-frame > .tc-map-alts {
@@ -2623,15 +2658,15 @@
                 width: 100% !important;
                 max-height: none;
                 flex-direction: row;
-                flex-wrap: wrap;
-                overflow: visible;
+                flex-wrap: nowrap;
+                overflow-x: auto;
                 padding: 8px 12px;
                 margin: 0;
             }
             body.layout-studio .tc-map-frame > .tc-map-alts .tc-map-alt {
-                flex: 1 1 140px;
+                flex: 0 0 auto;
                 min-width: 0;
-                max-width: 100%;
+                max-width: none;
             }
         }
         body.layout-studio .tc-costs-visual .tc-costs-table-wrap {
@@ -3513,7 +3548,7 @@
             color: var(--muted, var(--text-muted));
         }
         @media (min-width: 901px) {
-            body.layout-studio .tc-map-frame:has(.tc-map-legend:not([hidden]), .tc-map-osm:not([hidden])) > .tc-map-alts {
+            body.layout-studio .tc-map-frame:has(.tc-map-legend:not([hidden]), .tc-map-osm:not([hidden]), .tc-map-route-label:not([hidden])) > .tc-map-alts {
                 max-height: calc(100% - 130px);
             }
         }
@@ -4111,7 +4146,7 @@
         .tc-f-rate .tc-in > input { min-width: 70px; }
         @media (max-width: 340px) { .tc-sg.nums { grid-template-columns: minmax(0, 1fr); } }
 
-        /* ===== v3: сторінка результату, числові поля рядком, A/B-бейдж, Історія заявок, модал ===== */
+        /* ===== v3: сторінка результату, числові поля рядком, A/B-бейдж, Заявки, модал ===== */
         body.layout-studio { --tc-gap: clamp(12px, 1.3vw, 24px); }
         .tc-in > select.cur { min-width: 84px; }
         .btn-gold { background: var(--gold); border-color: var(--gold); color: #fff; font-weight: 700; }
@@ -4172,7 +4207,7 @@
             body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual { grid-row: 4 !important; grid-template-columns: minmax(0, 1fr); }
         }
 
-        /* Історія заявок: статуси, фіксована таблиця без горизонтального скролу */
+        /* Заявки: статуси, фіксована таблиця без горизонтального скролу */
         .tc-status.is-pending { color: var(--gold); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); }
         .tc-status.is-accepted, .tc-status.is-done { background: color-mix(in srgb, var(--positive) 12%, transparent); }
         .tc-status.is-rejected { background: color-mix(in srgb, var(--negative) 12%, transparent); }
@@ -4556,7 +4591,7 @@
           <div style="display:flex;gap:6px;align-items:center"><span class="lp-mini-btn">Факт</span><span style="font-size:12px;color:var(--muted)">доби, пробіг, простій і витрати рейсу поруч із планом</span></div>
         </div>
         <div class="lp-txt">
-          <h3>Історія заявок і план/факт</h3>
+          <h3>Заявки і план/факт</h3>
           <p>Збережені розрахунки зі статусами. Для прийнятого чи виконаного рейсу вносиш факт і бачиш, де план розійшовся з реальністю.</p>
         </div>
       </article>
@@ -4740,7 +4775,7 @@
       </details>
       <details>
         <summary>Що буде з даними, коли оплата закінчиться?</summary>
-        <p>Компанія переходить у демо-режим. Історія заявок, автопарк і команда зберігаються, повний доступ до них повертається після оплати.</p>
+        <p>Компанія переходить у демо-режим. Заявки, автопарк і команда зберігаються, повний доступ до них повертається після оплати.</p>
       </details>
       <details>
         <summary>Чи можна повернути гроші?</summary>
@@ -5018,7 +5053,7 @@
             <nav class="tc-studio-nav" aria-label="Розділи">
                 <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
-                <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Історія заявок</button>
+                <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Заявки</button>
             </nav>
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
@@ -5063,8 +5098,7 @@
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('cabinet')">Особистий кабінет</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('company')">Компанія і реквізити</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-team" hidden onclick="menuGo('team')"><span>Команда</span><span class="tc-menu-meta" id="tc-menu-seats">0/3</span></button>
-                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Історія і шаблони</button>
-                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('defaults')">Значення за замовчуванням</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Заявки і шаблони</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-billing" hidden onclick="menuGo('billing')">Тариф і оплата</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-install" hidden onclick="installApp()">Встановити як програму</button>
@@ -5667,7 +5701,7 @@
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
         <button type="button" class="tc-history-toggle" id="history-toggle" aria-expanded="false" aria-controls="history-panel" onclick="toggleHistory()">
-            <span>Історія заявок</span>
+            <span>Заявки</span>
             <span class="tc-history-count" id="history-count"></span>
             <span class="tc-history-chev" aria-hidden="true">▾</span>
         </button>
@@ -6883,8 +6917,54 @@
             fuelPanel.insertBefore(fuelMiss, fuelPanel.firstChild);
         }
 
-        // Додаткові параметри: решта кроку 2 (причіп, норма, авто, діб) + форма розрахунку; блок податків і накладних з UI прибрано —
-        // його поля лишаються в прихованому #main-sync-fields і беруться з кабінету.
+        // Ціна AdBlue: поруч із витратою, видима лише коли AdBlue увімкнено (як і витрата).
+        const adbluePriceRow = opMoveField('adblue-price', 'Ціна AdBlue', 'грн/л');
+        if (adbluePriceRow) {
+            adbluePriceRow.id = 'tc-adblue-price-row';
+            if (adblueRate) adblueRate.after(adbluePriceRow);
+        }
+
+        // Витрати рейсу і накладні: ставки водія, ТО, шини, накладні, склад парку. Поля видимі й редаговані; значення —
+        // з картки авто (де вона їх має), інакше останні введені користувачем, інакше вбудовані. У картку нічого не пишеться.
+        const costsPanel = document.createElement('div');
+        costsPanel.id = 'tc-acc-body-costs';
+        costsPanel.className = 'tc-sec-body tc-costs-rows';
+        const costsGroup = function (title, nodes) {
+            const box = document.createElement('div');
+            box.className = 'tc-costs-group';
+            const h = document.createElement('div');
+            h.className = 'tc-costs-sub';
+            h.textContent = title;
+            box.appendChild(h);
+            nodes.forEach(function (node) { if (node) box.appendChild(node); });
+            costsPanel.appendChild(box);
+        };
+        const payMode = opMoveField('driver-pay-mode', 'Оплата водія');
+        const kmBox = opById('driver-km-box');
+        const pctBox = opById('driver-pct-box');
+        const rateLoadRow = opMoveField('driver-rate-load', 'Ставка з вантажем', 'грн/км');
+        const rateEmptyRow = opMoveField('driver-rate-empty', 'Ставка порожнім', 'грн/км');
+        const pctRow = opMoveField('driver-pct-val', 'Відсоток від фрахту', '%');
+        if (kmBox) [rateLoadRow, rateEmptyRow].forEach(function (row) { if (row) kmBox.appendChild(row); });
+        if (pctBox && pctRow) pctBox.appendChild(pctRow);
+        costsGroup('Водій', [payMode, kmBox, pctBox, opMoveField('per-diem', 'Добові', 'грн/день')]);
+        costsGroup('ТО і шини', [
+            opMoveField('to-cost', 'Вартість ТО', 'грн'), opMoveField('to-period', 'Пробіг між ТО', 'км'),
+            opMoveField('tire-cost', 'Ціна однієї шини', 'грн'), opMoveField('tire-count', 'Шин на авто', 'шт'),
+            opMoveField('tire-mileage', 'Ресурс шини', 'км')
+        ]);
+        const overheadNote = document.createElement('p');
+        overheadNote.className = 'tc-costs-note';
+        overheadNote.textContent = 'Річні суми на весь парк. Порожньо = 0 у розрахунку.';
+        costsGroup('Накладні', [
+            overheadNote,
+            opMoveField('total-fleet', 'Всього авто в парку', 'шт'),
+            opMoveField('overhead-amort', 'Амортизація', 'грн/рік'), opMoveField('overhead-admin', 'Адміністративні', 'грн/рік'),
+            opMoveField('overhead-other-op', 'Інші операційні', 'грн/рік'), opMoveField('overhead-other', 'Інші витрати', 'грн/рік'),
+            opMoveField('overhead-repair', 'Ремонти та інші оп.', 'грн/рік'), opMoveField('overhead-fin', 'Фінансові (кредити)', 'грн/рік')
+        ]);
+
+        // Додаткові параметри: решта кроку 2 (причіп, норма, авто, діб) + форма розрахунку.
         const extrasPanel = panel(4);
         const trip = document.createElement('div');
         trip.className = 'tc-sg tc-op-sub';
@@ -6911,6 +6991,7 @@
         acc.appendChild(opAccRow('route', '1', 'Назва / маршрут заявки', panel1, true));
         if (fuelPanel) acc.appendChild(opAccRow('fuel', '2', 'Пальне', fuelPanel, false));
         if (extrasPanel) acc.appendChild(opAccRow('extras', '3', 'Додаткові параметри', extrasPanel, false));
+        acc.appendChild(opAccRow('costs', '4', 'Витрати і накладні', costsPanel, false));
         acc.appendChild(opAccRow('recent', '↺', 'Останні маршрути', recentBody, true));
         opWrapFields(acc);
         // Використання AdBlue: перемикач замість select (select лишається джерелом значення для коду).
@@ -7040,6 +7121,8 @@
         }
         const adRateRow = opById('tc-adblue-rate-row');
         if (adRateRow) adRateRow.hidden = !adOn;
+        const adPriceRow = opById('tc-adblue-price-row');
+        if (adPriceRow) adPriceRow.hidden = !adOn;
         const result = given !== undefined ? given : opResult();
         const km = stepFieldNum('dist') + stepFieldNum('podacha-dist');
         const missingFuel = opFuelMissing();
@@ -7086,6 +7169,13 @@
         // Саме розгортається лише в момент появи проблеми, щоб не сперечатися з користувачем.
         if (fuelOff && !opFuelWasMissing) setAccOpen('fuel', true);
         opFuelWasMissing = fuelOff;
+
+        // 4. Витрати і накладні: обов'язкові поля, які порожні, підсвічують рядок
+        const costsMiss = [['total-fleet', 'авто в парку'], ['to-period', 'пробіг між ТО'], ['tire-mileage', 'ресурс шини']]
+            .filter(function (pair) { return !(stepFieldNum(pair[0]) > 0); });
+        const costsRow = opById('tc-acc-costs');
+        if (costsRow) costsRow.classList.toggle('is-miss', costsMiss.length > 0);
+        opSetText('tc-acc-sum-costs', costsMiss.length ? 'Не заповнено: ' + costsMiss.map(function (pair) { return pair[1]; }).join(', ') : 'Водій, ТО, шини, накладні');
 
         // 3. Додаткові параметри
         const extraNames = [];
@@ -7678,9 +7768,6 @@
             }
             setStudioView('history');
             window.scrollTo(0, 0);
-        } else if (action === 'defaults') {
-            openCabinet();
-            switchCabTab('costs');
         } else if (action === 'clients') openAdminCrm();
         else if (action === 'help') openHelpModal();
         else if (action === 'billing') openBillingModal();
@@ -8285,7 +8372,7 @@
 
             // Порожній кабінет (новий демо) → стартовий шаблон, щоб можна було порахувати одразу
             await ensureStarterTemplate();
-            applySettingsToForm();
+            applyCalcDefaults();
             applySampleTripIfEmpty();
             // Рейс, заповнений на головній до реєстрації, → у форму (не в кабінет); розрахунок не запускаємо.
             const landingDraftApplied = applyLandingDraft();
@@ -9889,6 +9976,7 @@
         vehicleSearchQuery = '';
         const search = document.getElementById('vehicle-search');
         if (search) search.value = '';
+        syncCardNormsToForm();
         markVehicleSplitMode();
         renderVehicleNormSelect();
         refreshVehicleTonnage();
@@ -10217,6 +10305,95 @@
         updateVehicleSplitNote(shares);
         if (currentSessionToken) scheduleVehicleCalc();
     }
+    // Поля калькулятора, які може заповнити картка авто з Автопарку: картка → останнє введене користувачем → вбудоване.
+    // Картка має пріоритет, коли поле в ній заповнене (в усіх обраних авто однакове). Ручна правка такого поля діє лише
+    // на цей рейс: у картку вона не пишеться, а при зміні авто поля знову беруться з картки.
+    const CARD_NORM_FIELDS = [
+        { key: 'fuelLoad', id: 'fuel-load' },
+        { key: 'fuelEmpty', id: 'fuel-empty' },
+        { key: 'adblueEnable', id: 'adblue-enable' },
+        { key: 'adblueConsumption', id: 'adblue-consumption' }
+    ];
+    let cardSig = '';
+    let cardSyncing = false;
+    const cardSourced = {};
+    const cardPrev = {};
+    const cardOverrides = {};
+    function cardNormOf(key, vehicle) {
+        if (key === 'fuelLoad') return vehicleNormNumber(vehicle.fuel_load, 0.1, 80);
+        if (key === 'fuelEmpty') return vehicleNormNumber(vehicle.fuel_empty, 0.1, 80);
+        const on = vehicle.adblue_on === true || vehicle.adblue_on === 'on' || vehicle.adblue_on === 'true'
+            ? 'on'
+            : (vehicle.adblue_on === false || vehicle.adblue_on === 'off' || vehicle.adblue_on === 'false' ? 'off' : null);
+        if (key === 'adblueEnable') return on;
+        return on === 'off' ? null : vehicleNormNumber(vehicle.adblue_consumption, 0.05, 30);
+    }
+    // Значення, спільне для всіх обраних авто; null — у картці не заповнено або у авто різні.
+    function cardCommonNorm(key, chosen) {
+        if (!chosen.length) return null;
+        const first = cardNormOf(key, chosen[0]);
+        if (first === null) return null;
+        return chosen.every(function (vehicle) { return cardNormOf(key, vehicle) === first; }) ? first : null;
+    }
+    function syncCardNormsToForm() {
+        const chosen = fleetChoiceActive() ? chosenFleetVehicles() : [];
+        const sig = chosen.map(function (vehicle) { return String(vehicle.id); }).sort().join(',');
+        if (sig === cardSig) return;
+        cardSig = sig;
+        cardSyncing = true;
+        try {
+            CARD_NORM_FIELDS.forEach(function (field) {
+                delete cardOverrides[field.key];
+                const el = document.getElementById(field.id);
+                if (!el) return;
+                const value = cardCommonNorm(field.key, chosen);
+                if (value !== null) {
+                    if (!cardSourced[field.key]) cardPrev[field.key] = el.value;
+                    cardSourced[field.key] = true;
+                    el.value = value;
+                } else if (cardSourced[field.key]) {
+                    // Нове авто без цього поля в картці: повертаємо те, що було в полі до підстановки з картки.
+                    cardSourced[field.key] = false;
+                    el.value = cardPrev[field.key] === undefined ? '' : cardPrev[field.key];
+                }
+            });
+        } finally {
+            cardSyncing = false;
+        }
+        const on = document.getElementById('adblue-enable');
+        if (on) {
+            ['field-adblue-consumption', 'field-adblue-price'].forEach(function (id) {
+                const box = document.getElementById(id);
+                if (box) box.classList.toggle('active', on.value === 'on');
+            });
+        }
+    }
+    function markCardOverride(key) {
+        if (cardSyncing || !cardSourced[key] || !fleetChoiceActive()) return;
+        cardOverrides[key] = true;
+    }
+    // Поле, виправлене руками для цього рейсу, не береться з картки: розрахунок бере його з форми.
+    function stripCardOverrides(resolved) {
+        const out = Object.assign({}, resolved);
+        if (cardOverrides.fuelLoad) delete out.fuelLoad;
+        if (cardOverrides.fuelEmpty) delete out.fuelEmpty;
+        if (cardOverrides.adblueConsumption) delete out.adblueConsumption;
+        if (cardOverrides.adblueEnable) { delete out.useAdblue; delete out.adblueConsumption; }
+        return out;
+    }
+    function bindCardOverrides() {
+        CARD_NORM_FIELDS.forEach(function (field) {
+            const el = document.getElementById(field.id);
+            if (!el || el.dataset.cardBound) return;
+            el.dataset.cardBound = '1';
+            el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', function () { markCardOverride(field.key); });
+        });
+    }
+    // Відкрито збережену заявку: значення в полях вже її, з картки їх не перепідставляємо.
+    function resetCardSync() {
+        cardSig = (fleetChoiceActive() ? chosenFleetVehicles() : []).map(function (vehicle) { return String(vehicle.id); }).sort().join(',');
+        CARD_NORM_FIELDS.forEach(function (field) { cardSourced[field.key] = false; delete cardOverrides[field.key]; });
+    }
     function reapplySelectedVehicleNorms() {
         if (!fleetChoiceActive()) return;
         refreshVehicleTonnage();
@@ -10230,12 +10407,14 @@
             if (vehicleSourceMode !== 'fleet' || !chosen.length) {
                 restoreVehicleCarsCount();
                 if (!chosen.length) vehicleNormBaseline = null;
+                syncCardNormsToForm();
                 renderVehicleNormSelect();
                 refreshVehicleTonnage();
                 if (currentSessionToken) scheduleVehicleCalc();
                 return;
             }
             if (!vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
+            syncCardNormsToForm();
             const cars = document.getElementById('cars-count');
             if (cars) cars.value = String(chosen.length);
             if (vehicleSplitMode === 'manual') {
@@ -10258,7 +10437,7 @@
         if (vehicleSourceMode !== 'fleet') return [];
         return chosenFleetVehicles().map(function (vehicle) {
             const id = String(vehicle.id);
-            const resolved = vehicleResolvedNorms(vehicle);
+            const resolved = stripCardOverrides(vehicleResolvedNorms(vehicle));
             const snapshot = {
                 label: vehicle.label || 'Авто',
                 make_model: vehicle.make_model || null,
@@ -10301,6 +10480,7 @@
         renderVehicleNormSelect();
         const cars = document.getElementById('cars-count');
         if (cars && has) cars.value = String(vehicles.length);
+        resetCardSync();
         if (has) refreshVehicleTonnage();
     }
     document.addEventListener('click', function (event) {
@@ -10336,6 +10516,7 @@
     }
 
     function onAdblueToggle() {
+        markCardOverride('adblueEnable');
         const enabled = document.getElementById('adblue-enable').value === 'on';
         document.getElementById('field-adblue-consumption').classList.toggle('active', enabled);
         document.getElementById('field-adblue-price').classList.toggle('active', enabled);
@@ -10429,45 +10610,8 @@
     ];
     // Ці параметри вводяться в калькуляторі для кожного розрахунку; зі старих налаштувань їх прибираємо при збереженні
     const LEGACY_SETTINGS_KEYS = ['normWeight', 'daysPerTrip', 'washCost', 'washFreq'];
-    // Поле показується в кабінеті лише коли обрано відповідний варіант
-    const CAB_SHOW_IF = {
-        driverRateLoad: () => document.getElementById('cab-driverPayMode').value === 'km',
-        driverRateEmpty: () => document.getElementById('cab-driverPayMode').value === 'km',
-        driverPctVal: () => document.getElementById('cab-driverPayMode').value === 'pct',
-        adblueConsumption: () => document.getElementById('cab-adblueEnable').value === 'on',
-        adbluePrice: () => document.getElementById('cab-adblueEnable').value === 'on'
-    };
-    function updateCabVisibility() {
-        Object.keys(CAB_SHOW_IF).forEach(key => {
-            const row = document.getElementById('cabrow-' + key);
-            if (row) row.style.display = CAB_SHOW_IF[key]() ? '' : 'none';
-        });
-    }
     const SETTINGS_MAP = {};
     CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));
-
-    // AdBlue «Увімкнено», а норма порожня: сервер бере типову. У кабінеті лише підказка,
-    // щоб «Зберегти» не записало значення, якого користувач не вводив.
-    const DEFAULT_ADBLUE_RATE = 2.5;
-    // Необов'язкові статті «Витратної частини»: порожньо = 0 у розрахунку.
-    const CAB_OPTIONAL_COST_KEYS = ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin',
-        'driverRateLoad', 'driverRateEmpty', 'driverPctVal', 'perDiem', 'toCost', 'tireCost', 'tireCount'];
-    function syncCabAdbluePlaceholder() {
-        const enable = document.getElementById('cab-adblueEnable');
-        const rate = document.getElementById('cab-adblueConsumption');
-        if (enable && rate) rate.placeholder = enable.value === 'on' ? DEFAULT_ADBLUE_RATE + ' (типово)' : '';
-    }
-    function refreshCabEmptyHints() {
-        CAB_OPTIONAL_COST_KEYS.forEach(function (key) {
-            const row = document.getElementById('cabrow-' + key);
-            const input = document.getElementById('cab-' + key);
-            if (!row || !input) return;
-            const empty = !(parseFloat(input.value) > 0);
-            row.classList.toggle('is-empty-cost', empty);
-            const hint = row.querySelector('.cab-empty-hint');
-            if (hint) hint.hidden = !empty;
-        });
-    }
 
     // Стартовий шаблон для нового акаунта (зерновоз). Накладні навмисно порожні — користувач заповнить у кабінеті.
     const STARTER_SETTINGS = {
@@ -10501,10 +10645,51 @@
     };
     let usedStarterTemplate = false;
 
-    function isCompanySettingsEmpty(settings) {
-        if (!settings || typeof settings !== 'object') return true;
-        const essential = ['fuelLoad', 'fuelEmpty', 'fuelPrice', 'totalFleet', 'toPeriod', 'tireMileage'];
-        return essential.every(k => !(parseFloat(settings[k]) > 0));
+    // Значення калькулятора без «Значень за замовчуванням» компанії. Порядок джерел для кожного поля:
+    // дані вибраного ТЗ з автопарку (пальне, AdBlue — підставляє вибір авто) → останні значення цього користувача → вбудовані.
+    const CALC_LAST_KEY = 'tc_calc_last';
+    const CALC_VEHICLE_KEYS = ['fuelLoad', 'fuelEmpty', 'adblueEnable', 'adblueConsumption'];
+    function calcLastStorageKey() { return currentUserId ? CALC_LAST_KEY + ':' + currentUserId : null; }
+    function readCalcLast() {
+        const key = calcLastStorageKey();
+        if (!key) return {};
+        try {
+            const data = JSON.parse(localStorage.getItem(key) || '{}');
+            return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+        } catch (e) { return {}; }
+    }
+    function calcLastValueOk(f, value) {
+        if (f.select) return f.select.some(function (o) { return o[0] === value; });
+        return typeof value === 'number' && isFinite(value) && value >= 0;
+    }
+    function calcValueFor(key, last) {
+        const f = SETTINGS_MAP[key];
+        if (last && Object.prototype.hasOwnProperty.call(last, key) && calcLastValueOk(f, last[key])) return last[key];
+        return STARTER_SETTINGS[key];
+    }
+    function saveCalcLast(key) {
+        const storageKey = calcLastStorageKey();
+        const f = SETTINGS_MAP[key];
+        const el = f && document.getElementById(f.id);
+        if (!storageKey || !el) return;
+        // Значення, підставлені вибраним авто, — не «введене користувачем».
+        if (CALC_VEHICLE_KEYS.indexOf(key) >= 0 && fleetChoiceActive()) return;
+        const last = readCalcLast();
+        const value = f.select ? el.value : parseFloat(el.value);
+        if (calcLastValueOk(f, value)) last[key] = value;
+        else delete last[key];
+        try { localStorage.setItem(storageKey, JSON.stringify(last)); } catch (e) { /* приватний режим */ }
+    }
+    let calcLastBound = false;
+    function bindCalcLast() {
+        if (calcLastBound) return;
+        calcLastBound = true;
+        Object.keys(SETTINGS_MAP).forEach(function (key) {
+            const el = document.getElementById(SETTINGS_MAP[key].id);
+            if (!el) return;
+            // input/change приходять лише від користувача: програмні підстановки value їх не викликають.
+            el.addEventListener(SETTINGS_MAP[key].select ? 'change' : 'input', function () { saveCalcLast(key); });
+        });
     }
 
     function syncDockStick() {
@@ -10532,23 +10717,15 @@
         el.style.display = 'flex';
     }
 
+    // Новий користувач (немає збережених останніх значень) → вбудовані значення + банер налаштування; у БД нічого не пишемо.
     async function ensureStarterTemplate() {
         const banner = document.getElementById('onboard-banner');
-        usedStarterTemplate = false;
-        if (!isCompanySettingsEmpty(companySettings)) {
+        usedStarterTemplate = Object.keys(readCalcLast()).length === 0;
+        if (!usedStarterTemplate) {
             if (banner) banner.style.display = 'none';
             return;
         }
-        companySettings = Object.assign({}, STARTER_SETTINGS, companySettings || {});
-        usedStarterTemplate = true;
         if (banner) showHintBanner(banner);
-        // Зберігаємо шаблон у кабінет, щоб наступний вхід теж був з готовими нормами
-        if (currentOrgId && currentOrgRole !== 'logist') {
-            try {
-                await supabaseClient.from('company_settings')
-                    .upsert({ org_id: currentOrgId, settings: companySettings, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
-            } catch (e) { console.warn('Не вдалося зберегти стартовий шаблон:', e); }
-        }
     }
 
     function applySampleTripIfEmpty() {
@@ -10734,13 +10911,16 @@
         });
     }
 
-    // Підставляє збережені параметри компанії в поля калькулятора (порожні ключі поля не чіпають)
-    function applySettingsToForm() {
+    // Підставляє в поля калькулятора останні значення користувача, а де їх немає — вбудовані.
+    function applyCalcDefaults() {
+        const last = readCalcLast();
         Object.keys(SETTINGS_MAP).forEach(key => {
-            const v = companySettings[key];
+            const v = calcValueFor(key, last);
             const el = document.getElementById(SETTINGS_MAP[key].id);
             if (el && v !== undefined && v !== null && v !== '') el.value = v;
         });
+        bindCalcLast();
+        bindCardOverrides();
         if (companyTax) document.getElementById('calc-type').value = companyTax;
         // Синхронізуємо видимість залежних блоків (без запуску розрахунку — він піде один раз пізніше)
         const mode = document.getElementById('driver-pay-mode').value;
@@ -10764,38 +10944,13 @@
             t.setAttribute('aria-selected', on ? 'true' : 'false');
         });
         document.querySelectorAll('#cabinet-screen .cab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === id));
-        if (id === 'costs') refreshCabOverheadSum();
     }
-    function refreshCabOverheadSum() {
-        const box = document.getElementById('cab-overhead-sum');
-        if (!box) return;
-        const keys = ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin'];
-        let sum = 0;
-        keys.forEach(function (key) {
-            const el = document.getElementById('cab-' + key);
-            const n = el ? parseFloat(el.value) : NaN;
-            if (n > 0) sum += n;
-        });
-        const fleetEl = document.getElementById('cab-totalFleet');
-        const fleet = fleetEl ? parseFloat(fleetEl.value) : NaN;
-        const money = new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 2 }).format(sum);
-        const each = fleet > 0
-            ? new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(sum / fleet))
-            : '—';
-        const label = box.querySelector('span');
-        const value = box.querySelector('b');
-        if (label) label.textContent = 'Разом накладних на рік';
-        if (value) value.textContent = money + ' грн · ≈' + each + ' грн/авто';
-    }
-
     function buildCabinet() {
         const box = document.getElementById('cabinet-fields');
         if (box.dataset.built) return;
         const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
         const tabs = [
             { id: 'company', title: 'Компанія' },
-            { id: 'costs', title: 'Витратна частина' },
-            { id: 'fuel', title: 'Пальне' },
             { id: 'docs', title: 'Автопарк' }
         ];
         if (currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
@@ -10803,29 +10958,6 @@
             '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" role="tab" aria-selected="' + (i === 0 ? 'true' : 'false') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' +
             esc(t.title) + '</button>'
         ).join('') + '</div>';
-
-        function fieldHtml(f) {
-            let inner = '';
-            if (f.select) {
-                inner = '<select id="cab-' + f.key + '">' + f.select.map(o => '<option value="' + o[0] + '">' + esc(o[1]) + '</option>').join('') + '</select>';
-            } else if (f.text) {
-                inner = '<input type="text" id="cab-' + f.key + '" maxlength="' + (f.max || 100) + '">';
-            } else {
-                inner = '<input type="number" id="cab-' + f.key + '" min="0" step="' + (f.step || '1') + '">';
-            }
-            const unit = f.unit ? '<span class="cab-unit">' + esc(f.unit) + '</span>' : '';
-            const emptyHint = CAB_OPTIONAL_COST_KEYS.indexOf(f.key) >= 0
-                ? '<small class="cab-empty-hint" hidden>Порожньо = 0 у розрахунку</small>'
-                : '';
-            const hints = window.TcCostHints;
-            if (hints && hints.fields[f.key]) {
-                return '<div class="cab-field" id="cabrow-' + f.key + '"><div class="tc-hint-head"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>' +
-                    hints.button(f.key, 'cab-hint-', f.label) + '</div>' +
-                    '<div class="cab-input">' + inner + unit + '</div>' + emptyHint + hints.text(f.key, 'cab-hint-') + '</div>';
-            }
-            return '<div class="cab-field" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(f.label) + '</label>' +
-                '<div class="cab-input">' + inner + unit + '</div>' + emptyHint + '</div>';
-        }
 
         function profileFieldHtml(f) {
             let inner = '';
@@ -10883,23 +11015,6 @@
             '<pre id="weekly-report-preview" hidden></pre>' +
             '</div></div>';
 
-        const costCards = [
-            { n: '1', title: 'Витрати автопарку', note: window.TcCostHints ? window.TcCostHints.intro : 'Усі суми в цьому блоці — річні, на весь парк. Паливо, ТО, шини, водія, дороги й податок з виручки сюди не вносьте — їх уже пораховано.', sec: CAB_SECTIONS[0], sum: true },
-            { n: '2', title: 'Зарплата', note: 'Оплата водія за рейс. «Відсоток від фрахту» показує поле %.', sec: CAB_SECTIONS[2] },
-            { n: '3', title: 'ТО', note: 'Технічне обслуговування та шини.', sec: CAB_SECTIONS[3] }
-        ];
-        html += '<div class="cab-panel" data-panel="costs">' +
-            '<p class="cab-note">Постійні витрати компанії. Підставляються в кожен розрахунок автоматично.</p>' +
-            costCards.map(function (card) {
-                return '<div class="cab-card"><div class="cab-card-head"><h3 class="cab-card-title"><span class="cab-num">' + card.n + '</span>' + esc(card.title) + '</h3></div>' +
-                    '<p class="cab-note">' + esc(card.note) + '</p>' +
-                    '<div class="cab-grid">' + card.sec.fields.map(fieldHtml).join('') + '</div>' +
-                    (card.sum ? '<div class="cab-overhead-sum" id="cab-overhead-sum"><span>Разом накладних на рік</span><b></b></div>' : '') +
-                    '</div>';
-            }).join('') + '</div>';
-        html += '<div class="cab-panel" data-panel="fuel"><div class="cab-card">' +
-            '<div class="cab-card-head"><h3>' + esc(CAB_SECTIONS[1].title) + '</h3></div>' +
-            '<div class="cab-grid">' + CAB_SECTIONS[1].fields.map(fieldHtml).join('') + '</div></div></div>';
         html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
             '<div class="cab-card-head"><h3>Автопарк</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
             '<p class="tc-fleet-note">Якщо ці дані заповнені і в розрахунку обране це авто або кілька, вони впливають на розрахунок. Якщо поле порожнє або авто не обране — розрахунок іде із загального шаблону кабінету. Марка, держномер, рік і номер причепа на суму не впливають. Кілька авто: тоннаж ділиться між ними, пальне і AdBlue рахуються окремо за нормою кожного, сума по авто дорівнює підсумку. Дати документів калькулятор не читає.</p>' +
@@ -10931,17 +11046,6 @@
         }
         box.innerHTML = html;
         box.dataset.built = '1';
-        ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => document.getElementById(id).addEventListener('change', updateCabVisibility));
-        document.getElementById('cab-adblueEnable').addEventListener('change', syncCabAdbluePlaceholder);
-        CAB_OPTIONAL_COST_KEYS.forEach(key => {
-            const el = document.getElementById('cab-' + key);
-            if (el) el.addEventListener('input', refreshCabEmptyHints);
-        });
-        ['cab-totalFleet', 'cab-amort', 'cab-admin', 'cab-otherOperating', 'cab-otherExpenses', 'cab-repair', 'cab-fin'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('input', refreshCabOverheadSum);
-        });
-        refreshCabOverheadSum();
     }
 
     const FLEET_DOCS = [
@@ -11610,13 +11714,6 @@
         document.getElementById('cab-tax').value = companyTax || 'фоп';
         const workMode = document.getElementById('cab-work-mode');
         if (workMode) workMode.value = currentWorkMode;
-        Object.keys(SETTINGS_MAP).forEach(key => {
-            const v = companySettings[key];
-            const el = document.getElementById('cab-' + key);
-            if (!el) return;
-            if (v !== undefined && v !== null) el.value = v;
-            else el.value = SETTINGS_MAP[key].select ? SETTINGS_MAP[key].select[0][0] : '';
-        });
         COMPANY_PROFILE_FIELDS.forEach(f => {
             const el = document.getElementById('cab-' + f.key);
             if (!el) return;
@@ -11630,10 +11727,6 @@
         ownerOnlyIds.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.disabled = currentOrgRole !== 'owner';
-        });
-        Object.keys(SETTINGS_MAP).forEach(key => {
-            const el = document.getElementById('cab-' + key);
-            if (el) el.disabled = currentOrgRole === 'logist';
         });
         const modeBtn = document.getElementById('cab-mode-btn');
         if (modeBtn) modeBtn.hidden = currentOrgRole !== 'owner';
@@ -11651,10 +11744,6 @@
                 if (list) list.textContent = error.message || 'Не вдалося завантажити команду.';
             });
         }
-        updateCabVisibility();
-        syncCabAdbluePlaceholder();
-        refreshCabEmptyHints();
-        refreshCabOverheadSum();
         renderFleetDocs();
         document.getElementById('cab-message').innerText = '';
         document.getElementById('cabinet-screen').style.display = 'block';
@@ -12241,15 +12330,6 @@
         const next = Object.assign({}, companySettings);
         LEGACY_SETTINGS_KEYS.forEach(k => { delete next[k]; });
         COMPANY_PROFILE_FIELDS.forEach(f => { delete next[f.key]; }); // PII більше не в company_settings
-        for (const key of Object.keys(SETTINGS_MAP)) {
-            const f = SETTINGS_MAP[key];
-            const raw = document.getElementById('cab-' + key).value;
-            if (f.select) { next[key] = raw; continue; }
-            if (raw === '' || raw === null) { delete next[key]; continue; }
-            const n = parseFloat(raw);
-            if (isNaN(n) || n < 0) { setMsg('Некоректне значення в полі «' + f.label + '».', true); return; }
-            next[key] = n;
-        }
         const profileRow = { org_id: currentOrgId, updated_at: new Date().toISOString() };
         COMPANY_PROFILE_FIELDS.forEach(f => {
             const el = document.getElementById('cab-' + f.key);
@@ -12277,9 +12357,9 @@
                 companyProfile = profileRow;
             }
             companySettings = next;
-            applySettingsToForm();
+            if (companyTax) document.getElementById('calc-type').value = companyTax;
             calculate();
-            setMsg('✅ Збережено. Значення підставлено в калькулятор.');
+            setMsg('✅ Збережено.');
             notifySaved();
         } catch (e) {
             setMsg('Не вдалося зберегти: ' + (e.message || e), true, true);
@@ -12502,25 +12582,23 @@
         table.appendChild(tbody);
         box.appendChild(table);
     }
-    function openCostsCabinet() {
-        toggleResultDock(false);
-        openCabinet();
-        switchCabTab('costs');
-    }
-    // Ці статті вводяться в калькуляторі для рейсу, а не в кабінеті.
+    // Усі статті вводяться в калькуляторі: поля рейсу (промивка, реф) і значення калькулятора (SETTINGS_MAP).
     const CALC_WARNING_FIELDS = { washCost: 'wash-cost', washFreq: 'wash-freq', refFuelRate: 'ref-fuel-rate', refHours: 'ref-hours' };
+    Object.keys(SETTINGS_MAP).forEach(function (key) { if (!CALC_WARNING_FIELDS[key]) CALC_WARNING_FIELDS[key] = SETTINGS_MAP[key].id; });
     // Перше поле з попереджень, яке видно на кроці калькулятора.
     function calcWarningField(list) {
         for (const item of list) {
             const input = document.getElementById(CALC_WARNING_FIELDS[item.key]);
             const panel = input && input.closest('.tc-step-panel');
             if (panel && panel.id) return { input: input, step: parseInt(panel.id.replace('tc-step-panel-', ''), 10) };
+            if (input && input.closest('.tc-acc-row')) return { input: input, step: 0 };
         }
         return null;
     }
     function focusCalcWarningField(target) {
         toggleResultDock(false); // на мобільному розгорнутий док закрив би поле
-        showCalcStep(target.step);
+        if (target.step) showCalcStep(target.step);
+        openAccFor(target.input);
         if (target.input.scrollIntoView) target.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.input.focus();
     }
@@ -12548,17 +12626,8 @@
         text.textContent = '⚠ Не заповнено: ' + list.map(function (item) { return item.label; }).join(', ') +
             '. Ці статті рахуються як 0 — витрати можуть бути занижені, а прибуток завищений.';
         full.appendChild(text);
-        // Статті кабінету заповнює власник; поля рейсу (промивка, реф) — будь-хто в калькуляторі.
-        const hasCabinet = list.some(function (item) { return !Object.prototype.hasOwnProperty.call(CALC_WARNING_FIELDS, item.key); });
         const target = calcWarningField(list);
         const actions = [];
-        if (hasCabinet && currentOrgRole === 'owner') {
-            actions.push({ label: 'Заповнити в кабінеті', run: openCostsCabinet });
-        } else if (hasCabinet) {
-            const note = document.createElement('div');
-            note.textContent = 'Попросіть власника заповнити в кабінеті.';
-            full.appendChild(note);
-        }
         if (target) actions.push({ label: 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } });
         actions.forEach(function (action) {
             const button = document.createElement('button');
@@ -12721,6 +12790,9 @@
             refreshVehicleTonnage();
         }
         const payload = readTripPayload();
+        // Розрахунок усіх варіантів маршруту тим самим запитом: потрібен для заявки (вибір директора).
+        const variantKm = routeVariantKmList();
+        if (variantKm) payload.routeVariantKm = variantKm;
         const chosenCount = fleetChoiceActive() ? chosenFleetVehicles().length : 0;
         if (chosenCount && (!(payload.vehicles && payload.vehicles.length === chosenCount) || payload.vehicles.some(function (item) { return !(Number(item.tonnage) > 0); }))) {
             setDemoHint('Вкажи тоннаж кожного обраного авто.', true);
@@ -12901,10 +12973,17 @@
         try {
             let data = null;
             let error = null;
-            const full = await supabaseClient
+            const fullColumns = 'id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days, submitted_at, decided_at, decided_by, reject_reason';
+            let full = await supabaseClient
                 .from('calculations')
-                .select('id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days, submitted_at, decided_at, decided_by, reject_reason')
+                .select(fullColumns + ', approved_variant')
                 .order('created_at', { ascending: false });
+            if (full.error && /approved_variant/i.test(String(full.error.message || full.error))) {
+                full = await supabaseClient
+                    .from('calculations')
+                    .select(fullColumns)
+                    .order('created_at', { ascending: false });
+            }
             data = full.data;
             error = full.error;
             if (error && /column|schema cache/i.test(String(error.message || error))) {
@@ -12938,7 +13017,8 @@
                 submittedAt: r.submitted_at || null,
                 decidedAt: r.decided_at || null,
                 decidedBy: r.decided_by || null,
-                rejectReason: r.reject_reason || ''
+                rejectReason: r.reject_reason || '',
+                approvedVariant: r.approved_variant || null
             }));
             await loadCalcVehicleLinks();
             await loadRouteTemplates();
@@ -13052,8 +13132,14 @@
         const keptClient = clientNameValue();
         let savedId = null;
         const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces());
+        delete inputs.routeVariantKm;
         const routeVariant = currentRouteVariant();
         if (routeVariant) inputs.routeVariant = routeVariant;
+        const routeVariants = storedRouteVariants();
+        if (routeVariants) inputs.routeVariants = routeVariants;
+        // Назва вантажу (якщо в калькуляторі є таке поле) іде в заявку, а ТТН і подорожній лист підставляють її з inputs.cargoName.
+        const cargoEl = document.getElementById('cargo-name');
+        if (cargoEl && cargoEl.value.trim()) inputs.cargoName = cargoEl.value.trim().slice(0, 500);
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
         try {
@@ -13128,6 +13214,7 @@
         const code = String((e && e.code) || '');
         if (code === 'OWNER_ONLY') return 'Погоджувати чи відхиляти заявки може лише директор.';
         if (code === 'ACCEPTED_LOCKED') return 'Прийняту заявку видалити не можна.';
+        if (code === 'BAD_VARIANT') return 'Такого варіанта маршруту в заявці немає. Оновіть сторінку.';
         return String((e && e.message) || 'Не вдалося виконати дію із заявкою.');
     }
     function tcModal(options) {
@@ -13189,8 +13276,20 @@
     async function submitForApproval(id) {
         return runApproval(id, 'calc_submit', null, 'pending', 'Заявку відправлено на погодження');
     }
-    async function approveRequest(id) {
-        return runApproval(id, 'calc_decide', { decision: 'accepted' }, 'accepted', 'Заявку прийнято');
+    // variantIndex — вибір директора: сервер зберігає погоджений варіант і перераховує прибуток заявки на нього.
+    // Без нього заявка, що на погодженні й має кілька варіантів, відкривається в огляді з картою.
+    async function approveRequest(id, variantIndex) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (row && variantIndex === undefined && historyFields(row).status === 'pending' && requestVariants(row).length > 1 && currentOrgRole === 'owner') {
+            openApprovalReview(id);
+            return false;
+        }
+        const body = { decision: 'accepted' };
+        if (Number.isInteger(variantIndex)) body.variantIndex = variantIndex;
+        const done = await runApproval(id, 'calc_decide', body, 'accepted', 'Заявку прийнято');
+        // Сервер міг перерахувати км і прибуток під погоджений варіант — перечитуємо заявки.
+        if (done && Number.isInteger(variantIndex) && !uiPreview) await loadSavedCalculations();
+        return done;
     }
     async function rejectRequest(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
@@ -14021,6 +14120,173 @@
         a.remove();
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
     }
+    // Варіанти маршруту заявки: збережені (inputs.routeVariants) і вибір логіста (inputs.routeVariant.index).
+    function requestVariants(row) {
+        const list = row && row.inputs && Array.isArray(row.inputs.routeVariants) ? row.inputs.routeVariants : [];
+        return list.filter(function (v) { return v && Number.isInteger(v.index) && Number(v.km) > 0; });
+    }
+    function logistVariantIndex(row) {
+        const picked = row && row.inputs && row.inputs.routeVariant;
+        return picked && Number.isInteger(picked.index) ? picked.index : 0;
+    }
+    // «логіст: варіант 1, 815 км» і, коли директор погодив, «директор погодив: варіант 2, 844 км».
+    function variantNoteText(row) {
+        const variants = requestVariants(row);
+        if (!variants.length) return '';
+        const logist = variants.find(function (v) { return v.index === logistVariantIndex(row); });
+        const parts = [];
+        if (logist) parts.push('логіст: варіант ' + (logist.index + 1) + ', ' + formatHistoryNum(logist.km, 0) + ' км');
+        const approved = row.approvedVariant;
+        if (approved && Number.isInteger(approved.index)) {
+            parts.push('директор погодив: варіант ' + (approved.index + 1) + ', ' + formatHistoryNum(approved.km, 0) + ' км');
+        }
+        return parts.join(' · ');
+    }
+
+    // ===== Погодження: директор бачить усі варіанти маршруту й погоджує вибраний =====
+    let approvalReview = null;
+    function reviewVariantsOf(row) {
+        const stored = requestVariants(row);
+        if (stored.length) return stored;
+        // Стара заявка без збережених варіантів: один маршрут із полів заявки.
+        const f = historyFields(row);
+        const picked = row.inputs && row.inputs.routeVariant;
+        return [{
+            index: 0,
+            km: f.km || 0,
+            minutes: picked && Number(picked.minutes) > 0 ? Number(picked.minutes) : null,
+            path: '',
+            netProfit: f.profit,
+            grossIncome: f.revenue,
+            legacy: true
+        }];
+    }
+    function reviewDrawMap(state) {
+        const holder = document.getElementById('tc-review-map');
+        if (!holder) return;
+        const pal = tcMapPalette();
+        if (typeof google === 'undefined' || !google.maps || !state.variants.some(function (v) { return v.path; })) {
+            holder.hidden = true;
+            return;
+        }
+        holder.hidden = false;
+        if (!state.map) state.map = new google.maps.Map(holder, { disableDefaultUI: true, zoomControl: true, gestureHandling: 'cooperative', backgroundColor: pal.stop });
+        state.lines.forEach(function (o) { o.setMap(null); });
+        state.lines = [];
+        const bounds = new google.maps.LatLngBounds();
+        const selected = state.variants.find(function (v) { return v.index === state.selected; });
+        state.variants.forEach(function (v) {
+            const path = decodeRoutePath(v.path);
+            if (!path.length) return;
+            const on = v === selected;
+            path.forEach(function (p) { bounds.extend(p); });
+            const line = new google.maps.Polyline({
+                path: path, map: state.map, clickable: !on, zIndex: on ? 3 : 1,
+                strokeColor: on ? pal.main : pal.alt, strokeWeight: 5, strokeOpacity: on ? 0.95 : 0.9
+            });
+            if (!on) line.addListener('click', function () { reviewSelect(v.index); });
+            state.lines.push(line);
+        });
+        const path = selected ? decodeRoutePath(selected.path) : [];
+        if (path.length) {
+            const pin = function (position, letter) {
+                state.lines.push(new google.maps.Marker({ position: position, map: state.map, zIndex: 21, cursor: 'default',
+                    icon: tcMapDotIcon(28, pal.accent, pal.ring, letter, pal.onAccent) }));
+            };
+            pin(path[0], 'A');
+            pin(path[path.length - 1], 'B');
+        }
+        if (!state.fitted) { state.map.fitBounds(bounds); state.fitted = true; }
+    }
+    function reviewSelect(index) {
+        if (!approvalReview) return;
+        approvalReview.selected = index;
+        reviewRender();
+    }
+    function reviewRender() {
+        const state = approvalReview;
+        if (!state) return;
+        const selected = state.variants.find(function (v) { return v.index === state.selected; }) || state.variants[0];
+        const logist = state.variants.find(function (v) { return v.index === state.logist; }) || state.variants[0];
+        const alts = document.getElementById('tc-review-alts');
+        if (alts) {
+            const many = state.variants.length > 1;
+            alts.classList.toggle('visible', many);
+            alts.innerHTML = many ? state.variants.map(function (v) {
+                return '<button type="button" class="tc-map-alt' + (v.index === selected.index ? ' active' : '') + '" aria-pressed="' + (v.index === selected.index) + '" data-variant="' + v.index + '">' +
+                    escHtml('Варіант ' + (v.index + 1) + ' · ' + variantKmMinText(v.km, v.minutes || 0)) + '</button>';
+            }).join('') : '';
+        }
+        const money = function (value) { return value == null || value === '' ? '—' : displayMinus(formatMoney(value)); };
+        const delta = selected.netProfit != null && logist.netProfit != null ? selected.netProfit - logist.netProfit : null;
+        const deltaText = delta === null || selected.index === logist.index ? '' : ' (' + (delta > 0 ? '+' : '') + formatMoney(delta) + ' до варіанта логіста)';
+        const rows = [
+            ['Прибуток', money(selected.netProfit) + deltaText],
+            ['Дохід', money(selected.grossIncome)],
+            ['Пальне й AdBlue', money(selected.fuelAndAdblueTotal)],
+            ['Відстань', formatHistoryNum(selected.km, 0) + ' км' + (selected.podachaKm > 0 ? ' + подача ' + formatHistoryNum(selected.podachaKm, 0) + ' км' : '')]
+        ];
+        const sum = document.getElementById('tc-review-sum');
+        if (sum) sum.innerHTML = rows.map(function (r) { return '<div><span>' + escHtml(r[0]) + '</span><b>' + escHtml(r[1]) + '</b></div>'; }).join('');
+        const ok = document.getElementById('tc-review-ok');
+        if (ok) ok.textContent = state.variants.length > 1 ? 'Погодити варіант ' + (selected.index + 1) : 'Погодити';
+        reviewDrawMap(state);
+    }
+    function closeApprovalReview() {
+        const overlay = document.getElementById('tc-review');
+        if (overlay) overlay.remove();
+        document.removeEventListener('keydown', closeApprovalReviewKey, true);
+        approvalReview = null;
+    }
+    function closeApprovalReviewKey(event) {
+        if (event.key === 'Escape') { event.preventDefault(); closeApprovalReview(); }
+    }
+    function openApprovalReview(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return;
+        closeApprovalReview();
+        const variants = reviewVariantsOf(row);
+        const logist = variants.some(function (v) { return v.index === logistVariantIndex(row); }) ? logistVariantIndex(row) : variants[0].index;
+        approvalReview = { id: id, variants: variants, logist: logist, selected: logist, map: null, lines: [], fitted: false };
+        const overlay = document.createElement('div');
+        overlay.className = 'tc-modal';
+        overlay.id = 'tc-review';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'tc-review-title');
+        overlay.innerHTML = '<div class="tc-modal-card tc-review-card">' +
+            '<div class="tc-modal-head"><h2 id="tc-review-title">' + escHtml(historyRouteLabel(historyFields(row))) + '</h2>' +
+            '<button type="button" class="tc-modal-close" data-act="close" aria-label="Закрити">✕</button></div>' +
+            '<p class="tc-modal-lead">' + escHtml(variantNoteText(row) || (savedAuthorLabel(row.userId) + ' · заявка на погодженні')) + '</p>' +
+            '<div class="tc-review-map"><div class="tc-map-alts" id="tc-review-alts" aria-label="Варіанти маршруту"></div><div id="tc-review-map" hidden></div></div>' +
+            '<div class="tc-review-sum" id="tc-review-sum"></div>' +
+            '<div class="tc-modal-actions">' +
+            '<button type="button" class="btn" data-act="open">У калькулятор</button>' +
+            '<button type="button" class="btn btn-danger" data-act="reject">Відхилити</button>' +
+            '<button type="button" class="btn btn-success" id="tc-review-ok" data-act="ok">Погодити</button>' +
+            '</div></div>';
+        overlay.addEventListener('click', async function (event) {
+            if (event.target === overlay) { closeApprovalReview(); return; }
+            const target = event.target && event.target.closest ? event.target.closest('[data-act], [data-variant]') : null;
+            if (!target) return;
+            if (target.hasAttribute('data-variant')) { reviewSelect(Number(target.getAttribute('data-variant'))); return; }
+            const act = target.getAttribute('data-act');
+            if (act === 'close') closeApprovalReview();
+            else if (act === 'open') { closeApprovalReview(); openSaved(id); }
+            else if (act === 'reject') { if (await rejectRequest(id)) closeApprovalReview(); }
+            else if (act === 'ok') {
+                const picked = approvalReview ? approvalReview.selected : undefined;
+                const hasVariants = approvalReview && !approvalReview.variants[0].legacy;
+                if (await approveRequest(id, hasVariants ? picked : undefined)) closeApprovalReview();
+            }
+        });
+        document.addEventListener('keydown', closeApprovalReviewKey, true);
+        document.body.appendChild(overlay);
+        reviewRender();
+        const ok = overlay.querySelector('#tc-review-ok');
+        if (ok) ok.focus();
+    }
+
     async function exportHistory(kind) {
         if (isDemo) return;
         const fromEl = document.getElementById('history-from');
@@ -14114,8 +14380,10 @@
         const button = function (label, handler, cls) {
             return '<button type="button"' + (cls ? ' class="' + cls + '"' : '') + ' onclick="' + handler + '(\'' + id + '\')">' + label + '</button>';
         };
-        const parts = [button('Відкрити', 'openSaved')];
-        if (director && currentOrgRole === 'owner' && status === 'pending') {
+        const reviewing = director && currentOrgRole === 'owner' && status === 'pending';
+        // Заявка на погодженні відкривається в огляді з картою й варіантами маршруту; у калькулятор — кнопкою звідти.
+        const parts = [button('Відкрити', reviewing ? 'openApprovalReview' : 'openSaved')];
+        if (reviewing) {
             parts.push(button('Погодити', 'approveRequest', 'is-ok'));
             parts.push(button('Відхилити', 'rejectRequest', 'is-danger'));
         }
@@ -14576,11 +14844,11 @@
         if (!box || !uiPreview) return;
         box.classList.add('visible');
         box.innerHTML = [
-            ['E50/M12', '798 км · ~9 год'],
-            ['E95/M05', '812 км · ~9 год']
+            ['Варіант 1', '798 км · 9 год 12 хв'],
+            ['Варіант 2', '812 км · 9 год 40 хв']
         ].map(function (row, i) {
             return '<button type="button" class="tc-map-alt' + (i === 0 ? ' active' : '') + '" onclick="selectRouteAlternative(' + i + ')">' +
-                '<b>' + row[0] + '</b><span>' + row[1] + '</span></button>';
+                row[0] + ' · ' + row[1] + '</button>';
         }).join('');
     }
     function renderSavedTable() {
@@ -14638,7 +14906,8 @@
             return '<tr>' +
                 '<td class="c-d">' + escHtml(formatHistoryDate(fields.date)) + '</td>' +
                 '<td class="tc-history-route c-r"><b>' + escHtml(historyRouteLabel(fields)) + '</b>' +
-                (metaLine(fields) ? '<small>' + escHtml(metaLine(fields)) + '</small>' : '') + '</td>' +
+                (metaLine(fields) ? '<small>' + escHtml(metaLine(fields)) + '</small>' : '') +
+                (variantNoteText(row) ? '<small class="tc-history-variants">' + escHtml(variantNoteText(row)) + '</small>' : '') + '</td>' +
                 '<td class="c-l">' + escHtml(savedAuthorLabel(row.userId)) + '</td>' +
                 '<td class="c-p">' + profitHtml(row, fields) + '</td>' +
                 '<td class="c-s">' + statusHtml(fields) + '</td>' +
@@ -14652,6 +14921,7 @@
                 '<div class="tc-history-meta">' + escHtml(formatHistoryDate(fields.date)) + ' · ' + escHtml(savedAuthorLabel(row.userId)) +
                 ' · <span class="tc-status is-' + escHtml(fields.status) + '">' + escHtml(statusLabel(fields.status)) + '</span></div>' +
                 '<div class="tc-history-meta">' + escHtml(metaLine(fields)) + '</div>' +
+                (variantNoteText(row) ? '<div class="tc-history-meta tc-history-variants">' + escHtml(variantNoteText(row)) + '</div>' : '') +
                 '<div class="tc-history-meta">Прибуток ' + (fields.profit == null ? '—' : displayMinus(formatMoney(fields.profit))) +
                 (fields.status === 'rejected' && fields.rejectReason ? ' · ' + escHtml(fields.rejectReason) : '') + '</div>' +
                 historyActions(row) + '</article>';
@@ -15081,21 +15351,16 @@
         return path;
     }
 
-    // Плашка варіанта маршруту: «км · год хв». Вибраний — темний, решта — сірі.
+    // Підпис перемикача варіанта: «Варіант N · км · год хв». Плашок на лініях немає — вони налазили одна на одну.
+    function variantKmMinText(km, min) {
+        return km + ' км · ' + Math.floor(min / 60) + ' год ' + (min % 60) + ' хв';
+    }
+    function routeVariantLabel(route, i) {
+        return 'Варіант ' + (i + 1) + ' · ' + routeVariantText(route);
+    }
     function routeVariantText(route) {
         const t = routeTotals(route.altRoute || route);
-        return t.km + ' км · ' + Math.floor(t.min / 60) + ' год ' + (t.min % 60) + ' хв';
-    }
-    function tcMapPillIcon(text, fill, color, ring) {
-        const w = Math.max(70, Math.round(text.length * 7 + 18));
-        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="26" viewBox="0 0 ' + w + ' 26">' +
-            '<rect x="1" y="1" width="' + (w - 2) + '" height="24" rx="12" fill="' + fill + '" stroke="' + ring + '" stroke-width="2"/>' +
-            '<text x="' + (w / 2) + '" y="13" dy="0.36em" text-anchor="middle" font-family="Manrope, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="' + color + '">' + escHtml(text) + '</text></svg>';
-        return {
-            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-            scaledSize: new google.maps.Size(w, 26),
-            anchor: new google.maps.Point(w / 2, 13)
-        };
+        return variantKmMinText(t.km, t.min);
     }
     function addRouteMarker(position, icon, title, zIndex) {
         if (!position) return;
@@ -15141,20 +15406,6 @@
                 path: mainPath, map: map, clickable: false, zIndex: 3,
                 strokeColor: pal.main, strokeWeight: 5, strokeOpacity: 0.95
             }));
-            if (variants.length > 1) {
-                variants.forEach(function (r, i) {
-                    const path = (r.altRoute || r).overview_path || [];
-                    if (!path.length) return;
-                    const on = i === view.idx;
-                    const pill = new google.maps.Marker({
-                        position: path[Math.floor(path.length / 2)], map: map, cursor: on ? 'default' : 'pointer', zIndex: on ? 30 : 25,
-                        title: on ? 'Вибраний варіант' : 'Вибрати цей варіант',
-                        icon: tcMapPillIcon(routeVariantText(r), on ? pal.main : pal.stop, on ? pal.onAccent : pal.altText, on ? pal.ring : pal.alt)
-                    });
-                    pill.addListener('click', function () { selectRouteAlternative(i); });
-                    routeOverlays.push(pill);
-                });
-            }
             for (let i = feedLegs + 1; i < legs.length; i++) addRouteMarker(legs[i].start_location, stop, 'Проміжна зупинка', 10);
             if (feedLegs) addRouteMarker(legs[0].start_location, pin('П', pal.teal, pal.onTeal), 'Подача', 20);
             if (legs.length > feedLegs) {
@@ -15538,6 +15789,97 @@
         return { index: view.idx, count: Math.min(routes.length, ROUTE_ALT_MAX), summary: route.summary ? String(route.summary) : '', km: t.km, minutes: t.min };
     }
 
+    // Шлях варіанта в заявці — encoded polyline (precision 5), не більше ROUTE_PATH_MAX точок.
+    const ROUTE_PATH_MAX = 1200;
+    function encodeRoutePath(path) {
+        const list = (path || []).map(function (p) {
+            return typeof p.lat === 'function' ? [p.lat(), p.lng()] : [Number(p.lat), Number(p.lng)];
+        }).filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); });
+        const step = list.length > ROUTE_PATH_MAX ? Math.ceil(list.length / ROUTE_PATH_MAX) : 1;
+        const picked = list.filter(function (p, i) { return i % step === 0 || i === list.length - 1; });
+        const chunk = function (value) {
+            let v = value < 0 ? ~(value << 1) : value << 1;
+            let out = '';
+            while (v >= 0x20) { out += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+            return out + String.fromCharCode(v + 63);
+        };
+        let lat = 0, lng = 0, text = '';
+        picked.forEach(function (p) {
+            const la = Math.round(p[0] * 1e5), ln = Math.round(p[1] * 1e5);
+            text += chunk(la - lat) + chunk(ln - lng);
+            lat = la; lng = ln;
+        });
+        return text;
+    }
+    function decodeRoutePath(text) {
+        const src = String(text || '');
+        const out = [];
+        let i = 0, lat = 0, lng = 0;
+        const next = function () {
+            let result = 0, shift = 0, b;
+            do {
+                if (i >= src.length) return null;
+                b = src.charCodeAt(i++) - 63;
+                result |= (b & 0x1f) << shift;
+                shift += 5;
+            } while (b >= 0x20);
+            return (result & 1) ? ~(result >> 1) : (result >> 1);
+        };
+        while (i < src.length) {
+            const dLat = next();
+            const dLng = next();
+            if (dLat === null || dLng === null) break;
+            lat += dLat; lng += dLng;
+            out.push({ lat: lat / 1e5, lng: lng / 1e5 });
+        }
+        return out;
+    }
+
+    // Км кожного варіанта Google так, як їх ставить applyMainRoute: подача — перший відрізок, решта — рейс.
+    function routeVariantKmList() {
+        const view = mainRouteView;
+        const routes = view && view.response && view.response.routes ? view.response.routes.slice(0, ROUTE_ALT_MAX) : [];
+        if (routes.length < 2) return null;
+        const meters = function (leg) { return (leg && leg.distance && leg.distance.value) || 0; };
+        return routes.map(function (route, i) {
+            const legs = route.legs || [];
+            const feed = !!view.feed && legs.length >= 2;
+            const main = legs.reduce(function (acc, leg, k) { return feed && k === 0 ? acc : acc + meters(leg); }, 0);
+            return { index: i, dist: Math.round(main / 1000), podachaDist: feed ? Math.round(meters(legs[0]) / 1000) : 0 };
+        });
+    }
+    // Усі варіанти Google для заявки: км, час, шлях і розрахунок кожного (variantResults відповіді /api/calculate).
+    function storedRouteVariants() {
+        const view = mainRouteView;
+        const routes = view && view.response && view.response.routes ? view.response.routes.slice(0, ROUTE_ALT_MAX) : [];
+        const results = lastExport && lastExport.result && Array.isArray(lastExport.result.variantResults) ? lastExport.result.variantResults : [];
+        const kms = routeVariantKmList();
+        if (!kms || !results.length) return null;
+        const out = [];
+        routes.forEach(function (route, i) {
+            const calc = results.find(function (item) { return item.index === i; });
+            // Розрахунок мав бути зроблений саме для цих км, інакше варіант не зберігаємо.
+            if (!calc || calc.dist !== kms[i].dist || calc.podachaDist !== kms[i].podachaDist) return;
+            const main = route.altRoute || route;
+            out.push({
+                index: i,
+                summary: route.summary ? String(route.summary).slice(0, 80) : '',
+                km: kms[i].dist,
+                minutes: routeTotals(main).min,
+                mainKm: kms[i].dist,
+                podachaKm: kms[i].podachaDist,
+                path: encodeRoutePath(main.overview_path || []),
+                grossIncome: calc.grossIncome,
+                marginalIncome: calc.marginalIncome,
+                ebitda: calc.ebitda,
+                netProfit: calc.netProfit,
+                profitabilityPct: calc.profitabilityPct,
+                fuelAndAdblueTotal: calc.fuelAndAdblueTotal
+            });
+        });
+        return out.length > 1 ? out : null;
+    }
+
     function routeTotals(route) {
         let meters = 0, seconds = 0;
         (route.legs || []).forEach(function (leg) {
@@ -15559,10 +15901,9 @@
         box.classList.add('visible');
         box.innerHTML = routes.map(function (r, i) {
             const active = i === selectedIdx ? ' active' : '';
-            const label = (r.summary && String(r.summary).trim()) ? r.summary : ('Варіант ' + (i + 1));
-            return '<button type="button" class="tc-map-alt' + active + '" onclick="selectRouteAlternative(' + i + ')">' +
-                '<b>' + escHtml(label) + '</b>' +
-                '<span>' + routeVariantText(r) + '</span></button>';
+            const via = (r.summary && String(r.summary).trim()) ? ' title="через ' + escHtml(r.summary) + '"' : '';
+            return '<button type="button" class="tc-map-alt' + active + '" aria-pressed="' + (i === selectedIdx) + '"' + via + ' onclick="selectRouteAlternative(' + i + ')">' +
+                escHtml(routeVariantLabel(r, i)) + '</button>';
         }).join('');
     }
 
@@ -16092,7 +16433,7 @@
             fin: 4308097.69
         });
         const cabQ = new URLSearchParams(location.search).get('cab');
-        if (cabQ === 'docs' || cabQ === 'costs' || cabQ === 'company' || cabQ === 'fuel' || cabQ === 'team') {
+        if (cabQ === 'docs' || cabQ === 'company' || cabQ === 'team') {
             openCabinet();
             switchCabTab(cabQ);
         }

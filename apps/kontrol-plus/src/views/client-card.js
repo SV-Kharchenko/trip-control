@@ -2,7 +2,7 @@ import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import { LEGAL_FORMS } from '../lib/validate.js';
 import { fmtMoney, fmtNumber, fmtDate, num, STATUS_LABELS, kyivDate, monthRange } from '../lib/format.js';
-import { DOC_KIND_LABELS, PAY_STATUS_LABELS, docNumberText, fmtAmount, isMissingFeature } from '../lib/docs.js';
+import { CALC_DOC_HINT, DOC_KIND_LABELS, PAY_STATUS_LABELS, calcAccepted, docNumberText, fmtAmount, isMissingFeature } from '../lib/docs.js';
 
 const FORM_LABEL = Object.fromEntries(LEGAL_FORMS.map((f) => [f.value, f.label]));
 
@@ -190,7 +190,9 @@ export function renderClientCard(app, clientId) {
                     h('td', { class: 'text small' }, r.author_email || '—'),
                     app.canWrite ? h('td', { class: 'text small' }, h('a', { href: '#/docs/new/invoice/' + clientId + '/' + r.calculation_id }, 'Рахунок'), ' · ',
                         h('a', { href: '#/docs/new/act/' + clientId + '/' + r.calculation_id }, 'Акт'), ' · ',
-                        h('a', { href: '#/docs/new/ttn/' + clientId + '/' + r.calculation_id }, 'ТТН')) : null,
+                        calcAccepted(r.status)
+                            ? h('a', { href: '#/docs/new/ttn/' + clientId + '/' + r.calculation_id }, 'ТТН')
+                            : h('span', { class: 'muted', title: CALC_DOC_HINT, 'aria-disabled': 'true' }, 'ТТН')) : null,
                     app.canWrite ? h('td', null, confirmButton('Відвʼязати', 'Точно?', () => unlink(r.calculation_id), 'btn btn-ghost btn-sm')) : null))))));
     }
 

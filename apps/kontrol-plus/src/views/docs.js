@@ -315,7 +315,9 @@ function renderDocList(app, access, presetKind = '', tab = '') {
 export function renderDocs(app, route) {
     const access = docsAccess(app.context);
     const sub = route.sub || 'list';
-    const currentKey = route.tab || 'all';
+    // Картки й форми ТТН / подорожнього листа лежать у підвкладці «ТТН / Подорожній лист», а не в «Усі».
+    const inTtnGroup = sub === 'ttn' || sub === 'trip_sheet' || (sub === 'new' && (route.kind === 'ttn' || route.kind === 'trip_sheet'));
+    const currentKey = route.tab || (inTtnGroup ? 'ttn' : 'all');
     let body;
     if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть власник і логіст.', 'info');
     else if (sub === 'new' && route.kind === 'ttn') body = renderTtnForm(app, access, route);

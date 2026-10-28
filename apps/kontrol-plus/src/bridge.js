@@ -113,7 +113,7 @@ function watchHeader() {
     if (head && typeof ResizeObserver === 'function') new ResizeObserver(syncNavTop).observe(head);
 }
 
-// Кнопки «Калькулятор» / «Огляд» / «Історія заявок» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
+// Кнопки «Калькулятор» / «Огляд» / «Заявки» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
 function syncNav() {
     syncNavTop();
     const tab = tabOf(state.route);
@@ -461,10 +461,10 @@ function mount() {
     window.addEventListener('resize', syncNavTop);
     root = h('section', { id: 'kp-crm', class: 'kp-crm', 'aria-label': 'Контроль+', tabindex: '-1' });
     main.insertBefore(root, document.getElementById('studio-overview'));
-    // «Розрахунок» і «Історія заявок» — вкладки всередині «Розрахунків» (кнопки з верхньої шапки сайту прибрано, щоб не дублювати меню).
+    // «Розрахунок» і «Заявки» — вкладки всередині «Розрахунків» (кнопки з верхньої шапки сайту прибрано, щоб не дублювати меню).
     const calcTabs = h('nav', { id: 'kp-calc-tabs', class: 'kp-calc-tabs', 'aria-label': 'Розрахунки' },
         h('button', { type: 'button', id: 'kp-calc-tab-calc', onclick: openSite('calc') }, 'Розрахунок'),
-        h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Історія заявок'));
+        h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Заявки'));
     // Одразу під шапкою, над калькулятором (#studio-columns сайт перебудовує, тому прив'язуємось до шапки, а не до нього).
     insertAfterHeader(main, calcTabs, document.getElementById('sticky-top'), root);
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.

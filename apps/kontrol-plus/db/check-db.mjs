@@ -910,6 +910,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
     await db.exec(trailersSql);
     await db.exec(fs.readFileSync(new URL('20261029100000_kp_trip_sheets.sql', DIR), 'utf8'));
+    await db.exec(fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8'));
     const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
     check(back >= 3, 'trailers rollback: re-applying the migration rebuilds fleet_trailers from the kept columns', String(back));
 }
@@ -1001,6 +1002,49 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check(lst.ok && lst.rows.map((r) => r.status + ':' + r.n).join() === 'cancelled:1,closed:1,issued:1', 'trip sheet: the list shows all statuses', lst.message);
     check((await user(DIR1)(`SELECT count(*)::int AS n FROM public.kp_trip_sheet_list('2026-10-01', '2026-10-31', 'closed')`)).rows[0].n === 1, 'trip sheet: the status filter works');
 
+    // Доробки 20261030091000: поля повернення зберігаються до закриття, норма без пробігу з вантажем, kp_calc_is_accepted по організації.
+    {
+        const followSql = fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8');
+        await db.exec(followSql);
+        check(true, 'trip sheet follow-ups: migration re-applied (idempotent)');
+        const retId = (await create(OA)).rows[0].id;
+        const save = (who, data, id = retId) => user(who)(`SELECT public.kp_trip_sheet_return_save($1, $2::jsonb) AS r`, [id, JSON.stringify(data)]);
+        const row = async () => (await service(`SELECT status, return_at, return_odometer, return_fuel_left, distance_km, fuel_norm FROM public.kp_doc_trip_sheet WHERE id = $1`, [retId])).rows[0];
+        const part = await save(LA, { return_odometer: 100300 });
+        check(part.ok, 'return fields: a logist saves a part of them before closing', part.message);
+        let r = await row();
+        check(r.status === 'issued' && r.return_odometer === 100300 && r.return_at === null && r.distance_km === null, 'return fields: the sheet stays issued, no mileage is counted yet', JSON.stringify(r));
+        const more = await save(OA, { return_at: '2026-10-30T18:00:00+03:00', return_odometer: 100400, return_fuel_left: 90 });
+        check(more.ok && (await row()).return_odometer === 100400, 'return fields: they can be edited again while the sheet is issued', more.message);
+        check(/TS_ODOMETER_DECREASE/.test((await save(OA, { return_odometer: 99999 })).message), 'return fields: the odometer cannot be below the departure one');
+        check(/TS_RETURN_BEFORE_DEPART/.test((await save(OA, { return_at: '2026-10-28T05:00:00+03:00' })).message), 'return fields: the return cannot be before the departure');
+        check(/TS_FUEL_NEGATIVE/.test((await save(OA, { return_fuel_left: 4000 })).message), 'return fields: the balance cannot exceed the fuel there was');
+        check(!(await save(DIR1, { return_odometer: 100500 })).ok, 'return fields: a director cannot save them');
+        const direct = await service(`UPDATE public.kp_doc_trip_sheet SET depart_odometer = 5 WHERE id = $1`, [retId]);
+        check(!direct.ok && /DOC_IMMUTABLE/.test(direct.message), 'return fields: other fields of an issued sheet stay frozen', direct.message);
+        // Закриття без тіла бере збережене; у листа немає пробігу з вантажем у завданні → норма NULL, а не весь пробіг за нормою з вантажем.
+        const noLoaded = await create(OA, { task: { customer: 'Агро', route_from: 'Луцьк', route_to: 'Одеса', cargo: 'Пшениця', tonnage: 22 } });
+        const nlId = noLoaded.rows[0].id;
+        const closeNl = await user(OA)(`SELECT public.kp_trip_sheet_close($1, $2::jsonb) AS r`, [nlId, JSON.stringify({ return_at: '2026-10-30T20:00:00+03:00', return_odometer: 100500, return_fuel_left: 70 })]);
+        check(closeNl.ok && closeNl.rows[0].r.fuel_norm === null && closeNl.rows[0].r.fuel_diff === null && closeNl.rows[0].r.distance_km === 500,
+            'fuel norm: without loaded km it is NULL (not the whole distance at the loaded rate)', closeNl.message || JSON.stringify(closeNl.rows[0] && closeNl.rows[0].r));
+        const closeSaved = await user(OA)(`SELECT public.kp_trip_sheet_close($1, '{}'::jsonb) AS r`, [retId]);
+        r = await row();
+        check(closeSaved.ok && r.status === 'closed' && r.distance_km === 400 && Number(r.fuel_norm) === 110,
+            'return fields: closing with an empty body uses the saved fields (400 km, 300 × 30% + 100 × 20% = 110)', closeSaved.message || JSON.stringify(r));
+        check(/TS_NOT_ISSUED/.test((await save(OA, { return_odometer: 100450 })).message), 'return fields: a closed sheet cannot be changed');
+        const frozen = await service(`UPDATE public.kp_doc_trip_sheet SET return_odometer = 100450 WHERE id = $1`, [retId]);
+        check(!frozen.ok && /DOC_IMMUTABLE/.test(frozen.message), 'return fields: a closed sheet is frozen after Close', frozen.message);
+        // kp_calc_is_accepted бачить лише свою організацію.
+        const mine = await user(OA)(`SELECT public.kp_calc_is_accepted($1) AS a`, [calcOk]);
+        const foreignOrg = await user(OC)(`SELECT public.kp_calc_is_accepted($1) AS a`, [calcOk]);
+        const svc = await service(`SELECT public.kp_calc_is_accepted($1) AS a`, [calcOk]);
+        check(mine.ok && mine.rows[0].a === true && foreignOrg.ok && foreignOrg.rows[0].a === false && svc.rows[0].a === true,
+            'kp_calc_is_accepted: true in its own organisation, false for another organisation, service role unchanged', JSON.stringify([mine.rows[0], foreignOrg.rows[0], svc.rows[0]]));
+        const foreignCreate = await user(OC)(`SELECT public.kp_trip_sheet_create('2026-10-28'::date, NULL, $1::jsonb, $2::uuid) AS id`, [body(), calcOk]);
+        check(!foreignCreate.ok, 'kp_calc_is_accepted: another organisation cannot use the request as a source', foreignCreate.message);
+    }
+
     // Заявка: лише прийнята; звʼязок з рейсом, список за рейсом, видалення рейсу не видаляє лист.
     const draftTry = await create(OA, {}, calcDraft);
     check(!draftTry.ok && /CALC_NOT_ACCEPTED/.test(draftTry.message), 'trip sheet: a draft request cannot be the source', draftTry.message);
@@ -1045,11 +1089,19 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const rbFrom = tl.findIndex((l) => l === '--   BEGIN;');
     const rbTo = tl.findIndex((l) => l === '--   COMMIT;');
     const rollback = tl.slice(rbFrom, rbTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
+    // Спершу блок «Повний відкат» з доробок 20261030091000, потім відкат із шапки 20261029100000.
+    const followText = fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8');
+    const fl = followText.split(String.fromCharCode(10));
+    const frFrom = fl.findIndex((l) => l === '--   BEGIN;');
+    const frTo = fl.findIndex((l) => l === '--   COMMIT;');
+    const followRollback = fl.slice(frFrom, frTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
+    await db.exec(followRollback);
     await db.exec(rollback);
-    const gone = await one(`SELECT to_regclass('public.kp_doc_trip_sheet') AS tbl, (SELECT count(*)::int FROM pg_proc WHERE proname LIKE 'kp_trip_sheet%' OR proname IN ('kp_calc_doc_prefill', 'kp_doc_ttn_calc_accepted')) AS fns`);
-    check(gone.tbl === null && gone.fns === 0, 'trip sheet rollback: table and functions are gone', JSON.stringify(gone));
+    const gone = await one(`SELECT to_regclass('public.kp_doc_trip_sheet') AS tbl, (SELECT count(*)::int FROM pg_proc WHERE proname LIKE 'kp_trip_sheet%' OR proname IN ('kp_calc_doc_prefill', 'kp_doc_ttn_calc_accepted', 'kp_calc_is_accepted')) AS fns`);
+    check(gone.tbl === null && gone.fns === 0, 'trip sheet rollback: table and functions (kp_calc_is_accepted too) are gone', JSON.stringify(gone));
     await db.exec(tsSql);
-    check(true, 'trip sheet rollback: the migration applies again');
+    await db.exec(followText);
+    check(true, 'trip sheet rollback: both migrations apply again');
 }
 
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
@@ -1086,6 +1138,28 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(!basis.status && Math.abs(sql - js) < 0.2 * body.vehicles.length, `trip km: SQL plan = tripFactBasis (${name}): ${sql} vs ${js}`);
     // Подача — один раз на авто заявки (computeTrip у зрізі: podachaDist × carsCount, carsCount = 1).
     check(basis.podachaKm === (Number(body.podachaDist) || 0) * body.vehicles.length, `trip km: feed = podachaDist × vehicles (${name}): ${basis.podachaKm}`);
+}
+// Погоджений варіант маршруту (20261030090000): пише лише сервіс, клієнт ні вставити, ні змінити не може.
+{
+    const variantSql = fs.readFileSync(new URL('20261030090000_calc_approved_variant.sql', DIR), 'utf8');
+    await db.exec(variantSql);
+    check(true, 'approved variant: migration re-applied (idempotent)');
+    const forged = await user(OA)(`INSERT INTO public.calculations (user_id, org_id, name, inputs, results, approved_variant)
+        VALUES ($1, $2, 'Підробка', '{}'::jsonb, '{}'::jsonb, '{"index":1,"km":1}'::jsonb) RETURNING id, approved_variant`, [OA, A]);
+    check(forged.ok && forged.rows[0].approved_variant === null, 'approved variant: an INSERT by the client cannot set it', forged.message);
+    const variantCalc = forged.rows[0].id;
+    const clientUpdate = await user(OA)(`UPDATE public.calculations SET approved_variant = '{"index":0}'::jsonb WHERE id = $1`, [variantCalc]);
+    check(!clientUpdate.ok && clientUpdate.code === '42501', 'approved variant: the client cannot update it (no column grant)', clientUpdate.message);
+    const svc = await service(`UPDATE public.calculations SET approved_variant = '{"index":1,"km":844,"logistIndex":0}'::jsonb WHERE id = $1 RETURNING approved_variant`, [variantCalc]);
+    check(svc.ok && svc.rows[0].approved_variant.index === 1, 'approved variant: the service writes it', svc.message);
+    const badShape = await service(`UPDATE public.calculations SET approved_variant = '[1]'::jsonb WHERE id = $1`, [variantCalc]);
+    check(!badShape.ok, 'approved variant: only a JSON object is accepted', badShape.message);
+    const tooBig = await service(`UPDATE public.calculations SET approved_variant = jsonb_build_object('x', repeat('a', 5000)) WHERE id = $1`, [variantCalc]);
+    check(!tooBig.ok, 'approved variant: a huge value is refused', tooBig.message);
+    // Зміна inputs / results сервісом (інший вибір директора) перераховує distance_km і profit у тригері історії.
+    const recalc = await service(`UPDATE public.calculations SET inputs = '{"dist":844,"podachaDist":40}'::jsonb, results = '{"netProfit":4400}'::jsonb WHERE id = $1 RETURNING distance_km, profit`, [variantCalc]);
+    check(recalc.ok && Number(recalc.rows[0].distance_km) === 884 && Number(recalc.rows[0].profit) === 4400, 'approved variant: km and profit follow the approved variant', recalc.message || JSON.stringify(recalc.rows));
+    await service(`DELETE FROM public.calculations WHERE id = $1`, [variantCalc]);
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 

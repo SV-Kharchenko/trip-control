@@ -35,11 +35,8 @@ test('cabinet groups the same setting keys under new labels', () => {
         'toCost', 'toPeriod', 'tireCost', 'tireCount', 'tireMileage'].forEach(function (key) {
         assert.match(sections, new RegExp('key: \'' + key + '\''));
     });
-    assert.match(html, /Витратна частина/);
-    assert.match(html, /Витрати автопарку/);
-    assert.match(html, /Разом накладних на рік/);
-    assert.match(html, /data-panel="costs"/);
-    assert.match(html, /data-panel="fuel"/);
+    // «Значення за замовчуванням» (вкладки «Витратна частина» і «Пальне») прибрано з кабінету.
+    assert.doesNotMatch(html, /Витратна частина|data-panel="costs"|data-panel="fuel"/);
     assert.match(html, /data-panel="docs"/);
     assert.match(html, />Автопарк</);
     assert.match(html, /class="btn cab-cancel"/);

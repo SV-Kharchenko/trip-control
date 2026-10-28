@@ -414,7 +414,7 @@ test('bridge: old #/docs/debts | fleet | requisites redirect to the new sections
 });
 
 
-// Підсвітка «Розрахунки» і вкладок «Розрахунок / Історія заявок» одразу при завантаженні й при кожній зміні data-studio-view.
+// Підсвітка «Розрахунки» і вкладок «Розрахунок / Заявки» одразу при завантаженні й при кожній зміні data-studio-view.
 test('bridge: active menu item and calc tabs follow data-studio-view from the first render', async () => {
     const env = setup();
     try {

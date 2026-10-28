@@ -29,6 +29,7 @@ function createFake(workMode = 'team') {
         },
         org: { id: ORG, name: 'Test', status: 'active', work_mode: workMode },
         calculations: [],
+        calcVehicles: [],
         audit: []
     };
     class Query {
@@ -49,6 +50,7 @@ function createFake(workMode = 'team') {
                 const id = this.profileId;
                 return { rows: Object.values(state.profiles).map((p) => ({ ...p, organizations: state.org })) };
             }
+            if (this.table === 'calc_vehicles') return { rows: state.calcVehicles.filter((row) => this.filters.every((f) => f(row))) };
             const rows = state.calculations.filter((row) => this.filters.every((f) => f(row)));
             if (this.op === 'update') rows.forEach((row) => Object.assign(row, this.patch));
             if (this.op === 'delete') state.calculations = state.calculations.filter((row) => !rows.includes(row));
@@ -242,4 +244,128 @@ test('migration only calls public functions that earlier migrations declare (is_
     assert.match(earlier, /ADD COLUMN IF NOT EXISTS work_mode text/);
     assert.match(earlier, /calculations_status_check/);
     assert.match(earlier, /org_role/);
+});
+
+// ---- Вибір варіанта маршруту директором ----
+const { calculateTrip } = await import('../api/calculate.js');
+const S0 = JSON.parse(readFileSync(new URL('./fixtures/s0-fop.json', import.meta.url), 'utf8'));
+const DIST = Number(S0.dist);
+// Підроблені клієнтом цифри: сервер їх не використовує.
+const FAKE = { grossIncome: 9e9, marginalIncome: 9e9, ebitda: 9e9, netProfit: 9e9, profitabilityPct: 99, fuelAndAdblueTotal: 1 };
+const VARIANTS = [
+    { index: 0, summary: 'E40', km: DIST, minutes: 582, mainKm: DIST, podachaKm: S0.podachaDist, path: '', ...FAKE },
+    { index: 1, summary: 'M06', km: DIST + 40, minutes: 600, mainKm: DIST + 40, podachaKm: S0.podachaDist, path: '', ...FAKE }
+];
+const withVariants = (extra = {}) => ({
+    id: calcId(1), user_id: LOGIST, status: 'pending',
+    inputs: { ...S0, routeVariant: { index: 0, km: DIST }, routeVariants: VARIANTS },
+    results: { dist: DIST, podachaDist: S0.podachaDist, ...FAKE },
+    ...extra
+});
+const money = (dist) => calculateTrip({ ...S0, dist, podachaDist: S0.podachaDist });
+
+test('director approves another variant: whole request is recalculated on the server, both variants are kept', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    const res = await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 1 });
+    assert.equal(res.status, 200);
+    const row = fake.state.calculations[0];
+    const want = money(DIST + 40);
+    const base = money(DIST);
+    assert.equal(row.status, 'accepted');
+    assert.equal(row.approved_variant.index, 1);
+    assert.equal(row.approved_variant.logistIndex, 0);
+    assert.equal(row.approved_variant.km, DIST + 40);
+    assert.equal(row.approved_variant.approved.netProfit, want.netProfit);
+    assert.equal(row.approved_variant.logist.index, 0);
+    assert.equal(row.approved_variant.logist.netProfit, base.netProfit, 'варіант логіста теж перерахований, а не взятий з клієнта');
+    assert.ok(want.netProfit < base.netProfit, 'довший маршрут — менший прибуток');
+    assert.equal(row.inputs.dist, DIST + 40);
+    assert.equal(row.inputs.routeVariant.index, 0, 'вибір логіста лишається в заявці');
+    assert.equal(row.inputs.routeVariants.length, 2, 'усі варіанти лишаються');
+    assert.equal(row.results.dist, DIST + 40);
+});
+
+test('client-supplied profit is ignored: results come from the shared calculation, all of them agree with each other', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 1, netProfit: 1e9, results: FAKE })).status, 200);
+    const row = fake.state.calculations[0];
+    const want = money(DIST + 40);
+    for (const key of Object.keys(want)) {
+        if (key === 'warnings') continue;
+        assert.deepEqual(row.results[key], want[key], key);
+    }
+    assert.notEqual(row.results.netProfit, FAKE.netProfit);
+    const base = money(DIST);
+    assert.ok(row.results.fuelAndAdblueTotal > base.fuelAndAdblueTotal, 'пальне довшого маршруту більше');
+    assert.ok(row.results.grossIncome - row.results.netProfit > base.grossIncome - base.netProfit, 'витрати зросли разом з км');
+});
+
+test('approving without variantIndex approves the logist variant, also recalculated on the server', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted' })).status, 200);
+    const row = fake.state.calculations[0];
+    assert.equal(row.approved_variant.index, 0);
+    assert.equal(row.inputs.dist, DIST);
+    assert.equal(row.results.netProfit, money(DIST).netProfit);
+});
+
+test('variant whose km do not match the saved calculation is refused with 400', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants({ inputs: { ...S0, dist: DIST + 5, routeVariant: { index: 0 }, routeVariants: VARIANTS } })]);
+    const res = await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 1 });
+    assert.equal(res.status, 400);
+    assert.equal(res.payload.code, 'BAD_VARIANT');
+    assert.equal(fake.state.calculations[0].status, 'pending');
+});
+
+test('recalculation uses the cars linked to the request (calc_vehicles)', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    fake.state.calcVehicles = [{ calc_id: calcId(1), vehicle_id: 'v1', tonnage: 20, snapshot: { label: 'DAF', resolved: {} } }];
+    const res = await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 1 });
+    assert.equal(res.status, 200);
+    const row = fake.state.calculations[0];
+    assert.ok(Number.isFinite(row.results.netProfit));
+    assert.equal(row.approved_variant.index, 1);
+});
+
+test('unknown variant is refused and the request stays pending; logist cannot choose', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    for (const variantIndex of [2, -1, 1.5, 'x']) {
+        const res = await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex });
+        assert.equal(res.status, 400, String(variantIndex));
+        assert.equal(res.payload.code, 'BAD_VARIANT');
+    }
+    assert.equal(fake.state.calculations[0].status, 'pending');
+    const logist = await call(fake, 'logist-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 1 });
+    assert.equal(logist.status, 403);
+    assert.equal(fake.state.calculations[0].approved_variant, undefined);
+});
+
+test('old request without stored variants is approved as before, with or without variantIndex', async () => {
+    const fake = createFake();
+    seed(fake, [
+        { id: calcId(1), user_id: LOGIST, status: 'pending', inputs: { dist: 500, routeVariant: { index: 0, km: 500 } }, results: { netProfit: 1000 } },
+        { id: calcId(2), user_id: LOGIST, status: 'pending' }
+    ]);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'accepted', variantIndex: 0 })).status, 200);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(2), decision: 'accepted' })).status, 200);
+    for (const row of fake.state.calculations) {
+        assert.equal(row.status, 'accepted');
+        assert.equal(row.approved_variant, undefined);
+    }
+    assert.equal(fake.state.calculations[0].inputs.dist, 500);
+    assert.equal(fake.state.calculations[0].results.netProfit, 1000);
+});
+
+test('rejecting never writes a variant', async () => {
+    const fake = createFake();
+    seed(fake, [withVariants()]);
+    assert.equal((await call(fake, 'owner-token', { action: 'calc_decide', id: calcId(1), decision: 'rejected', variantIndex: 1 })).status, 200);
+    assert.equal(fake.state.calculations[0].approved_variant, undefined);
+    assert.equal(Number(fake.state.calculations[0].inputs.dist), DIST);
 });

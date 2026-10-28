@@ -430,6 +430,8 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
                 trailer_reg_number: calcPre.trailer.plate || d.vehicle.trailer_reg_number || '',
             });
         }
+        const cargoName = calcPre.cargo && calcPre.cargo.name;
+        if (d.lines[0] && cargoName && !String(d.lines[0].cargo_name || '').trim()) d.lines[0].cargo_name = String(cargoName);
         const rate = calcPre.cargo && calcPre.cargo.rate;
         if (d.lines[0] && rate !== undefined && rate !== null && !d.lines[0].owner_price && !String(d.lines[0].price || '').trim()) {
             d.lines[0].price = String(rate).replace('.', ',');

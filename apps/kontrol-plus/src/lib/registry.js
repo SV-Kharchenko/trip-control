@@ -49,9 +49,6 @@ export const TRAILER_FIELDS = [
     { key: 'oscpv_on', label: 'ОСЦПВ до', width: 'm', type: 'date', owner: true },
     { key: 'kasko_on', label: 'КАСКО до', width: 'm', type: 'date', owner: true },
     { key: 'green_card_on', label: 'Зелена карта до', width: 'm', type: 'date', owner: true },
-    { key: 'inspection_on', label: 'Техогляд до', width: 'm', type: 'date', owner: true },
-    { key: 'tachograph_on', label: 'Тахограф до', width: 'm', type: 'date', owner: true },
-    { key: 'service_on', label: 'ТО до', width: 'm', type: 'date', owner: true },
 ];
 
 export const DRIVER_FIELDS = [

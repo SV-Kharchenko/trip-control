@@ -14,7 +14,7 @@ function sliceBetween(source, start, end) {
 const cabinet = sliceBetween(html, 'function buildCabinet()', 'const FLEET_DOCS = [');
 
 test('the company tab follows the mockup field order and keeps the field ids', () => {
-    const company = sliceBetween(cabinet, 'data-panel="company"', 'const costCards = [');
+    const company = sliceBetween(cabinet, 'data-panel="company"', "html += '<div class=\"cab-panel\" data-panel=\"docs\">");
     assert.equal(company.includes('#1aa56e'), false);
     assert.equal(company.includes('Зміни зберігаються кнопкою нижче'), false);
     assert.match(company, /class="cab-company-sub">Обов’язкові поля/);

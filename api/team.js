@@ -4,6 +4,7 @@ import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 import { buildInviteEmail, joinedMessage, sendInviteEmail } from '../lib/invite-mail.js';
 import { sendTelegram, statusKeyboard } from '../lib/signup-notify.js';
 import { cleanRejectReason, planDelete, planTransition } from '../lib/approvals.js';
+import { recalculateRequest } from './calculate.js';
 
 // Logist seats only. The owner is a fourth person and does not consume one.
 const MAX_TEAM_SEATS = 3;
@@ -965,13 +966,13 @@ export function createTeamService(deps) {
         return { ok: true, logists_see_all: enabled };
     }
 
-    // ---- Погодження заявок (календар «Історія заявок»). Роль перевіряється тут і тригером бази. ----
+    // ---- Погодження заявок (календар «Заявки»). Роль перевіряється тут і тригером бази. ----
     async function loadCalculation(actor, id) {
         const calcId = String(id || '');
         if (!UUID_RE.test(calcId)) throw new HttpError(400, 'BAD_CALC_ID', 'Некоректна заявка.');
         const { data, error } = await supabase
             .from('calculations')
-            .select('id, org_id, user_id, status')
+            .select('id, org_id, user_id, status, inputs, results')
             .eq('id', calcId)
             .eq('org_id', actor.profile.org_id)
             .maybeSingle();
@@ -1027,6 +1028,77 @@ export function createTeamService(deps) {
         return moveCalculation(actor, calc, 'pending');
     }
 
+    // Погоджений директором варіант маршруту. Заявка зберігає всі варіанти Google (inputs.routeVariants, їх км зафіксовані
+    // під час розрахунку логіста) і вибір логіста (inputs.routeVariant.index). Від клієнта приходить лише номер варіанта:
+    // км беруться зі збереженого варіанта, а вся заявка (пальне, AdBlue, витрати, прибуток) перераховується тією самою
+    // функцією, що й POST /api/calculate. Збережені цифри прибутку з routeVariants і results не використовуються.
+    // У approved_variant лишаються обидва набори: варіант логіста й погоджений. Стара заявка без варіантів погоджується як раніше.
+    const APPROVED_RESULT_KEYS = ['grossIncome', 'marginalIncome', 'ebitda', 'netProfit', 'profitabilityPct', 'fuelAndAdblueTotal'];
+
+    async function loadCalcVehicles(calc, actor) {
+        const { data, error } = await supabase.from('calc_vehicles').select('calc_id, vehicle_id, tonnage, snapshot').eq('calc_id', calc.id);
+        // До міграції calc_vehicles таблиці немає: тоді авто беремо з inputs.vehicles, якщо вони там є.
+        if (error || !Array.isArray(data)) return [];
+        return data.map((row) => {
+            const snap = row.snapshot && typeof row.snapshot === 'object' ? row.snapshot : {};
+            return { ...(snap.resolved || {}), id: row.vehicle_id, label: snap.label || 'Авто', tonnage: Number(row.tonnage), snapshot: snap };
+        });
+    }
+
+    function variantKm(variant) {
+        const main = Number(variant.mainKm !== undefined ? variant.mainKm : variant.km);
+        const podacha = Number(variant.podachaKm) || 0;
+        return main > 0 && podacha >= 0 ? { dist: main, podachaDist: podacha } : null;
+    }
+
+    function variantSummary(variant, km, results) {
+        const out = { index: variant.index, km: km.dist, minutes: variant.minutes, podachaKm: km.podachaDist, summary: variant.summary || '' };
+        for (const key of APPROVED_RESULT_KEYS) if (results[key] !== undefined) out[key] = results[key];
+        return out;
+    }
+
+    async function approvedRoutePatch(calc, rawIndex, actor) {
+        const inputs = calc.inputs && typeof calc.inputs === 'object' ? calc.inputs : {};
+        const variants = Array.isArray(inputs.routeVariants) ? inputs.routeVariants : [];
+        if (!variants.length) return {};
+        const logistIndex = inputs.routeVariant && Number.isInteger(inputs.routeVariant.index) ? inputs.routeVariant.index : 0;
+        const asked = rawIndex === undefined || rawIndex === null ? logistIndex : rawIndex;
+        const find = (index) => (Number.isInteger(index) ? variants.find((item) => item && item.index === index) : null);
+        const chosen = find(asked);
+        const logist = find(logistIndex);
+        if (!chosen || !logist) throw new HttpError(400, 'BAD_VARIANT', 'Такого варіанта маршруту в заявці немає.');
+        const chosenKm = variantKm(chosen);
+        const logistKm = variantKm(logist);
+        // Варіант логіста мав дати ті самі км, що лежать у розрахунку заявки: інакше збережені варіанти не відповідають їй.
+        const sameKm = logistKm && logistKm.dist === Number(inputs.dist) && logistKm.podachaDist === (Number(inputs.podachaDist) || 0);
+        if (!chosenKm || !sameKm) throw new HttpError(400, 'BAD_VARIANT', 'Збережені варіанти маршруту не збігаються з розрахунком заявки.');
+
+        const vehicles = await loadCalcVehicles(calc, actor);
+        const run = (km) => {
+            const done = recalculateRequest({ ...inputs, ...km }, vehicles.length ? vehicles : inputs.vehicles);
+            if (!done.result) throw new HttpError(400, 'RECALC_FAILED', done.error || 'Не вдалося перерахувати заявку.');
+            return done.result;
+        };
+        const logistResults = run(logistKm);
+        const chosenResults = chosen.index === logist.index ? logistResults : run(chosenKm);
+
+        const logistSummary = variantSummary(logist, logistKm, logistResults);
+        const approvedSummary = variantSummary(chosen, chosenKm, chosenResults);
+        const oldResults = calc.results && typeof calc.results === 'object' ? calc.results : {};
+        return {
+            approved_variant: {
+                ...approvedSummary,
+                logistIndex: logist.index,
+                logist: logistSummary,
+                approved: approvedSummary,
+                decidedBy: actor.user.id,
+                decidedAt: new Date(now()).toISOString()
+            },
+            inputs: { ...inputs, dist: chosenKm.dist, podachaDist: chosenKm.podachaDist },
+            results: { ...oldResults, ...chosenResults, dist: chosenKm.dist, podachaDist: chosenKm.podachaDist }
+        };
+    }
+
     async function decideCalc(actor, body) {
         const decision = String(body.decision || '');
         if (decision !== 'accepted' && decision !== 'rejected') {
@@ -1034,6 +1106,7 @@ export function createTeamService(deps) {
         }
         const calc = await loadCalculation(actor, body.id);
         const extra = decision === 'rejected' ? { reject_reason: cleanRejectReason(body.reason) } : { reject_reason: null };
+        if (decision === 'accepted') Object.assign(extra, await approvedRoutePatch(calc, body.variantIndex, actor));
         return moveCalculation(actor, calc, decision, extra);
     }
 

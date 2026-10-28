@@ -44,8 +44,8 @@ test('header keeps live rates and moves actions into the avatar menu', () => {
     assert.doesNotMatch(top, /menuGo\('fleet'\)/, 'Автопарк лише в лівому меню кабінету Контроль+');
     assert.doesNotMatch(top, />Автопарк</);
     assert.match(top, /menuGo\('company'\)/, 'Реквізити лишаються в меню профілю');
-    assert.match(top, /Історія і шаблони/);
-    assert.match(top, /Значення за замовчуванням/);
+    assert.match(top, /Заявки і шаблони/);
+    assert.doesNotMatch(top, /Значення за замовчуванням/, 'сторінку прибрано з меню профілю');
     assert.match(top, /id="admin-crm-btn"/);
     assert.match(top, /Клієнтська база/);
     assert.match(top, /Довідка і підтримка/);
@@ -91,7 +91,7 @@ test('avatar menu closes from Escape and an outside click, and does not calculat
     assert.equal(menu.includes('mailto:support@trip-control.com'), false);
     assert.match(menu, /switchCabTab\('company'\)|openHeaderCompany\(\)/);
     assert.match(menu, /switchCabTab\('docs'\)/);
-    assert.match(menu, /switchCabTab\('costs'\)/);
+    assert.doesNotMatch(menu, /switchCabTab\('costs'\)|'defaults'/);
     assert.match(menu, /setStudioView\('history'\)/);
     assert.equal(menu.includes("switchCabTab('s0')"), false);
     assert.match(menu, /openAdminCrm\(\)/);

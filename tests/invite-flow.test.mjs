@@ -627,7 +627,8 @@ test('migration: only the current STARTER_SETTINGS template is not user data', (
     assert.doesNotMatch(next, /v_starter_previous/);
     assert.match(next, /AND NOT \(v_starter_current @> v_settings\)/);
     assert.match(next, /REVOKE ALL ON FUNCTION public\.org_has_user_data\(uuid, uuid\) FROM PUBLIC, anon, authenticated;/);
-    assert.match(html, /companySettings = Object\.assign\(\{\}, STARTER_SETTINGS, companySettings \|\| \{\}\);/);
+    // Застосунок більше не записує стартовий шаблон у company_settings: значення калькулятора — з автопарку / останні / вбудовані.
+    assert.doesNotMatch(html, /Object\.assign\(\{\}, STARTER_SETTINGS, companySettings/);
 });
 
 test('accept_org_invite on Postgres: empty company removed, company with data kept (PGlite)', (t) => {
