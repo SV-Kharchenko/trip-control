@@ -47,14 +47,14 @@ test('invalid input cancels an in-flight calculation and clears the visible resu
 });
 
 test('slow route keeps an alternatives timeout and ignores a stale attempt', () => {
-    const route = sliceBetween(html, 'function calculateGoogleRoute()', 'function routeTotals(');
-    assert.match(route, /provideRouteAlternatives = true/);
-    assert.match(route, /const timeoutMs = usedAlts \? 18000 : \(canTryAlts \? 12000 : 20000\)/);
+    const route = sliceBetween(html, 'function calculateGoogleRoute()', 'function routeMeters(');
+    assert.match(route, /provideRouteAlternatives: !!wantAlts/);
+    assert.match(route, /askSegment\(pair, wantAlts, wantAlts \? 18000 : 20000\)/);
     assert.match(route, /const routeGen = \+\+routeRequestGen/);
     assert.match(route, /routeGen !== routeRequestGen/);
-    assert.match(route, /failFinal\('❌ Google Maps не відповів \(Directions\)/);
-    const failedApply = sliceBetween(route, "} catch (err) {", 'return;');
-    assert.match(failedApply, /setRouteBusy\(false\)/);
+    assert.match(route, /'❌ Google Maps не відповів \(Directions\)/);
+    assert.match(route, /setRouteBusy\(false\);\n\s+routeBuilt = false;/);
     assert.match(html, /let routeRequestGen = 0;/);
     assert.match(html, /let routeAttemptTimer = null;/);
 });
+

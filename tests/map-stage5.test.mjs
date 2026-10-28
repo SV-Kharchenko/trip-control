@@ -64,7 +64,7 @@ test('map shows the route label, a theme legend and the OSM layer panel', () => 
 });
 
 test('a new main route drops the old backhaul line, its stops and the legend', () => {
-    const build = sliceBetween(html, 'function onRouteResult(', 'function runAttempt(');
+    const build = sliceBetween(html, '(async function runSegments()', 'function routeMeters(');
     const clearAt = build.indexOf('clearBackhaulRoute();');
     assert.ok(clearAt !== -1 && clearAt < build.indexOf('applyMainRoute('));
     assert.equal(sliceBetween(html, 'function selectRouteAlternative(', 'function applyMainRoute(').includes('clearBackhaulRoute'), false);

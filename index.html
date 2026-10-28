@@ -14941,10 +14941,11 @@
         try {
             const bounds = new google.maps.LatLngBounds();
             let has = false;
+            if (mainRouteView && lastRoutePath) lastRoutePath.forEach(function (p) { bounds.extend(p); has = true; });
             [directionsRenderer, directionsRendererBackhaul].forEach(function (r) {
                 if (!r) return;
                 const res = r.getDirections && r.getDirections();
-                if (!res || !res.routes || !res.routes[0]) return;
+                if (!res || !res.routes || !res.routes[0] || (r === directionsRenderer && mainRouteView && lastRoutePath)) return;
                 res.routes[0].overview_path.forEach(function (p) { bounds.extend(p); has = true; });
             });
             if (has) map.fitBounds(bounds, 48);
@@ -15045,7 +15046,7 @@
 
     // Плашка варіанта маршруту: «км · год хв». Вибраний — темний, решта — сірі.
     function routeVariantText(route) {
-        const t = routeTotals(route);
+        const t = routeTotals(route.altRoute || route);
         return t.km + ' км · ' + Math.floor(t.min / 60) + ' год ' + (t.min % 60) + ' хв';
     }
     function tcMapPillIcon(text, fill, color, ring) {
@@ -15088,11 +15089,11 @@
             legs.slice(feedLegs).forEach(function (leg) { legPath(leg).forEach(function (p) { mainPath.push(p); }); });
             // Інші варіанти (до 3 разом із вибраним): сірі лінії, клік — перерахунок під цей варіант.
             const variants = ((view.response && view.response.routes) || []).slice(0, ROUTE_ALT_MAX);
-            if (variants.length > 1 && !feedLegs) {
+            if (variants.length > 1) {
                 variants.forEach(function (r, i) {
                     if (i === view.idx) return;
                     const line = new google.maps.Polyline({
-                        path: r.overview_path || [], map: map, clickable: true, zIndex: 1,
+                        path: (r.altRoute || r).overview_path || [], map: map, clickable: true, zIndex: 1,
                         strokeColor: pal.alt, strokeWeight: 5, strokeOpacity: 0.9
                     });
                     line.addListener('click', function () { selectRouteAlternative(i); });
@@ -15103,9 +15104,9 @@
                 path: mainPath, map: map, clickable: false, zIndex: 3,
                 strokeColor: pal.main, strokeWeight: 5, strokeOpacity: 0.95
             }));
-            if (variants.length > 1 && !feedLegs) {
+            if (variants.length > 1) {
                 variants.forEach(function (r, i) {
-                    const path = r.overview_path || [];
+                    const path = (r.altRoute || r).overview_path || [];
                     if (!path.length) return;
                     const on = i === view.idx;
                     const pill = new google.maps.Marker({
@@ -15358,38 +15359,18 @@
         }
         setRouteBusy(true);
 
-        let waypoints = [];
-        let originPoint = fromQuery;
-
-        if (baseQuery) {
-            originPoint = baseQuery;
-            waypoints.push({ location: fromQuery, stopover: true });
-        }
-
+        // Маршрут розбито на відрізки: подача П→A — окремий запит без варіантів; основний рейс — A→B, а з проміжними
+        // зупинками A→W1, W1→W2 … Wn→B. Google не дає варіантів для запиту з проміжними точками, тому варіанти (до 3)
+        // просимо лише для одного відрізка: єдиного A→B або найдовшого з кількох. Решта відрізків — без варіантів.
+        const stops = [];
         document.querySelectorAll('.waypoint-input').forEach(input => {
             const v = input.value.trim();
-            if (v) waypoints.push({ location: v, stopover: true });
+            if (v) stops.push(v);
         });
-
-        // Alts лише на чистому A→B: немає проміжних і немає подачі (baseQuery додає stopover).
-        // Регресія 7b5a9d0: provideAlternatives інколи зависає → alts-first з timeout,
-        // потім один retry БЕЗ provideAlternatives (шлях e8ee193), щоб UI не зависав.
-        const ENABLE_ROUTE_ALTERNATIVES = true;
-
-        function buildRequest(wantAlts) {
-            const req = {
-                origin: originPoint,
-                destination: toQuery,
-                travelMode: google.maps.TravelMode.DRIVING
-            };
-            if (waypoints.length) req.waypoints = waypoints;
-            if (wantAlts && waypoints.length === 0) req.provideRouteAlternatives = true;
-            return req;
-        }
-
-        const canTryAlts = ENABLE_ROUTE_ALTERNATIVES && waypoints.length === 0;
+        const chain = [fromQuery].concat(stops, [toQuery]);
+        const pairs = chain.slice(0, -1).map(function (origin, i) { return { origin: origin, destination: chain[i + 1] }; });
+        const feedPair = baseQuery ? { origin: baseQuery, destination: fromQuery } : null;
         let settled = false;
-        let activeGen = 0;
 
         function failFinal(msg) {
             if (settled || routeGen !== routeRequestGen) return;
@@ -15405,77 +15386,110 @@
             statusEl.style.color = 'var(--danger)';
         }
 
-        function onRouteResult(gen, response, status, usedAlts) {
-            if (settled || gen !== activeGen || routeGen !== routeRequestGen) return;
-            if (status === 'OK') {
-                settled = true;
-                if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
-                routeAttemptTimer = null;
+        // Один запит Directions з таймаутом (регресія 7b5a9d0: provideAlternatives інколи зависає).
+        function askSegment(pair, wantAlts, timeoutMs) {
+            return new Promise(function (resolve) {
+                let done = false;
+                const timer = setTimeout(function () {
+                    if (!done) { done = true; resolve({ status: 'TIMEOUT' }); }
+                }, timeoutMs);
                 try {
-                    lastDirectionsResponse = response;
-                    clearBackhaulRoute();
-                    applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
-                    routeBuilt = true;
-                    setRouteBusy(false);
-                    rememberRecentRoute();
-                    updateRouteBar();
+                    directionsService.route({
+                        origin: pair.origin, destination: pair.destination, travelMode: google.maps.TravelMode.DRIVING,
+                        provideRouteAlternatives: !!wantAlts
+                    }, function (response, status) {
+                        if (done) return;
+                        done = true;
+                        clearTimeout(timer);
+                        resolve({ status: status, response: response });
+                    });
                 } catch (err) {
-                    setRouteBusy(false);
-                    routeBuilt = false;
-                    updateRouteBar();
-                    statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
-                    statusEl.style.color = 'var(--danger)';
-                    console.error('applyMainRoute failed', err);
+                    if (!done) { done = true; clearTimeout(timer); resolve({ status: 'ERROR', message: err && err.message ? err.message : String(err) }); }
                 }
-                return;
-            }
-            // Alts-first failed → один retry без provideAlternatives
-            if (usedAlts) {
-                statusEl.innerText = '🔍 Повтор без альтернатив (' + status + ')...';
-                statusEl.style.color = 'var(--text-muted)';
-                runAttempt(false);
-                return;
-            }
-            failFinal('❌ Google Maps: ' + status);
+            });
+        }
+        async function askSegmentSafe(pair, wantAlts) {
+            let res = await askSegment(pair, wantAlts, wantAlts ? 18000 : 20000);
+            if (wantAlts && res.status !== 'OK') res = await askSegment(pair, false, 12000); // retry без варіантів (шлях e8ee193)
+            return res;
         }
 
-        function runAttempt(wantAlts) {
+        (async function runSegments() {
+            const jobs = (feedPair ? [feedPair] : []).concat(pairs);
+            const results = await Promise.all(jobs.map(function (pair) { return askSegmentSafe(pair, pairs.length === 1 && pair === pairs[0]); }));
             if (settled || routeGen !== routeRequestGen) return;
-            const usedAlts = !!wantAlts;
-            const gen = ++activeGen;
-            // Перша спроба (alts або single): ~18s; retry без alts коротший.
-            const timeoutMs = usedAlts ? 18000 : (canTryAlts ? 12000 : 20000);
-            if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
-            routeAttemptTimer = setTimeout(function () {
-                if (settled || gen !== activeGen || routeGen !== routeRequestGen) return;
-                if (usedAlts) {
-                    statusEl.innerText = '🔍 Альтернативи не відповіли — будуємо основний маршрут...';
-                    statusEl.style.color = 'var(--text-muted)';
-                    runAttempt(false);
-                    return;
-                }
-                failFinal('❌ Google Maps не відповів (Directions). Перевірте API-ключ, Directions API та HTTP-referrer.');
-            }, timeoutMs);
-
-            try {
-                directionsService.route(buildRequest(wantAlts), function (response, status) {
-                    onRouteResult(gen, response, status, usedAlts);
-                });
-            } catch (err) {
-                if (gen !== activeGen || settled || routeGen !== routeRequestGen) return;
-                if (usedAlts) {
-                    runAttempt(false);
-                    return;
-                }
-                failFinal('❌ Google Maps: ' + (err && err.message ? err.message : err));
+            const failed = results.find(function (r) { return r.status !== 'OK' || !r.response || !r.response.routes || !r.response.routes.length; });
+            if (failed) {
+                failFinal(failed.status === 'TIMEOUT'
+                    ? '❌ Google Maps не відповів (Directions). Перевірте API-ключ, Directions API та HTTP-referrer.'
+                    : '❌ Google Maps: ' + (failed.message || failed.status));
+                return;
             }
-        }
-
-        // Без waypoints/подачі: alts-first + retry. Інакше одразу single-route (e8ee193).
-        runAttempt(canTryAlts);
+            const feedRes = feedPair ? results[0] : null;
+            const mainRes = results.slice(feedPair ? 1 : 0);
+            let altIdx = 0;
+            if (mainRes.length > 1) {
+                // Найдовший відрізок отримує варіанти (другий запит; збій — лишається основний маршрут).
+                altIdx = longestSegmentIndex(mainRes.map(function (r) { return r.response.routes[0]; }));
+                const more = await askSegment(pairs[altIdx], true, 18000);
+                if (settled || routeGen !== routeRequestGen) return;
+                if (more.status === 'OK' && more.response && more.response.routes && more.response.routes.length) mainRes[altIdx] = more;
+            }
+            const composed = composeRouteVariants(
+                feedRes ? feedRes.response.routes[0] : null,
+                mainRes.map(function (r) { return r.response.routes[0]; }),
+                altIdx,
+                mainRes[altIdx].response.routes.slice(0, ROUTE_ALT_MAX)
+            );
+            settled = true;
+            if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
+            routeAttemptTimer = null;
+            try {
+                const response = { routes: composed, composed: true, altSegment: altIdx };
+                lastDirectionsResponse = response;
+                clearBackhaulRoute();
+                applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
+                routeBuilt = true;
+                setRouteBusy(false);
+                rememberRecentRoute();
+                updateRouteBar();
+            } catch (err) {
+                setRouteBusy(false);
+                routeBuilt = false;
+                updateRouteBar();
+                statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
+                statusEl.style.color = 'var(--danger)';
+                console.error('applyMainRoute failed', err);
+            }
+        })();
     }
 
     const ROUTE_ALT_MAX = 3;
+
+    function routeMeters(route) {
+        return (route.legs || []).reduce(function (sum, leg) { return sum + ((leg.distance && leg.distance.value) || 0); }, 0);
+    }
+    // Індекс найдовшого відрізка (за відстанню); при рівності — перший.
+    function longestSegmentIndex(routes) {
+        let best = 0;
+        routes.forEach(function (r, i) { if (routeMeters(r) > routeMeters(routes[best])) best = i; });
+        return best;
+    }
+    // Варіанти всього маршруту: подача + відрізки основного рейсу, де на відрізку altIdx стоїть i-й варіант.
+    // Ноги подачі — перші (applyMainRoute рахує подачу окремо від рейсу); altRoute — варіант відрізка для кнопок і плашок.
+    function composeRouteVariants(feedRoute, mainRoutes, altIdx, altRoutes) {
+        return altRoutes.map(function (alt) {
+            const legs = [];
+            const path = [];
+            const add = function (route) {
+                (route.legs || []).forEach(function (leg) { legs.push(leg); });
+                (route.overview_path || []).forEach(function (p) { path.push(p); });
+            };
+            if (feedRoute) add(feedRoute);
+            mainRoutes.forEach(function (route, i) { add(i === altIdx ? alt : route); });
+            return { summary: alt.summary, legs: legs, overview_path: path, altRoute: alt };
+        });
+    }
 
     // Вибраний варіант маршруту — зберігається разом із розрахунком (calculations.inputs.routeVariant).
     function currentRouteVariant() {
@@ -15532,12 +15546,14 @@
             if (!directionsRenderer) throw new Error('DirectionsRenderer не ініціалізовано');
 
             // Спочатку setDirections, потім setRouteIndex — навпаки ламає рендер при alternatives.
-            directionsRenderer.setDirections(response);
-            try {
-                if (typeof directionsRenderer.setRouteIndex === 'function') {
-                    directionsRenderer.setRouteIndex(idx);
-                }
-            } catch (e) { console.warn('setRouteIndex', e); }
+            if (!response.composed) {
+                directionsRenderer.setDirections(response);
+                try {
+                    if (typeof directionsRenderer.setRouteIndex === 'function') {
+                        directionsRenderer.setRouteIndex(idx);
+                    }
+                } catch (e) { console.warn('setRouteIndex', e); }
+            }
 
             const route = routes[idx];
             if (!route) throw new Error('маршрут #' + idx + ' відсутній');

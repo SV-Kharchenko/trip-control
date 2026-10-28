@@ -130,3 +130,47 @@ test('п.14: клік по варіанту перераховує км, час 
     assert.match(html, /strokeColor: pal\.alt/);
     assert.match(html, /tcMapPillIcon\(routeVariantText\(r\)/);
 });
+
+// ---- Правка F: відрізки — подача, рейс, зупинки; варіанти лише на одному відрізку ----
+test('F: маршрут з подачею й зупинками — км, час і подача як сума вибраних відрізків; клік по варіанту перераховує', async () => {
+    const { default: vm } = await import('node:vm');
+    const leg = (km, min) => ({ distance: { value: km * 1000 }, duration: { value: min * 60 } });
+    const route = (km, min, summary = '') => ({ summary, legs: [leg(km, min)], overview_path: [{ lat: km, lng: 0 }] });
+    const el = {};
+    const get = (id) => (el[id] = el[id] || { id, value: '', innerText: '', style: {} });
+    ['osm-from', 'osm-to', 'osm-base', 'osm-status', 'dist', 'podacha-dist', 'route-name'].forEach(get);
+    get('osm-from').value = 'Луцьк';
+    get('osm-to').value = 'Одеса';
+    get('osm-base').value = 'Рівне';
+    const calls = { calculate: 0 };
+    const context = vm.createContext({
+        document: { getElementById: get }, calculate: () => { calls.calculate += 1; }, clearPOIMarkers: () => {}, paintRouteOverlays: () => {},
+        renderRouteAlternatives: () => {}, directionsRenderer: { setDirections: () => {} }, lastDirectionsResponse: null, mainRouteView: null, lastRoutePath: null, console,
+    });
+    vm.runInContext(['const ROUTE_ALT_MAX = 3;', 'function selectRouteAlternative(idx) { applyMainRoute(lastDirectionsResponse, idx, "Рівне", "Луцьк", "Одеса", get("osm-status")); }',
+        fnSource('routeMeters'), fnSource('longestSegmentIndex'), fnSource('composeRouteVariants'), fnSource('routeTotals'), fnSource('currentRouteVariant'), fnSource('applyMainRoute')].join('\n'),
+    Object.assign(context, { get }));
+    // Подача 35 км; відрізки A→W1 100 км, W1→B 400 км (найдовший); варіанти найдовшого: 400 / 380 / 450 км.
+    const feed = route(35, 40);
+    const mains = [route(100, 90), route(400, 330)];
+    context.feed = feed; context.mains = mains;
+    context.alts = [route(400, 330, 'M05'), route(380, 360, 'E95'), route(450, 300, 'T15')];
+    const longest = vm.runInContext('longestSegmentIndex(mains)', context);
+    assert.equal(longest, 1, 'варіанти просимо для найдовшого відрізка');
+    vm.runInContext(`lastDirectionsResponse = { composed: true, routes: composeRouteVariants(feed, mains, ${longest}, alts) };`, context);
+    vm.runInContext('selectRouteAlternative(1)', context);
+    assert.equal(el['podacha-dist'].value, 35, 'подача окремо');
+    assert.equal(el.dist.value, 100 + 380, 'рейс = сума вибраних відрізків (100 + варіант 380)');
+    vm.runInContext('selectRouteAlternative(2)', context);
+    assert.equal(el.dist.value, 100 + 450, 'клік по третьому варіанту перераховує км');
+    assert.equal(el['podacha-dist'].value, 35);
+    assert.equal(calls.calculate, 2, 'пальне й прибуток перераховуються при кожному виборі');
+    const variant = JSON.parse(vm.runInContext('JSON.stringify(currentRouteVariant())', context));
+    assert.equal(variant.index, 2);
+    assert.equal(variant.minutes, 40 + 90 + 300, 'час = сума відрізків, разом із подачею');
+    // Кнопки й плашки показують км / час варіанта відрізка, а не всього рейсу.
+    assert.match(html, /routeTotals\(route\.altRoute \|\| route\)/);
+    assert.match(fnSource('calculateGoogleRoute'), /longestSegmentIndex\(/);
+    assert.match(fnSource('calculateGoogleRoute'), /askSegmentSafe\(pair, pairs\.length === 1 && pair === pairs\[0\]\)/, 'подача завжди без варіантів');
+    assert.match(html, /const composed = composeRouteVariants\(/);
+});
