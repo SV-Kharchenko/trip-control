@@ -41,7 +41,9 @@ test('header keeps live rates and moves actions into the avatar menu', () => {
     assert.match(top, /Особистий кабінет/);
     assert.match(top, /Компанія і реквізити/);
     assert.match(top, /id="tc-menu-team"/);
-    assert.match(top, /Автопарк/);
+    assert.doesNotMatch(top, /menuGo\('fleet'\)/, 'Автопарк лише в лівому меню кабінету Контроль+');
+    assert.doesNotMatch(top, />Автопарк</);
+    assert.match(top, /menuGo\('company'\)/, 'Реквізити лишаються в меню профілю');
     assert.match(top, /Історія і шаблони/);
     assert.match(top, /Значення за замовчуванням/);
     assert.match(top, /id="admin-crm-btn"/);
