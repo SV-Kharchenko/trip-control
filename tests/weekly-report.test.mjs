@@ -169,7 +169,7 @@ test('the page previews and sends through the report API, not the calculator', (
     );
     const sendBody = html.slice(
         html.indexOf('async function sendWeeklyReport'),
-        html.indexOf('function openCabinet')
+        html.indexOf('function openCabinet()')
     );
     assert.equal(previewBody.includes('/api/calculate'), false);
     assert.equal(previewBody.includes('calculate('), false);

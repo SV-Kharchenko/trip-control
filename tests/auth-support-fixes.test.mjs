@@ -140,7 +140,7 @@ test('6: help opens a support modal instead of mailto', () => {
     assert.match(modal, /onclick="if \(event\.target === this\) closeHelpModal\(\)"/);
     assert.match(modal, /class="tc-modal-close" aria-label="Закрити" onclick="closeHelpModal\(\)">✕</);
     assert.equal(html.includes('support@trip-control.com'), false);
-    const keys = sliceBetween(html, 'function closeHelpModal()', 'function openHeaderCompany()');
+    const keys = sliceBetween(html, 'function closeHelpModal()', 'function openCabinetTab(');
     assert.match(keys, /event\.key === 'Escape'/);
     assert.match(html, /@media \(max-width: 480px\) \{\n\s+\.tc-modal \{ align-items: flex-end;/);
 });

@@ -39,11 +39,13 @@ test('header keeps live rates and moves actions into the avatar menu', () => {
     assert.match(top, /aria-controls="tc-user-menu"/);
     assert.match(top, /id="tc-user-menu"/);
     assert.match(top, /Особистий кабінет/);
-    assert.match(top, /Компанія і реквізити/);
-    assert.match(top, /id="tc-menu-team"/);
+    // «Компанія і реквізити» і «Команда» переїхали у вкладки єдиного кабінету (tests/director-cabinet-ui.test.mjs).
+    assert.equal(top.includes('Компанія і реквізити'), false);
+    assert.equal(top.includes('id="tc-menu-team"'), false);
+    assert.match(top, /id="tc-menu-unread"/);
     assert.doesNotMatch(top, /menuGo\('fleet'\)/, 'Автопарк лише в лівому меню кабінету Контроль+');
     assert.doesNotMatch(top, />Автопарк</);
-    assert.match(top, /menuGo\('company'\)/, 'Реквізити лишаються в меню профілю');
+    assert.doesNotMatch(top, /menuGo\('company'\)/, 'Реквізити — вкладка єдиного кабінету, окремого пункту меню немає');
     assert.match(top, /Заявки і шаблони/);
     assert.doesNotMatch(top, /Значення за замовчуванням/, 'сторінку прибрано з меню профілю');
     assert.match(top, /id="admin-crm-btn"/);
@@ -79,17 +81,16 @@ test('view switch is display-only and does not rewrite the org role', () => {
     assert.equal(fn.includes('teamApi'), false);
     assert.match(html, /body:not\(\.org-owner\) #tc-view-switch \{ display: none !important; \}/);
     assert.match(html, /body\.view-logist #studio-nav-overview \{ display: none; \}/);
-    assert.match(html, /body:not\(\.org-owner\) #tc-menu-team/);
-    assert.match(html, /body\.view-logist #tc-menu-team/);
-    assert.match(html, /body:not\(\.team-mode\) #tc-menu-team/);
+    assert.equal(html.includes('#tc-menu-team'), false, 'пункт меню «Команда» прибрано');
+    assert.match(html, /body:not\(\.org-owner\) \.tc-menu-badge \{ display: none !important; \}/);
 });
 
 test('avatar menu closes from Escape and an outside click, and does not calculate', () => {
-    const menu = sliceBetween(html, 'function menuGo(action)', 'function openHeaderCompany()');
+    const menu = sliceBetween(html, 'function menuGo(action)', 'function openCabinetTab(');
     assert.equal(menu.includes('calculate('), false);
     assert.match(menu, /action === 'help'\) openHelpModal\(\)/);
     assert.equal(menu.includes('mailto:support@trip-control.com'), false);
-    assert.match(menu, /switchCabTab\('company'\)|openHeaderCompany\(\)/);
+    assert.match(menu, /openCabinetTab\('requisites'\)/);
     assert.match(menu, /switchCabTab\('docs'\)/);
     assert.doesNotMatch(menu, /switchCabTab\('costs'\)|'defaults'/);
     assert.match(menu, /setStudioView\('history'\)/);

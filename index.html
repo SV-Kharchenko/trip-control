@@ -1477,6 +1477,29 @@
         #cabinet-screen .tc-state-chip.is-off { color: var(--negative); border-color: var(--negative); }
         #cabinet-screen .tc-state-chip.is-wait { color: var(--warning-text); border-color: var(--gold); }
         #cabinet-screen .tc-member-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+        /* Права логіста: компактний ряд прапорців під рядком учасника. */
+        #cabinet-screen .tc-member-perms {
+            grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 16px;
+            padding-top: 8px; border-top: 1px dashed var(--border-soft);
+        }
+        #cabinet-screen .tc-member-perms label {
+            display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text); cursor: pointer; white-space: nowrap;
+        }
+        #cabinet-screen .tc-member-perms input { width: auto; min-height: 0; margin: 0; }
+        #cabinet-screen .tc-tab-badge { margin-left: 6px; }
+        #cabinet-screen .cab-slot { min-width: 0; }
+        #cabinet-screen .tc-notes-list { display: flex; flex-direction: column; gap: 8px; }
+        #cabinet-screen .tc-note-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+            padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface); color: var(--text);
+        }
+        #cabinet-screen .tc-note-row:not(.is-read) { border-left: 3px solid var(--gold); }
+        #cabinet-screen .tc-note-row.is-read { opacity: 0.7; }
+        #cabinet-screen .tc-note-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        #cabinet-screen .tc-note-text small { color: var(--muted); font-size: 0.76rem; }
+        #cabinet-screen .tc-note-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        #cabinet-screen .tc-note-actions .btn, #cabinet-screen .tc-note-actions button { width: auto; min-height: 36px; padding: 0 12px; font-size: 0.85rem; text-decoration: none; }
+        #cabinet-screen .cab-card-head .btn { width: auto; min-height: 36px; padding: 0 12px; font-size: 0.85rem; }
         #cabinet-screen .tc-member-actions button,
         #cabinet-screen .tc-invite-link button {
             min-height: 40px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 10px;
@@ -2934,10 +2957,13 @@
         #tc-user-menu .tc-menu-meta { color: var(--muted); font-weight: 600; font-size: 12px; }
         #tc-user-menu #admin-crm-btn { display: none; }
         body.is-admin #tc-user-menu #admin-crm-btn { display: flex; }
-        #tc-menu-team[hidden] { display: none !important; }
-        body:not(.org-owner) #tc-menu-team,
-        body.view-logist #tc-menu-team,
-        body:not(.team-mode) #tc-menu-team { display: none !important; }
+        /* Лічильник непрочитаних сповіщень директора біля «Особистого кабінету». */
+        .tc-menu-badge {
+            min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; box-sizing: border-box;
+            background: var(--negative); color: var(--surface); font: 700 12px/20px Manrope, sans-serif; text-align: center;
+        }
+        .tc-menu-badge[hidden] { display: none !important; }
+        body:not(.org-owner) .tc-menu-badge { display: none !important; }
         body.view-logist #studio-nav-overview { display: none; }
         .tc-menu-foot {
             display: flex; gap: 6px; justify-content: center; align-items: center;
@@ -5095,9 +5121,7 @@
                             <span class="tc-role-pill" id="tc-menu-role">Директор</span>
                             <div class="tc-menu-demo" id="tc-menu-demo" hidden>Демо: <b id="tc-menu-demo-used">—</b> з <b id="tc-menu-demo-limit">5</b></div>
                         </div>
-                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('cabinet')">Особистий кабінет</button>
-                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('company')">Компанія і реквізити</button>
-                        <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-team" hidden onclick="menuGo('team')"><span>Команда</span><span class="tc-menu-meta" id="tc-menu-seats">0/3</span></button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('cabinet')"><span>Особистий кабінет</span><span class="tc-menu-badge" id="tc-menu-unread" hidden aria-label="Непрочитані сповіщення">0</span></button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Заявки і шаблони</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-billing" hidden onclick="menuGo('billing')">Тариф і оплата</button>
@@ -7753,11 +7777,12 @@
     function menuGo(action) {
         closeUserMenu();
         if (action === 'cabinet') openCabinet();
-        else if (action === 'company') openHeaderCompany();
-        else if (action === 'team') {
-            openCabinet();
-            switchCabTab('team');
-        } else if (action === 'fleet') {
+        // Старі пункти меню «Компанія і реквізити» і «Команда» — тепер вкладки одного кабінету.
+        else if (action === 'company') openCabinetTab('requisites');
+        else if (action === 'team') openCabinetTab('team');
+        else if (action === 'stats') openCabinetTab('stats');
+        else if (action === 'notifications') openCabinetTab('notifications');
+        else if (action === 'fleet') {
             openCabinet();
             switchCabTab('docs');
         } else if (action === 'history') {
@@ -7807,10 +7832,139 @@
             else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
         }
     });
-    function openHeaderCompany() {
+    // ---------- Особистий кабінет: вкладки, редіректи старих адрес, сповіщення директору ----------
+    function openCabinetTab(id) {
         openCabinet();
-        switchCabTab('company');
+        switchCabTab(id);
         syncCompanyNav(true);
+    }
+    // Старі адреси сторінок, що переїхали в кабінет: #/company (Реквізити компанії), #/team, #/stats, #/docs/requisites і ?cab=…
+    // Нова адреса — #/cabinet/<вкладка>. Працює і на сайті, і в Контроль+ (де ці hash раніше були окремими розділами).
+    const CABINET_REDIRECTS = {
+        '#/company': 'requisites', '#/docs/requisites': 'requisites', '#/team': 'team', '#/stats': 'stats',
+        '#/notifications': 'notifications', '#/cabinet': 'company'
+    };
+    const CABINET_TAB_IDS = ['company', 'requisites', 'notifications', 'team', 'stats', 'docs'];
+    function cabinetTabFromLocation() {
+        const raw = String(location.hash || '').split('?')[0].replace(/\/+$/, '');
+        const direct = /^#\/cabinet\/([a-z]+)$/.exec(raw);
+        if (direct) return CABINET_TAB_IDS.indexOf(direct[1]) >= 0 ? direct[1] : 'company';
+        if (Object.prototype.hasOwnProperty.call(CABINET_REDIRECTS, raw)) return CABINET_REDIRECTS[raw];
+        return null;
+    }
+    function openCabinetFromLocation() {
+        if (!currentUserId) return false;
+        const tab = cabinetTabFromLocation();
+        if (!tab) return false;
+        openCabinetTab(tab);
+        const shown = document.querySelector('#cabinet-screen .cab-tab.active');
+        const finalTab = shown ? shown.getAttribute('data-tab') : 'company';
+        try { history.replaceState(null, '', location.pathname + location.search + '#/cabinet/' + finalTab); } catch (e) { /* file:// */ }
+        return true;
+    }
+    window.addEventListener('hashchange', openCabinetFromLocation);
+
+    let notesState = { items: [], unread: 0, loaded: false };
+    let notesTimer = null;
+    function paintUnread() {
+        const n = notesState.unread || 0;
+        const menuBadge = document.getElementById('tc-menu-unread');
+        if (menuBadge) {
+            menuBadge.textContent = n > 99 ? '99+' : String(n);
+            menuBadge.hidden = n === 0 || currentOrgRole !== 'owner';
+        }
+        const tabBadge = document.getElementById('cab-tab-unread');
+        if (tabBadge) {
+            tabBadge.textContent = n > 99 ? '99+' : String(n);
+            tabBadge.hidden = n === 0;
+        }
+    }
+    async function refreshUnreadNotifications() {
+        if (currentOrgRole !== 'owner' || !currentUserId) return;
+        try {
+            const data = await teamApi('POST', { action: 'notifications', limit: 50 });
+            notesState = { items: data.items || [], unread: data.unread || 0, loaded: true };
+            paintUnread();
+            renderNotifications();
+        } catch (e) { /* без сповіщень сайт працює як є */ }
+    }
+    function startNotificationPolling() {
+        if (currentOrgRole !== 'owner' || notesTimer) return;
+        refreshUnreadNotifications();
+        notesTimer = setInterval(function () { if (!document.hidden) refreshUnreadNotifications(); }, 90000);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshUnreadNotifications(); });
+    }
+    const NOTE_KIND_TEXT = {
+        approval_pending: function (note) { return 'Заявка чекає погодження' + (note.meta && note.meta.name ? ': «' + note.meta.name + '»' : ''); },
+        signature_used: function (note) {
+            const meta = note.meta || {};
+            const kind = meta.doc_kind === 'ttn' ? 'ТТН' : (meta.doc_kind === 'invoice' ? 'рахунок' : 'акт');
+            return 'Використано підпис і печатку: ' + kind + (meta.number ? ' ' + (meta.prefix || '') + meta.number : '');
+        }
+    };
+    function noteHref(note) {
+        if (note.ref_kind === 'document') return '#/docs/' + note.ref_id;
+        if (note.ref_kind === 'ttn') return '#/docs/ttn/' + note.ref_id;
+        return '';
+    }
+    function renderNotifications() {
+        const list = document.getElementById('cab-notes-list');
+        if (!list) return;
+        const items = notesState.items || [];
+        if (!items.length) {
+            list.innerHTML = '<div class="cab-muted">' + (notesState.loaded ? 'Сповіщень поки немає.' : 'Завантаження…') + '</div>';
+        } else {
+            list.innerHTML = items.map(function (note) {
+                const text = (NOTE_KIND_TEXT[note.kind] || function () { return 'Сповіщення'; })(note);
+                const who = note.actor_email ? '<small>Логіст: ' + teamEsc(note.actor_email) + '</small>' : '';
+                const when = new Date(note.created_at).toLocaleString('uk-UA');
+                const open = note.ref_kind === 'calculation'
+                    ? '<button type="button" onclick="openNotification(\'' + teamEsc(note.id) + '\')">Відкрити заявку</button>'
+                    : '<a class="btn" href="' + teamEsc(noteHref(note)) + '" onclick="openNotification(\'' + teamEsc(note.id) + '\', event)">Відкрити документ</a>';
+                const read = note.read_at ? '' : '<button type="button" onclick="markNoteRead(\'' + teamEsc(note.id) + '\')">Прочитано</button>';
+                return '<div class="tc-note-row' + (note.read_at ? ' is-read' : '') + '" data-note="' + teamEsc(note.id) + '">' +
+                    '<div class="tc-note-text"><b>' + teamEsc(text) + '</b>' + who + '<small>' + teamEsc(when) + '</small></div>' +
+                    '<div class="tc-note-actions">' + open + read + '</div></div>';
+            }).join('');
+        }
+        const all = document.getElementById('cab-notes-all');
+        if (all) all.disabled = !(notesState.unread > 0);
+    }
+    async function loadNotifications() {
+        if (currentOrgRole !== 'owner') return;
+        renderNotifications();
+        await refreshUnreadNotifications();
+    }
+    async function markNoteRead(id) {
+        try {
+            await teamApi('POST', { action: 'notifications_read', ids: [id] });
+            await refreshUnreadNotifications();
+        } catch (error) { showToast(error.message || 'Не вдалося позначити сповіщення.'); }
+    }
+    async function markAllNotesRead() {
+        try {
+            await teamApi('POST', { action: 'notifications_read', all: true });
+            await refreshUnreadNotifications();
+        } catch (error) { showToast(error.message || 'Не вдалося позначити сповіщення.'); }
+    }
+    // Перехід із сповіщення: заявка відкривається в огляді погодження, документ — у Контроль+ (hash).
+    async function openNotification(id, event) {
+        const note = (notesState.items || []).find(function (item) { return item.id === id; });
+        if (!note) return;
+        if (event && event.preventDefault) event.preventDefault();
+        markNoteRead(id);
+        closeCabinet();
+        if (note.ref_kind === 'calculation') {
+            setStudioView('history');
+            if (typeof openApprovalReview === 'function') {
+                if (!savedCalculations.some(function (row) { return row.id === note.ref_id; }) && typeof loadSavedCalculations === 'function') {
+                    try { await loadSavedCalculations(); } catch (e) { /* список лишається як є */ }
+                }
+                openApprovalReview(note.ref_id);
+            }
+        } else {
+            location.hash = noteHref(note);
+        }
     }
     // Етап 7: на ≤768px таби й курси ховаються в бургер, а перемикач «Директор/Логіст» переїжджає в його панель.
     const MOBILE_HEADER_QUERY = '(max-width: 768px)';
@@ -8391,6 +8545,12 @@
             if (inviteNotice) showToast(inviteNotice);
             else if (landingDraftApplied) showToast('Підставили дані з головної — натисни «Розрахувати»');
             refreshBillingAvailability().then(handleBillingParams);
+            // Кабінет директора: лічильник сповіщень, старі адреси (#/company, #/team, #/stats, ?cab=…) → вкладки кабінету.
+            startNotificationPolling();
+            if (!openCabinetFromLocation()) {
+                const cabParam = new URLSearchParams(location.search).get('cab');
+                if (cabParam === 'team' || cabParam === 'company' || cabParam === 'docs') openCabinetTab(cabParam);
+            }
         }
     }
 
@@ -10938,25 +11098,38 @@
     }
 
     function switchCabTab(id) {
+        // Вкладки залежать від ролі: якої немає (логіст просить «Команду»), там відкриваємо «Профіль».
+        if (!document.querySelector('#cabinet-screen .cab-tab[data-tab="' + id + '"]')) id = 'company';
         document.querySelectorAll('#cabinet-screen .cab-tab').forEach(t => {
             const on = t.dataset.tab === id;
             t.classList.toggle('active', on);
             t.setAttribute('aria-selected', on ? 'true' : 'false');
         });
         document.querySelectorAll('#cabinet-screen .cab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === id));
+        // «Зберегти / Скасувати» стосуються лише «Профілю»; решта вкладок зберігає себе сама.
+        const actions = document.querySelector('#cabinet-screen .cab-actions');
+        if (actions) actions.style.display = id === 'company' ? '' : 'none';
+        if (id === 'notifications') loadNotifications();
+        // Реквізити й «Статистику» малює Контроль+ (міст у apps/kontrol-plus) у своїх слотах; на сайті без нього лишається підказка.
+        window.dispatchEvent(new CustomEvent('tc:cabinet-tab', { detail: { tab: id } }));
     }
     function buildCabinet() {
         const box = document.getElementById('cabinet-fields');
         if (box.dataset.built) return;
         const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        // Один «Особистий кабінет»: Профіль → Реквізити → Сповіщення → Команда → Статистика (+ Автопарк). Логіст бачить
+        // лише Профіль і Реквізити (тільки читання); решта вкладок — директору.
+        const isOwner = currentOrgRole === 'owner';
         const tabs = [
-            { id: 'company', title: 'Компанія' },
-            { id: 'docs', title: 'Автопарк' }
+            { id: 'company', title: 'Профіль' },
+            { id: 'requisites', title: 'Реквізити' }
         ];
-        if (currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
+        if (isOwner) tabs.push({ id: 'notifications', title: 'Сповіщення', badge: 'cab-tab-unread' });
+        if (isOwner && currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
+        if (isOwner) tabs.push({ id: 'stats', title: 'Статистика' }, { id: 'docs', title: 'Автопарк' });
         let html = '<div class="cab-tabs" role="tablist">' + tabs.map((t, i) =>
             '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" role="tab" aria-selected="' + (i === 0 ? 'true' : 'false') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' +
-            esc(t.title) + '</button>'
+            esc(t.title) + (t.badge ? '<span class="tc-menu-badge tc-tab-badge" id="' + t.badge + '" hidden>0</span>' : '') + '</button>'
         ).join('') + '</div>';
 
         function profileFieldHtml(f) {
@@ -11015,7 +11188,18 @@
             '<pre id="weekly-report-preview" hidden></pre>' +
             '</div></div>';
 
-        html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
+        html += '<div class="cab-panel" data-panel="requisites"><div class="cab-card"><div class="cab-card-head"><h3>Реквізити</h3>' +
+            '<span class="cab-muted">' + (isOwner ? 'Компанія, підпис і печатка для актів, рахунків і ТТН' : 'Лише перегляд — змінює директор') + '</span></div>' +
+            '<div id="cab-req-slot" class="cab-slot"><p class="cab-note">Реквізити компанії, підпис і печатка для актів і ТТН доступні в Контроль+.</p></div></div></div>';
+        if (isOwner) {
+            html += '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
+                '<div id="cab-stats-slot" class="cab-slot"><p class="cab-note">Статистика за період доступна в Контроль+.</p></div></div></div>' +
+                '<div class="cab-panel" data-panel="notifications"><div class="cab-card">' +
+                '<div class="cab-card-head"><h3>Сповіщення</h3><button type="button" class="btn" id="cab-notes-all" onclick="markAllNotesRead()">Позначити все прочитаним</button></div>' +
+                '<p class="cab-note">Заявки, що чекають погодження, і кожне використання підпису та печатки логістом.</p>' +
+                '<div class="tc-notes-list" id="cab-notes-list"><div class="cab-muted">Завантаження…</div></div></div></div>';
+        }
+        if (isOwner) html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
             '<div class="cab-card-head"><h3>Автопарк</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
             '<p class="tc-fleet-note">Якщо ці дані заповнені і в розрахунку обране це авто або кілька, вони впливають на розрахунок. Якщо поле порожнє або авто не обране — розрахунок іде із загального шаблону кабінету. Марка, держномер, рік і номер причепа на суму не впливають. Кілька авто: тоннаж ділиться між ними, пальне і AdBlue рахуються окремо за нормою кожного, сума по авто дорівнює підсумку. Дати документів калькулятор не читає.</p>' +
             '<label id="fleet-warn-label" for="fleet-warn-days">Попереджати за, днів ' +
@@ -11028,7 +11212,7 @@
             '<button type="button" onclick="setAllFleetCardsOpen(true)">Розгорнути всі</button>' +
             '<button type="button" onclick="setAllFleetCardsOpen(false)">Згорнути всі</button></div>' +
             '<div id="fleet-list"></div></div></div>';
-        if (currentWorkMode === 'team') {
+        if (isOwner && currentWorkMode === 'team') {
             html += '<div class="cab-panel" data-panel="team"><div class="cab-card">' +
                 '<div class="cab-card-head tc-team-head"><h3>Команда <span class="tc-team-badge" id="team-seat-badge" title="Місця логістів">0/3</span></h3><span class="cab-muted" id="team-status">Окремі логіни без спільного пароля</span></div>' +
                 '<div class="tc-team-summary"><span>Активні логісти й чинні запрошення займають місця. Директор — окремо.</span><span class="tc-seat-count" id="team-seat-count">0 з 3 логістів</span></div>' +
@@ -11752,6 +11936,9 @@
 
     function closeCabinet() {
         document.getElementById('cabinet-screen').style.display = 'none';
+        if (/^#\/cabinet(\/|$)/.test(location.hash)) {
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* file:// */ }
+        }
         document.body.style.overflow = '';
         const cur = document.body.getAttribute('data-studio-view');
         setStudioView(cur === 'overview' || cur === 'history' ? cur : 'calc');
@@ -11790,6 +11977,26 @@
         return userId ? String(userId).slice(0, 8) : '—';
     }
 
+    // Права логіста. Перемикач лише записує; перевіряє їх база (member_can у тригерах і RPC), тож без права сервер дає 403.
+    const MEMBER_PERMISSION_LABELS = [
+        ['acts', 'Створювати акти'], ['sign', 'Підпис і печатка'], ['fleet', 'Редагувати Автопарк'],
+        ['clients', 'Додавати клієнтів'], ['contracts', 'Договори']
+    ];
+    async function setMemberPermission(userId, key, input) {
+        const wanted = input.checked;
+        input.disabled = true;
+        try {
+            const result = await teamApi('POST', { action: 'set_permissions', user_id: userId, permissions: { [key]: wanted } });
+            const member = (teamState.members || []).find(function (item) { return item.id === userId; });
+            if (member) member.permissions = result.permissions;
+            showToast('Права збережено');
+        } catch (error) {
+            input.checked = !wanted;
+            showToast(error.message || 'Не вдалося змінити права.');
+        } finally {
+            input.disabled = false;
+        }
+    }
     function renderTeamPanel() {
         const list = document.getElementById('team-members-list');
         if (!list) return;
@@ -11826,6 +12033,13 @@
                     ? '<button type="button" disabled title="Усі 3 місця логістів уже зайняті">Увімкнути</button>'
                     : '<button type="button" onclick="enableTeamMember(\'' + teamEsc(member.id) + '\', this)">Увімкнути</button>')
                 : '';
+            const perms = canManage && member.org_role === 'logist' && member.permissions
+                ? '<div class="tc-member-perms" role="group" aria-label="Права ' + teamEsc(member.email) + '">' +
+                    MEMBER_PERMISSION_LABELS.map(function (item) {
+                        return '<label><input type="checkbox"' + (member.permissions[item[0]] ? ' checked' : '') + (disabled ? ' disabled' : '') +
+                            ' onchange="setMemberPermission(\'' + teamEsc(member.id) + '\', \'' + item[0] + '\', this)"> ' + teamEsc(item[1]) + '</label>';
+                    }).join('') + '</div>'
+                : '';
             return '<div class="tc-member-row' + (disabled ? ' is-disabled' : '') + '">' +
                 '<div class="tc-member-who"><b>' + teamEsc(member.email || member.id) + '</b>' +
                 '<span class="tc-role-badge is-' + (member.org_role === 'owner' ? 'owner' : 'logist') + '">' + teamEsc(roleLabel(member.org_role)) + '</span>' +
@@ -11835,7 +12049,7 @@
                 '<div class="tc-member-role">' + roleControl + '</div>' +
                 '<div><span class="tc-state-chip ' + (disabled ? 'is-off' : 'is-on') + '">' +
                 (disabled ? 'відключений' : 'активний') + '</span></div>' +
-                '<div class="tc-member-actions">' + (disabled ? enableControl : disableControl) + '</div></div>';
+                '<div class="tc-member-actions">' + (disabled ? enableControl : disableControl) + '</div>' + perms + '</div>';
         });
         const inviteRows = (teamState.invites || []).map(invite => {
             const status = teamInviteStatus(invite);
