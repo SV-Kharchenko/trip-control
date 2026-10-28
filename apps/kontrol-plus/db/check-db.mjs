@@ -796,6 +796,72 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check(!signedDirect.ok && signedDirect.code === '42501', 'act signature: no direct table access for clients', signedDirect.message);
 }
 
+// Пакет 28.10 (правка E): причепи — окрема таблиця fleet_trailers. Усі дані вигадані.
+{
+    const trailersSql = fs.readFileSync(new URL('20261028110000_kp_fleet_trailers.sql', DIR), 'utf8');
+    const T1 = '20000000-0000-4000-8000-0000000000e1', T2 = '20000000-0000-4000-8000-0000000000e2', T3 = '20000000-0000-4000-8000-0000000000e3';
+    // «Старі» дані: тягачі з причепом у колонках trailer_* без зв'язку (тригер дзеркала вимкнено, як було до міграції).
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+    await db.exec('ALTER TABLE public.fleet_vehicles DISABLE TRIGGER trg_fleet_vehicles_trailer_sync');
+    await db.exec(`INSERT INTO public.fleet_vehicles (id, org_id, label, trailer_plate, trailer_type, trailer_make_model) VALUES ('${T1}', '${A}', 'TR-1', 'АА 1234 ХХ', 'тент', 'Schmitz'), ('${T2}', '${A}', 'TR-2', 'AA1234XX', 'тент', 'Schmitz'), ('${T3}', '${A}', 'TR-3', NULL, 'зерновоз', NULL)`);
+    await db.exec('ALTER TABLE public.fleet_vehicles ENABLE TRIGGER trg_fleet_vehicles_trailer_sync');
+    await db.exec(trailersSql);
+    await db.exec(trailersSql);
+    check(true, 'trailers: migration re-applied (idempotent)');
+    const moved = (await service(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1 AND plate_norm = 'AA1234XX'`, [A])).rows[0].n;
+    check(moved === 1, 'trailers: the same trailer written in two spellings is moved once', String(moved));
+    const links = (await service(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE id IN ('${T1}', '${T2}') AND default_trailer_id IS NOT NULL`)).rows[0].n;
+    check(links === 2, 'trailers: both tractors keep the link to the moved trailer', String(links));
+    const bare = (await service(`SELECT default_trailer_id FROM public.fleet_vehicles WHERE id = '${T3}'`)).rows[0].default_trailer_id;
+    check(bare === null, 'trailers: a tractor without a trailer gets no link');
+    const mirror = await one(`SELECT trailer_plate, trailer_type, trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [T1]);
+    check(mirror.trailer_plate === 'АА 1234 ХХ' && mirror.trailer_make_model === 'Schmitz', 'trailers: legacy columns are kept (nothing is lost)', JSON.stringify(mirror));
+    const tid = (await service(`SELECT default_trailer_id AS id FROM public.fleet_vehicles WHERE id = '${T1}'`)).rows[0].id;
+
+    // RLS: свої читають, чужі — ні, пише лише власник.
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.fleet_trailers`)).rows[0].n >= 1, 'trailers RLS: a member of the organisation reads');
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.fleet_trailers`)).rows[0].n === 0, 'trailers RLS: a foreign organisation sees nothing');
+    const logistInsert = await user(LA)(`INSERT INTO public.fleet_trailers (org_id, plate) VALUES ('${A}', 'LL0001')`);
+    check(!logistInsert.ok, 'trailers RLS: a logist cannot add a trailer', logistInsert.message);
+    const logistPlate = await user(LA)(`UPDATE public.fleet_trailers SET plate = 'ZZ9999' WHERE id = $1`, [tid]);
+    check(!logistPlate.ok, 'trailers RLS: a logist cannot change the plate', logistPlate.message);
+    const logistMake = await user(LA)(`SELECT public.kp_trailer_save($1, '{"make_model":"Krone","capacity_t":"28"}'::jsonb) AS ok`, [tid]);
+    check(logistMake.ok && logistMake.rows[0].ok === true, 'trailers: a logist edits the waybill fields (make, capacity)', logistMake.message);
+    const foreignSave = await user(OC)(`SELECT public.kp_trailer_save($1, '{"make_model":"X"}'::jsonb)`, [tid]);
+    check(!foreignSave.ok, 'trailers: another organisation cannot save', foreignSave.message);
+    const ownerInsert = await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate, type) VALUES ('${A}', 'BB 0007 BB', 'цистерна') RETURNING id`);
+    check(ownerInsert.ok, 'trailers RLS: the owner adds a trailer', ownerInsert.message);
+    const dup = await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate) VALUES ('${A}', 'ВВ0007ВВ')`);
+    check(!dup.ok, 'trailers: a duplicate plate (normalised) is refused', dup.message);
+
+    // Вибір причепа в тягача (калькулятор / ТТН беруть його з нової таблиці) і «Відчепити».
+    const listed = await user(OA)(`SELECT * FROM public.kp_vehicles_list() WHERE id = $1`, [T1]);
+    check(listed.ok && listed.rows[0].trailer_make_model === 'Krone', 'trailers: kp_vehicles_list (the waybill source) shows the trailer from fleet_trailers', listed.message || JSON.stringify(listed.rows[0]));
+    const viaSite = await one(`SELECT trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [T2]);
+    check(viaSite.trailer_make_model === 'Krone', 'trailers: a change of the trailer reaches every tractor mirror (site calculator, prefill)', JSON.stringify(viaSite));
+    const tl = await user(OA)(`SELECT * FROM public.kp_trailers_list() WHERE id = $1`, [tid]);
+    check(tl.ok && tl.rows[0].vehicle_ids.length === 2 && tl.rows[0].capacity_t == 28, 'trailers: kp_trailers_list returns the trailer with its tractors', tl.message);
+    const detach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = NULL WHERE id = $1`, [T1]);
+    const detached = await one(`SELECT default_trailer_id, trailer_plate FROM public.fleet_vehicles WHERE id = $1`, [T1]);
+    check(detach.ok && detached.default_trailer_id === null && detached.trailer_plate === null, 'trailers: «Відчепити» clears the link and the mirror', detach.message);
+    const attach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = $2 WHERE id = $1`, [T1, tid]);
+    const attached = await one(`SELECT trailer_plate, trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [T1]);
+    check(attach.ok && attached.trailer_plate === 'АА 1234 ХХ' && attached.trailer_make_model === 'Krone', 'trailers: choosing a trailer fills the tractor mirror', attach.message);
+    const foreignAttach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = '20000000-0000-4000-8000-0000000000ff' WHERE id = $1`, [T1]);
+    check(!foreignAttach.ok && /TRAILER_NOT_FOUND|violates foreign key/i.test(foreignAttach.message), 'trailers: an unknown / foreign trailer cannot be attached', foreignAttach.message);
+    // Запис через стару картку авто на сайті потрапляє в нову таблицю.
+    const oldCard = await user(OA)(`UPDATE public.fleet_vehicles SET trailer_plate = 'CC 5555 CC', trailer_type = 'рефрижератор' WHERE id = $1`, [T3]);
+    const created = await one(`SELECT ft.type FROM public.fleet_vehicles fv JOIN public.fleet_trailers ft ON ft.id = fv.default_trailer_id WHERE fv.id = $1`, [T3]);
+    check(oldCard.ok && created && created.type === 'рефрижератор', 'trailers: the old vehicle card writes through to fleet_trailers', oldCard.message);
+
+    // Деактивація справді вимикає причіп.
+    const off = await user(OA)(`UPDATE public.fleet_trailers SET active = false WHERE id = $1`, [tid]);
+    const left = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE default_trailer_id = $1 OR trailer_plate = 'АА 1234 ХХ'`, [tid])).n;
+    check(off.ok && left === 0, 'trailers: deactivation detaches the trailer from every tractor', off.message || String(left));
+    const reattach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = $2 WHERE id = $1`, [T1, tid]);
+    check(!reattach.ok && /TRAILER_NOT_FOUND/.test(reattach.message), 'trailers: an inactive trailer cannot be chosen', reattach.message);
+}
+
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
 // (tripFactBasis з api/calculate.js: loadedKm + emptyKm + podachaKm по всіх авто заявки). Сайт лише читаємо.
 process.env.SUPABASE_URL ||= 'https://example.supabase.co';
