@@ -41,10 +41,10 @@ test('реквізити: одна кнопка «Зберегти» звича�
 
 test('документи: фільтри компактні inline, кнопки створення лише раз угорі, у порожньому стані — підказка', () => {
     const docs = read('src/views/docs.js');
-    assert.equal((docs.match(/createButtons\(\)/g) || []).length, 1, 'createButtons() викликається один раз');
+    assert.equal((docs.match(/createButtonsFor\(tab\)\.length \? h\('div'/g) || []).length, 1, 'панель кнопок створення — один раз угорі');
     const empty = docs.slice(docs.indexOf('if (!rows.length) {'), docs.indexOf('const totals = listTotals(rows);'));
-    assert.equal(/createButtons|btn-primary/.test(empty), false);
-    assert.match(empty, /Створіть рахунок, акт або ТТН кнопками вгорі/);
+    assert.equal(/createButtons\(|h\('a', \{ class: 'btn/.test(empty), false, 'кнопок створення в порожньому стані немає');
+    assert.match(empty, /Створіть документ кнопками вгорі/);
     assert.match(docs, /const labeled = \(text, control\) => h\('label', \{ class: 'kpd-f' \}, h\('span', null, text\), control\);/);
     assert.match(docs, /h\('div', \{ class: 'toolbar kpd-filters' \}, labeled\('Період з', from\)/);
     assert.match(css, /\.kpd-f input \{ width: 150px; flex: 0 0 auto; \}/);

@@ -165,6 +165,14 @@ export function ttnStatusFilter(status) {
     return { include: false, value: null };
 }
 
+// Кнопки створення за вкладкою «Документів»: рахунок і акт — лише на «Акти», ТТН — лише на «ТТН / 2-ТН», на решті їх немає.
+export function createButtonsFor(tab) {
+    const all = createButtons();
+    if (tab === 'acts') return all.slice(0, 2);
+    if (tab === 'ttn') return all.slice(2);
+    return [];
+}
+
 export { createButtons };
 
 const STATUS_FILTERS = [
@@ -192,7 +200,7 @@ export function listTotals(rows) {
 // Компактне inline-поле фільтра: підпис зліва, поле за змістом.
 const labeled = (text, control) => h('label', { class: 'kpd-f' }, h('span', null, text), control);
 
-function renderDocList(app, access, presetKind = '') {
+function renderDocList(app, access, presetKind = '', tab = '') {
     const range = monthRange(kyivDate());
     const from = h('input', { type: 'date', value: range.from, 'aria-label': 'Період з' });
     const to = h('input', { type: 'date', value: range.to, 'aria-label': 'Період по' });
@@ -235,7 +243,7 @@ function renderDocList(app, access, presetKind = '') {
             .sort((a, b) => String(b.doc_date).localeCompare(String(a.doc_date)) || String(a.kind).localeCompare(String(b.kind)) || Number(b.number) - Number(a.number));
         if (!rows.length) {
             clear(list, h('div', { class: 'empty' }, h('p', null, 'За цей період документів немає.'),
-                access.canWrite ? h('p', { class: 'muted small' }, 'Створіть рахунок, акт або ТТН кнопками вгорі.') : null));
+                access.canWrite && createButtonsFor(tab).length ? h('p', { class: 'muted small' }, 'Створіть документ кнопками вгорі.') : null));
             return;
         }
         const totals = listTotals(rows);
@@ -268,7 +276,7 @@ function renderDocList(app, access, presetKind = '') {
     loadClients().then(load, load);
     return h('div', null,
         h('div', { class: 'toolbar kpd-filters' }, labeled('Період з', from), labeled('по', to), labeled('Тип', kind), labeled('Статус', status), labeled('Клієнт', client)),
-        access.canWrite ? h('div', { class: 'toolbar' }, createButtons()) : null,
+        access.canWrite && createButtonsFor(tab).length ? h('div', { class: 'toolbar' }, createButtonsFor(tab)) : null,
         list);
 }
 
@@ -283,7 +291,7 @@ export function renderDocs(app, route) {
     else if (sub === 'doc') body = renderDocCard(app, access, route.id);
     else if (sub === 'ttn') body = renderTtnCard(app, access, route.id);
     else if (EMPTY_TABS[route.tab]) body = h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, EMPTY_TABS[route.tab][0]), h('p', { class: 'muted' }, EMPTY_TABS[route.tab][1])));
-    else body = renderDocList(app, access, TAB_KIND[route.tab] || '');
+    else body = renderDocList(app, access, TAB_KIND[route.tab] || '', route.tab || '');
     return h('section', { class: 'page kpr-page kpd-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'Документи')),
         h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи документів' }, docsTabs().map((t) =>

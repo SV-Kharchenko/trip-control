@@ -72,3 +72,23 @@ test('п.2: «Одиниця вимірювання» — назва, число
     assert.equal(cargoCells(doc.lines[0], 0).unit, 'т');
     assert.equal(cargoTotals(doc).places, '62');
 });
+
+// ---- 3. Кнопки створення лише на потрібних вкладках ----
+test('п.3: «Створити рахунок / акт» тільки на «Акти», «Створити ТТН» тільки на «ТТН / 2-ТН»', async () => {
+    const fakeDom = { createElement: (tag) => ({ tagName: tag, children: [], attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, append(...n) { this.children.push(...n); }, addEventListener() {}, classList: {}, className: '' }), createTextNode: (text) => ({ text }) };
+    Object.defineProperty(globalThis, 'document', { value: fakeDom, configurable: true, writable: true });
+    Object.defineProperty(globalThis, 'Node', { value: class {}, configurable: true, writable: true });
+    try {
+        const { createButtonsFor } = await import('../src/views/docs.js');
+        const text = (el) => el.children.map((c) => (c.text !== undefined ? c.text : text(c))).join('');
+        const labels = (tab) => createButtonsFor(tab).map(text);
+        assert.deepEqual(labels('acts'), ['Створити рахунок', 'Створити акт']);
+        assert.deepEqual(labels('ttn'), ['Створити ТТН']);
+        for (const tab of ['', 'contracts', 'other', undefined]) assert.deepEqual(labels(tab), [], String(tab));
+    } finally {
+        delete globalThis.document;
+        delete globalThis.Node;
+    }
+    const docs = read('src/views/docs.js');
+    assert.match(docs, /renderDocList\(app, access, TAB_KIND\[route\.tab\] \|\| '', route\.tab \|\| ''\)/);
+});
