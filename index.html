@@ -256,6 +256,7 @@
         /* Кнопка за розміром тексту скрізь (кабінет, Автопарк, картки, форми). Повна ширина — лише явно: .btn-block.
            Панель дій калькулятора розтягує свої кнопки сама. */
         .btn-block { display: flex; width: 100%; flex: 1 1 100%; }
+        .btn-block[hidden] { display: none; }
         .actions-bar .btn { flex: 1; min-width: 150px; }
         .btn-success {
             background: linear-gradient(90deg, #0b4f3c 0%, #127a58 48%, #1aa56e 100%);
@@ -1321,7 +1322,7 @@
         #cabinet-screen #cab-mode-btn,
         #cabinet-screen .tc-report-actions .btn,
         #cabinet-screen .tc-team-toolbar .btn {
-            flex: none; width: auto; min-width: 150px; min-height: 40px;
+            flex: none; width: auto; min-width: 0; min-height: 40px; justify-self: start; align-self: center;
         }
         #cabinet-screen .tc-report-box { display: grid; gap: 10px; }
         #cabinet-screen .tc-report-box .cab-card-head { margin-bottom: 0; }
@@ -1505,7 +1506,7 @@
         #cabinet-screen .tc-note-actions .btn, #cabinet-screen .tc-note-actions button { width: auto; min-height: 36px; padding: 0 12px; font-size: 0.85rem; text-decoration: none; }
         #cabinet-screen .cab-card-head .btn { width: auto; min-height: 36px; padding: 0 12px; font-size: 0.85rem; }
         /* Кнопки кабінету: за розміром тексту; «Позначити все прочитаним» — праворуч над списком. */
-        #cabinet-screen .btn:not(.btn-block) { flex: none; width: auto; }
+        #cabinet-screen .btn:not(.btn-block) { flex: none; width: auto; min-width: 0; justify-self: start; }
         #cabinet-screen #cab-notes-all { margin-left: auto; }
         #cabinet-screen .tc-member-actions button,
         #cabinet-screen .tc-invite-link button {
@@ -5011,8 +5012,8 @@
                     </label>
                 </div>
             </div>
-            <button type="submit" id="auth-login-btn" class="btn btn-success" style="width: 100%; margin-bottom: 10px;">Увійти</button>
-            <button type="button" id="auth-back-btn" class="btn" style="width: 100%;" hidden onclick="exitResetMode()">Назад до входу</button>
+            <button type="submit" id="auth-login-btn" class="btn btn-success btn-block" style="margin-bottom: 10px;">Увійти</button>
+            <button type="button" id="auth-back-btn" class="btn btn-block" hidden onclick="exitResetMode()">Назад до входу</button>
         </form>
 
         <form id="auth-recovery-form" hidden novalidate onsubmit="return submitNewPassword(event)">
@@ -5031,11 +5032,11 @@
                     <button type="button" class="tc-pass-eye" aria-label="Показати пароль" aria-pressed="false" onclick="togglePasswordVisibility('auth-new-password-2', this)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="tc-pass-slash" d="M4 4l16 16"/></svg></button>
                 </div>
             </div>
-            <button type="submit" class="btn btn-success" style="width: 100%;">Зберегти пароль</button>
+            <button type="submit" class="btn btn-success btn-block">Зберегти пароль</button>
         </form>
 
         <div id="auth-message" style="font-size: 0.9rem; margin-top: 15px; color: var(--warning); line-height: 1.4;"></div>
-        <button id="logout-btn" class="btn btn-danger" style="display:none; width: 100%; margin-top: 15px;" onclick="handleLogout()">Вийти з акаунта</button>
+        <button id="logout-btn" class="btn btn-danger btn-block" style="display:none; margin-top: 15px;" onclick="handleLogout()">Вийти з акаунта</button>
         <div class="tc-footer">
             <footer class="tc-legal-footer">
                 <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
@@ -5270,10 +5271,10 @@
                             <label><input type="checkbox" id="poi-cafe" style="width:auto;"> ☕ Кафе</label>
                             <label><input type="checkbox" id="poi-sto" style="width:auto;"> 🔧 СТО</label>
                         </div>
-                        <button type="button" class="btn" style="width: 100%;" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти</button>
+                        <button type="button" class="btn" onclick="searchPOIsAlongRoute()">🔍 Знайти об'єкти</button>
                         <div id="poi-attribution" style="font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; text-align: center;">© OpenStreetMap contributors</div>
                         <div id="poi-status" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
-                        <button type="button" class="btn" id="poi-retry-failed" style="display: none; width: 100%; margin-top: 6px;" onclick="retryFailedPoiSegments()">Повторити невдалі</button>
+                        <button type="button" class="btn" id="poi-retry-failed" style="display: none; margin-top: 6px;" onclick="retryFailedPoiSegments()">Повторити невдалі</button>
                         <div id="poi-results" style="margin-top: 6px;"></div>
                     </div>
                     <div class="tc-map-foot">
@@ -5528,7 +5529,7 @@
                             <div id="rt-point-d-wrap"></div>
                             <input type="hidden" id="rt-point-d">
                         </div>
-                        <button type="button" class="btn full-only" style="width: 100%; padding: 6px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотний маршрут (Google)</button>
+                        <button type="button" class="btn full-only" style="padding: 6px 12px; margin-bottom: 8px;" onclick="calculateBackhaulRoute()">Розрахувати зворотний маршрут (Google)</button>
                         <div id="rt-status" class="full-only" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; text-align: center;"></div>
 
                         <div class="form-row">
@@ -5624,7 +5625,7 @@
                     <button type="button" class="preset-btn" style="flex:1;" onclick="addWaypointRow()">+ Проміжна зупинка</button>
                     <button type="button" class="preset-btn" id="swap-ab-btn" style="flex:0 0 auto;" onclick="swapRouteEnds()">A ↔ B</button>
                 </div>
-                <button type="button" class="btn" id="route-calc-btn" style="width: 100%;" onclick="calculateGoogleRoute()">Розрахувати відстань</button>
+                <button type="button" class="btn" id="route-calc-btn" onclick="calculateGoogleRoute()">Розрахувати відстань</button>
                 <div id="osm-status" style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; text-align: center;"></div>
             </div>
             <div class="lock-ph demo-only"><b>🔒 Доступно після оплати</b><small>📍 Пошук АЗС, стоянок TIR, кафе і СТО вздовж маршруту</small></div>

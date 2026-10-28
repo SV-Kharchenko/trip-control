@@ -59,3 +59,34 @@ test('"Позначити все прочитаним": content width, pushed to
     assert.equal(decl(head.body, 'display'), 'flex');
     assert.equal(decl(head.body, 'justify-content'), 'space-between');
 });
+
+test('no .btn anywhere carries an inline width:100%; full width is the .btn-block class, used only by the sign-in forms and "Вийти з акаунта"', () => {
+    const tags = [...html.matchAll(/<(?:button|a)\b[^>]*class="[^"]*\bbtn\b[^"]*"[^>]*>/g)].map((m) => m[0]);
+    assert.ok(tags.length > 30);
+    const inline = tags.filter((t) => /style="[^"]*width:\s*100%/.test(t));
+    assert.deepEqual(inline, []);
+    const block = tags.filter((t) => /\bbtn-block\b/.test(t)).map((t) => (t.match(/id="([^"]+)"|>/) || [])[1] || t.slice(0, 70));
+    assert.equal(tags.filter((t) => /\bbtn-block\b/.test(t)).length, 4, block.join(', '));
+    for (const text of ['Увійти', 'Назад до входу', 'Зберегти пароль', 'Вийти з акаунта']) {
+        assert.match(html, new RegExp('class="btn[^"]*btn-block[^"]*"[^>]*>' + text + '<'), text);
+    }
+    assert.match(css, /\.btn-block\[hidden\] \{ display: none; \}/, 'a hidden full-width button stays hidden');
+});
+
+test('route / POI buttons and "Змінити режим" are content-sized, also at 390px', () => {
+    for (const [needle, label] of [['onclick="calculateGoogleRoute()"', 'Розрахувати відстань'], ['onclick="calculateBackhaulRoute()"', 'Розрахувати зворотний маршрут'],
+        ['onclick="searchPOIsAlongRoute()"', "Знайти об'єкти"], ['onclick="retryFailedPoiSegments()"', 'Повторити невдалі']]) {
+        const at = html.indexOf(needle);
+        assert.ok(at > 0, label);
+        const tag = html.slice(html.lastIndexOf('<button', at), html.indexOf('>', at) + 1);
+        assert.equal(/width:\s*100%|btn-block/.test(tag), false, label);
+    }
+    const mode = rules.find((r) => r.selector.includes('#cabinet-screen #cab-mode-btn'));
+    assert.equal(decl(mode.body, 'width'), 'auto');
+    assert.equal(decl(mode.body, 'min-width'), '0');
+    assert.equal(decl(mode.body, 'justify-self'), 'start', 'in the one-column mobile grid the button does not stretch');
+    // На ≤520px кабінет не повертає кнопкам повну ширину.
+    const mobile = css.slice(css.indexOf('@media (max-width: 520px) {\n            #cabinet-screen .cab-grid'));
+    const block = mobile.slice(0, mobile.indexOf('\n        }'));
+    assert.equal(/\.btn[^{]*\{[^}]*width: 100%/.test(block) || /#cab-mode-btn[^{]*\{[^}]*width: 100%/.test(block), false);
+});

@@ -42,3 +42,12 @@ test('the site has the slot ids, the event and the old-URL redirects the bridge 
     assert.match(site, /'#\/stats': 'stats'/);
     assert.match(site, /'#\/team': 'team'/);
 });
+
+test('documents / act forms: no full-width buttons (the site .btn is content-sized now, nothing overrides it to stretch)', () => {
+    for (const file of fs.readdirSync(new URL('../src/views/', import.meta.url)).filter((f) => /^docs.*\.js$/.test(f))) {
+        const src = read('src/views/' + file);
+        assert.equal(/btn-block|width:\s*100%/.test(src), false, file);
+    }
+    const css = read('src/crm.css');
+    assert.equal(/#kp-crm [^{]*\.btn\b[^{]*\{[^}]*(flex: 1|width: 100%)/.test(css.replace(/#kp-crm \.btn-block \{ width: 100%; \}/, '')), false);
+});
