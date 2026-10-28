@@ -32,20 +32,53 @@ const mix = (a, b, pa) => a.map((v, i) => Math.round(v * pa + b[i] * (1 - pa)));
 const token = (block, name) => (block.match(new RegExp(name + ':\\s*(#[0-9A-Fa-f]{6})')) || [])[1];
 const theme = (name) => { const s = html.indexOf('[data-theme="' + name + '"] {'); return html.slice(s, html.indexOf('}', s)); };
 
-test('п.13: тексти картки результату на світло-зеленому фоні — контраст ≥ 4.5:1 (Light) і в Dark', () => {
+// Токени картки результату, як їх бачить браузер: тема × режим («Детально» ставить картку на світло-зелений фон).
+const declMap = (text) => Object.fromEntries([...text.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+const ruleBody = (selectorStart) => { const s = html.indexOf(selectorStart); assert.notEqual(s, -1, selectorStart); const o = html.indexOf('{', s); return html.slice(o + 1, html.indexOf('}', o)); };
+const resolveColor = (value, vars) => {
+    const m = String(value).match(/^var\((--[\w-]+)\)$/);
+    return m ? resolveColor(vars[m[1]], vars) : value;
+};
+function resultCard(themeName, mode) {
+    const vars = declMap(theme(themeName));
+    if (themeName === 'light' || themeName === 'dark') Object.assign(vars, declMap(theme('night')), declMap(theme(themeName)));
+    else Object.assign(vars, declMap(theme('night')), declMap(theme(themeName)));
+    let card = {};
+    if (themeName === 'light' || themeName === 'dark') {
+        const base = ruleBody('body.layout-studio[data-theme="light"] #dispatcher-result:not(.is-empty),');
+        card = { ...declMap(base), bg: (base.match(/background:\s*([^;]+);/) || [])[1].trim() };
+        if (themeName === 'dark') {
+            const dark = ruleBody('body.layout-studio[data-theme="dark"] #dispatcher-result:not(.is-empty) {');
+            card = { ...card, ...declMap(dark), bg: (dark.match(/background:\s*([^;]+);/) || [])[1].trim() };
+        } else if (mode === 'detail') {
+            card = { ...card, ...declMap(ruleBody('body.layout-studio[data-theme="light"][data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > #dispatcher-result:not(.is-empty)')) };
+        }
+    } else {
+        const rule = ruleBody('body.layout-studio[data-theme="night"] #dispatcher-result:not(.is-empty),');
+        card = { ...declMap(rule), bg: (rule.match(/background:\s*([^;]+);/) || [])[1].trim() };
+    }
+    const bg = mode === 'detail'
+        ? mix(hex(resolveColor('var(--positive)', vars)), hex(resolveColor('var(--surface)', vars)), 0.1)
+        : hex(resolveColor(card.bg, vars));
+    const ink = {};
+    for (const key of ['fg', 'muted', 'up', 'down', 'be']) ink[key] = hex(resolveColor(card['--tc-result-' + key], { ...vars, ...card }));
+    return { bg, ink };
+}
+
+test('п.13 / D: тексти картки результату (KPI, Беззбитковість) — контраст ≥ 4.5:1 у light, dark, night, amber, в обох режимах картки', () => {
+    for (const themeName of ['light', 'dark', 'night', 'amber']) {
+        for (const mode of ['normal', 'detail']) {
+            const { bg, ink } = resultCard(themeName, mode);
+            for (const [name, rgb] of Object.entries(ink)) {
+                const r = ratio(rgb, bg);
+                assert.ok(r >= 4.5, themeName + '/' + mode + ' ' + name + ' ' + r.toFixed(2));
+            }
+        }
+    }
+    // Було: світлі токени темної картки (#A9BCB7) на світло-зеленому фоні «Детально» — нижче порогу.
+    const light = declMap(theme('light'));
+    assert.ok(ratio(hex('#A9BCB7'), mix(hex(light['--positive']), hex(light['--surface']), 0.1)) < 4.5);
     assert.match(html, /--tc-result-muted: var\(--result-muted-on-light\)/);
-    const light = theme('light');
-    const dark = theme('dark');
-    const lightBg = mix(hex(token(light, '--positive')), hex(token(light, '--surface')), 0.1);
-    const lightInk = {
-        fg: token(light, '--text'), muted: token(light, '--result-muted-on-light'), down: token(light, '--result-down-on-light'), be: token(light, '--result-be-on-light'), up: token(light, '--positive'),
-    };
-    for (const [name, color] of Object.entries(lightInk)) assert.ok(ratio(hex(color), lightBg) >= 4.5, 'Light ' + name + ' ' + ratio(hex(color), lightBg).toFixed(2));
-    const darkBg = mix(hex(token(dark, '--positive')), hex(token(dark, '--surface')), 0.1);
-    const darkInk = { fg: token(dark, '--text'), muted: token(dark, '--muted-on-dark'), down: token(dark, '--negative-on-dark'), be: token(dark, '--gold'), up: token(dark, '--positive') };
-    for (const [name, color] of Object.entries(darkInk)) assert.ok(ratio(hex(color), darkBg) >= 4.5, 'Dark ' + name + ' ' + ratio(hex(color), darkBg).toFixed(2));
-    // Було: світлі токени для темної картки (#F4EFE6 / #A9BCB7) на світло-зеленому — нижче порогу, тому й блякло.
-    assert.ok(ratio(hex('#A9BCB7'), lightBg) < 4.5);
 });
 
 // ---- П.14: варіанти маршруту (Google alternatives) ----
