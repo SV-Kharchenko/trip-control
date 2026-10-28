@@ -98,13 +98,13 @@ test('реквізити компанії: рядки grid 160px auto, поле 
     assert.match(requisites, /rpc\('kp_requisites_save', \{ p_data: data \}\)/);
 });
 
-test('документи: підвкладки Усі · Договори · ТТН / 2-ТН · Акти · Інше, борги / автопарк / реквізити звідти прибрані', () => {
+test('документи: підвкладки Усі · Договори · ТТН / Подорожній лист · Акти · Інше, борги / автопарк / реквізити звідти прибрані', () => {
     const docs = read('src/views/docs.js');
     const labels = [...docs.slice(docs.indexOf('export function docsTabs()'), docs.indexOf('const TAB_KIND')).matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
-    assert.deepEqual(labels, ['Усі', 'Договори', 'ТТН / 2-ТН', 'Акти', 'Інше']);
+    assert.deepEqual(labels, ['Усі', 'Договори', 'ТТН / Подорожній лист', 'Акти', 'Інше']);
     assert.equal(/renderDebts|renderRequisites|renderFleet/.test(docs), false);
     assert.match(docs, /Договорів ще немає/);
-    assert.match(docs, /TAB_KIND = \{ ttn: 'ttn', acts: 'act' \}/);
+    assert.match(docs, /TAB_KIND = \{ ttn: 'ttn_group', acts: 'act' \}/);
 });
 
 test('план/факт: підвкладки План/факт · Борги, звіт без змін', () => {

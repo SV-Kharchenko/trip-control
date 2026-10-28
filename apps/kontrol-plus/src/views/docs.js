@@ -1,4 +1,4 @@
-// Вкладка «Документи» (етапи 4a, 4b): підвкладки Усі · Договори · ТТН / 2-ТН · Акти · Інше (список рахунків, актів і ТТН, створення, картка).
+// Вкладка «Документи» (етапи 4a, 4b): підвкладки Усі · Договори · ТТН / Подорожній лист · Акти · Інше (список рахунків, актів і ТТН, створення, картка).
 // «Борги» живуть у «План/факт», «Авто й водії» — в «Автопарку» і «Водіях», «Реквізити» — у «Реквізитах компанії». Права — з kp_context(): пишуть owner / logist, анулює й змінює
 // реквізити лише owner, директор — перегляд. Кнопки без права приховані, але база однаково перевіряє кожну дію.
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
@@ -7,38 +7,44 @@ import {
     DOC_KIND_LABELS, PAY_STATUS_LABELS, docStatusKey, docStatusLabel, docsAccess, docErrorText, docNumberText, fmtAmount, isMissingFeature,
 } from '../lib/docs.js';
 import { ttnErrorText } from '../lib/ttn.js';
-import { downloadDocPdf, downloadDocXlsx, downloadTtnPdf } from '../lib/docs-pdf-client.js';
+import { tsErrorText } from '../lib/trip-sheet.js';
+import { downloadDocPdf, downloadDocXlsx, downloadTripSheetPdf, downloadTtnPdf } from '../lib/docs-pdf-client.js';
 import { isPlanError } from '../lib/errors.js';
 import { renderDocForm } from './docs-form.js';
 import { renderDocCard } from './docs-card.js';
 import { renderTtnForm } from './docs-ttn-form.js';
 import { renderTtnCard } from './docs-ttn-card.js';
+import { renderTripSheetForm } from './docs-ts-form.js';
+import { renderTripSheetCard } from './docs-ts-card.js';
 
 export function docsTabs() {
     return [
         { key: 'all', hash: '#/docs', label: 'Усі' },
         { key: 'contracts', hash: '#/docs/tab/contracts', label: 'Договори' },
-        { key: 'ttn', hash: '#/docs/tab/ttn', label: 'ТТН / 2-ТН' },
+        { key: 'ttn', hash: '#/docs/tab/ttn', label: 'ТТН / Подорожній лист' },
         { key: 'acts', hash: '#/docs/tab/acts', label: 'Акти' },
         { key: 'other', hash: '#/docs/tab/other', label: 'Інше' },
     ];
 }
 
-const TAB_KIND = { ttn: 'ttn', acts: 'act' };
+// Вкладка «ТТН / Подорожній лист» показує обидва види (ttn_group), «Акти» — лише акти.
+const TAB_KIND = { ttn: 'ttn_group', acts: 'act' };
 const EMPTY_TABS = {
     contracts: ['Договорів ще немає', 'Договір із клієнтом з’явиться тут і підтягне реквізити компанії.'],
     other: ['Тут будуть інші файли', 'Довіреності, страхові поліси, сканкопії — усе, що не потрапляє в інші вкладки.'],
 };
 
-// Документ за id і видом: рахунок / акт — kp_doc_get, ТТН — kp_ttn_get.
+// Документ за id і видом: рахунок / акт — kp_doc_get, ТТН — kp_ttn_get, подорожній лист — kp_trip_sheet_get.
 async function fetchDoc(app, id, kind) {
-    const { data, error } = await app.supabase.rpc(kind === 'ttn' ? 'kp_ttn_get' : 'kp_doc_get', kind === 'ttn' ? { p_id: id } : { p_doc: id });
+    const fn = kind === 'ttn' ? 'kp_ttn_get' : kind === 'trip_sheet' ? 'kp_trip_sheet_get' : 'kp_doc_get';
+    const { data, error } = await app.supabase.rpc(fn, kind === 'ttn' || kind === 'trip_sheet' ? { p_id: id } : { p_doc: id });
     if (error) throw error;
     return data;
 }
 
 function exportError(error, kind) {
     if (error && error.message && /font|fetch|import/i.test(error.message)) return 'Не вдалося підготувати файл. Спробуйте ще раз.';
+    if (kind === 'trip_sheet') return tsErrorText(error);
     return kind === 'ttn' ? ttnErrorText(error) : docErrorText(error);
 }
 
@@ -100,6 +106,7 @@ export function pdfButton(app, id, label = 'PDF', cls = 'btn btn-sm', kind = nul
             try {
                 const data = await fetchDoc(app, id, kind);
                 if (kind === 'ttn') await downloadTtnPdf(app, data, { copies: copies() });
+                else if (kind === 'trip_sheet') await downloadTripSheetPdf(data);
                 else await downloadDocPdf(app, data);
             } catch (error) {
                 toast(exportError(error, kind), 'error');
@@ -124,9 +131,10 @@ export function cancelControl(app, doc, onDone) {
                 return;
             }
             const isTtn = doc.kind === 'ttn';
-            const { error } = await app.supabase.rpc(isTtn ? 'kp_ttn_cancel' : 'kp_doc_cancel', isTtn ? { p_id: doc.id, p_reason: text } : { p_doc: doc.id, p_reason: text });
+            const isTs = doc.kind === 'trip_sheet';
+            const { error } = await app.supabase.rpc(isTtn ? 'kp_ttn_cancel' : isTs ? 'kp_trip_sheet_cancel' : 'kp_doc_cancel', isTtn || isTs ? { p_id: doc.id, p_reason: text } : { p_doc: doc.id, p_reason: text });
             if (error) {
-                toast(isTtn ? ttnErrorText(error) : docErrorText(error), 'error');
+                toast(isTtn ? ttnErrorText(error) : isTs ? tsErrorText(error) : docErrorText(error), 'error');
                 return;
             }
             toast(DOC_KIND_LABELS[doc.kind] + ' № ' + docNumberText(doc) + ' анульовано');
@@ -147,6 +155,7 @@ function createButtons(clientId) {
         h('a', { class: 'btn btn-primary', href: '#/docs/new/invoice' + tail }, 'Створити рахунок'),
         h('a', { class: 'btn btn-primary', href: '#/docs/new/act' + tail }, 'Створити акт'),
         h('a', { class: 'btn btn-primary', href: '#/docs/new/ttn' + tail }, 'Створити ТТН'),
+        h('a', { class: 'btn btn-primary', href: '#/docs/new/trip_sheet' }, 'Створити подорожній лист'),
     ];
 }
 
@@ -158,6 +167,18 @@ export function ttnListRow(r) {
     };
 }
 
+// Подорожній лист у рядку загального списку (суми, оплат і боргу немає).
+export function tsListRow(r) {
+    return { ...r, kind: 'trip_sheet', currency: 'UAH', total: null, paid: null, debt: null, due_date: null, pay_status: r.status };
+}
+
+// Статус фільтра → p_status для kp_trip_sheet_list: issued | closed | cancelled; решта (оплати) подорожніх листів не стосуються.
+export function tsStatusFilter(status) {
+    if (!status) return { include: true, value: null };
+    if (status === 'issued' || status === 'closed' || status === 'cancelled') return { include: true, value: status };
+    return { include: false, value: null };
+}
+
 // Статус фільтра → p_status для kp_ttn_list; null — ТТН у вибірку не потрапляють (оплати бувають лише в рахунків).
 export function ttnStatusFilter(status) {
     if (!status) return { include: true, value: null };
@@ -165,11 +186,11 @@ export function ttnStatusFilter(status) {
     return { include: false, value: null };
 }
 
-// Кнопки створення за вкладкою «Документів»: рахунок і акт — лише на «Акти», ТТН — лише на «ТТН / 2-ТН», на решті їх немає.
+// Кнопки створення за вкладкою «Документів»: рахунок і акт — лише на «Акти», ТТН — лише на «ТТН / Подорожній лист», на решті їх немає.
 export function createButtonsFor(tab) {
     const all = createButtons();
     if (tab === 'acts') return all.slice(0, 2);
-    if (tab === 'ttn') return all.slice(2);
+    if (tab === 'ttn') return all.slice(2); // «Створити ТТН» і «Створити подорожній лист»
     return [];
 }
 
@@ -179,6 +200,7 @@ const STATUS_FILTERS = [
     { value: '', label: 'Усі статуси' },
     { value: 'unpaid', label: 'Неоплачені' },
     { value: 'issued', label: PAY_STATUS_LABELS.issued },
+    { value: 'closed', label: 'Закрито (подорожній лист)' },
     { value: 'partial', label: PAY_STATUS_LABELS.partial },
     { value: 'paid', label: PAY_STATUS_LABELS.paid },
     { value: 'overdue', label: PAY_STATUS_LABELS.overdue },
@@ -206,7 +228,8 @@ function renderDocList(app, access, presetKind = '', tab = '') {
     const to = h('input', { type: 'date', value: range.to, 'aria-label': 'Період по' });
     const kind = h('select', { 'aria-label': 'Тип документа' },
         h('option', { value: '' }, 'Усі документи'), h('option', { value: 'invoice' }, 'Рахунки'), h('option', { value: 'act' }, 'Акти'),
-        h('option', { value: 'ttn' }, 'ТТН'));
+        h('option', { value: 'ttn' }, 'ТТН'), h('option', { value: 'trip_sheet' }, 'Подорожні листи'),
+        h('option', { value: 'ttn_group' }, 'ТТН і подорожні листи'));
     kind.value = presetKind;
     const status = h('select', { 'aria-label': 'Статус' }, STATUS_FILTERS.map((s) => h('option', { value: s.value }, s.label)));
     const client = h('select', { 'aria-label': 'Клієнт' }, h('option', { value: '' }, 'Усі клієнти'));
@@ -225,13 +248,16 @@ function renderDocList(app, access, presetKind = '', tab = '') {
         clear(list, spinner());
         // Рахунки й акти — kp_doc_list, ТТН — kp_ttn_list (окрема таблиця 4b); «Усі документи» — обидва, за датою.
         const ttnFilter = ttnStatusFilter(status.value);
-        const wantDocs = kind.value !== 'ttn';
-        const wantTtn = (kind.value === '' || kind.value === 'ttn') && ttnFilter.include;
-        const [docsRes, ttnRes] = await Promise.all([
+        const tsFilter = tsStatusFilter(status.value);
+        const wantDocs = !['ttn', 'trip_sheet', 'ttn_group'].includes(kind.value);
+        const wantTtn = ['', 'ttn', 'ttn_group'].includes(kind.value) && ttnFilter.include;
+        const wantTs = ['', 'trip_sheet', 'ttn_group'].includes(kind.value) && tsFilter.include;
+        const [docsRes, ttnRes, tsRes] = await Promise.all([
             wantDocs ? app.supabase.rpc('kp_doc_list', {
                 p_kind: kind.value || null, p_from: from.value, p_to: to.value, p_client: client.value || null, p_status: status.value || null,
             }) : { data: [] },
             wantTtn ? app.supabase.rpc('kp_ttn_list', { p_from: from.value, p_to: to.value, p_client: client.value || null, p_status: ttnFilter.value }) : { data: [] },
+            wantTs && !client.value ? app.supabase.rpc('kp_trip_sheet_list', { p_from: from.value, p_to: to.value, p_status: tsFilter.value }) : { data: [] },
         ]);
         if (docsRes.error) return showError(app, list, docsRes.error);
         // Міграцію 4b ще не застосовано: у «Усіх документах» — без ТТН, у фільтрі «ТТН» — пояснення.
@@ -239,7 +265,12 @@ function renderDocList(app, access, presetKind = '', tab = '') {
             if (kind.value === 'ttn' && isMissingFeature(ttnRes.error)) return clear(list, notice('ТТН ще не ввімкнено для вашої компанії (міграцію бази етапу 4b не застосовано).', 'info'));
             return showError(app, list, ttnRes.error);
         }
-        const rows = [...(docsRes.data || []), ...(ttnRes.error ? [] : (ttnRes.data || []).map(ttnListRow))]
+        // Міграції подорожніх листів ще немає: у «Усіх» їх просто не видно, у фільтрі «Подорожні листи» — пояснення.
+        if (tsRes.error && (kind.value === 'trip_sheet' || !isMissingFeature(tsRes.error))) {
+            if (kind.value === 'trip_sheet' && isMissingFeature(tsRes.error)) return clear(list, notice('Подорожні листи ще не ввімкнено для вашої компанії (міграцію бази не застосовано).', 'info'));
+            return showError(app, list, tsRes.error);
+        }
+        const rows = [...(docsRes.data || []), ...(ttnRes.error ? [] : (ttnRes.data || []).map(ttnListRow)), ...(tsRes.error ? [] : (tsRes.data || []).map(tsListRow))]
             .sort((a, b) => String(b.doc_date).localeCompare(String(a.doc_date)) || String(a.kind).localeCompare(String(b.kind)) || Number(b.number) - Number(a.number));
         if (!rows.length) {
             clear(list, h('div', { class: 'empty' }, h('p', null, 'За цей період документів немає.'),
@@ -253,9 +284,10 @@ function renderDocList(app, access, presetKind = '', tab = '') {
                 h('thead', null, h('tr', null, ['Дата', '№', 'Тип', 'Клієнт', 'Сума', 'Оплачено', 'Борг', 'Строк', 'Статус', ''].map((t) => h('th', null, t)))),
                 h('tbody', null, rows.map((r) => h('tr', { class: r.status === 'cancelled' ? 'is-archived' : '' },
                     h('td', { 'data-label': 'Дата' }, fmtDate(r.doc_date)),
-                    h('td', { 'data-label': '№', class: 'mono' }, h('a', { href: r.kind === 'ttn' ? '#/docs/ttn/' + r.id : '#/docs/' + r.id }, docNumberText(r))),
-                    h('td', { 'data-label': 'Тип' }, r.kind === 'act' ? h('span', { class: 'kpd-kind kpd-kind-act' }, 'Акт') : (DOC_KIND_LABELS[r.kind] || r.kind),
-                        r.kind === 'ttn' && r.vehicle_reg ? h('span', { class: 'muted small' }, ' · ' + r.vehicle_reg) : null),
+                    h('td', { 'data-label': '№', class: 'mono' }, h('a', { href: r.kind === 'ttn' ? '#/docs/ttn/' + r.id : r.kind === 'trip_sheet' ? '#/docs/trip_sheet/' + r.id : '#/docs/' + r.id }, docNumberText(r))),
+                    h('td', { 'data-label': 'Тип' }, r.kind === 'act' ? h('span', { class: 'kpd-kind kpd-kind-act' }, 'Акт')
+                        : r.kind === 'trip_sheet' ? h('span', { class: 'kpd-kind kpd-kind-ts' }, 'Подорожній') : (DOC_KIND_LABELS[r.kind] || r.kind),
+                        (r.kind === 'ttn' || r.kind === 'trip_sheet') && r.vehicle_reg ? h('span', { class: 'muted small' }, ' · ' + r.vehicle_reg) : null),
                     h('td', { 'data-label': 'Клієнт' }, h('a', { href: '#/clients/' + r.client_id }, r.client_name || '—')),
                     h('td', { 'data-label': 'Сума', class: 'mono' }, r.total === null || r.total === undefined ? '—' : h('b', null, fmtAmount(r.total, r.currency))),
                     h('td', { 'data-label': 'Оплачено', class: 'mono' }, r.kind === 'invoice' ? fmtAmount(r.paid, r.currency) : '—'),
@@ -263,8 +295,8 @@ function renderDocList(app, access, presetKind = '', tab = '') {
                     h('td', { 'data-label': 'Строк' }, r.due_date ? fmtDate(r.due_date) : '—'),
                     h('td', { 'data-label': 'Статус' }, statusBadge(r.pay_status, r.kind, signed.has(r.id))),
                     h('td', { 'data-label': '' }, h('div', { class: 'actions' },
-                        pdfButton(app, r.id, 'PDF', 'btn btn-sm', r.kind === 'ttn' ? 'ttn' : null),
-                        excelButton(app, r.id, r.kind === 'ttn' ? 'ttn' : null),
+                        pdfButton(app, r.id, 'PDF', 'btn btn-sm', r.kind === 'ttn' || r.kind === 'trip_sheet' ? r.kind : null),
+                        excelButton(app, r.id, r.kind === 'ttn' || r.kind === 'trip_sheet' ? r.kind : null),
                         access.isOwner && r.status === 'issued' ? cancelControl(app, r, load) : null))))))),
             Object.keys(totals).length
                 ? h('p', { class: 'muted small' }, 'Активні рахунки у списку: ', Object.entries(totals).map(([cur, t], i) => [
@@ -287,9 +319,11 @@ export function renderDocs(app, route) {
     let body;
     if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть власник і логіст.', 'info');
     else if (sub === 'new' && route.kind === 'ttn') body = renderTtnForm(app, access, route);
+    else if (sub === 'new' && route.kind === 'trip_sheet') body = renderTripSheetForm(app, access, route);
     else if (sub === 'new') body = renderDocForm(app, access, route);
     else if (sub === 'doc') body = renderDocCard(app, access, route.id);
     else if (sub === 'ttn') body = renderTtnCard(app, access, route.id);
+    else if (sub === 'trip_sheet') body = renderTripSheetCard(app, access, route.id);
     else if (EMPTY_TABS[route.tab]) body = h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, EMPTY_TABS[route.tab][0]), h('p', { class: 'muted' }, EMPTY_TABS[route.tab][1])));
     else body = renderDocList(app, access, TAB_KIND[route.tab] || '', route.tab || '');
     return h('section', { class: 'page kpr-page kpd-page' },

@@ -23,8 +23,12 @@ export function docStatusKey(kind, payStatus, signed = false) {
     return signed ? 'signed' : 'created';
 }
 
+// Подорожній лист: Видано → Закрито | Анульовано (збігається з TS_STATUS_LABELS у lib/trip-sheet.js).
+export const TRIP_STATUS_LABELS = { issued: 'Видано', closed: 'Закрито', cancelled: 'Анульовано' };
+
 export function docStatusLabel(kind, payStatus, signed = false) {
     const key = docStatusKey(kind, payStatus, signed);
+    if (kind === 'trip_sheet') return TRIP_STATUS_LABELS[key] || key;
     return (kind === 'act' ? ACT_STATUS_LABELS : PAY_STATUS_LABELS)[key] || key;
 }
 

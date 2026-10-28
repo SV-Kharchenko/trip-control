@@ -76,7 +76,7 @@ test('п.2: «Одиниця вимірювання» — назва, число
 });
 
 // ---- 3. Кнопки створення лише на потрібних вкладках ----
-test('п.3: «Створити рахунок / акт» тільки на «Акти», «Створити ТТН» тільки на «ТТН / 2-ТН»', async () => {
+test('п.3: «Створити рахунок / акт» тільки на «Акти», «Створити ТТН» і «Створити подорожній лист» тільки на «ТТН / Подорожній лист»', async () => {
     const fakeDom = { createElement: (tag) => ({ tagName: tag, children: [], attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, append(...n) { this.children.push(...n); }, addEventListener() {}, classList: {}, className: '' }), createTextNode: (text) => ({ text }) };
     Object.defineProperty(globalThis, 'document', { value: fakeDom, configurable: true, writable: true });
     Object.defineProperty(globalThis, 'Node', { value: class {}, configurable: true, writable: true });
@@ -85,7 +85,7 @@ test('п.3: «Створити рахунок / акт» тільки на «А�
         const text = (el) => el.children.map((c) => (c.text !== undefined ? c.text : text(c))).join('');
         const labels = (tab) => createButtonsFor(tab).map(text);
         assert.deepEqual(labels('acts'), ['Створити рахунок', 'Створити акт']);
-        assert.deepEqual(labels('ttn'), ['Створити ТТН']);
+        assert.deepEqual(labels('ttn'), ['Створити ТТН', 'Створити подорожній лист']);
         for (const tab of ['', 'contracts', 'other', undefined]) assert.deepEqual(labels(tab), [], String(tab));
     } finally {
         delete globalThis.document;

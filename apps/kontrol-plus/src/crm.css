@@ -595,3 +595,19 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
   #kp-crm .kpc-box { width: 100%; }
   #kp-crm .kpg-bar .btn { margin-left: 0; }
 }
+
+/* Подорожній лист (картка, форма, список) — компактний стиль 1С, як картки реєстру */
+#kp-crm .kpd-kind-ts { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; background: var(--info-bg); color: var(--text); border: 1px solid var(--border-soft); }
+#kp-crm .kpd-st-closed { color: var(--positive); border-color: var(--positive); }
+#kp-crm .kpts-section { margin: 0 0 8px; }
+#kp-crm .kpts-pick { margin: 0 0 6px; }
+#kp-crm .kpts-changed { font-size: 12px; color: var(--warn); font-weight: 700; white-space: nowrap; }
+#kp-crm .kpts-reset { margin-left: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 12px; padding: 0 6px; min-height: 22px; }
+#kp-crm .kpts-reset:hover { border-color: var(--accent); }
+#kp-crm .kpts-related { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; }
+#kp-crm .kpc-view { max-width: 760px; margin: 0 0 10px; padding: 12px 20px; }
+#kp-crm .kpc-view .kpt-dl .kv { display: grid; grid-template-columns: 220px 1fr; gap: 12px; padding: 3px 0; }
+#kp-crm .kpc-box input[type="date"], #kp-crm .kpc-box input[type="datetime-local"] { width: 100%; }
+@media (max-width: 760px) {
+  #kp-crm .kpc-view .kpt-dl .kv { grid-template-columns: 1fr; gap: 0; }
+}
