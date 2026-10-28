@@ -207,8 +207,8 @@ test('п.8–10: пошук водіїв лише за ПІБ, номер — н
     const registry = read('src/views/registry.js');
     assert.match(registry, /onclick: open/);
     assert.match(css, /\.kpg-page \.table-wrap \{ padding: 0; \}/);
-    assert.match(css, /\.kpg-table th:first-child, #kp-crm \.kpg-table td:first-child \{ padding-left: 16px; \}/);
-    assert.match(css, /\.kpg-table th:last-child, #kp-crm \.kpg-table td:last-child \{ padding-right: 16px; \}/);
+    assert.match(css, /\.kpg-table td:first-child \{ padding-left: 16px !important; \}/);
+    assert.match(css, /\.kpg-table td:last-child \{ padding-right: 16px !important; \}/);
 });
 
 // ---- Правки після перевірки A–B ----
@@ -240,4 +240,14 @@ test('E: вкладка «Причепи» працює з fleet_trailers, «Д�
     assert.match(sql, /ADD COLUMN IF NOT EXISTS default_trailer_id/);
     assert.match(sql, /Відкат/);
     assert.equal(/DROP COLUMN|DROP TABLE public\.fleet_vehicles/.test(sql.replace(/^--.*$/gm, '')), false, 'міграція нічого не видаляє');
+});
+
+// ---- Пункти 2–4 (відступи меню, таблиці, кнопка «Додати») ----
+test('2–4: контент не центрується, таблиці реєстру мають 16px з обох боків, кнопка «Додати» не розтягується', () => {
+    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app > #kp-crm \{[^}]*max-width: 1480px; margin: 0 !important;/);
+    assert.match(css, /\.kpg-bar \.btn \{ flex: 0 0 auto; width: auto; min-width: 0; margin: 0; \}/);
+    assert.match(css, /\.kpg-bar \.kpf-field \{ width: 260px; flex: 0 0 auto; \}/);
+    assert.equal(/\.kpg-bar \.btn \{ margin-left: auto/.test(css), false);
+    assert.match(css, /\.kpg-table th:first-child, #kp-crm \.kpg-page \.table-wrap \.kpg-table td:first-child \{ padding-left: 16px !important; \}/);
+    assert.match(css, /\.kpg-table th:last-child, #kp-crm \.kpg-page \.table-wrap \.kpg-table td:last-child \{ padding-right: 16px !important; \}/);
 });
