@@ -4200,7 +4200,7 @@
         .tc-modal { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.45); }
         .tc-modal-card { width: min(100%, 420px); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px; display: grid; gap: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3); }
         .tc-modal-card h3 { margin: 0; font-size: 1.05rem; }
-        .tc-modal-card p { margin: 0; color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+        .tc-modal-card p { margin: 0; color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; white-space: pre-line; }
         .tc-modal-field { display: grid; gap: 6px; font-size: 0.78rem; color: var(--muted); }
         .tc-modal-field textarea { width: 100%; box-sizing: border-box; text-align: left; resize: vertical; font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--input); color: var(--text); }
         .tc-modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
@@ -14069,9 +14069,45 @@
         if (currentOrgRole === 'logist') return 'logist';
         return currentOrgRole === 'owner' && uiView === 'logist' ? 'logist' : 'director';
     }
+    // ТТН і подорожній лист — лише з ПРИЙНЯТОЇ заявки (accepted | done); сервер перевіряє те саме (CALC_NOT_ACCEPTED).
+    // Створюють власник і логіст; кнопки відкривають форму Контроль+ вже заповненою даними заявки.
+    function calcDocButtons(row) {
+        const status = historyFields(row).status;
+        if ((status !== 'accepted' && status !== 'done') || (currentOrgRole !== 'owner' && currentOrgRole !== 'logist')) return '';
+        const id = escHtml(row.id);
+        return '<button type="button" class="is-doc" onclick="openCalcDoc(\'ttn\', \'' + id + '\')">Створити ТТН</button>'
+            + '<button type="button" class="is-doc" onclick="openCalcDoc(\'trip_sheet\', \'' + id + '\')">Створити подорожній лист</button>'
+            + '<button type="button" class="is-doc" onclick="showCalcDocs(\'' + id + '\')">Документи заявки</button>';
+    }
+    function openCalcDoc(kind, id) {
+        location.hash = '#/docs/new/' + (kind === 'trip_sheet' ? 'trip_sheet' : 'ttn') + '/calc/' + encodeURIComponent(id);
+    }
+    // Список ТТН і подорожніх листів заявки зі статусами.
+    async function showCalcDocs(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        const from = '2000-01-01';
+        const to = '2100-01-01';
+        const labels = { issued: 'Видано', closed: 'Закрито', cancelled: 'Анульовано' };
+        const lines = [];
+        try {
+            const ttn = await supabaseClient.rpc('kp_ttn_list', { p_from: from, p_to: to, p_client: null, p_status: null, p_calculation: id });
+            const ts = await supabaseClient.rpc('kp_trip_sheet_list', { p_from: from, p_to: to, p_status: null, p_calculation: id });
+            (ttn.data || []).forEach(function (t) { lines.push('ТТН № ' + (t.number_text || t.number) + ' від ' + t.doc_date + ' — ' + (labels[t.status] || t.status)); });
+            (ts.data || []).forEach(function (t) { lines.push('Подорожній лист № ' + (t.number_text || t.number) + ' від ' + t.doc_date + ' — ' + (labels[t.status] || t.status)); });
+            if (ttn.error && ts.error) throw ttn.error;
+        } catch (e) {
+            showToast('Не вдалося завантажити документи заявки.', 3600, 'error');
+            return;
+        }
+        await tcModal({
+            title: 'Документи заявки' + (row ? ': ' + historyRouteLabel(historyFields(row)) : ''),
+            text: lines.length ? lines.join('\n') : 'Документів ще немає.',
+            confirmText: 'Закрити'
+        });
+    }
     function historyActions(row) {
         const id = escHtml(row.id);
-        if (!canEditSaved(row)) return '<span class="tc-history-meta">лише перегляд</span>';
+        if (!canEditSaved(row)) return '<span class="tc-history-meta">лише перегляд</span>' + calcDocButtons(row);
         const status = historyFields(row).status;
         const mine = row.userId === currentUserId;
         const director = approvalRole() === 'director';
@@ -14091,6 +14127,7 @@
         if (fact) parts.push(fact);
         if (status === 'accepted') parts.push('<button type="button" onclick="setTripStatus(\'' + id + '\', \'done\')">Виконано</button>');
         if (status !== 'accepted' && status !== 'done') parts.push(button('Видалити', 'removeSaved', 'is-danger'));
+        parts.push(calcDocButtons(row));
         return '<div class="tc-history-actions">' + parts.join('') + '</div>';
     }
     function factButton(row) {

@@ -59,3 +59,8 @@ export function monthRange(today = kyivDate()) {
 export function daysBetween(from, to) {
     return Math.round((Date.parse(to + 'T00:00:00Z') - Date.parse(from + 'T00:00:00Z')) / 86400000);
 }
+
+// Дата YYYY-MM-DD ± днів (UTC-арифметика, без зсуву часових поясів).
+export function shiftDate(iso, days) {
+    return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
+}

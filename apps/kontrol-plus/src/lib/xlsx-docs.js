@@ -5,6 +5,7 @@ import { buildXlsx, XLSX_MIME } from './xlsx.js';
 import { DOC_TITLES, dateWords, docNumberText } from './docs.js';
 import { contractText, partyLines, rateLine, totalWords, totalsRows } from './pdf-docs-text.js';
 import { normalizeCargoLine } from './ttn.js';
+import { TS_FORM_NO, TS_FORM_REF, tsHeading, tsSections } from './trip-sheet.js';
 import {
     APPENDIX_REF, CARGO_COLUMNS, FOOTNOTES, FORM_NO, cancelledLine, cargoCells, cargoTotals, frontFields, operationRows, ttnHeading,
 } from './ttn-text.js';
@@ -189,10 +190,29 @@ export function ttnSheet(doc) {
     return { name: `ТТН ${docNumberText(doc)}`, columns: [5, 30, 13, 10, 12, 9, 9, 11, 12, 12, 14, 10], rows: b.rows, merges: b.merges, landscape: true };
 }
 
+// Подорожній лист: ті самі розділи й порядок, що в картці та PDF (tsSections); персональних даних водія немає.
+export function tripSheetSheet(doc) {
+    const W = 4;
+    const b = sheetBuilder(W);
+    b.row([{ v: TS_FORM_REF, s: 'small' }, null, null, { v: TS_FORM_NO, s: 'bold' }], { span: [[0, 2]] });
+    cancelledRow(b, doc);
+    b.line(tsHeading(doc), 'title', 22);
+    b.blank();
+    for (const section of tsSections(doc)) {
+        b.line(section.title, 'bold');
+        for (const [label, value] of section.rows) {
+            b.row([{ v: label, s: 'label' }, null, { v: String(value), s: 'wrap' }, null], { span: [[0, 1], [2, 3]], height: String(value).length > 70 ? 30 : undefined });
+        }
+        b.blank();
+    }
+    return { name: `Подорожній лист ${docNumberText(doc)}`, columns: [26, 22, 26, 26], rows: b.rows, merges: b.merges, landscape: false };
+}
+
 export function docSheet(doc) {
     if (doc.kind === 'invoice') return invoiceSheet(doc);
     if (doc.kind === 'act') return actSheet(doc);
     if (doc.kind === 'ttn') return ttnSheet(doc);
+    if (doc.kind === 'trip_sheet') return tripSheetSheet(doc);
     throw new Error('docSheet: unknown kind ' + doc.kind);
 }
 
@@ -201,6 +221,6 @@ export function buildDocXlsx(doc) {
 }
 
 export function xlsxFileName(doc) {
-    const kind = doc.kind === 'act' ? 'akt' : doc.kind === 'invoice' ? 'rakhunok' : doc.kind === 'ttn' ? 'ttn' : 'doc';
+    const kind = doc.kind === 'act' ? 'akt' : doc.kind === 'invoice' ? 'rakhunok' : doc.kind === 'ttn' ? 'ttn' : doc.kind === 'trip_sheet' ? 'podorozhnii_list' : 'doc';
     return `${kind}_${doc.number}_${String(doc.doc_date || '').slice(0, 10)}${doc.status === 'cancelled' ? '_anulovano' : ''}.xlsx`;
 }

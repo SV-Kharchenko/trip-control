@@ -902,13 +902,154 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
         'trailers rollback: the header block removes the helper functions too');
     const keep = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n;
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+    // Подорожній лист (20261029100000) посилається на fleet_trailers: відкат причепів — після відкату листів.
+    await db.exec('DROP TABLE IF EXISTS public.kp_doc_trip_sheet');
     await db.exec(rollback);
     const gone = await one(`SELECT (SELECT count(*)::int FROM pg_proc WHERE proname IN ('kp_plate_norm', 'fleet_trailers_guard', 'fleet_vehicles_trailer_sync', 'fleet_trailers_after', 'kp_trailers_list', 'kp_trailer_save')) AS fns, to_regclass('public.fleet_trailers') AS tbl, (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'fleet_vehicles' AND column_name = 'default_trailer_id') AS col`);
     check(gone.fns === 0 && gone.tbl === null && gone.col === 0, 'trailers rollback: table, column, triggers and functions are gone', JSON.stringify(gone));
     check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
     await db.exec(trailersSql);
+    await db.exec(fs.readFileSync(new URL('20261029100000_kp_trip_sheets.sql', DIR), 'utf8'));
     const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
     check(back >= 3, 'trailers rollback: re-applying the migration rebuilds fleet_trailers from the kept columns', String(back));
+}
+
+// Подорожній лист (kp_doc_trip_sheet, 20261029100000). Усі дані вигадані.
+{
+    const tsSql = fs.readFileSync(new URL('20261029100000_kp_trip_sheets.sql', DIR), 'utf8');
+    await db.exec(tsSql);
+    check(true, 'trip sheet: migration re-applied (idempotent)');
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+    await db.exec(`INSERT INTO public.kp_org_requisites (org_id, legal_name, edrpou) VALUES ('${A}', 'ТОВ Перевізник', '12345678') ON CONFLICT (org_id) DO NOTHING`);
+    const TSV = '20000000-0000-4000-8000-0000000000c1';
+    await service(`INSERT INTO public.fleet_vehicles (id, org_id, label, make_model, fuel_load, fuel_empty) VALUES ('${TSV}', '${A}', 'TS 0001 TS', 'DAF XF', 30, 20)`);
+    const trl = (await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate, make_model) VALUES ('${A}', 'TS 0002 TS', 'Schmitz') RETURNING id`)).rows[0].id;
+    const drv = (await user(OA)(`SELECT public.kp_driver_save(NULL, 'Петренко Петро Петрович', 'BB654321', true) AS id`)).rows[0].id;
+    await user(OA)(`SELECT public.kp_driver_details_save($1, '+380671112233', 'AB123456', '1234567890', 'м. Київ')`, [drv]);
+    const calcOk = '30000000-0000-4000-8000-0000000000c1', calcDraft = '30000000-0000-4000-8000-0000000000c2';
+    await service(`INSERT INTO public.calculations (id, org_id, user_id, name, inputs, results, status, trip_date) VALUES ('${calcOk}', '${A}', '${OA}', 'Луцьк — Одеса', '{"origin":"Луцьк","destination":"Одеса","base":"Рівне","dist":500,"podachaDist":40,"rate":900,"fuelLoad":30,"fuelEmpty":20,"daysPerTrip":3,"routeVariant":{"index":1}}'::jsonb, '{}'::jsonb, 'accepted', '2026-10-28'), ('${calcDraft}', '${A}', '${OA}', 'Чернетка', '{"origin":"A","destination":"B"}'::jsonb, '{}'::jsonb, 'draft', '2026-10-28')`);
+    await service(`INSERT INTO public.calc_vehicles (calc_id, vehicle_id, tonnage) VALUES ('${calcOk}', '${TSV}', 22)`);
+    await service(`UPDATE public.fleet_vehicles SET default_trailer_id = $2, default_driver_id = $3 WHERE id = $1`, [TSV, trl, drv]);
+    const body = (over = {}) => JSON.stringify({
+        series: 'ПЛ-', valid_from: '2026-10-28', valid_to: '2026-10-30', driver: { id: drv, phone: '+380000000000', passport: 'ZZ999999', ipn: '0000000000', address: 'hack' },
+        vehicle_id: TSV, trailer_id: trl, vehicle: { fuel_load: 30, fuel_empty: 20 },
+        task: { customer: 'Агро', route_from: 'Луцьк', route_to: 'Одеса', via: ['Рівне'], cargo: 'Пшениця', tonnage: 22, loaded_km: 300 },
+        depart: { at: '2026-10-28T06:00:00+03:00', odometer: 100000, fuel_left: 80, fuel_issued: 200, fuel_kind: 'ДП' },
+        medical: { by: 'Мед. пункт', at: '2026-10-28T05:30:00+03:00' }, tech: { by: 'Механік Іваненко', at: '2026-10-28T05:40:00+03:00', ok: true }, ...over,
+    });
+    const create = (who, over, calc = null, date = '2026-10-28') => user(who)(`SELECT public.kp_trip_sheet_create($1::date, NULL, $2::jsonb, $3::uuid) AS id`, [date, body(over), calc]);
+
+    const c1 = await create(OA);
+    check(c1.ok, 'trip sheet: the owner issues', c1.message);
+    const c2 = await create(LA);
+    check(c2.ok, 'trip sheet: the logist issues', c2.message);
+    const nums = (await service(`SELECT number FROM public.kp_doc_trip_sheet WHERE org_id = $1 ORDER BY number`, [A])).rows.map((r) => r.number);
+    check(nums.join() === '1,2', 'trip sheet: own numbering 1, 2 (separate from invoices / acts / TTN)', nums.join());
+    check((await service(`SELECT count(*)::int AS n FROM public.kp_doc_counters WHERE org_id = $1 AND kind = 'trip_sheet'`, [A])).rows[0].n === 1, 'trip sheet: its own counter kind');
+    const dirNo = await create(DIR1);
+    check(!dirNo.ok && dirNo.code === '42501', 'trip sheet: a director cannot issue', dirNo.message);
+    check((await service(`SELECT count(*)::int AS n FROM public.kp_doc_trip_sheet WHERE org_id = $1`, [A])).rows[0].n === 2, 'trip sheet: a refused issue leaves no row and does not shift the counter');
+    const sheet = (await user(DIR1)(`SELECT public.kp_trip_sheet_get($1) AS d`, [c1.rows[0].id])).rows[0].d;
+    check(sheet && sheet.number_text === 'ПЛ-1' && sheet.status === 'issued', 'trip sheet: a director reads', JSON.stringify(sheet && sheet.number_text));
+    check(JSON.stringify(Object.keys(sheet.driver).sort()) === '["full_name","license_no"]' && !/380|AB123456|1234567890|hack|ZZ999999/.test(JSON.stringify(sheet)),
+        'trip sheet: no phone / passport / IPN / address in the snapshot', JSON.stringify(sheet.driver));
+    check(sheet.vehicle.trailer_reg_number === 'TS 0002 TS' && sheet.vehicle.trailer_make_model === 'Schmitz', 'trip sheet: the trailer comes from fleet_trailers');
+    const foreign = await user(OC)(`SELECT public.kp_trip_sheet_get($1)`, [c1.rows[0].id]);
+    check(!foreign.ok && /DOC_NOT_FOUND/.test(foreign.message), 'trip sheet: another organisation cannot read', foreign.message);
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.kp_trip_sheet_list('2026-10-01', '2026-10-31')`)).rows[0].n === 0, 'trip sheet: another organisation sees an empty list');
+    const direct = await user(OA)(`SELECT * FROM public.kp_doc_trip_sheet`);
+    check(!direct.ok && direct.code === '42501', 'trip sheet: no direct table access for clients', direct.message);
+
+    // Незмінність знімка: шапка, ТЗ, водій, завдання; DELETE заборонено (навіть сервісній ролі).
+    for (const [label, sql] of [
+        ['driver', `UPDATE public.kp_doc_trip_sheet SET driver = '{"full_name":"X","license_no":"Y"}'::jsonb WHERE id = $1`],
+        ['vehicle', `UPDATE public.kp_doc_trip_sheet SET vehicle = '{"make_model":"X","reg_number":"Y"}'::jsonb WHERE id = $1`],
+        ['task', `UPDATE public.kp_doc_trip_sheet SET task = '{"route_from":"X","route_to":"Y"}'::jsonb WHERE id = $1`],
+        ['header', `UPDATE public.kp_doc_trip_sheet SET valid_to = valid_to + 1 WHERE id = $1`],
+        ['departure', `UPDATE public.kp_doc_trip_sheet SET depart_odometer = 1 WHERE id = $1`],
+        ['delete', `DELETE FROM public.kp_doc_trip_sheet WHERE id = $1`],
+    ]) {
+        const r = await service(sql, [c1.rows[0].id]);
+        check(!r.ok && /DOC_IMMUTABLE|DOC_DELETE_FORBIDDEN/.test(r.message), 'trip sheet: ' + label + ' is frozen after issue', r.message);
+    }
+
+    // Закриття: пробіг, фактична й нормативна витрата.
+    const close = (who, data, id = c1.rows[0].id) => user(who)(`SELECT public.kp_trip_sheet_close($1, $2::jsonb) AS r`, [id, JSON.stringify(data)]);
+    const back = { return_at: '2026-10-30T20:00:00+03:00', return_odometer: 100500, return_fuel_left: 70 };
+    check(/TS_ODOMETER_DECREASE/.test((await close(OA, { ...back, return_odometer: 99999 })).message), 'trip sheet: the return odometer cannot be below the departure one');
+    check(/TS_RETURN_BEFORE_DEPART/.test((await close(OA, { ...back, return_at: '2026-10-28T05:00:00+03:00' })).message), 'trip sheet: the return cannot be before the departure');
+    check(/TS_FIELD_REQUIRED:return_fuel_left/.test((await close(OA, { return_at: back.return_at, return_odometer: 100500 })).message), 'trip sheet: the fuel balance on return is required');
+    check(!(await close(DIR1, back)).ok, 'trip sheet: a director cannot close');
+    const closed = await close(LA, back);
+    const cr = closed.ok ? closed.rows[0].r : null;
+    check(closed.ok && cr.distance_km === 500 && Number(cr.fuel_actual) === 210 && Number(cr.fuel_norm) === 130 && Number(cr.fuel_diff) === 80,
+        'trip sheet: mileage 500, actual 80 + 200 − 70 = 210, norm 300 × 30% + 200 × 20% = 130, overrun 80', closed.message || JSON.stringify(cr));
+    check(/TS_NOT_ISSUED/.test((await close(OA, back)).message), 'trip sheet: a closed sheet cannot be closed again');
+    const afterClose = await service(`UPDATE public.kp_doc_trip_sheet SET return_odometer = 100600 WHERE id = $1`, [c1.rows[0].id]);
+    check(!afterClose.ok && /DOC_IMMUTABLE/.test(afterClose.message), 'trip sheet: a closed sheet is frozen', afterClose.message);
+    check(/TS_CLOSED_IMMUTABLE/.test((await user(OA)(`SELECT public.kp_trip_sheet_cancel($1, 'помилка')`, [c1.rows[0].id])).message), 'trip sheet: a closed sheet cannot be cancelled');
+
+    // Анулювання: лише власник, з причиною; номер лишається.
+    check(!(await user(LA)(`SELECT public.kp_trip_sheet_cancel($1, 'тест')`, [c2.rows[0].id])).ok, 'trip sheet: a logist cannot cancel');
+    check(/DOC_CANCEL_REASON/.test((await user(OA)(`SELECT public.kp_trip_sheet_cancel($1, '  ')`, [c2.rows[0].id])).message), 'trip sheet: the cancel reason is required');
+    check((await user(OA)(`SELECT public.kp_trip_sheet_cancel($1, 'Помилкова видача')`, [c2.rows[0].id])).ok, 'trip sheet: the owner cancels with a reason');
+    check(/TS_NOT_ISSUED/.test((await close(OA, back, c2.rows[0].id)).message), 'trip sheet: a cancelled sheet cannot be closed');
+    const c3 = await create(OA);
+    const n3 = (await service(`SELECT number FROM public.kp_doc_trip_sheet WHERE id = $1`, [c3.rows[0].id])).rows[0].number;
+    check(n3 === 3, 'trip sheet: the number of a cancelled sheet is not reused', String(n3));
+    const lst = await user(DIR1)(`SELECT status, count(*)::int AS n FROM public.kp_trip_sheet_list('2026-10-01', '2026-10-31') GROUP BY status ORDER BY status`);
+    check(lst.ok && lst.rows.map((r) => r.status + ':' + r.n).join() === 'cancelled:1,closed:1,issued:1', 'trip sheet: the list shows all statuses', lst.message);
+    check((await user(DIR1)(`SELECT count(*)::int AS n FROM public.kp_trip_sheet_list('2026-10-01', '2026-10-31', 'closed')`)).rows[0].n === 1, 'trip sheet: the status filter works');
+
+    // Заявка: лише прийнята; звʼязок з рейсом, список за рейсом, видалення рейсу не видаляє лист.
+    const draftTry = await create(OA, {}, calcDraft);
+    check(!draftTry.ok && /CALC_NOT_ACCEPTED/.test(draftTry.message), 'trip sheet: a draft request cannot be the source', draftTry.message);
+    const draftPre = await user(OA)(`SELECT public.kp_calc_doc_prefill($1)`, [calcDraft]);
+    check(!draftPre.ok && /CALC_NOT_ACCEPTED/.test(draftPre.message), 'prefill: refused for a request that is not accepted', draftPre.message);
+    const pre = await user(LA)(`SELECT public.kp_calc_doc_prefill($1) AS p`, [calcOk]);
+    const p = pre.ok ? pre.rows[0].p : null;
+    check(pre.ok && p.route.from === 'Луцьк' && p.route.to === 'Одеса' && p.route.base === 'Рівне' && p.route.dist_km === 500 && p.route.feed_km === 40 && p.route.variant.index === 1
+        && p.vehicle.reg_number === 'TS 0001 TS' && p.trailer.plate === 'TS 0002 TS' && p.driver.full_name === 'Петренко Петро Петрович'
+        && p.cargo.tonnage === 22 && p.cargo.rate === 900 && p.dates.trip_date === '2026-10-28' && p.dates.days === 3 && p.plan_fuel_l === 258,
+        'prefill: route, feed, variant, vehicle, trailer, driver, cargo, tariff, dates and the fuel plan come from the accepted request', pre.message || JSON.stringify(p));
+    check(!('phone' in p.driver) && !/380|AB123456|1234567890/.test(JSON.stringify(p)), 'prefill: no personal driver data');
+    check(!(await user(DIR1)(`SELECT public.kp_calc_doc_prefill($1)`, [calcOk])).ok, 'prefill: a director cannot (read-only role)');
+    check(!(await user(OC)(`SELECT public.kp_calc_doc_prefill($1)`, [calcOk])).ok, 'prefill: another organisation cannot');
+    const linked = await create(OA, {}, calcOk);
+    check(linked.ok, 'trip sheet: issued from an accepted request', linked.message);
+    const byCalc = await user(LA)(`SELECT count(*)::int AS n FROM public.kp_trip_sheet_list('2026-10-01', '2026-10-31', NULL, $1)`, [calcOk]);
+    check(byCalc.rows[0].n === 1, 'trip sheet: the request card lists its trip sheets', byCalc.message);
+    const snap = (await service(`SELECT task FROM public.kp_doc_trip_sheet WHERE id = $1`, [linked.rows[0].id])).rows[0].task;
+    await service(`UPDATE public.calculations SET inputs = jsonb_set(inputs, '{destination}', '"Київ"') WHERE id = $1`, [calcOk]);
+    const snap2 = (await service(`SELECT task FROM public.kp_doc_trip_sheet WHERE id = $1`, [linked.rows[0].id])).rows[0].task;
+    check(JSON.stringify(snap) === JSON.stringify(snap2), 'trip sheet: later changes of the request do not touch the issued sheet');
+    await service(`DELETE FROM public.calc_vehicles WHERE calc_id = $1`, [calcOk]);
+    await service(`DELETE FROM public.calculation_clients WHERE calculation_id = $1`, [calcOk]);
+    await service(`DELETE FROM public.calculations WHERE id = $1`, [calcOk]);
+    const kept = await one(`SELECT id, calculation_id FROM public.kp_doc_trip_sheet WHERE id = $1`, [linked.rows[0].id]);
+    check(kept && kept.calculation_id === null, 'trip sheet: deleting the request keeps the sheet, the link becomes empty');
+
+    // ТТН з рейсу — лише з прийнятої заявки (тригер на kp_doc_ttn).
+    const cl = (await service(`INSERT INTO public.clients (org_id, name) VALUES ('${A}', 'Агро ТТН') RETURNING id`)).rows[0].id;
+    const ttnRow = (calc) => `INSERT INTO public.kp_doc_ttn (org_id, number, doc_year, doc_date, client_id, calculation_id, place_of_issue, shipper, carrier, consignee, driver, vehicle, load_point, unload_point, cargo_gross_t, tare_t, total_mass_t) VALUES ('${A}', ${calc ? 9001 : 9002}, 2026, '2026-10-28', '${cl}', ${calc ? "'" + calc + "'" : 'NULL'}, 'Київ', '{}', '{}', '{}', '{}', '{}', 'A', 'B', 10, 5, 15)`;
+    const dr2 = '30000000-0000-4000-8000-0000000000c3';
+    await service(`INSERT INTO public.calculations (id, org_id, user_id, name, inputs, results, status) VALUES ('${dr2}', '${A}', '${OA}', 'ТТН чернетка', '{}'::jsonb, '{}'::jsonb, 'draft')`);
+    const ttnDraft = await service(ttnRow(dr2));
+    check(!ttnDraft.ok && /CALC_NOT_ACCEPTED/.test(ttnDraft.message), 'waybill (TTN): a request that is not accepted cannot be the source (server check)', ttnDraft.message);
+    await service(`UPDATE public.calculations SET status = 'accepted' WHERE id = '${dr2}'`);
+    check((await service(ttnRow(dr2))).ok, 'waybill (TTN): an accepted request is fine');
+    check((await service(ttnRow(null))).ok, 'waybill (TTN): without a request nothing changes');
+
+    // Відкат із шапки міграції.
+    const tl = tsSql.split(String.fromCharCode(10));
+    const rbFrom = tl.findIndex((l) => l === '--   BEGIN;');
+    const rbTo = tl.findIndex((l) => l === '--   COMMIT;');
+    const rollback = tl.slice(rbFrom, rbTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
+    await db.exec(rollback);
+    const gone = await one(`SELECT to_regclass('public.kp_doc_trip_sheet') AS tbl, (SELECT count(*)::int FROM pg_proc WHERE proname LIKE 'kp_trip_sheet%' OR proname IN ('kp_calc_doc_prefill', 'kp_doc_ttn_calc_accepted')) AS fns`);
+    check(gone.tbl === null && gone.fns === 0, 'trip sheet rollback: table and functions are gone', JSON.stringify(gone));
+    await db.exec(tsSql);
+    check(true, 'trip sheet rollback: the migration applies again');
 }
 
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту

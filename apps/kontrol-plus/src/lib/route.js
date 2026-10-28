@@ -21,6 +21,12 @@ function parseDocsHash(parts) {
     if (parts.length === 3 && parts[1] === 'tab' && DOC_TABS.includes(parts[2])) return { view: 'docs', sub: 'list', tab: parts[2] };
     if (parts.length === 2 && UUID.test(parts[1])) return { view: 'docs', sub: 'doc', id: parts[1] };
     if (parts.length === 3 && parts[1] === 'ttn' && UUID.test(parts[2])) return { view: 'docs', sub: 'ttn', id: parts[2] };
+    if (parts.length === 3 && parts[1] === 'trip_sheet' && UUID.test(parts[2])) return { view: 'docs', sub: 'trip_sheet', id: parts[2] };
+    // Документ із прийнятої заявки: #/docs/new/ttn/calc/<id> і #/docs/new/trip_sheet/calc/<id>; подорожній лист без заявки — #/docs/new/trip_sheet.
+    if (parts[1] === 'new' && (parts[2] === 'ttn' || parts[2] === 'trip_sheet') && parts[3] === 'calc' && parts.length === 5 && UUID.test(parts[4])) {
+        return { view: 'docs', sub: 'new', kind: parts[2], client: null, calc: parts[4] };
+    }
+    if (parts[1] === 'new' && parts[2] === 'trip_sheet' && parts.length === 3) return { view: 'docs', sub: 'new', kind: 'trip_sheet', client: null, calc: null };
     if (parts[1] === 'new' && parts.length >= 3 && parts.length <= 5 && (parts[2] === 'invoice' || parts[2] === 'act' || parts[2] === 'ttn')
         && parts.slice(3).every((p) => UUID.test(p))) {
         return { view: 'docs', sub: 'new', kind: parts[2], client: parts[3] || null, calc: parts[4] || null };

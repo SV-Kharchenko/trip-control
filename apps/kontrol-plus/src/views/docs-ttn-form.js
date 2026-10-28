@@ -9,6 +9,7 @@ import {
     TTN_FIELD_LABELS, TTN_MAX_LINES, TTN_REQUIRED, TTN_TRAILER_REQUIRED, createTtn, emptyLine, linesGross, massWarning, totalMass,
     ttnErrorField, ttnErrorText, ttnFromPrefill, ttnPayload, validateTtn,
 } from '../lib/ttn.js';
+import { changedPaths, prefillSnapshot } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
 
 function shiftDays(iso, days) {
@@ -48,15 +49,32 @@ export function renderTtnForm(app, access, route) {
             return;
         }
         const clients = (cl.data || []).filter((c) => !c.archived_at);
-        clear(root, buildForm(app, route, clients, drv.data || [], veh.error ? [] : veh.data || [], trl.error ? [] : (trl.data || []).filter((t) => t.active)));
+        // ТТН з рейсу — лише з ПРИЙНЯТОЇ заявки: форма відкривається заповненою (kp_calc_doc_prefill), інакше — пояснення.
+        let calcPre = null;
+        if (route.calc) {
+            const res = await app.supabase.rpc('kp_calc_doc_prefill', { p_calculation: route.calc });
+            const back = h('a', { class: 'back', href: '#/docs' }, '← До документів');
+            if (res.error) {
+                clear(root, back, notice(/CALC_NOT_ACCEPTED/.test(String(res.error.message)) ? 'Спершу прийміть заявку: ТТН з рейсу створюється лише з прийнятої заявки.' : ttnErrorText(res.error)));
+                return;
+            }
+            calcPre = res.data;
+            if (!route.client && calcPre.client) route = { ...route, client: calcPre.client.id };
+            if (!route.client) {
+                clear(root, back, notice('У заявки немає клієнта. Додайте клієнта до заявки або створіть ТТН без заявки (вкладка «Документи»).'));
+                return;
+            }
+        }
+        clear(root, buildForm(app, route, clients, drv.data || [], veh.error ? [] : veh.data || [], trl.error ? [] : (trl.data || []).filter((t) => t.active), calcPre));
     })();
     return root;
 }
 
-function buildForm(app, route, clients, drivers, vehicles, trailers = []) {
+function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPre = null) {
     const today = kyivDate();
     let d = ttnFromPrefill(null);
     let pre = null;
+    let snap = null; // значення, підставлені із заявки: за ним видно, що змінено вручну
     let tried = false;
     const touched = { gross: false, lineGross: false };
     const fields = {};
@@ -79,7 +97,9 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = []) {
     // Підсвітка: порожнє обовʼязкове — одразу (kpt-missing), текст помилки — після першої спроби створити.
     function paint() {
         const errors = validateTtn(d);
+        const changed = new Set(snap ? changedPaths(d, snap) : []);
         for (const [path, f] of Object.entries(fields)) {
+            if (f.mark) f.mark.hidden = !changed.has(path);
             const value = getPath(d, path);
             const missing = isRequired(path) && (value === null || value === undefined || String(value).trim() === '');
             f.wrap.classList.toggle('kpt-missing', missing);
@@ -118,8 +138,13 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = []) {
             paint();
         });
         const req = h('span', { class: 'req', 'aria-hidden': 'true' }, ' *');
-        const wrap = h('div', { class: 'field' + (opts.wide ? ' kpr-wide' : ''), 'data-path': path }, h('label', { for: id }, label || TTN_FIELD_LABELS[path] || path, req), input, hint);
-        fields[path] = { input, hint, wrap, req, baseHint: opts.hint || '' };
+        const reset = h('button', {
+            type: 'button', class: 'kpts-reset', title: 'Повернути значення із заявки', 'aria-label': 'Повернути значення із заявки: ' + (label || TTN_FIELD_LABELS[path] || path),
+            onclick: () => { if (!snap) return; setPath(d, path, snap[path]); input.value = snap[path]; paint(); },
+        }, '↺');
+        const mark = h('span', { class: 'kpts-changed', hidden: true }, 'змінено ', reset);
+        const wrap = h('div', { class: 'field' + (opts.wide ? ' kpr-wide' : ''), 'data-path': path }, h('label', { for: id }, label || TTN_FIELD_LABELS[path] || path, req), input, mark, hint);
+        fields[path] = { input, hint, wrap, req, mark, baseHint: opts.hint || '' };
         return wrap;
     }
 
@@ -383,12 +408,37 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = []) {
         touched.gross = false;
         touched.lineGross = false;
         if (!pre.vehicle && pre.vehicle_id === null && vehicles.length === 1) applyVehicle(vehicles[0]);
+        if (calcPre && route.calc) applyCalcExtras();
         numberHint.textContent = 'Порожньо — автоматичний номер (наступний: ' + (pre.prefix || '') + pre.next_number + '). Можна вказати свій, якщо він вільний.';
         if (pre.calculation) {
-            clear(message, notice('Рейс ' + fmtDate(pre.calculation.trip_date) + ': ' + [pre.calculation.route_from, pre.calculation.route_to].filter(Boolean).join(' — ')
+            clear(message, notice('Заявку прийнято. Рейс ' + fmtDate(pre.calculation.trip_date) + ': ' + [pre.calculation.route_from, pre.calculation.route_to].filter(Boolean).join(' — ')
                 + ((pre.vehicles || []).length > 1 ? '. У рейсі кілька авто — на кожне можна виписати окрему ТТН (оберіть авто нижче).' : ''), 'info'));
         }
         drawBody();
+        if (calcPre && route.calc) {
+            snap = prefillSnapshot(d, Object.keys(fields));
+            paint();
+        }
+    }
+
+    // Із прийнятої заявки понад kp_ttn_prefill: причіп з fleet_trailers, тариф у рядок вантажу, дата рейсу як дата складання.
+    function applyCalcExtras() {
+        if (calcPre.trailer) {
+            Object.assign(d.vehicle, {
+                trailer_make_model: calcPre.trailer.make_model || d.vehicle.trailer_make_model || '',
+                trailer_type: calcPre.trailer.type || d.vehicle.trailer_type || '',
+                trailer_reg_number: calcPre.trailer.plate || d.vehicle.trailer_reg_number || '',
+            });
+        }
+        const rate = calcPre.cargo && calcPre.cargo.rate;
+        if (d.lines[0] && rate !== undefined && rate !== null && !d.lines[0].owner_price && !String(d.lines[0].price || '').trim()) {
+            d.lines[0].price = String(rate).replace('.', ',');
+        }
+        const trip = calcPre.dates && calcPre.dates.trip_date;
+        if (trip && trip <= shiftDays(today, 1)) {
+            d.doc_date = trip;
+            docDate.value = trip;
+        }
     }
 
     async function loadNextNumber() {

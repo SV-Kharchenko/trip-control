@@ -5,6 +5,7 @@
 import { download } from '../ui.js';
 import { ASSET_BUCKET, docAssetPaths, docFileName } from './docs.js';
 import { ttnFileName } from './ttn.js';
+import { tsFileName } from './trip-sheet.js';
 
 async function assetBytes(app, path) {
     if (!path) return null;
@@ -49,6 +50,19 @@ export async function buildPdfForTtn(app, doc, { copies = 1 } = {}) {
 export async function downloadTtnPdf(app, doc, options) {
     const { bytes, info } = await buildPdfForTtn(app, doc, options);
     download(ttnFileName(doc), bytes, 'application/pdf');
+    return info;
+}
+
+// Подорожній лист: без підпису й печатки (підписують від руки на друкованому аркуші).
+export async function buildPdfForTripSheet(doc) {
+    const mod = await import('./pdf-trip-sheet.js');
+    const fonts = await mod.loadFonts();
+    return mod.buildTripSheetPdf(doc, { fonts });
+}
+
+export async function downloadTripSheetPdf(doc) {
+    const { bytes, info } = await buildPdfForTripSheet(doc);
+    download(tsFileName(doc), bytes, 'application/pdf');
     return info;
 }
 
