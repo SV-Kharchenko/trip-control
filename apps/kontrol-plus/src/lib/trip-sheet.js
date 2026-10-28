@@ -38,14 +38,17 @@ export function toNum(value) {
 }
 const round1 = (n) => Math.round(n * 10) / 10;
 
-// Нормативна витрата, л. loadedKm не задано — весь пробіг за нормою з вантажем (немає її — за порожнім); немає потрібної норми → null.
+// Нормативна витрата, л. loadedKm (пробіг із вантажем) не задано → null: весь пробіг за нормою завантаженого не рахуємо
+// (тоді в картці «—» з підказкою, див. NORM_NEEDS_LOADED_KM). Немає потрібної норми → null.
+export const NORM_NEEDS_LOADED_KM = 'Вкажіть пробіг із вантажем у завданні — без нього норму не рахуємо';
 export function fuelNorm(distance, loadedKm, fuelLoad, fuelEmpty) {
     const dist = toNum(distance);
     if (dist === null || Number.isNaN(dist) || dist < 0) return null;
     const load = toNum(fuelLoad);
     const empty = toNum(fuelEmpty);
     const lk = toNum(loadedKm);
-    const loaded = lk === null || Number.isNaN(lk) ? (load !== null && !Number.isNaN(load) ? dist : 0) : Math.min(Math.max(lk, 0), dist);
+    if (lk === null || Number.isNaN(lk)) return null;
+    const loaded = Math.min(Math.max(lk, 0), dist);
     const emptyKm = dist - loaded;
     const hasLoad = load !== null && !Number.isNaN(load);
     const hasEmpty = empty !== null && !Number.isNaN(empty);
@@ -141,6 +144,7 @@ export function tsFromPrefill(pre, today) {
         }
     }
     if (p.cargo && p.cargo.tonnage !== undefined && p.cargo.tonnage !== null) d.task.tonnage = String(p.cargo.tonnage).replace('.', ',');
+    if (p.cargo && p.cargo.name) d.task.cargo = String(p.cargo.name);
     if (p.vehicle) {
         d.vehicle_id = p.vehicle_id || '';
         Object.assign(d.vehicle, {
@@ -246,6 +250,8 @@ export function tsSections(doc) {
             ['Автомобіль', [veh.make_model, veh.reg_number].filter(Boolean).join(', ') || DASH],
             ['Гаражний номер', v(veh.garage_no)],
             ['Причіп', [veh.trailer_make_model, veh.trailer_reg_number].filter(Boolean).join(', ') || DASH],
+            ['Норма з вантажем, л/100 км', n1(veh.fuel_load)],
+            ['Норма порожнього, л/100 км', n1(veh.fuel_empty)],
             ['Водій', drv.full_name || DASH],
             ['Посвідчення водія', v(drv.license_no)],
             ['Табельний номер', v(drv.tab_no)],
@@ -277,7 +283,7 @@ export function tsSections(doc) {
         { title: 'Розрахунок', rows: closed ? [
             ['Пробіг, км', n1(doc.distance_km)],
             ['Витрата фактична, л', n1(doc.fuel_actual)],
-            ['Витрата за нормою, л', n1(doc.fuel_norm)],
+            ['Витрата за нормою, л', doc.fuel_norm === null || doc.fuel_norm === undefined ? DASH + ' (' + NORM_NEEDS_LOADED_KM.toLowerCase() + ')' : n1(doc.fuel_norm)],
             ['Різниця, л', doc.fuel_diff === null || doc.fuel_diff === undefined ? DASH
                 : `${Number(doc.fuel_diff) > 0 ? '+' : ''}${n1(doc.fuel_diff)} (${Number(doc.fuel_diff) > 0 ? 'перевитрата' : Number(doc.fuel_diff) < 0 ? 'економія' : 'за нормою'})`],
         ] : [['Розрахунок', 'Після закриття листа']] },

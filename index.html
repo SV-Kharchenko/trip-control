@@ -12964,6 +12964,9 @@
         if (routeVariant) inputs.routeVariant = routeVariant;
         const routeVariants = storedRouteVariants();
         if (routeVariants) inputs.routeVariants = routeVariants;
+        // Назва вантажу (якщо в калькуляторі є таке поле) іде в заявку, а ТТН і подорожній лист підставляють її з inputs.cargoName.
+        const cargoEl = document.getElementById('cargo-name');
+        if (cargoEl && cargoEl.value.trim()) inputs.cargoName = cargoEl.value.trim().slice(0, 500);
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
         try {

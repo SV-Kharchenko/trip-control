@@ -15,10 +15,16 @@ test('розрахунок: пробіг = спідометр поверненн
     assert.equal(r.fuel_norm, 130);
     assert.equal(r.fuel_diff, 80);
     assert.deepEqual(r.errors, {});
-    const eco = calcTripSheet({ depart_odometer: 0, return_odometer: 100, depart_fuel_left: 50, fuel_issued: 0, return_fuel_left: 30, fuel_load: 30, fuel_empty: 20 });
-    assert.equal(eco.fuel_norm, 30, 'без loaded_km весь пробіг — за нормою з вантажем');
+    const input = { depart_odometer: 0, return_odometer: 100, depart_fuel_left: 50, fuel_issued: 0, return_fuel_left: 30, fuel_load: 30, fuel_empty: 20 };
+    const noLoaded = calcTripSheet(input);
+    assert.equal(noLoaded.fuel_norm, null, 'без пробігу з вантажем норму не рахуємо (не весь пробіг за нормою завантаженого)');
+    assert.equal(noLoaded.fuel_diff, null);
+    assert.equal(noLoaded.fuel_actual, 20, 'фактична витрата рахується й без норми');
+    const eco = calcTripSheet({ ...input, loaded_km: 100 });
+    assert.equal(eco.fuel_norm, 30);
     assert.equal(eco.fuel_diff, -10, 'економія — від’ємна різниця');
-    assert.equal(fuelNorm(100, null, null, 20), 20, 'лише порожня норма');
+    assert.equal(fuelNorm(100, null, 30, 20), null, 'порожній пробіг із вантажем → null');
+    assert.equal(fuelNorm(100, 0, null, 20), 20, 'увесь пробіг порожнім — лише порожня норма');
     assert.equal(fuelNorm(100, 50, 30, null), null, 'немає потрібної норми → null');
 });
 

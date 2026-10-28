@@ -2,7 +2,7 @@
 // Дані — знімок на момент створення (після випуску незмінні). Анулює лише owner; DELETE немає.
 import { h, clear, spinner, notice } from '../ui.js';
 import { fmtDate } from '../lib/format.js';
-import { docNumberText } from '../lib/docs.js';
+import { CALC_DOC_HINT, calcAccepted, docNumberText } from '../lib/docs.js';
 import { CARGO_COLUMNS, cargoCells, cargoTotals, frontFields, operationRows, FOOTNOTES } from '../lib/ttn-text.js';
 import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
 
@@ -12,10 +12,16 @@ export function renderTtnCard(app, access, id) {
     async function load() {
         const { data, error } = await app.supabase.rpc('kp_ttn_get', { p_id: id });
         if (error) return showError(app, box, error);
-        draw(data);
+        // «Ще одна ТТН на рейс» — лише коли заявка рейсу прийнята.
+        let calcStatus = null;
+        if (data.calculation_id) {
+            const res = await app.supabase.from('calculations').select('status').eq('id', data.calculation_id).maybeSingle();
+            calcStatus = res.data ? res.data.status : null;
+        }
+        draw(data, calcStatus);
     }
 
-    function draw(doc) {
+    function draw(doc, calcStatus) {
         const active = doc.status === 'issued';
         const copies = h('input', { type: 'checkbox', id: 'ttn-copies' });
         const used = new Set((doc.lines || []).flatMap((l) => [l.owner_price ? 'owner' : null, l.bulk ? 'bulk' : null]).filter(Boolean));
@@ -31,7 +37,9 @@ export function renderTtnCard(app, access, id) {
                     excelButton(app, doc.id, 'ttn', 'Excel', 'btn'),
                     h('label', { class: 'check kpt-copies', for: 'ttn-copies' }, copies, ' 3 примірники'),
                     active && access.canWrite && doc.calculation_id
-                        ? h('a', { class: 'btn', href: '#/docs/new/ttn/' + doc.client_id + '/' + doc.calculation_id }, 'Ще одна ТТН на рейс') : null)),
+                        ? (calcAccepted(calcStatus)
+                            ? h('a', { class: 'btn', href: '#/docs/new/ttn/' + doc.client_id + '/' + doc.calculation_id }, 'Ще одна ТТН на рейс')
+                            : h('button', { type: 'button', class: 'btn', disabled: true, title: CALC_DOC_HINT }, 'Ще одна ТТН на рейс')) : null)),
             doc.status === 'cancelled' ? notice('Анульовано ' + fmtDate(doc.cancelled_at) + (doc.cancelled_by_email ? ' (' + doc.cancelled_by_email + ')' : '')
                 + ': ' + (doc.cancelled_reason || '—') + '. Номер не використовується повторно.', 'error') : null,
             h('div', { class: 'card' }, h('dl', { class: 'kpt-dl' }, frontFields(doc).map(([label, value]) =>
