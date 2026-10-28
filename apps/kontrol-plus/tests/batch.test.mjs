@@ -144,3 +144,41 @@ test('п.5: production-збірка містить усі правила мен�
         assert.ok(built.includes(needle), 'у збірці: ' + needle);
     }
 });
+
+// ---- 6. Нові поля водія: валідація й міграція ----
+test('п.6: ІПН / РНОКПП — рівно 10 цифр, паспорт і телефон перевіряються, порожні поля дозволені', async () => {
+    const { validateDriverDetails } = await import('../src/lib/fleet.js');
+    const ok = validateDriverDetails({ phone: '+380 (67) 123-45-67', passport: 'ав 123456', ipn: '1234567890', address: '  м.  Луцьк, вул. Миру 1 ' });
+    assert.deepEqual(ok.errors, {});
+    assert.deepEqual(ok.data, { phone: '+380671234567', passport: 'АВ123456', ipn: '1234567890', address: 'м. Луцьк, вул. Миру 1' });
+    assert.deepEqual(validateDriverDetails({}).data, { phone: null, passport: null, ipn: null, address: null });
+    assert.deepEqual(validateDriverDetails({ passport: '123456789' }).errors, {}, 'ID-картка з 9 цифр');
+    for (const bad of ['123456789', '12345678901', '12345a7890', '1234 5678 9', 'abcdefghij']) {
+        assert.ok(validateDriverDetails({ ipn: bad }).errors.ipn, 'ІПН ' + bad);
+    }
+    assert.equal(validateDriverDetails({ ipn: '12 34 56 78 90' }).data.ipn, '1234567890', 'пробіли прибираються');
+    assert.ok(validateDriverDetails({ passport: 'A1' }).errors.passport);
+    assert.ok(validateDriverDetails({ passport: 'AB12345' }).errors.passport);
+    assert.ok(validateDriverDetails({ phone: '12-34' }).errors.phone);
+    assert.ok(validateDriverDetails({ address: 'x'.repeat(301) }).errors.address);
+    const { ttnErrorText } = await import('../src/lib/ttn.js');
+    assert.match(ttnErrorText({ message: 'DRIVER_BAD_IPN' }), /рівно 10 цифр/);
+});
+
+test('п.6: міграція деталей водія — окрема таблиця з RLS, читання своєю організацією, запис лише власником, ТТН без нових полів', () => {
+    const sql = readRoot('supabase/migrations/20261028100100_kp_driver_details.sql');
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.kp_driver_details/);
+    assert.match(sql, /ENABLE ROW LEVEL SECURITY;/);
+    assert.match(sql, /CREATE POLICY kp_driver_details_select ON public\.kp_driver_details\s+FOR SELECT TO authenticated\s+USING \(org_id = public\.current_org_id\(\)\);/);
+    assert.match(sql, /GRANT SELECT ON public\.kp_driver_details TO authenticated;/);
+    assert.equal(/GRANT (ALL|INSERT|UPDATE|DELETE)[^;]* ON public\.kp_driver_details TO authenticated/i.test(sql), false, 'прямого запису клієнтам немає');
+    assert.match(sql, /v_org uuid := public\.kp_docs_org\('owner'\)/);
+    assert.match(sql, /ipn ~ '\^\[0-9\]\{10\}\$'/);
+    assert.match(sql, /НЕ застосовувати на прод/);
+    // Жодна функція ТТН / довідника водіїв не знає нових полів.
+    const ttn = readRoot('supabase/migrations/20261026130623_kp_docs_ttn.sql');
+    assert.equal(/kp_driver_details|passport/i.test(ttn), false, 'у міграції ТТН немає нових полів водія');
+    const ttnPrint = ['src/lib/ttn-text.js', 'src/lib/pdf-ttn.js', 'src/lib/xlsx-docs.js'].map(read).join('\n');
+    assert.equal(/passport|kp_driver_details|\bipn\b/i.test(ttnPrint), false, 'ТТН (PDF / Excel / текст) не виводить нові поля');
+    assert.match(read('db/check-db.mjs'), /'driver details RLS: direct ' \+ label \+ ' by ' \+ name \+ ' is refused'/);
+});

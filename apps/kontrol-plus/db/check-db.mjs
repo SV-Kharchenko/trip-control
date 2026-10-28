@@ -726,6 +726,76 @@ const ttnAfter = (await one(`SELECT count(*)::int AS n, (SELECT count(*)::int FR
 check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAfter.v === ttnBefore.v,
     'waybills: the migration re-applied over data keeps waybills and vehicle fields');
 
+// Пакет 28.10: деталі водія (персональні дані) і підпис акта. Усі дані вигадані.
+{
+    const detailsSql = fs.readFileSync(new URL('20261028100100_kp_driver_details.sql', DIR), 'utf8');
+    const signSql = fs.readFileSync(new URL('20261028100000_kp_act_signatures.sql', DIR), 'utf8');
+    await db.exec(detailsSql);
+    await db.exec(signSql);
+    check(true, 'batch: both migrations re-applied (idempotent)');
+    const driver = (await user(OA)(`SELECT public.kp_driver_save(NULL, 'Іваненко Іван Петрович', 'AB123456', true) AS id`));
+    check(driver.ok, 'drivers: owner adds a driver', driver.message);
+    const did = driver.rows[0].id;
+    const save = (who, ipn, passport = 'AB123456', phone = '+380 67 123-45-67', address = 'м. Луцьк') =>
+        user(who)(`SELECT public.kp_driver_details_save($1, $2, $3, $4, $5) AS ok`, [did, phone, passport, ipn, address]);
+    const ok = await save(OA, '1234567890');
+    check(ok.ok && ok.rows[0].ok === true, 'driver details: owner saves phone, passport, IPN, address', ok.message);
+    const stored = await one(`SELECT phone, passport, ipn, address FROM public.kp_driver_details WHERE driver_id = $1`, [did]);
+    check(stored.phone === '+380671234567' && stored.passport === 'AB123456' && stored.ipn === '1234567890', 'driver details: values are normalised (phone without spaces, passport upper case)', JSON.stringify(stored));
+    for (const [label, args, code] of [
+        ['IPN of 9 digits', ['123456789'], /DRIVER_BAD_IPN/],
+        ['IPN of 11 digits', ['12345678901'], /DRIVER_BAD_IPN/],
+        ['IPN with letters', ['12345a7890'], /DRIVER_BAD_IPN/],
+        ['bad passport', ['1234567890', 'A1'], /DRIVER_BAD_PASSPORT/],
+        ['bad phone', ['1234567890', 'AB123456', '12-34'], /DRIVER_BAD_PHONE/],
+    ]) {
+        const bad = await save(OA, ...args);
+        check(!bad.ok && code.test(bad.message), 'driver details: ' + label + ' is refused', bad.message);
+    }
+    const emptyOk = await save(OA, '', '', '', '');
+    check(emptyOk.ok, 'driver details: empty values clear the fields', emptyOk.message);
+    await save(OA, '1234567890');
+    const logistWrite = await save(LA, '1234567890');
+    check(!logistWrite.ok && logistWrite.code === '42501', 'driver details: a logist cannot edit (owner only)', logistWrite.message);
+    const dirWrite = await save(DIR1, '1234567890');
+    check(!dirWrite.ok && dirWrite.code === '42501', 'driver details: a director cannot edit', dirWrite.message);
+    for (const [who, label] of [[OA, 'owner'], [LA, 'logist'], [DIR1, 'director']]) {
+        const read = await user(who)(`SELECT * FROM public.kp_driver_details_get($1)`, [did]);
+        check(read.ok && read.rows.length === 1 && read.rows[0].ipn === '1234567890', 'driver details: ' + label + ' of the organisation reads', read.message);
+    }
+    const foreign = await user(OC)(`SELECT * FROM public.kp_driver_details_get($1)`, [did]);
+    check(!foreign.ok && /DRIVER_NOT_FOUND/.test(foreign.message), 'driver details: another organisation cannot read through the RPC', foreign.message);
+    const noPlan = await user(OB)(`SELECT * FROM public.kp_driver_details_get($1)`, [did]);
+    check(!noPlan.ok && noPlan.code === '42501', 'driver details: an organisation without Контроль+ is refused', noPlan.message);
+    // RLS на самій таблиці: свої бачать, чужі — ні, пряма зміна заборонена всім клієнтам.
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.kp_driver_details`)).rows[0].n === 1, 'driver details RLS: a member sees the rows of its own organisation');
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.kp_driver_details`)).rows[0].n === 0, 'driver details RLS: a foreign organisation sees nothing');
+    for (const [label, sql] of [
+        ['INSERT', `INSERT INTO public.kp_driver_details (driver_id, org_id, ipn) VALUES ('${did}', '${A}', '1234567890')`],
+        ['UPDATE', `UPDATE public.kp_driver_details SET ipn = '0000000000'`],
+        ['DELETE', `DELETE FROM public.kp_driver_details`],
+    ]) {
+        for (const [who, name] of [[OA, 'owner'], [LA, 'logist']]) {
+            const direct = await user(who)(sql);
+            check(!direct.ok && direct.code === '42501', 'driver details RLS: direct ' + label + ' by ' + name + ' is refused', direct.message);
+        }
+    }
+    // У ТТН потрапляють лише ПІБ і посвідчення.
+    const listed = await user(OA)(`SELECT to_jsonb(d) AS j FROM public.kp_driver_list(false) AS d`);
+    check(listed.ok && listed.rows.length >= 1 && listed.rows.every((r) => !('phone' in r.j) && !('ipn' in r.j) && !('passport' in r.j) && !('address' in r.j)),
+        'driver details: kp_driver_list (the waybill source) exposes no personal fields', listed.message);
+    // Підпис акта: лише власник; чужі й тарифи без Контроль+ — ні.
+    const ghost = '77777777-7777-4777-8777-777777777777';
+    const logistSign = await user(LA)(`SELECT public.kp_doc_sign($1, true)`, [ghost]);
+    check(!logistSign.ok && logistSign.code === '42501', 'act signature: a logist cannot sign', logistSign.message);
+    const ownerSign = await user(OA)(`SELECT public.kp_doc_sign($1, true)`, [ghost]);
+    check(!ownerSign.ok && /DOC_NOT_FOUND/.test(ownerSign.message), 'act signature: the owner passes the role gate (unknown document)', ownerSign.message);
+    const signedList = await user(LA)(`SELECT * FROM public.kp_doc_signed(ARRAY[$1::uuid])`, [ghost]);
+    check(signedList.ok && signedList.rows.length === 0, 'act signature: members read the signed list', signedList.message);
+    const signedDirect = await user(OA)(`SELECT * FROM public.kp_document_signatures`);
+    check(!signedDirect.ok && signedDirect.code === '42501', 'act signature: no direct table access for clients', signedDirect.message);
+}
+
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
 // (tripFactBasis з api/calculate.js: loadedKm + emptyKm + podachaKm по всіх авто заявки). Сайт лише читаємо.
 process.env.SUPABASE_URL ||= 'https://example.supabase.co';

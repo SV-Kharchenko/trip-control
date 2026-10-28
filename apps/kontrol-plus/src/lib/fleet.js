@@ -69,6 +69,22 @@ export function validateVehicleTtn(input) {
 
 const DRIVER_LICENSE = /^[0-9A-ZА-ЯҐЄІЇ]{1,30}$/;
 
+// Персональні дані водія (картка водія): телефон, паспорт, ІПН / РНОКПП (рівно 10 цифр), адреса. У ТТН не потрапляють.
+// Ті самі правила, що в CHECK-обмеженнях і kp_driver_details_save (міграція 20261028100100).
+export function validateDriverDetails(input) {
+    const errors = {};
+    const src = input || {};
+    const phone = String(src.phone || '').replace(/[\s()\-]/g, '');
+    const passport = String(src.passport || '').replace(/\s/g, '').toUpperCase();
+    const ipn = String(src.ipn || '').replace(/\s/g, '');
+    const address = String(src.address || '').replace(/\s+/g, ' ').trim();
+    if (phone && !/^\+?[0-9]{10,15}$/.test(phone)) errors.phone = 'Телефон: 10–15 цифр, напр. +380671234567';
+    if (passport && !/^([A-ZА-ЯІЇЄҐ]{2}[0-9]{6}|[0-9]{9})$/.test(passport)) errors.passport = 'Серія й номер: 2 літери + 6 цифр (АА123456) або ID-картка з 9 цифр';
+    if (ipn && !/^[0-9]{10}$/.test(ipn)) errors.ipn = 'ІПН / РНОКПП — рівно 10 цифр';
+    if (address.length > 300) errors.address = 'Адреса — до 300 символів';
+    return { data: { phone: phone || null, passport: passport || null, ipn: ipn || null, address: address || null }, errors };
+}
+
 export function validateDriver(input) {
     const errors = {};
     const full_name = String(input.full_name || '').replace(/\s+/g, ' ').trim();
