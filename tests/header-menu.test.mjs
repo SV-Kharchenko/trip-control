@@ -44,7 +44,7 @@ test('header keeps live rates and moves actions into the avatar menu', () => {
     assert.doesNotMatch(top, /menuGo\('fleet'\)/, 'Автопарк лише в лівому меню кабінету Контроль+');
     assert.doesNotMatch(top, />Автопарк</);
     assert.match(top, /menuGo\('company'\)/, 'Реквізити лишаються в меню профілю');
-    assert.match(top, /Історія і шаблони/);
+    assert.match(top, /Заявки і шаблони/);
     assert.match(top, /Значення за замовчуванням/);
     assert.match(top, /id="admin-crm-btn"/);
     assert.match(top, /Клієнтська база/);

@@ -246,7 +246,7 @@ test('the site still has every id / class / global the bridge depends on', () =>
 
 test('site: history tab sits right after Overview and the bridge un-highlights it', () => {
     const site = fs.readFileSync(ROOT_INDEX, 'utf8');
-    assert.match(site, /id="studio-nav-overview"[^>]*>Огляд<\/button>\s*<button[^>]*id="studio-nav-history"[^>]*>Історія заявок<\/button>/);
+    assert.match(site, /id="studio-nav-overview"[^>]*>Огляд<\/button>\s*<button[^>]*id="studio-nav-history"[^>]*>Заявки<\/button>/);
     const bridge = fs.readFileSync(new URL('../src/bridge.js', import.meta.url), 'utf8');
     assert.match(bridge, /'studio-nav-calc', 'studio-nav-overview', 'studio-nav-history'/);
 });

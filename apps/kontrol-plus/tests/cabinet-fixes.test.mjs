@@ -57,11 +57,11 @@ test('заголовок звіту — «План/факт» (як у меню)
     assert.equal(/h\('h1', null, 'Звіт план\/факт'\)/.test(report), false);
 });
 
-test('шапка сайту в кабінеті: без «Калькулятор» / «Історія заявок» / «Огляд»; вони — у лівому меню і вкладках «Розрахунків»', () => {
+test('шапка сайту в кабінеті: без «Калькулятор» / «Заявки» / «Огляд»; вони — у лівому меню і вкладках «Розрахунків»', () => {
     assert.match(css, /body\.kp-nav-on #studio-nav-calc, body\.kp-nav-on #studio-nav-overview, body\.kp-nav-on #studio-nav-history, body\.kp-nav-on \.tc-studio-nav \{ display: none !important; \}/);
     assert.match(css, /@media \(min-width: 901px\) \{\s+body\.kp-nav-on\.layout-studio \.tc-topbar \{ flex-wrap: nowrap; \}/);
     assert.match(bridge, /id: 'kp-calc-tab-calc', onclick: openSite\('calc'\) \}, 'Розрахунок'\)/);
-    assert.match(bridge, /id: 'kp-calc-tab-history', onclick: openSite\('history'\) \}, 'Історія заявок'\)/);
+    assert.match(bridge, /id: 'kp-calc-tab-history', onclick: openSite\('history'\) \}, 'Заявки'\)/);
     assert.match(css, /\.kp-calc-tabs \{ display: none;/);
     assert.match(css, /body\.kp-nav-on\[data-studio-view="history"\]:not\(\[data-kp-view\]\) \.kp-calc-tabs/);
 });
@@ -73,7 +73,7 @@ test('статистика: значення KPI не переносяться',
     assert.match(read('src/views/stats.js'), /' грн\/км'/);
 });
 
-test('вкладки «Розрахунок / Історія заявок» вставляються одразу після шапки, над калькулятором', async () => {
+test('вкладки «Розрахунок / Заявки» вставляються одразу після шапки, над калькулятором', async () => {
     const { insertAfterHeader } = await import('../src/bridge.js');
     const calls = [];
     const main = { insertBefore: (node, ref) => calls.push([node, ref]) };

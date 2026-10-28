@@ -60,7 +60,7 @@ test('history: 6 columns, fixed layout without horizontal scroll, status chips, 
     assert.match(css, /#saved-table \{ table-layout: fixed; width: 100%;/);
     assert.match(css, /#saved-section \.comparison-table \{ overflow-x: visible; \}/);
     assert.equal(html.includes('Історія рейсів'), false);
-    assert.match(html, /<span>Історія заявок<\/span>/);
+    assert.match(html, /<span>Заявки<\/span>/);
     assert.match(html, /<option value="pending">На погодженні<\/option>/);
     for (const label of ['На погодженні', 'Прийнята', 'Відхилена', 'Чернетка']) assert.ok(html.includes("'" + label + "'"), label);
     assert.equal(/\bconfirm\(|\balert\(/.test(history + sliceBetween(html, 'async function removeSaved(id)', '// Кнопка одноразового переносу')), false);
@@ -250,7 +250,7 @@ test('browser: numeric fields ≤180px, uncut, A/B badge never overlaps the inpu
     });
 });
 
-test('browser: «Історія заявок» has no horizontal scroll at 1024 … 1920', async (t) => {
+test('browser: «Заявки» has no horizontal scroll at 1024 … 1920', async (t) => {
     await withPage(t, [1024, 1280, 1920], async (page, width, theme) => {
         await page.evaluate(() => setStudioView('history'));
         await page.waitForTimeout(150);

@@ -4113,7 +4113,7 @@
         .tc-f-rate .tc-in > input { min-width: 70px; }
         @media (max-width: 340px) { .tc-sg.nums { grid-template-columns: minmax(0, 1fr); } }
 
-        /* ===== v3: сторінка результату, числові поля рядком, A/B-бейдж, Історія заявок, модал ===== */
+        /* ===== v3: сторінка результату, числові поля рядком, A/B-бейдж, Заявки, модал ===== */
         body.layout-studio { --tc-gap: clamp(12px, 1.3vw, 24px); }
         .tc-in > select.cur { min-width: 84px; }
         .btn-gold { background: var(--gold); border-color: var(--gold); color: #fff; font-weight: 700; }
@@ -4174,7 +4174,7 @@
             body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual { grid-row: 4 !important; grid-template-columns: minmax(0, 1fr); }
         }
 
-        /* Історія заявок: статуси, фіксована таблиця без горизонтального скролу */
+        /* Заявки: статуси, фіксована таблиця без горизонтального скролу */
         .tc-status.is-pending { color: var(--gold); border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); }
         .tc-status.is-accepted, .tc-status.is-done { background: color-mix(in srgb, var(--positive) 12%, transparent); }
         .tc-status.is-rejected { background: color-mix(in srgb, var(--negative) 12%, transparent); }
@@ -4558,7 +4558,7 @@
           <div style="display:flex;gap:6px;align-items:center"><span class="lp-mini-btn">Факт</span><span style="font-size:12px;color:var(--muted)">доби, пробіг, простій і витрати рейсу поруч із планом</span></div>
         </div>
         <div class="lp-txt">
-          <h3>Історія заявок і план/факт</h3>
+          <h3>Заявки і план/факт</h3>
           <p>Збережені розрахунки зі статусами. Для прийнятого чи виконаного рейсу вносиш факт і бачиш, де план розійшовся з реальністю.</p>
         </div>
       </article>
@@ -4742,7 +4742,7 @@
       </details>
       <details>
         <summary>Що буде з даними, коли оплата закінчиться?</summary>
-        <p>Компанія переходить у демо-режим. Історія заявок, автопарк і команда зберігаються, повний доступ до них повертається після оплати.</p>
+        <p>Компанія переходить у демо-режим. Заявки, автопарк і команда зберігаються, повний доступ до них повертається після оплати.</p>
       </details>
       <details>
         <summary>Чи можна повернути гроші?</summary>
@@ -5020,7 +5020,7 @@
             <nav class="tc-studio-nav" aria-label="Розділи">
                 <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
-                <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Історія заявок</button>
+                <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Заявки</button>
             </nav>
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
@@ -5065,7 +5065,7 @@
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('cabinet')">Особистий кабінет</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('company')">Компанія і реквізити</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-team" hidden onclick="menuGo('team')"><span>Команда</span><span class="tc-menu-meta" id="tc-menu-seats">0/3</span></button>
-                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Історія і шаблони</button>
+                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Заявки і шаблони</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('defaults')">Значення за замовчуванням</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-billing" hidden onclick="menuGo('billing')">Тариф і оплата</button>
@@ -5669,7 +5669,7 @@
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
         <button type="button" class="tc-history-toggle" id="history-toggle" aria-expanded="false" aria-controls="history-panel" onclick="toggleHistory()">
-            <span>Історія заявок</span>
+            <span>Заявки</span>
             <span class="tc-history-count" id="history-count"></span>
             <span class="tc-history-chev" aria-hidden="true">▾</span>
         </button>

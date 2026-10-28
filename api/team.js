@@ -965,7 +965,7 @@ export function createTeamService(deps) {
         return { ok: true, logists_see_all: enabled };
     }
 
-    // ---- Погодження заявок (календар «Історія заявок»). Роль перевіряється тут і тригером бази. ----
+    // ---- Погодження заявок (календар «Заявки»). Роль перевіряється тут і тригером бази. ----
     async function loadCalculation(actor, id) {
         const calcId = String(id || '');
         if (!UUID_RE.test(calcId)) throw new HttpError(400, 'BAD_CALC_ID', 'Некоректна заявка.');
