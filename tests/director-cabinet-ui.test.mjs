@@ -201,3 +201,24 @@ test('the Requisites and Statistics slots have a fallback for the plain site and
     const badge = html.slice(html.indexOf('.tc-menu-badge {'), html.indexOf('.tc-menu-badge[hidden]'));
     assert.equal(/#[0-9a-fA-F]{3,8}\b|rgb\(/.test(badge), false);
 });
+
+test('the unread badge keeps WCAG AA contrast (≥ 4.5) in every theme: night, amber, light, dark', () => {
+    const lum = (hex) => {
+        const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    assert.match(html, /\.tc-menu-badge \{[^}]*background: var\(--danger\); color: var\(--surface\);/);
+    for (const head of [':root, [data-theme="night"] {', '[data-theme="amber"] {', '[data-theme="light"] {', '[data-theme="dark"] {']) {
+        const at = html.indexOf('\n        ' + head);
+        assert.ok(at > 0, head);
+        const block = html.slice(at, html.indexOf('\n        }', at));
+        const token = (name) => {
+            const m = block.match(new RegExp('--' + name + ': (#[0-9a-fA-F]{6}|var\\(--[a-z-]+\\))'));
+            assert.ok(m, head + ' defines --' + name);
+            if (m[1].startsWith('var(')) return token(m[1].slice(6, -1));
+            return m[1];
+        };
+        assert.ok(ratio(token('danger'), token('surface')) >= 4.5, head + ' badge contrast ' + ratio(token('danger'), token('surface')).toFixed(2));
+    }
+});
