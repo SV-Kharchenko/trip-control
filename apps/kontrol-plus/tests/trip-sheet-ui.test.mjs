@@ -79,3 +79,18 @@ test('вкладка перейменована: ніде в UI не лишил�
         assert.doesNotMatch(read(file).replace(/^\/\/.*$/gm, ''), /2-ТН/, file);
     }
 });
+
+test('ТТН із прийнятої заявки: форма питає kp_calc_doc_prefill, без прийняття — пояснення, «змінено» + повернення, дата рейсу, причіп і тариф', () => {
+    const form = read('src/views/docs-ttn-form.js');
+    assert.match(form, /rpc\('kp_calc_doc_prefill', \{ p_calculation: route\.calc \}\)/);
+    assert.match(form, /Спершу прийміть заявку: ТТН з рейсу створюється лише з прийнятої заявки/);
+    assert.match(form, /route = \{ \.\.\.route, client: calcPre\.client\.id \}/);
+    assert.match(form, /class: 'kpts-changed'/);
+    assert.match(form, /Повернути значення із заявки/);
+    assert.match(form, /snap = prefillSnapshot\(d, Object\.keys\(fields\)\)/);
+    assert.match(form, /function applyCalcExtras\(\)/);
+    assert.match(form, /calcPre\.trailer\.plate/);
+    assert.match(form, /d\.lines\[0\]\.price = String\(rate\)/);
+    assert.match(form, /d\.doc_date = trip/);
+    assert.match(read('src/lib/ttn.js'), /CALC_NOT_ACCEPTED/);
+});
