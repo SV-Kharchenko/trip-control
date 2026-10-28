@@ -556,3 +556,9 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 #kp-crm .kpd-st-created { color: var(--text); background: var(--bg); }
 #kp-crm .kpd-st-signed { color: var(--positive); border-color: var(--positive); }
 #kp-crm .kpd-kind-act { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; background: var(--info-bg); color: var(--text); border: 1px solid var(--border-soft); }
+
+/* Статистика: графік фіксованої висоти, легенда */
+#kp-crm .kps-chart { padding: 8px 18px 0; min-height: 248px; }
+#kp-crm .kps-chart svg { display: block; max-width: 100%; height: 240px; }
+#kp-crm .kps-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 13px; }
+#kp-crm .kps-legend i { font-style: normal; }

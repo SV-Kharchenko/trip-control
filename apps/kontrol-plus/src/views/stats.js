@@ -17,6 +17,16 @@ export function renderStats(app) {
     const to = h('input', { type: 'date', id: 'kps-to', value: range.to, 'aria-label': 'Період по' });
     const body = h('div', null, spinner());
     let rows = [];
+    let chartBox = null;
+    let currentMonths = [];
+
+    // Висота фіксована (~240), ширина — контейнера; шрифти не масштабуються.
+    function drawChart() {
+        if (!chartBox) return;
+        const w = Math.max(320, Math.round(chartBox.clientWidth || CHART.w));
+        clear(chartBox, svgEl('svg', { width: w, height: CHART.h, viewBox: '0 0 ' + w + ' ' + CHART.h, role: 'img', 'aria-label': 'Дохід і прибуток по місяцях' },
+            monthsChartShapes(currentMonths, w, CHART.h).map(([tag, attrs, text]) => svgEl(tag, attrs, text))));
+    }
 
     function draw() {
         if (!from.value || !to.value || from.value > to.value) {
@@ -26,8 +36,8 @@ export function renderStats(app) {
         const sum = summarize(countedRows(rows, from.value, to.value));
         const months = byMonth(rows, to.value, 6);
         const chart = h('div', { class: 'kps-chart' });
-        chart.append(svgEl('svg', { viewBox: '0 0 ' + CHART.w + ' ' + CHART.h, role: 'img', 'aria-label': 'Дохід і прибуток по місяцях' },
-            monthsChartShapes(months).map(([tag, attrs, text]) => svgEl(tag, attrs, text))));
+        currentMonths = months;
+        chartBox = chart;
         clear(body,
             h('div', { class: 'kps-tiles' },
                 tile('Рейси', String(sum.trips)),
@@ -38,8 +48,9 @@ export function renderStats(app) {
             h('div', { class: 'card kps-card' },
                 h('h3', null, 'Дохід і прибуток по місяцях'),
                 chart,
-                h('p', { class: 'muted small' }, h('span', { class: 'kps-dot kps-gold' }), ' Дохід ', h('span', { class: 'kps-dot kps-green' }), ' Прибуток · останні 6 місяців до кінця періоду')),
+                h('p', { class: 'kps-legend' }, h('span', null, h('i', { class: 'kps-dot kps-gold' }), ' Дохід'), h('span', null, h('i', { class: 'kps-dot kps-green' }), ' Прибуток'), h('span', { class: 'muted' }, 'останні 6 місяців до кінця періоду'))),
             h('p', { class: 'muted small' }, 'Враховано розрахунки зі статусом «Прийнята» або «Виконана». Кілометри — з розрахунку (відстань), без подачі.'));
+        drawChart();
     }
 
     async function load() {
@@ -54,6 +65,10 @@ export function renderStats(app) {
         draw();
     }
 
+    if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('resize', drawChart);
+        if (app.onCleanup) app.onCleanup(() => window.removeEventListener('resize', drawChart));
+    }
     from.addEventListener('change', draw);
     to.addEventListener('change', load);
     load();

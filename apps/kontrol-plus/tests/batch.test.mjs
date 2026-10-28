@@ -92,3 +92,33 @@ test('п.3: «Створити рахунок / акт» тільки на «А�
     const docs = read('src/views/docs.js');
     assert.match(docs, /renderDocList\(app, access, TAB_KIND\[route\.tab\] \|\| '', route\.tab \|\| ''\)/);
 });
+
+// ---- 4. Статистика: графік фіксованої висоти, шрифти 12px, легенда і значення ----
+test('п.4: графік ~240px заввишки, підписи 12px без масштабування, значення над стовпчиками, легенда', async () => {
+    const { CHART, compactMoney, monthsChartShapes } = await import('../src/lib/stats.js');
+    assert.equal(CHART.h, 240);
+    assert.equal(CHART.font, 12);
+    assert.equal(compactMoney(128400), '128 тис');
+    assert.equal(compactMoney(1300000), '1,3 млн');
+    assert.equal(compactMoney(950), '950');
+    const months = [
+        { key: '2026-08', revenue: 0, profit: 0, trips: 0 },
+        { key: '2026-09', revenue: 300000, profit: 50000, trips: 2 },
+        { key: '2026-10', revenue: 1300000, profit: 400000, trips: 5 },
+    ];
+    for (const width of [480, 640, 1100]) {
+        const shapes = monthsChartShapes(months, width, 240);
+        for (const [tag, attrs] of shapes) {
+            if (tag !== 'text') continue;
+            assert.equal(attrs['font-size'], 12, 'підписи фіксованого розміру ' + width);
+            assert.ok(attrs.y >= 10 && attrs.y <= 240, 'підпис у межах висоти ' + attrs.y);
+        }
+        for (const [tag, attrs] of shapes) if (tag === 'rect') assert.ok(attrs.y >= 0 && attrs.y + attrs.height <= 240 + 0.1);
+        const values = shapes.filter(([tag]) => tag === 'text').map(([, , text]) => text);
+        assert.ok(values.includes('1,3 млн') && values.includes('400 тис'), 'значення над стовпчиками ' + values.join(','));
+    }
+    const view = read('src/views/stats.js');
+    assert.match(view, /svgEl\('svg', \{ width: w, height: CHART\.h, viewBox: '0 0 ' \+ w \+ ' ' \+ CHART\.h/);
+    assert.match(view, /class: 'kps-legend'/);
+    assert.match(css, /\.kps-chart svg \{ display: block; max-width: 100%; height: 240px; \}/);
+});
