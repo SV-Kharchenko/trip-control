@@ -128,7 +128,7 @@ test('п.14: клік по варіанту перераховує км, час 
     assert.equal(elements.dist.value, 610, 'четвертого варіанта немає — лишається третій');
     assert.match(html, /const routeVariant = currentRouteVariant\(\);\s+if \(routeVariant\) inputs\.routeVariant = routeVariant;/);
     assert.match(html, /strokeColor: pal\.alt/);
-    assert.match(html, /tcMapPillIcon\(routeVariantText\(r\)/);
+    assert.equal(html.includes('tcMapPillIcon'), false, 'плашки км/час з ліній прибрано');
 });
 
 // ---- Правка F: відрізки — подача, рейс, зупинки; варіанти лише на одному відрізку ----

@@ -522,8 +522,10 @@
         }
         .tc-map-alt:hover { border-color: var(--steel); }
         .tc-map-alt.active { border-color: var(--success); box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 40%, transparent); }
-        .tc-map-alt b { display: block; font-size: 0.78rem; margin-bottom: 2px; }
-        .tc-map-alt span { color: var(--text-muted); }
+        /* Перемикач варіанта: один рядок «Варіант N · км · час»; вибраний — темний, решта — світлі. */
+        .tc-map-alt { white-space: nowrap; font-weight: 600; }
+        .tc-map-alt.active { background: #0D2A29; color: #F4EFE5; border-color: #0D2A29; box-shadow: none; }
+        body:not([data-theme="light"]) .tc-map-alt.active { background: #7C9CFF; color: #0B0E14; border-color: #7C9CFF; }
         .tc-lower {
             display: block; margin-bottom: 12px;
         }
@@ -2610,11 +2612,11 @@
             color: var(--text);
             border-color: var(--border);
         }
-        body.layout-studio .tc-map-alt span { color: var(--muted); }
         body.layout-studio .tc-map-alt.active {
-            border-color: var(--accent);
-            box-shadow: inset 3px 0 0 var(--accent);
+            background: #0D2A29; color: #F4EFE5; border-color: #0D2A29;
+            box-shadow: none;
         }
+        body.layout-studio:not([data-theme="light"]) .tc-map-alt.active { background: #7C9CFF; color: #0B0E14; border-color: #7C9CFF; }
         body.layout-studio .tc-route-bar { display: none !important; }
         @media (max-width: 900px) {
             body.layout-studio .tc-map-frame > .tc-map-alts {
@@ -2623,15 +2625,15 @@
                 width: 100% !important;
                 max-height: none;
                 flex-direction: row;
-                flex-wrap: wrap;
-                overflow: visible;
+                flex-wrap: nowrap;
+                overflow-x: auto;
                 padding: 8px 12px;
                 margin: 0;
             }
             body.layout-studio .tc-map-frame > .tc-map-alts .tc-map-alt {
-                flex: 1 1 140px;
+                flex: 0 0 auto;
                 min-width: 0;
-                max-width: 100%;
+                max-width: none;
             }
         }
         body.layout-studio .tc-costs-visual .tc-costs-table-wrap {
@@ -3513,7 +3515,7 @@
             color: var(--muted, var(--text-muted));
         }
         @media (min-width: 901px) {
-            body.layout-studio .tc-map-frame:has(.tc-map-legend:not([hidden]), .tc-map-osm:not([hidden])) > .tc-map-alts {
+            body.layout-studio .tc-map-frame:has(.tc-map-legend:not([hidden]), .tc-map-osm:not([hidden]), .tc-map-route-label:not([hidden])) > .tc-map-alts {
                 max-height: calc(100% - 130px);
             }
         }
@@ -14576,11 +14578,11 @@
         if (!box || !uiPreview) return;
         box.classList.add('visible');
         box.innerHTML = [
-            ['E50/M12', '798 км · ~9 год'],
-            ['E95/M05', '812 км · ~9 год']
+            ['Варіант 1', '798 км · 9 год 12 хв'],
+            ['Варіант 2', '812 км · 9 год 40 хв']
         ].map(function (row, i) {
             return '<button type="button" class="tc-map-alt' + (i === 0 ? ' active' : '') + '" onclick="selectRouteAlternative(' + i + ')">' +
-                '<b>' + row[0] + '</b><span>' + row[1] + '</span></button>';
+                row[0] + ' · ' + row[1] + '</button>';
         }).join('');
     }
     function renderSavedTable() {
@@ -15081,21 +15083,13 @@
         return path;
     }
 
-    // Плашка варіанта маршруту: «км · год хв». Вибраний — темний, решта — сірі.
+    // Підпис перемикача варіанта: «Варіант N · км · год хв». Плашок на лініях немає — вони налазили одна на одну.
+    function routeVariantLabel(route, i) {
+        return 'Варіант ' + (i + 1) + ' · ' + routeVariantText(route);
+    }
     function routeVariantText(route) {
         const t = routeTotals(route.altRoute || route);
         return t.km + ' км · ' + Math.floor(t.min / 60) + ' год ' + (t.min % 60) + ' хв';
-    }
-    function tcMapPillIcon(text, fill, color, ring) {
-        const w = Math.max(70, Math.round(text.length * 7 + 18));
-        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="26" viewBox="0 0 ' + w + ' 26">' +
-            '<rect x="1" y="1" width="' + (w - 2) + '" height="24" rx="12" fill="' + fill + '" stroke="' + ring + '" stroke-width="2"/>' +
-            '<text x="' + (w / 2) + '" y="13" dy="0.36em" text-anchor="middle" font-family="Manrope, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="' + color + '">' + escHtml(text) + '</text></svg>';
-        return {
-            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-            scaledSize: new google.maps.Size(w, 26),
-            anchor: new google.maps.Point(w / 2, 13)
-        };
     }
     function addRouteMarker(position, icon, title, zIndex) {
         if (!position) return;
@@ -15141,20 +15135,6 @@
                 path: mainPath, map: map, clickable: false, zIndex: 3,
                 strokeColor: pal.main, strokeWeight: 5, strokeOpacity: 0.95
             }));
-            if (variants.length > 1) {
-                variants.forEach(function (r, i) {
-                    const path = (r.altRoute || r).overview_path || [];
-                    if (!path.length) return;
-                    const on = i === view.idx;
-                    const pill = new google.maps.Marker({
-                        position: path[Math.floor(path.length / 2)], map: map, cursor: on ? 'default' : 'pointer', zIndex: on ? 30 : 25,
-                        title: on ? 'Вибраний варіант' : 'Вибрати цей варіант',
-                        icon: tcMapPillIcon(routeVariantText(r), on ? pal.main : pal.stop, on ? pal.onAccent : pal.altText, on ? pal.ring : pal.alt)
-                    });
-                    pill.addListener('click', function () { selectRouteAlternative(i); });
-                    routeOverlays.push(pill);
-                });
-            }
             for (let i = feedLegs + 1; i < legs.length; i++) addRouteMarker(legs[i].start_location, stop, 'Проміжна зупинка', 10);
             if (feedLegs) addRouteMarker(legs[0].start_location, pin('П', pal.teal, pal.onTeal), 'Подача', 20);
             if (legs.length > feedLegs) {
@@ -15559,10 +15539,9 @@
         box.classList.add('visible');
         box.innerHTML = routes.map(function (r, i) {
             const active = i === selectedIdx ? ' active' : '';
-            const label = (r.summary && String(r.summary).trim()) ? r.summary : ('Варіант ' + (i + 1));
-            return '<button type="button" class="tc-map-alt' + active + '" onclick="selectRouteAlternative(' + i + ')">' +
-                '<b>' + escHtml(label) + '</b>' +
-                '<span>' + routeVariantText(r) + '</span></button>';
+            const via = (r.summary && String(r.summary).trim()) ? ' title="через ' + escHtml(r.summary) + '"' : '';
+            return '<button type="button" class="tc-map-alt' + active + '" aria-pressed="' + (i === selectedIdx) + '"' + via + ' onclick="selectRouteAlternative(' + i + ')">' +
+                escHtml(routeVariantLabel(r, i)) + '</button>';
         }).join('');
     }
 
