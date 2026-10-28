@@ -47,20 +47,23 @@ test('маршрути: нові розділи, підвкладки і ред�
     assert.deepEqual(parseCrmHash('#/fleet'), { view: 'fleet', sub: 'cars' });
     assert.deepEqual(parseCrmHash('#/fleet/trailers'), { view: 'fleet', sub: 'trailers' });
     assert.deepEqual(parseCrmHash('#/drivers'), { view: 'drivers' });
-    assert.deepEqual(parseCrmHash('#/company'), { view: 'company' });
-    assert.deepEqual(parseCrmHash('#/stats'), { view: 'stats' });
+    // «Реквізити компанії» і «Статистика» — вкладки Особистого кабінету сайту: тут це не розділи Контроль+.
+    assert.equal(parseCrmHash('#/company'), null);
+    assert.equal(parseCrmHash('#/stats'), null);
+    assert.equal(parseCrmHash('#/cabinet/requisites'), null);
+    assert.equal(legacyRedirect('#/company'), null);
     assert.deepEqual(parseCrmHash('#/report/debts'), { view: 'report', sub: 'debts' });
     for (const tab of DOC_TABS) assert.deepEqual(parseCrmHash('#/docs/tab/' + tab), { view: 'docs', sub: 'list', tab });
     assert.equal(parseCrmHash('#/docs/tab/zzz'), null);
     assert.equal(parseCrmHash('#/fleet/x'), null);
     assert.equal(legacyRedirect('#/docs/fleet'), '#/fleet');
-    assert.equal(legacyRedirect('#/docs/requisites'), '#/company');
+    assert.equal(legacyRedirect('#/docs/requisites'), '#/cabinet/requisites');
     assert.equal(legacyRedirect('#/docs/debts'), '#/report/debts');
     assert.equal(legacyRedirect('#/docs/debts?x=1'), '#/report/debts');
     assert.equal(legacyRedirect('#/docs'), null);
     assert.equal(legacyRedirect('#/report'), null);
     assert.equal(legacyRedirect(''), null);
-    for (const view of ['fleet', 'drivers', 'company', 'stats']) assert.equal(tabOf({ view }), view);
+    for (const view of ['fleet', 'drivers']) assert.equal(tabOf({ view }), view);
     assert.equal(tabOf({ view: 'report', sub: 'debts' }), 'report');
     assert.match(bridge, /legacyRedirect\(location\.hash\)/);
     assert.match(bridge, /history\.replaceState\(null, '', location\.pathname \+ location\.search \+ moved\)/);
@@ -69,7 +72,7 @@ test('маршрути: нові розділи, підвкладки і ред�
 test('меню: порядок, підписи, іконки inline SVG, згортання до іконок на ≤1024', async () => {
     const { NAV_ITEMS } = await import('../src/bridge.js');
     assert.deepEqual(NAV_ITEMS.map((item) => item[1]),
-        ['Огляд', 'Розрахунки', 'Клієнти', 'Автопарк', 'Водії', 'Ремонти', 'GPS', 'Документи', 'План/факт', 'Статистика', 'Реквізити компанії']);
+        ['Огляд', 'Розрахунки', 'Клієнти', 'Автопарк', 'Водії', 'Ремонти', 'GPS', 'Документи', 'План/факт']);
     for (const [key] of NAV_ITEMS) assert.ok(NAV_ICON_NAMES.includes(key), 'іконка для ' + key);
     const icons = read('src/nav-icons.js');
     assert.match(icons, /svgEl\('svg', \{ viewBox: '0 0 16 16', width: 16, height: 16, fill: 'none', stroke: 'currentColor'/);
@@ -91,6 +94,7 @@ test('реквізити компанії: рядки grid 160px auto, поле 
     assert.match(block, /text-align: left;/);
     assert.match(block, /\.form \.actions \{ justify-content: flex-end;/);
     const company = read('src/views/company.js');
+    assert.match(company, /export function renderCabinetRequisites/);
     assert.match(company, /kpr-req/);
     assert.match(company, /renderRequisites\(app, access\)/);
     // Логіку збереження не міняли: kp_requisites_save і та сама валідація.

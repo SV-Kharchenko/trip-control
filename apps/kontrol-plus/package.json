@@ -5,13 +5,14 @@
   "type": "module",
   "description": "Контроль+ — trip-control.com + CRM перевізника (клієнти, звіт план/факт) на спільній базі",
   "scripts": {
-    "predev": "node scripts/sync-site.mjs",
+    "predev": "node scripts/sync-site.mjs && node scripts/gen-slot-css.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/sync-site.mjs",
+    "prebuild": "node scripts/sync-site.mjs && node scripts/gen-slot-css.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test tests/*.test.mjs",
     "check:db": "node db/check-db.mjs",
+    "gen:slot-css": "node scripts/gen-slot-css.mjs",
     "check:scope": "node scripts/check-scope.mjs"
   },
   "devDependencies": {

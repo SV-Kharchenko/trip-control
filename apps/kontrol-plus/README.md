@@ -39,6 +39,7 @@
 | `body[data-studio-view]` | `setStudioView()` | будь-яка зміна (калькулятор, огляд, логотип, «Історія», закриття кабінету) закриває CRM |
 | `body[data-theme]` (`dark`) | `applyTheme()` | темна палітра `crm.css`; повторна синхронізація навігації |
 | `#missing-hint`, `#onboard-banner`, `#cab-warning` | підказки над калькулятором | ховаються у вкладках CRM |
+| `#cabinet-screen`, `#cab-req-slot`, `#cab-stats-slot`, подія `tc:cabinet-tab`, `.cab-tab.active` | «Особистий кабінет», вкладки «Реквізити» і «Статистика» | `fillCabinetSlot` кладе в слоти екран реквізитів і статистики (стилі — згенерований `src/cabinet-slot.css`, `npm run gen:slot-css`) |
 | `html[data-entry]`, `html[data-screen]` | перший inline-скрипт `<body>` | `kp-entry.js`: гість бачить вхід, не лендинг |
 | `<link rel="manifest" href="/site.webmanifest">`, по одному `</head>` і `</body>` | `index.html` | точки інжекту (`site-html.mjs` падає, якщо їх не рівно по одному) |
 | `navigator.serviceWorker.register('/sw.js')` | код сайту | реєструє SW застосунку; сам міст SW не реєструє |
