@@ -60,7 +60,7 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
             if (fetchGate) await fetchGate;
             return { ok: acceptResponse.status < 400, status: acceptResponse.status, json: async () => acceptResponse.body };
         },
-        MutationObserver: class { observe() { calls.observers += 1; } },
+        MutationObserver: class { constructor(cb) { calls.mutationCb = cb; } observe() { calls.observers += 1; } },
         localStorage: {
             getItem: (k) => (storage.has(k) ? storage.get(k) : null),
             setItem: (k, v) => { storage.set(k, String(v)); },
@@ -108,6 +108,9 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
     return { navEl, body, byId, storage, calls, restore, loc, signIn };
 }
 
+// Пункти лівого меню (aside#kp-side > nav > button*).
+const navItems = (env) => (env.byId['kp-side'] ? env.byId['kp-side'].children[0].children : []);
+
 let n = 0;
 // Окремий екземпляр модуля на кожен випадок (стан моста — на рівні модуля).
 const freshBridge = () => import('../src/bridge.js?case=' + (n += 1));
@@ -142,12 +145,15 @@ test('bridge: site with nav, #main-app and supabaseClient → five tabs and #kp-
         const { startBridge, LEGACY_SESSION_KEY } = await freshBridge();
         assert.equal(LEGACY_SESSION_KEY, 'kp-auth');
         assert.equal(await startBridge(), true);
-        assert.deepEqual(env.navEl.children.map((b) => b.id), ['kp-nav-clients', 'kp-nav-report', 'kp-nav-gps', 'kp-nav-repairs', 'kp-nav-docs']);
-        assert.equal(env.navEl.children[2].hidden, true, 'GPS tab hidden without a session');
-        assert.equal(env.navEl.children[3].hidden, true, 'Ремонти hidden without a session');
-        assert.equal(env.navEl.children[4].hidden, true, 'Документи hidden without a session');
-        assert.equal(env.navEl.children[0].hidden, undefined, 'Клієнти / Звіт as before');
-        assert.deepEqual(env.byId['main-app'].children.map((el) => el.id), ['kp-crm']);
+        const items = navItems(env);
+        assert.deepEqual(items.map((b) => b.id.replace('kp-nav-', '')),
+            ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report', 'stats', 'company']);
+        const hidden = Object.fromEntries(items.map((b) => [b.id.replace('kp-nav-', ''), b.hidden === true]));
+        assert.deepEqual(hidden, { overview: false, calc: false, clients: false, fleet: true, drivers: true, repairs: true, gps: true, docs: true, report: false, stats: false, company: true },
+            'без сесії: GPS, Ремонти, Документи, Автопарк, Водії, Реквізити сховані');
+        assert.equal(env.body.classList.contains('kp-nav-on'), true);
+        assert.equal(env.navEl.children.length, 0, 'the site nav is left alone');
+        assert.deepEqual(env.byId['main-app'].children.map((el) => el.id), ['kp-crm', 'kp-calc-tabs']);
         assert.equal(env.calls.warn, 0);
         assert.deepEqual(env.calls.removed, ['kp-auth'], 'only the legacy key, never the site session');
         assert.equal(env.storage.get('sb-qkfqjorzsxcajcneohoy-auth-token'), 'site');
@@ -177,7 +183,7 @@ for (const [name, context, visible] of [
         try {
             const { startBridge } = await freshBridge();
             assert.equal(await startBridge(), true);
-            const gps = env.navEl.children.find((b) => b.id === 'kp-nav-gps');
+            const gps = navItems(env).find((b) => b.id === 'kp-nav-gps');
             assert.equal(gps.hidden, !visible);
             assert.equal(env.calls.rpcs.kp_context, 1, 'kp_context asked once');
         } finally {
@@ -202,7 +208,7 @@ for (const [name, context, docs, repairs, visible, probes] of [
             const { startBridge } = await freshBridge();
             assert.equal(await startBridge(), true);
             await new Promise((resolve) => setTimeout(resolve, 0));
-            const tab = env.navEl.children.find((b) => b.id === 'kp-nav-docs');
+            const tab = navItems(env).find((b) => b.id === 'kp-nav-docs');
             assert.equal(tab.hidden, !visible);
             assert.equal(env.calls.docsProbe, probes, 'the availability probe runs only for control_plus roles');
         } finally {
@@ -224,7 +230,7 @@ for (const [name, context, repairs, expected] of [
         try {
             const { startBridge } = await freshBridge();
             assert.equal(await startBridge(), true);
-            const tab = (id) => env.navEl.children.find((b) => b.id === id).hidden === true;
+            const tab = (id) => navItems(env).find((b) => b.id === id).hidden === true;
             assert.deepEqual({ repairs: tab('kp-nav-repairs'), clients: tab('kp-nav-clients'), gps: tab('kp-nav-gps') }, expected, 'hidden flags');
             assert.equal(tab('kp-nav-report'), expected.clients, 'Звіт hidden together with Клієнти');
             const badge = expected.repairs ? {} : { kp_maintenance_status: 1 };
@@ -250,9 +256,11 @@ for (const [name, maintenance, expected] of [
             const { startBridge } = await freshBridge();
             assert.equal(await startBridge(), true);
             await ticks();   // бейдж малюється у фоні
-            const tab = env.navEl.children.find((b) => b.id === 'kp-nav-repairs');
-            const spans = tab.children.filter((c) => c.tagName === 'SPAN');
-            assert.equal(nodeText(tab.children[0]), 'Ремонти', 'label kept');
+            const tab = navItems(env).find((b) => b.id === 'kp-nav-repairs');
+            const spans = tab.children.filter((c) => String(c.className).startsWith('kpr-nav-badge'));
+            const label = tab.children.find((c) => c.className === 'lb');
+            assert.equal(nodeText(label), 'Ремонти', 'label kept');
+            assert.equal(tab.children[0].className, 'ic', 'icon kept');
             if (!expected) {
                 assert.equal(spans.length, 0, 'no badge');
                 assert.equal(tab.getAttribute('title'), null);
@@ -356,6 +364,82 @@ test('bridge: repair invite — start and onAuthStateChange at once → one acce
         assert.deepEqual(env.calls.fetch, [{ path: '/api/repairs/invites', body: { action: 'accept', token: TOKEN } }], 'one accept request');
         assert.equal(env.calls.removed.filter((k) => k === 'kp_repair_invite').length, 1, 'key deleted once');
         assert.equal(env.storage.has('kp_repair_invite'), false);
+    } finally {
+        env.restore();
+    }
+});
+
+const NAV_ORDER = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report', 'stats', 'company'];
+// Ліве меню: Автопарк, Водії, Реквізити компанії з'являються разом з «Документами» (функції 4a/4b); менеджер ремонтів бачить лише «Ремонти».
+const visibleKeys = (env) => navItems(env).filter((b) => b.hidden !== true).map((b) => b.id.replace('kp-nav-', ''));
+for (const [name, opts, expected] of [
+    ['owner, migration applied', { context: { control_plus: true, role: 'owner' }, docs: 'ok', repairs: null },
+        ['overview', 'calc', 'clients', 'fleet', 'drivers', 'gps', 'docs', 'report', 'stats', 'company']],
+    ['director (read only)', { context: { control_plus: true, role: 'director' }, docs: 'ok', repairs: null },
+        ['overview', 'calc', 'clients', 'fleet', 'drivers', 'gps', 'docs', 'report', 'stats', 'company']],
+    ['migration 4a not applied', { context: { control_plus: true, role: 'owner' }, docs: 'missing', repairs: null },
+        ['overview', 'calc', 'clients', 'gps', 'report', 'stats']],
+    ['repair manager of another org sees only Ремонти', { context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: RM },
+        ['repairs']],
+    ['company plan: site pages and report only', { context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: null },
+        ['overview', 'calc', 'clients', 'report', 'stats']],
+]) {
+    test(`bridge: left menu — ${name}`, async () => {
+        const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: opts.context, docs: opts.docs, repairs: opts.repairs });
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            await ticks();
+            const got = visibleKeys(env);
+            assert.deepEqual(got, NAV_ORDER.filter((k) => expected.includes(k)), name);
+            assert.deepEqual(navItems(env).map((b) => b.id.replace('kp-nav-', '')), NAV_ORDER, 'DOM order never changes');
+        } finally {
+            env.restore();
+        }
+    });
+}
+
+test('bridge: old #/docs/debts | fleet | requisites redirect to the new sections', async () => {
+    for (const [from, to] of [['#/docs/debts', '#/report/debts'], ['#/docs/fleet', '#/fleet'], ['#/docs/requisites', '#/company']]) {
+        const env = setup(); // без сесії: після редіректу розділ не рендериться, перевіряємо лише hash
+        env.loc.hash = from;
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            assert.deepEqual(env.calls.replaced.filter((p) => p.includes('#/')), ['/' + to], from);
+        } finally {
+            env.restore();
+        }
+    }
+});
+
+
+// Підсвітка «Розрахунки» і вкладок «Розрахунок / Історія заявок» одразу при завантаженні й при кожній зміні data-studio-view.
+test('bridge: active menu item and calc tabs follow data-studio-view from the first render', async () => {
+    const env = setup();
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        const tabsNav = env.byId['main-app'].children.find((c) => c.id === 'kp-calc-tabs');
+        env.byId['kp-calc-tab-calc'] = tabsNav.children[0];
+        env.byId['kp-calc-tab-history'] = tabsNav.children[1];
+        const items = () => navItems(env).filter((b) => b.classList.contains('on')).map((b) => b.id.replace('kp-nav-', ''));
+        const tabs = () => tabsNav.children.filter((b) => b.classList.contains('on')).map((b) => b.id);
+        const change = (view) => {
+            env.body.setAttribute('data-studio-view', view);
+            env.calls.mutationCb([{ attributeName: 'data-studio-view' }]);
+        };
+        env.calls.mutationCb([{ attributeName: 'data-theme' }]);
+        assert.deepEqual(items(), ['calc'], 'калькулятор за замовчуванням: «Розрахунки» підсвічено');
+        assert.deepEqual(tabs(), ['kp-calc-tab-calc']);
+        change('history');
+        assert.deepEqual(items(), ['calc'], 'історія заявок — теж «Розрахунки»');
+        assert.deepEqual(tabs(), ['kp-calc-tab-history']);
+        change('overview');
+        assert.deepEqual(items(), ['overview']);
+        change('calc');
+        assert.deepEqual(items(), ['calc']);
+        assert.deepEqual(tabs(), ['kp-calc-tab-calc']);
     } finally {
         env.restore();
     }

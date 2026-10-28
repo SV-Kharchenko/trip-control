@@ -13,7 +13,7 @@ import {
 export function paintRepairsBadge(button, rows) {
     if (!button) return null;
     const badge = maintenanceBadge(rows);
-    clear(button, 'Ремонти', badge ? h('span', { class: 'kpr-nav-badge kpr-nav-badge-' + badge.kind, 'aria-hidden': 'true' }, String(badge.count)) : null);
+    clear(button, button.kpIcon || null, h('span', { class: 'lb' }, 'Ремонти'), badge ? h('span', { class: 'kpr-nav-badge kpr-nav-badge-' + badge.kind, 'aria-hidden': 'true' }, String(badge.count)) : null);
     if (badge) button.setAttribute('title', badgeTitle(badge));
     else button.removeAttribute('title');
     if (badge) button.setAttribute('aria-label', 'Ремонти. ' + badgeTitle(badge));

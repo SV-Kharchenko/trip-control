@@ -38,7 +38,24 @@ export function reportCsv(rows, groupLabel) {
     return toCsv(header, [...rows.map(line), line(totals(rows))]);
 }
 
-export function renderReport(app) {
+export const REPORT_TABS = [
+    { sub: 'main', hash: '#/report', label: 'План/факт' },
+    { sub: 'debts', hash: '#/report/debts', label: 'Борги' },
+];
+
+export function reportTabs(current) {
+    return h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи звіту' }, REPORT_TABS.map((t) =>
+        h('a', { href: t.hash, class: 'kpr-tab' + (t.sub === current ? ' on' : ''), 'aria-current': t.sub === current ? 'page' : null }, t.label)));
+}
+
+// sub = 'debts': підвкладка «Борги» (екран боргів клієнтів передає міст, щоб звіт не тягнув чанк документів).
+export function renderReport(app, sub = 'main', debtsView = null) {
+    if (sub === 'debts') {
+        return h('section', { class: 'page kpr-page kp-report' },
+            h('div', { class: 'page-head' }, h('h1', null, 'План/факт')),
+            reportTabs('debts'),
+            debtsView);
+    }
     const saved = readPrefs();
     const range = monthRange(kyivDate());
     const from = h('input', { type: 'date', id: 'r-from', value: saved.from || range.from });
@@ -132,7 +149,8 @@ export function renderReport(app) {
     load();
 
     return h('section', { class: 'page kp-report' },
-        h('div', { class: 'page-head' }, h('h1', null, 'Звіт план/факт'), exportBtn),
+        h('div', { class: 'page-head' }, h('h1', null, 'План/факт'), exportBtn),
+        reportTabs('main'),
         h('div', { class: 'toolbar' },
             h('div', { class: 'dates' }, h('label', { for: 'r-from' }, 'З'), from, h('label', { for: 'r-to' }, 'по'), to),
             h('div', { class: 'quick' },

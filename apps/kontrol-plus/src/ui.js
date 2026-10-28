@@ -13,6 +13,17 @@ export function h(tag, attrs, ...children) {
     return el;
 }
 
+// SVG-елемент (createElementNS; у тестовому DOM без нього — звичайний createElement). Лише setAttribute / текст.
+export function svgEl(tag, attrs, ...children) {
+    const el = typeof document.createElementNS === 'function' ? document.createElementNS('http://www.w3.org/2000/svg', tag) : document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs || {})) {
+        if (value === null || value === undefined || value === false) continue;
+        el.setAttribute(key, String(value));
+    }
+    append(el, children);
+    return el;
+}
+
 function append(el, children) {
     for (const child of children) {
         if (child === null || child === undefined || child === false) continue;

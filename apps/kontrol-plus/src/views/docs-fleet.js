@@ -44,7 +44,8 @@ export function docsBlock(vehicle, today) {
     return h('div', { class: 'kpt-docs-block' }, toggle, panel);
 }
 
-export function renderFleet(app, access) {
+// mode: 'all' (як раніше), 'cars' — лише картки авто з полями ТТН, 'drivers' — лише водії (розділ «Водії»).
+export function renderFleet(app, access, mode = 'all') {
     const box = h('div', null, spinner());
     let drivers = [];
 
@@ -54,6 +55,18 @@ export function renderFleet(app, access) {
         if (drv.error) return showError(app, box, drv.error);
         drivers = drv.data || [];
         const today = kyivDate();
+        if (mode === 'drivers') {
+            clear(box, drivers.length || access.canWrite ? driversBlock() : h('div', { class: 'empty' }, h('p', null, 'Скоро тут будуть водії.')));
+            return;
+        }
+        if (mode === 'cars') {
+            clear(box,
+                h('p', { class: 'muted small' }, 'Поля для ТТН: тип, причіп, габарити автопоїзда, тара, максимально дозволена маса, водій за замовчуванням. '
+                    + 'Номер авто, марку, номер і тип причепа та строки документів змінює власник у картці авто на сайті.'),
+                (veh.data || []).length ? h('div', { class: 'kpt-vehicles' }, veh.data.map((v) => vehicleCard(v, today)))
+                    : notice('Авто ще немає — власник додає їх у картці авто на сайті.', 'info'));
+            return;
+        }
         clear(box,
             h('h2', { class: 'section-title' }, 'Авто'),
             h('p', { class: 'muted small' }, 'Поля для ТТН: тип, причіп, габарити автопоїзда, тара, максимально дозволена маса, водій за замовчуванням. '

@@ -60,11 +60,16 @@ export function renderRequisites(app, access) {
         const { data, error } = await app.supabase.rpc('kp_requisites_get');
         if (error) return showError(app, box, error);
         const row = (data || [])[0] || null;
-        clear(box,
-            access.isOwner ? buildForm(row) : readOnly(row),
-            h('h2', { class: 'section-title' }, 'Підпис і печатка'),
+        const card = access.isOwner ? buildForm(row) : readOnly(row);
+        // «Підпис і печатка» — окрема група всередині картки, у тому ж grid «підпис | поле».
+        const group = h('div', { class: 'kpr-assets' },
+            h('h2', { class: 'form-section' }, 'Підпис і печатка'),
             h('p', { class: 'muted small' }, 'Вбудовуються лише в PDF вашої сторони і лише якщо завантажені. PNG або JPEG до 512 КБ.'),
-            h('div', { class: 'grid-2' }, ASSETS.map((a) => assetCard(a, row))));
+            ASSETS.map((a) => assetCard(a, row)));
+        const anchor = access.isOwner ? card.querySelector(':scope > div[aria-live]') : null;
+        if (anchor) card.insertBefore(group, anchor);
+        else card.append(group);
+        clear(box, card);
     }
 
     function readOnly(row) {
@@ -83,7 +88,7 @@ export function renderRequisites(app, access) {
         const inputs = {};
         const hints = {};
         const message = h('div', { 'aria-live': 'polite' });
-        const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Зберегти реквізити');
+        const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Зберегти');
         const initial = row || { default_currency: 'UAH', default_vat_mode: 'net' };
         const rows = FIELDS.map((f) => {
             if (f.section) return h('h2', { class: 'form-section' }, f.section);
@@ -173,15 +178,16 @@ export function renderRequisites(app, access) {
             toast(asset.label + ' видалено');
             load();
         };
-        return h('div', { class: 'card kpd-asset' },
-            h('h3', null, asset.label),
-            preview,
-            h('p', { class: 'hint' }, asset.hint),
-            access.isOwner && row ? h('div', { class: 'actions' },
-                h('label', { class: 'btn btn-sm kpd-file' }, file, path ? 'Замінити' : 'Завантажити'),
-                path ? confirmButton('Видалити', 'Точно видалити?', remove, 'btn btn-sm btn-danger') : null) : null,
-            access.isOwner && !row ? h('p', { class: 'muted small' }, 'Спершу збережіть реквізити.') : null,
-            status);
+        return h('div', { class: 'field kpr-asset' },
+            h('label', null, asset.label),
+            h('div', { class: 'kpr-asset-body' },
+                preview,
+                h('p', { class: 'hint' }, asset.hint),
+                access.isOwner && row ? h('div', { class: 'actions kpr-asset-actions' },
+                    h('label', { class: 'btn btn-sm kpd-file' }, file, path ? 'Замінити' : 'Завантажити'),
+                    path ? confirmButton('Видалити', 'Точно видалити?', remove, 'btn btn-sm btn-danger') : null) : null,
+                access.isOwner && !row ? h('p', { class: 'muted small' }, 'Спершу збережіть реквізити.') : null,
+                status));
     }
 
     load();

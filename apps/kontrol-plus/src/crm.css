@@ -9,7 +9,7 @@ body[data-kp-view] #onboard-banner,
 body[data-kp-view] #cab-warning { display: none !important; }
 
 /* Палітра trip-control.com: світла тема і темна (body[data-theme="dark"] сайту). */
-#kp-crm, #kp-toast {
+#kp-crm, #kp-toast, #kp-side {
     --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE; --row-hover: #FBF7EE;
     --text: #0D2A28; --muted: #5A6B66;
     --border: #D9D1BD; --border-soft: #E3DCCB;
@@ -19,7 +19,7 @@ body[data-kp-view] #cab-warning { display: none !important; }
     --radius-card: 14px; --radius-control: 10px;
     --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
 }
-body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast {
+body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-theme="dark"] #kp-side {
     --bg: #0E1117; --surface: #161B22; --input: #0D1117; --row-hover: #1C222B;
     --text: #E6EDF3; --muted: #8B949E;
     --border: #30363D; --border-soft: #262C34;
@@ -411,4 +411,143 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
     #kp-crm .kp-report .toolbar .dates { width: 100%; }
     #kp-crm .kp-report .toolbar .dates > input[type="date"] { flex: 1 1 0 !important; width: 0 !important; min-width: 0 !important; max-width: none !important; }
     #kp-crm .kp-report .toolbar .quick { margin-left: 0; flex: 1 1 100%; }
+}
+
+/* ===== Ліве меню кабінету (макет design/kontrol-plus-cabinet-mockup.html): 11 пунктів, на ≤1024 — лише іконки ===== */
+body.kp-nav-on { --kp-nav-w: 224px; }
+#kp-side {
+    position: fixed; left: 0; top: var(--kp-nav-top, 64px); bottom: 0; width: var(--kp-nav-w); z-index: 35;
+    display: flex; flex-direction: column; padding: 10px 8px; overflow-y: auto; overflow-x: hidden;
+    background: var(--surface); border-right: 1px solid var(--border); color: var(--text);
+}
+#kp-side .kp-nav { display: flex; flex-direction: column; gap: 2px; }
+#kp-side .kp-nav button {
+    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 42px; padding: 0 10px;
+    border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; font-weight: 600; text-align: left; cursor: pointer;
+}
+#kp-side .kp-nav button[hidden] { display: none; }
+#kp-side .kp-nav button .ic { flex: none; width: 24px; height: 24px; display: grid; place-items: center; }
+#kp-side .kp-nav button .ic svg { display: block; width: 16px; height: 16px; }
+#kp-side .kp-nav button .lb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#kp-side .kp-nav button:hover { background: var(--row-hover); color: var(--text); }
+#kp-side .kp-nav button.on { background: var(--accent); color: var(--on-accent); }
+#kp-side .kp-nav button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+#kp-side .kpr-nav-badge { margin-left: auto; }
+body.kp-nav-on.layout-studio #main-app { padding-left: var(--kp-nav-w) !important; }
+body.kp-nav-on.layout-studio #sticky-top { margin-left: calc(-1 * var(--kp-nav-w)) !important; }
+body.kp-nav-on #studio-nav-overview { display: none; }
+@media (max-width: 1024px) {
+    body.kp-nav-on { --kp-nav-w: 60px; }
+    #kp-side .kp-nav button { justify-content: center; padding: 0; }
+    #kp-side .kp-nav button .lb { display: none; }
+    #kp-side .kpr-nav-badge { position: absolute; margin: -22px 0 0 18px; }
+}
+/* Вузький екран: меню — горизонтальна смуга над вмістом */
+@media (max-width: 760px) {
+    body.kp-nav-on { --kp-nav-w: 0px; }
+    #kp-side { position: static; width: auto; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
+    #kp-side .kp-nav { flex-direction: row; }
+    #kp-side .kp-nav button { flex: 0 0 auto; width: 44px; }
+    body.kp-nav-on.layout-studio #main-app { padding-left: 0 !important; }
+    body.kp-nav-on.layout-studio #sticky-top { margin-left: 0 !important; }
+}
+
+/* ===== Автопарк: фільтр за держномером і компактна таблиця ===== */
+#kp-crm .kpf-filter { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+#kp-crm .kpf-filter label { font-size: 13px; font-weight: 600; color: var(--muted); }
+#kp-crm .kpf-field { position: relative; display: inline-flex; width: 180px; max-width: 100%; }
+#kp-crm .kpf-field input { width: 100%; padding-right: 30px; }
+#kp-crm .kpf-clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
+#kp-crm .kpf-clear[hidden] { display: none; }
+#kp-crm .kpf-table td, #kp-crm .kpf-table th { padding: 7px 12px; }
+#kp-crm .kpf-none td { text-align: center; padding: 22px 12px; }
+#kp-crm .kpf-ttn { margin-top: 16px; }
+#kp-crm .kpf-ttn > summary { cursor: pointer; font-weight: 700; padding: 10px 0; }
+
+/* ===== Реквізити компанії: як у 1С — рядок «підпис 160px | поле», поле одразу за підписом, ширина за змістом ===== */
+#kp-crm .kpr-req .form { display: block; max-width: 640px; margin-inline: auto; padding: 18px; }
+#kp-crm .kpr-req .form .form-section { margin: 14px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border-soft); }
+#kp-crm .kpr-req .form .form-section:first-child { margin-top: 0; }
+#kp-crm .kpr-req .form .field { display: grid; grid-template-columns: 160px auto; column-gap: 12px; row-gap: 2px; justify-content: start; align-items: center; margin: 0; padding: 4px 0; }
+#kp-crm .kpr-req .form .field > label { grid-column: 1; font-weight: 600; font-size: 13px; }
+#kp-crm .kpr-req .form .field > input, #kp-crm .kpr-req .form .field > select, #kp-crm .kpr-req .form .field > textarea { grid-column: 2; width: 240px; max-width: 100%; text-align: left; }
+#kp-crm .kpr-req .form .field > .hint { grid-column: 2; }
+#kp-crm .kpr-req .form .field-check { align-content: center; padding-bottom: 4px; }
+#kp-crm .kpr-req .form .field-check label { grid-column: 1 / -1; }
+#kp-crm .kpr-req .form .field > input#q-legal_name, #kp-crm .kpr-req .form .field > input#q-bank_name, #kp-crm .kpr-req .form .field > textarea#q-legal_address, #kp-crm .kpr-req .form .field > input#q-doc_place,
+#kp-crm .kpr-req .form .field > input#q-signer_name, #kp-crm .kpr-req .form .field > input#q-signer_position { width: 360px; }
+#kp-crm .kpr-req .form .field > input#q-iban { width: 300px; }
+#kp-crm .kpr-req .form .field > input#q-edrpou, #kp-crm .kpr-req .form .field > input#q-ipn, #kp-crm .kpr-req .form .field > input#q-vat_number,
+#kp-crm .kpr-req .form .field > input#q-invoice_prefix, #kp-crm .kpr-req .form .field > input#q-act_prefix, #kp-crm .kpr-req .form .field > input#q-ttn_prefix { width: 140px; }
+#kp-crm .kpr-req .form .field > select { width: 100px; }
+#kp-crm .kpr-req .form .field > select#q-default_vat_mode { width: 240px; }
+#kp-crm .kpr-req .form > div[aria-live] { margin-top: 8px; }
+#kp-crm .kpr-req .form .actions { justify-content: flex-end; margin-top: 14px; }
+@media (max-width: 560px) {
+    #kp-crm .kpr-req .form .field { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .kpr-req .form .field > label, #kp-crm .kpr-req .form .field > input, #kp-crm .kpr-req .form .field > select, #kp-crm .kpr-req .form .field > textarea, #kp-crm .kpr-req .form .field > .hint { grid-column: 1; }
+}
+
+/* ===== Статистика ===== */
+#kp-crm .kps-period { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+#kp-crm .kps-period input { width: 150px; }
+#kp-crm .kps-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; margin: 14px 0; }
+#kp-crm .kps-tile { padding: 14px 16px; display: grid; gap: 4px; }
+#kp-crm .kps-tile small { color: var(--muted); font-weight: 600; }
+#kp-crm .kps-tile b { font-size: clamp(18px, 1vw + 12px, 24px); }
+#kp-crm .kps-card { padding-bottom: 14px; margin-bottom: 12px; }
+#kp-crm .kps-card h3 { margin: 0; padding: 14px 18px; border-bottom: 1px solid var(--border-soft); font-size: 15px; }
+#kp-crm .kps-chart { padding: 10px 18px 0; }
+#kp-crm .kps-chart svg { display: block; width: 100%; height: auto; }
+#kp-crm .kps-card > p { padding: 0 18px; margin: 6px 0 0; }
+#kp-crm .kps-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: baseline; }
+#kp-crm .kps-gold { background: var(--gold); }
+#kp-crm .kps-green { background: var(--positive); }
+
+/* ===== Правки кабінету: шапка, вкладки «Розрахунків», реквізити, документи, статистика ===== */
+/* Шапка сайту в кабінеті: «Калькулятор», «Історія заявок», «Огляд» живуть у лівому меню / вкладках «Розрахунків» — у шапці їх немає */
+body.kp-nav-on #studio-nav-calc, body.kp-nav-on #studio-nav-overview, body.kp-nav-on #studio-nav-history, body.kp-nav-on .tc-studio-nav { display: none !important; }
+@media (min-width: 901px) {
+    body.kp-nav-on.layout-studio .tc-topbar { flex-wrap: nowrap; }
+    body.kp-nav-on .tc-nav-panel { min-width: 0; flex: 1 1 auto; }
+    body.kp-nav-on .tc-meta { min-width: 0; overflow: hidden; }
+}
+.kp-calc-tabs { display: none; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--border); }
+body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) .kp-calc-tabs { display: flex; }
+.kp-calc-tabs button { border: 0; background: none; padding: 10px 14px; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
+.kp-calc-tabs button.on { color: var(--text); border-color: var(--gold); }
+
+/* Реквізити: «Зберегти» звичайної ширини справа внизу, «Підпис і печатка» — група всередині картки */
+#kp-crm .kpr-req .form .actions .btn { width: auto; flex: 0 0 auto; }
+#kp-crm .kpr-req .kpr-assets { margin-top: 6px; }
+#kp-crm .kpr-req .kpr-asset { display: grid; grid-template-columns: 160px auto; column-gap: 12px; justify-content: start; align-items: start; padding: 6px 0; }
+#kp-crm .kpr-req .kpr-asset > label { font-weight: 600; font-size: 13px; padding-top: 6px; }
+#kp-crm .kpr-req .kpr-asset-body { grid-column: 2; display: grid; gap: 6px; width: 240px; max-width: 100%; }
+#kp-crm .kpr-req .kpr-asset .kpd-asset-preview { min-height: 90px; margin: 0; }
+#kp-crm .kpr-req .kpr-asset .hint { margin: 0; }
+@media (max-width: 560px) {
+    #kp-crm .kpr-req .kpr-asset { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .kpr-req .kpr-asset > label, #kp-crm .kpr-req .kpr-asset-body { grid-column: 1; }
+}
+
+/* Документи: компактні фільтри (підпис зліва, поле за змістом) */
+#kp-crm .kpd-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+#kp-crm .kpd-f { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+#kp-crm .kpd-f input { width: 150px; flex: 0 0 auto; }
+#kp-crm .kpd-f select { width: auto; max-width: 200px; flex: 0 0 auto; }
+#kp-crm .kpd-filters > .kpd-f { flex: 0 0 auto; }
+
+/* Статистика: значення KPI не переносяться */
+#kp-crm .kps-tiles { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+#kp-crm .kps-tile b { white-space: nowrap; font-size: clamp(15px, 0.9vw + 8px, 22px); }
+#kp-crm .kps-tile small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Історія заявок і Огляд: той самий бічний відступ від меню, що й у калькулятора */
+@media (min-width: 761px) {
+    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #main-app, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #main-app {
+        padding-left: calc(var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px))) !important; padding-right: var(--tc-pad, clamp(12px, 2vw, 32px));
+    }
+    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #sticky-top, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #sticky-top {
+        margin-left: calc(-1 * (var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px)))) !important; margin-right: calc(-1 * var(--tc-pad, clamp(12px, 2vw, 32px)));
+    }
 }
