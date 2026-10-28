@@ -196,7 +196,8 @@ test('п.8–10: пошук водіїв лише за ПІБ, номер — н
     assert.deepEqual(keys(DRIVER_FIELDS), ['full_name', 'license_no', 'phone', 'passport', 'ipn', 'address']);
     assert.ok(keys(VEHICLE_FIELDS).includes('label') && keys(VEHICLE_FIELDS).includes('make_model') && keys(VEHICLE_FIELDS).includes('vehicle_type'));
     for (const k of ['length_m', 'tare_t', 'max_mass_t', 'default_driver_id', 'oscpv_on', 'kasko_on', 'service_on']) assert.ok(keys(VEHICLE_FIELDS).includes(k), k);
-    assert.ok(keys(TRAILER_FIELDS).includes('trailer_plate'));
+    assert.ok(keys(TRAILER_FIELDS).includes('plate') && keys(TRAILER_FIELDS).includes('capacity_t') && keys(TRAILER_FIELDS).includes('volume_m3'));
+    assert.ok(keys(VEHICLE_FIELDS).includes('default_trailer_id'), 'поле «Причіп за замовчуванням» у картці авто');
     for (const file of ['fleet', 'drivers']) assert.match(read('src/views/' + file + '.js'), /renderRegistry\(app,/);
     const drivers = read('src/views/drivers.js');
     assert.equal(/validateDriver\(\{ full_name: nameIn|Додати водія'\)\)/.test(drivers), false);
@@ -219,4 +220,24 @@ test('A: між меню й контентом рівно --kp-gap — цент�
 
 test('B: таблиці реєстру — однакові бокові відступи (16px з обох боків, без padding у .table-wrap)', () => {
     assert.match(css, /\.kpg-page \.table-wrap \{ padding: 0; \}/);
+});
+
+// ---- Правка E: причепи як окрема сутність ----
+test('E: вкладка «Причепи» працює з fleet_trailers, «Деактивувати» вимикає причіп, у картці авто — «Причіп за замовчуванням» з «Відчепити», ТТН обирає причіп', () => {
+    const fleet = read('src/views/fleet.js');
+    assert.match(fleet, /rpc\('kp_trailers_list'\)/);
+    assert.match(fleet, /from\('fleet_trailers'\)\.update\(\{ active \}\)/);
+    assert.match(fleet, /default_trailer_id: null/);
+    assert.match(fleet, />?'Відчепити'/);
+    assert.equal(/trailer_plate/.test(fleet), false, 'причепи більше не читаються з колонок тягача');
+    assert.match(fleet, /const \{ trailer_make_model: _skip, \.\.\.payload \} = ttn\.data;/, 'збереження авто не затирає марку причепа');
+    const form = read('src/views/docs-ttn-form.js');
+    assert.match(form, /rpc\('kp_trailers_list'\)/);
+    assert.match(form, /id: 't-trailer'/);
+    assert.match(form, /function applyTrailer\(t\)/);
+    const sql = readRoot('supabase/migrations/20261028110000_kp_fleet_trailers.sql');
+    assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.fleet_trailers/);
+    assert.match(sql, /ADD COLUMN IF NOT EXISTS default_trailer_id/);
+    assert.match(sql, /Відкат/);
+    assert.equal(/DROP COLUMN|DROP TABLE public\.fleet_vehicles/.test(sql.replace(/^--.*$/gm, '')), false, 'міграція нічого не видаляє');
 });

@@ -30,9 +30,10 @@ test('автопарк: рядки таблиць Авто / Причепи з k
     const cars = vehicleRows(vehicles, 'cars', '2026-10-27');
     assert.deepEqual(cars.map((r) => r.plate), ['AA 4821 KT', 'BC 7705 OA']);
     assert.equal(cars[0].service, '2026-11-02');
-    const trailers = vehicleRows(vehicles, 'trailers', '2026-10-27');
+    const trailers = vehicleRows(vehicles, 'trailers', '2026-10-27', [{ id: 't1', plate: 'AA 2210 XP', make_model: 'Schmitz', type: 'зерновоз', active: true, vehicle_labels: ['AA 4821 KT'] }]);
     assert.deepEqual(trailers.map((r) => r.plate), ['AA 2210 XP']);
     assert.equal(trailers[0].model, 'Schmitz');
+    assert.equal(trailers[0].tractors, 'AA 4821 KT');
     assert.deepEqual(cars.filter((r) => plateMatches(r.plate, 'ка 77')).map((r) => r.plate), [], '«ка 77» не збігається');
     assert.deepEqual(cars.filter((r) => plateMatches(r.plate, 'вс 77')).map((r) => r.plate), ['BC 7705 OA']);
     const view = read('src/views/fleet.js');

@@ -7,7 +7,7 @@ import { h, clear, spinner } from '../ui.js';
 export function cardField(spec, value, { disabled = false, options = [] } = {}) {
     const id = 'kpc-' + spec.key;
     let input;
-    if (spec.type === 'driver' || spec.type === 'vehicle' || spec.type === 'trailer_type') {
+    if (spec.type === 'driver' || spec.type === 'vehicle' || spec.type === 'trailer' || spec.type === 'trailer_type') {
         input = h('select', { id, disabled }, options.map((o) => h('option', { value: o.value, selected: String(o.value) === String(value ?? '') }, o.label)));
     } else {
         input = h('input', {

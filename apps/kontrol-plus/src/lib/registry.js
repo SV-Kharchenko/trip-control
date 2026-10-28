@@ -29,6 +29,7 @@ export const VEHICLE_FIELDS = [
     { key: 'tare_t', label: 'Тара', width: 's', suffix: 'т', inputmode: 'decimal' },
     { key: 'max_mass_t', label: 'Макс. дозволена маса', width: 's', suffix: 'т', inputmode: 'decimal' },
     { key: 'default_driver_id', label: 'Водій за замовчуванням', width: 'l', type: 'driver' },
+    { key: 'default_trailer_id', label: 'Причіп за замовчуванням', width: 'l', type: 'trailer', owner: true },
     { section: 'Строки ТО й страхування' },
     { key: 'oscpv_on', label: 'ОСЦПВ до', width: 'm', type: 'date', owner: true },
     { key: 'kasko_on', label: 'КАСКО до', width: 'm', type: 'date', owner: true },
@@ -39,10 +40,18 @@ export const VEHICLE_FIELDS = [
 ];
 
 export const TRAILER_FIELDS = [
-    { key: 'vehicle_id', label: 'Тягач', width: 'l', type: 'vehicle', required: true, owner: true },
-    { key: 'trailer_plate', label: 'Номер причепа', width: 'm', maxlength: 40, required: true, owner: true, placeholder: 'AA 0000 XX' },
-    { key: 'trailer_type', label: 'Тип причепа', width: 'm', type: 'trailer_type', owner: true },
-    { key: 'trailer_make_model', label: 'Марка / модель', width: 'l', maxlength: 100 },
+    { key: 'plate', label: 'Номер причепа', width: 'm', maxlength: 40, required: true, owner: true, placeholder: 'AA 0000 XX' },
+    { key: 'type', label: 'Тип причепа', width: 'm', type: 'trailer_type', owner: true },
+    { key: 'make_model', label: 'Марка / модель', width: 'l', maxlength: 100 },
+    { key: 'capacity_t', label: 'Вантажопідйомність', width: 's', suffix: 'т', inputmode: 'decimal' },
+    { key: 'volume_m3', label: 'Обʼєм', width: 's', suffix: 'м³', inputmode: 'decimal' },
+    { section: 'Строки ТО й страхування' },
+    { key: 'oscpv_on', label: 'ОСЦПВ до', width: 'm', type: 'date', owner: true },
+    { key: 'kasko_on', label: 'КАСКО до', width: 'm', type: 'date', owner: true },
+    { key: 'green_card_on', label: 'Зелена карта до', width: 'm', type: 'date', owner: true },
+    { key: 'inspection_on', label: 'Техогляд до', width: 'm', type: 'date', owner: true },
+    { key: 'tachograph_on', label: 'Тахограф до', width: 'm', type: 'date', owner: true },
+    { key: 'service_on', label: 'ТО до', width: 'm', type: 'date', owner: true },
 ];
 
 export const DRIVER_FIELDS = [
