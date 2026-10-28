@@ -40,6 +40,8 @@
             --amber: #38bdf8; --panel: rgba(16,22,34,0.82); --glass: blur(14px);
             --kpi-glow: rgba(52,211,153,0.35);
             --brand-black: #0A0A0A; --brand-cream: #F0ECE3; --brand-beige: #D6C29E;
+            --surface: #101622; --positive: #34D399;
+            --rc-fg: #E8EDF5; --rc-muted: #A9B4C8; --rc-up: #34D399; --rc-down: #FF8A8A; --rc-be: #FBBF24;
             --font-ui: 'Manrope', sans-serif;
             --font-display: 'Manrope', sans-serif;
             --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -51,6 +53,8 @@
             --danger: #f87171; --input-bg: #0a0c10; --steel: #7dd3fc;
             --amber: #f59e0b; --panel: rgba(20,24,31,0.88); --glass: blur(12px);
             --kpi-glow: rgba(245,158,11,0.28);
+            --surface: #14181F; --positive: #34D399;
+            --rc-fg: #E8EDF5; --rc-muted: #A9B3C4; --rc-up: #34D399; --rc-down: #FF8A8A; --rc-be: #FBBF24;
         }
         [data-theme="light"] {
             --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE;
@@ -59,6 +63,7 @@
             --accent: #0D2A29; --on-accent: #F4EFE5; --gold: #B08A4C; --warning-text: #8A6420;
             --positive: #1F6F4D; --negative: #C2453F; --negative-on-dark: #FF8A8A;
             --teal: #1A6B65; --chart-neutral: #CDBF9F; --muted-on-dark: #A9BCB7;
+            --result-muted-on-light: #3F514C; --result-down-on-light: #A63530; --result-be-on-light: #6B4F1C;
             --radius-card: 14px; --radius-control: 10px;
             --bg-color: var(--bg); --card-bg: var(--surface); --border-color: var(--border);
             --text-main: var(--text); --text-muted: var(--muted);
@@ -3177,6 +3182,11 @@
             background: var(--surface);
             border-color: var(--border);
         }
+        body.layout-studio[data-theme="night"] #dispatcher-result:not(.is-empty),
+        body.layout-studio[data-theme="amber"] #dispatcher-result:not(.is-empty) {
+            --tc-result-fg: var(--rc-fg); --tc-result-muted: var(--rc-muted); --tc-result-up: var(--rc-up); --tc-result-down: var(--rc-down); --tc-result-be: var(--rc-be);
+            background: var(--surface); color: var(--tc-result-fg);
+        }
         body.layout-studio[data-theme="light"] #studio-sum,
         body.layout-studio[data-theme="dark"] #studio-sum { display: none !important; }
         body.layout-studio #dispatcher-result:not(.is-empty) .tc-profit-hero,
@@ -3954,6 +3964,7 @@
         /* Сітки полів: 4 → 2 → 1 колонки за шириною */
         .tc-sg { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); min-width: 0; }
         .tc-sg.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
+        .tc-sg.one { grid-template-columns: minmax(0, 1fr); }
         .tc-f { display: grid; gap: 5px; min-width: 0; align-content: start; }
         .tc-f-notruck { display: none; font-size: var(--tc-fs-s); color: var(--muted); }
         .tc-f-truck:has(#vehicle-norm-row[hidden]) .tc-f-notruck { display: block; }
@@ -4094,7 +4105,7 @@
         #tc-op .tc-op-sub .form-row:has(#calc-type) > label { min-height: 0; }
         #tc-op .tc-in > select { text-overflow: ellipsis; }
         #tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }
-        /* Числа заявки: 2×2 (Відстань | Подача, Вага | Тариф), щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
+        /* Числа заявки: Відстань | Вага вантажу | Тариф у сітці 2 колонки, щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
         .tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .tc-in > select.cur { min-width: 76px; }
         .tc-f-rate .tc-in > input { min-width: 70px; }
@@ -4139,6 +4150,11 @@
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-side {
             grid-column: 2 !important; grid-row: 2 !important; align-self: stretch; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 20px;
             background: color-mix(in srgb, var(--positive) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--positive) 35%, var(--border)); border-radius: var(--radius-card);
+        }
+        /* П.13: у Light картка результату в «Детально» стоїть на світло-зеленому фоні, а токени --tc-result-* там світлі (для темно-бірюзової картки) —
+           дрібні KPI й «Беззбитковість» блякли. Тут темні токени з контрастом ≥ 4.5:1 (перевіряє tests/batch-calc.test.mjs). */
+        body.layout-studio[data-theme="light"][data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > #dispatcher-result:not(.is-empty) {
+            --tc-result-fg: var(--text); --tc-result-muted: var(--result-muted-on-light); --tc-result-up: var(--positive); --tc-result-down: var(--result-down-on-light); --tc-result-be: var(--result-be-on-light);
         }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > #dispatcher-result { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar { margin-top: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -5047,7 +5063,6 @@
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('cabinet')">Особистий кабінет</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('company')">Компанія і реквізити</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="tc-menu-team" hidden onclick="menuGo('team')"><span>Команда</span><span class="tc-menu-meta" id="tc-menu-seats">0/3</span></button>
-                        <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('fleet')">Автопарк</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('history')">Історія і шаблони</button>
                         <button type="button" role="menuitem" class="tc-menu-item" onclick="menuGo('defaults')">Значення за замовчуванням</button>
                         <button type="button" role="menuitem" class="tc-menu-item" id="admin-crm-btn" onclick="menuGo('clients')">Клієнтська база</button>
@@ -6772,10 +6787,10 @@
         const demoNote = opById('tc-demo-fields-note');
         const truckRow = opById('vehicle-norm-row');
 
-        const truck = opCell('tc-f-truck', 'Фура', [truckRow]);
+        const truck = opCell('tc-f-truck', 'ТЗ (транспортний засіб)', [truckRow]);
         const truckLab = document.createElement('label');
         truckLab.className = 'tc-f-lab';
-        truckLab.textContent = 'Фура';
+        truckLab.textContent = 'ТЗ (транспортний засіб)';
         truck.insertBefore(truckLab, truck.firstChild);
         const noTruck = document.createElement('span');
         noTruck.className = 'tc-f-notruck';
@@ -6800,14 +6815,14 @@
             panel1.appendChild(nameRow);
         }
         panel1.appendChild(opGroup('two', [opCell('tc-f-a', 'Звідки', [fromFull, fromDemo]), opCell('tc-f-b', 'Куди', [toFull, toDemo])]));
+        panel1.appendChild(opGroup('one', [opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo])]));
+        if (routeTools) panel1.appendChild(routeTools);
         panel1.appendChild(opGroup('nums', [
             opCell('tc-f-dist', 'Відстань', [distRow]),
-            opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo]),
             opCell('tc-f-weight', 'Вага вантажу', [opRowOf('volume')]),
             rate
         ]));
         panel1.appendChild(opGroup('two', [opCell('tc-f-return', 'Повернення', [opRowOf('return-mode')]), truck]));
-        if (routeTools) panel1.appendChild(routeTools);
         panel1.appendChild(vehicleMore);
         if (demoNote) panel1.appendChild(demoNote);
 
@@ -7088,8 +7103,10 @@
         const dist = stepFieldNum('dist');
         const podacha = stepFieldNum('podacha-dist');
         if (dist) pills.push('<span class="tc-op-pill">' + opNum(dist) + ' км</span>');
-        if (typeof lastDirectionsResponse !== 'undefined' && lastDirectionsResponse && lastDirectionsResponse.routes && lastDirectionsResponse.routes[0]) {
-            const min = routeTotals(lastDirectionsResponse.routes[0]).min;
+        const pickedRoute = lastDirectionsResponse && lastDirectionsResponse.routes
+            ? lastDirectionsResponse.routes[(typeof mainRouteView !== 'undefined' && mainRouteView && mainRouteView.idx) || 0] || lastDirectionsResponse.routes[0] : null;
+        if (pickedRoute) {
+            const min = routeTotals(pickedRoute).min;
             if (min > 0) pills.push('<span class="tc-op-pill">≈ ' + Math.floor(min / 60) + ' год ' + (min % 60) + ' хв</span>');
         }
         if (podacha) pills.push('<span class="tc-op-pill is-dashed">подача ' + opNum(podacha) + ' км</span>');
@@ -13035,6 +13052,8 @@
         const keptClient = clientNameValue();
         let savedId = null;
         const inputs = Object.assign({}, lastExport && lastExport.payload ? lastExport.payload : {}, tripPlaces());
+        const routeVariant = currentRouteVariant();
+        if (routeVariant) inputs.routeVariant = routeVariant;
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
         try {
@@ -14922,10 +14941,11 @@
         try {
             const bounds = new google.maps.LatLngBounds();
             let has = false;
+            if (mainRouteView && lastRoutePath) lastRoutePath.forEach(function (p) { bounds.extend(p); has = true; });
             [directionsRenderer, directionsRendererBackhaul].forEach(function (r) {
                 if (!r) return;
                 const res = r.getDirections && r.getDirections();
-                if (!res || !res.routes || !res.routes[0]) return;
+                if (!res || !res.routes || !res.routes[0] || (r === directionsRenderer && mainRouteView && lastRoutePath)) return;
                 res.routes[0].overview_path.forEach(function (p) { bounds.extend(p); has = true; });
             });
             if (has) map.fitBounds(bounds, 48);
@@ -14987,9 +15007,9 @@
     function tcMapPalette() {
         const light = document.body.getAttribute('data-theme') === 'light';
         return light
-            ? { main: '#0D2A29', back: '#B08A4C', teal: '#2F8F86', onTeal: '#FFFFFF', accent: '#0D2A29', onAccent: '#F4EFE5',
+            ? { alt: '#9AA39F', altText: '#3F514C', main: '#0D2A29', back: '#B08A4C', teal: '#2F8F86', onTeal: '#FFFFFF', accent: '#0D2A29', onAccent: '#F4EFE5',
                 ring: '#FFFFFF', stop: '#FFFDF8', stopRing: '#6B7D78', poi: '#FFFDF8', poiRing: '#CDBF9F' }
-            : { main: '#7C9CFF', back: '#E0B25A', teal: '#4FD1C5', onTeal: '#0B0E14', accent: '#7C9CFF', onAccent: '#0B0E14',
+            : { alt: '#6B7486', altText: '#C9CEDA', main: '#7C9CFF', back: '#E0B25A', teal: '#4FD1C5', onTeal: '#0B0E14', accent: '#7C9CFF', onAccent: '#0B0E14',
                 ring: '#0E1117', stop: '#161B24', stopRing: '#8B93A3', poi: '#161B24', poiRing: '#6B7486' };
     }
 
@@ -15024,6 +15044,22 @@
         return path;
     }
 
+    // Плашка варіанта маршруту: «км · год хв». Вибраний — темний, решта — сірі.
+    function routeVariantText(route) {
+        const t = routeTotals(route.altRoute || route);
+        return t.km + ' км · ' + Math.floor(t.min / 60) + ' год ' + (t.min % 60) + ' хв';
+    }
+    function tcMapPillIcon(text, fill, color, ring) {
+        const w = Math.max(70, Math.round(text.length * 7 + 18));
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="26" viewBox="0 0 ' + w + ' 26">' +
+            '<rect x="1" y="1" width="' + (w - 2) + '" height="24" rx="12" fill="' + fill + '" stroke="' + ring + '" stroke-width="2"/>' +
+            '<text x="' + (w / 2) + '" y="13" dy="0.36em" text-anchor="middle" font-family="Manrope, Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="' + color + '">' + escHtml(text) + '</text></svg>';
+        return {
+            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+            scaledSize: new google.maps.Size(w, 26),
+            anchor: new google.maps.Point(w / 2, 13)
+        };
+    }
     function addRouteMarker(position, icon, title, zIndex) {
         if (!position) return;
         routeOverlays.push(new google.maps.Marker({ position: position, map: map, icon: icon, title: title, zIndex: zIndex, cursor: 'default' }));
@@ -15051,10 +15087,37 @@
             }
             const mainPath = [];
             legs.slice(feedLegs).forEach(function (leg) { legPath(leg).forEach(function (p) { mainPath.push(p); }); });
+            // Інші варіанти (до 3 разом із вибраним): сірі лінії, клік — перерахунок під цей варіант.
+            const variants = ((view.response && view.response.routes) || []).slice(0, ROUTE_ALT_MAX);
+            if (variants.length > 1) {
+                variants.forEach(function (r, i) {
+                    if (i === view.idx) return;
+                    const line = new google.maps.Polyline({
+                        path: (r.altRoute || r).overview_path || [], map: map, clickable: true, zIndex: 1,
+                        strokeColor: pal.alt, strokeWeight: 5, strokeOpacity: 0.9
+                    });
+                    line.addListener('click', function () { selectRouteAlternative(i); });
+                    routeOverlays.push(line);
+                });
+            }
             routeOverlays.push(new google.maps.Polyline({
-                path: mainPath, map: map, clickable: false, zIndex: 2,
+                path: mainPath, map: map, clickable: false, zIndex: 3,
                 strokeColor: pal.main, strokeWeight: 5, strokeOpacity: 0.95
             }));
+            if (variants.length > 1) {
+                variants.forEach(function (r, i) {
+                    const path = (r.altRoute || r).overview_path || [];
+                    if (!path.length) return;
+                    const on = i === view.idx;
+                    const pill = new google.maps.Marker({
+                        position: path[Math.floor(path.length / 2)], map: map, cursor: on ? 'default' : 'pointer', zIndex: on ? 30 : 25,
+                        title: on ? 'Вибраний варіант' : 'Вибрати цей варіант',
+                        icon: tcMapPillIcon(routeVariantText(r), on ? pal.main : pal.stop, on ? pal.onAccent : pal.altText, on ? pal.ring : pal.alt)
+                    });
+                    pill.addListener('click', function () { selectRouteAlternative(i); });
+                    routeOverlays.push(pill);
+                });
+            }
             for (let i = feedLegs + 1; i < legs.length; i++) addRouteMarker(legs[i].start_location, stop, 'Проміжна зупинка', 10);
             if (feedLegs) addRouteMarker(legs[0].start_location, pin('П', pal.teal, pal.onTeal), 'Подача', 20);
             if (legs.length > feedLegs) {
@@ -15296,38 +15359,18 @@
         }
         setRouteBusy(true);
 
-        let waypoints = [];
-        let originPoint = fromQuery;
-
-        if (baseQuery) {
-            originPoint = baseQuery;
-            waypoints.push({ location: fromQuery, stopover: true });
-        }
-
+        // Маршрут розбито на відрізки: подача П→A — окремий запит без варіантів; основний рейс — A→B, а з проміжними
+        // зупинками A→W1, W1→W2 … Wn→B. Google не дає варіантів для запиту з проміжними точками, тому варіанти (до 3)
+        // просимо лише для одного відрізка: єдиного A→B або найдовшого з кількох. Решта відрізків — без варіантів.
+        const stops = [];
         document.querySelectorAll('.waypoint-input').forEach(input => {
             const v = input.value.trim();
-            if (v) waypoints.push({ location: v, stopover: true });
+            if (v) stops.push(v);
         });
-
-        // Alts лише на чистому A→B: немає проміжних і немає подачі (baseQuery додає stopover).
-        // Регресія 7b5a9d0: provideAlternatives інколи зависає → alts-first з timeout,
-        // потім один retry БЕЗ provideAlternatives (шлях e8ee193), щоб UI не зависав.
-        const ENABLE_ROUTE_ALTERNATIVES = true;
-
-        function buildRequest(wantAlts) {
-            const req = {
-                origin: originPoint,
-                destination: toQuery,
-                travelMode: google.maps.TravelMode.DRIVING
-            };
-            if (waypoints.length) req.waypoints = waypoints;
-            if (wantAlts && waypoints.length === 0) req.provideRouteAlternatives = true;
-            return req;
-        }
-
-        const canTryAlts = ENABLE_ROUTE_ALTERNATIVES && waypoints.length === 0;
+        const chain = [fromQuery].concat(stops, [toQuery]);
+        const pairs = chain.slice(0, -1).map(function (origin, i) { return { origin: origin, destination: chain[i + 1] }; });
+        const feedPair = baseQuery ? { origin: baseQuery, destination: fromQuery } : null;
         let settled = false;
-        let activeGen = 0;
 
         function failFinal(msg) {
             if (settled || routeGen !== routeRequestGen) return;
@@ -15343,74 +15386,119 @@
             statusEl.style.color = 'var(--danger)';
         }
 
-        function onRouteResult(gen, response, status, usedAlts) {
-            if (settled || gen !== activeGen || routeGen !== routeRequestGen) return;
-            if (status === 'OK') {
-                settled = true;
-                if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
-                routeAttemptTimer = null;
+        // Один запит Directions з таймаутом (регресія 7b5a9d0: provideAlternatives інколи зависає).
+        function askSegment(pair, wantAlts, timeoutMs) {
+            return new Promise(function (resolve) {
+                let done = false;
+                const timer = setTimeout(function () {
+                    if (!done) { done = true; resolve({ status: 'TIMEOUT' }); }
+                }, timeoutMs);
                 try {
-                    lastDirectionsResponse = response;
-                    clearBackhaulRoute();
-                    applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
-                    routeBuilt = true;
-                    setRouteBusy(false);
-                    rememberRecentRoute();
-                    updateRouteBar();
+                    directionsService.route({
+                        origin: pair.origin, destination: pair.destination, travelMode: google.maps.TravelMode.DRIVING,
+                        provideRouteAlternatives: !!wantAlts
+                    }, function (response, status) {
+                        if (done) return;
+                        done = true;
+                        clearTimeout(timer);
+                        resolve({ status: status, response: response });
+                    });
                 } catch (err) {
-                    setRouteBusy(false);
-                    routeBuilt = false;
-                    updateRouteBar();
-                    statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
-                    statusEl.style.color = 'var(--danger)';
-                    console.error('applyMainRoute failed', err);
+                    if (!done) { done = true; clearTimeout(timer); resolve({ status: 'ERROR', message: err && err.message ? err.message : String(err) }); }
                 }
-                return;
-            }
-            // Alts-first failed → один retry без provideAlternatives
-            if (usedAlts) {
-                statusEl.innerText = '🔍 Повтор без альтернатив (' + status + ')...';
-                statusEl.style.color = 'var(--text-muted)';
-                runAttempt(false);
-                return;
-            }
-            failFinal('❌ Google Maps: ' + status);
+            });
+        }
+        async function askSegmentSafe(pair, wantAlts) {
+            let res = await askSegment(pair, wantAlts, wantAlts ? 18000 : 20000);
+            if (wantAlts && res.status !== 'OK') res = await askSegment(pair, false, 12000); // retry без варіантів (шлях e8ee193)
+            return res;
         }
 
-        function runAttempt(wantAlts) {
+        (async function runSegments() {
+            const jobs = (feedPair ? [feedPair] : []).concat(pairs);
+            const results = await Promise.all(jobs.map(function (pair) { return askSegmentSafe(pair, pairs.length === 1 && pair === pairs[0]); }));
             if (settled || routeGen !== routeRequestGen) return;
-            const usedAlts = !!wantAlts;
-            const gen = ++activeGen;
-            // Перша спроба (alts або single): ~18s; retry без alts коротший.
-            const timeoutMs = usedAlts ? 18000 : (canTryAlts ? 12000 : 20000);
-            if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
-            routeAttemptTimer = setTimeout(function () {
-                if (settled || gen !== activeGen || routeGen !== routeRequestGen) return;
-                if (usedAlts) {
-                    statusEl.innerText = '🔍 Альтернативи не відповіли — будуємо основний маршрут...';
-                    statusEl.style.color = 'var(--text-muted)';
-                    runAttempt(false);
-                    return;
-                }
-                failFinal('❌ Google Maps не відповів (Directions). Перевірте API-ключ, Directions API та HTTP-referrer.');
-            }, timeoutMs);
-
-            try {
-                directionsService.route(buildRequest(wantAlts), function (response, status) {
-                    onRouteResult(gen, response, status, usedAlts);
-                });
-            } catch (err) {
-                if (gen !== activeGen || settled || routeGen !== routeRequestGen) return;
-                if (usedAlts) {
-                    runAttempt(false);
-                    return;
-                }
-                failFinal('❌ Google Maps: ' + (err && err.message ? err.message : err));
+            const failed = results.find(function (r) { return r.status !== 'OK' || !r.response || !r.response.routes || !r.response.routes.length; });
+            if (failed) {
+                failFinal(failed.status === 'TIMEOUT'
+                    ? '❌ Google Maps не відповів (Directions). Перевірте API-ключ, Directions API та HTTP-referrer.'
+                    : '❌ Google Maps: ' + (failed.message || failed.status));
+                return;
             }
-        }
+            const feedRes = feedPair ? results[0] : null;
+            const mainRes = results.slice(feedPair ? 1 : 0);
+            let altIdx = 0;
+            if (mainRes.length > 1) {
+                // Найдовший відрізок отримує варіанти (другий запит; збій — лишається основний маршрут).
+                altIdx = longestSegmentIndex(mainRes.map(function (r) { return r.response.routes[0]; }));
+                const more = await askSegment(pairs[altIdx], true, 18000);
+                if (settled || routeGen !== routeRequestGen) return;
+                if (more.status === 'OK' && more.response && more.response.routes && more.response.routes.length) mainRes[altIdx] = more;
+            }
+            const composed = composeRouteVariants(
+                feedRes ? feedRes.response.routes[0] : null,
+                mainRes.map(function (r) { return r.response.routes[0]; }),
+                altIdx,
+                mainRes[altIdx].response.routes.slice(0, ROUTE_ALT_MAX)
+            );
+            settled = true;
+            if (routeAttemptTimer) clearTimeout(routeAttemptTimer);
+            routeAttemptTimer = null;
+            try {
+                const response = { routes: composed, composed: true, altSegment: altIdx };
+                lastDirectionsResponse = response;
+                clearBackhaulRoute();
+                applyMainRoute(response, 0, baseQuery, fromQuery, toQuery, statusEl);
+                routeBuilt = true;
+                setRouteBusy(false);
+                rememberRecentRoute();
+                updateRouteBar();
+            } catch (err) {
+                setRouteBusy(false);
+                routeBuilt = false;
+                updateRouteBar();
+                statusEl.innerText = '❌ Помилка побудови маршруту: ' + (err && err.message ? err.message : err);
+                statusEl.style.color = 'var(--danger)';
+                console.error('applyMainRoute failed', err);
+            }
+        })();
+    }
 
-        // Без waypoints/подачі: alts-first + retry. Інакше одразу single-route (e8ee193).
-        runAttempt(canTryAlts);
+    const ROUTE_ALT_MAX = 3;
+
+    function routeMeters(route) {
+        return (route.legs || []).reduce(function (sum, leg) { return sum + ((leg.distance && leg.distance.value) || 0); }, 0);
+    }
+    // Індекс найдовшого відрізка (за відстанню); при рівності — перший.
+    function longestSegmentIndex(routes) {
+        let best = 0;
+        routes.forEach(function (r, i) { if (routeMeters(r) > routeMeters(routes[best])) best = i; });
+        return best;
+    }
+    // Варіанти всього маршруту: подача + відрізки основного рейсу, де на відрізку altIdx стоїть i-й варіант.
+    // Ноги подачі — перші (applyMainRoute рахує подачу окремо від рейсу); altRoute — варіант відрізка для кнопок і плашок.
+    function composeRouteVariants(feedRoute, mainRoutes, altIdx, altRoutes) {
+        return altRoutes.map(function (alt) {
+            const legs = [];
+            const path = [];
+            const add = function (route) {
+                (route.legs || []).forEach(function (leg) { legs.push(leg); });
+                (route.overview_path || []).forEach(function (p) { path.push(p); });
+            };
+            if (feedRoute) add(feedRoute);
+            mainRoutes.forEach(function (route, i) { add(i === altIdx ? alt : route); });
+            return { summary: alt.summary, legs: legs, overview_path: path, altRoute: alt };
+        });
+    }
+
+    // Вибраний варіант маршруту — зберігається разом із розрахунком (calculations.inputs.routeVariant).
+    function currentRouteVariant() {
+        const view = mainRouteView;
+        const routes = view && view.response && view.response.routes ? view.response.routes : [];
+        const route = view ? routes[view.idx] : null;
+        if (!route) return null;
+        const t = routeTotals(route);
+        return { index: view.idx, count: Math.min(routes.length, ROUTE_ALT_MAX), summary: route.summary ? String(route.summary) : '', km: t.km, minutes: t.min };
     }
 
     function routeTotals(route) {
@@ -15425,7 +15513,7 @@
     function renderRouteAlternatives(response, selectedIdx) {
         const box = document.getElementById('map-route-alts');
         if (!box) return;
-        const routes = (response && response.routes) || [];
+        const routes = ((response && response.routes) || []).slice(0, ROUTE_ALT_MAX);
         if (routes.length < 2) {
             box.classList.remove('visible');
             box.innerHTML = '';
@@ -15433,12 +15521,11 @@
         }
         box.classList.add('visible');
         box.innerHTML = routes.map(function (r, i) {
-            const t = routeTotals(r);
             const active = i === selectedIdx ? ' active' : '';
             const label = (r.summary && String(r.summary).trim()) ? r.summary : ('Варіант ' + (i + 1));
             return '<button type="button" class="tc-map-alt' + active + '" onclick="selectRouteAlternative(' + i + ')">' +
                 '<b>' + escHtml(label) + '</b>' +
-                '<span>' + t.km + ' км · ~' + t.min + ' хв</span></button>';
+                '<span>' + routeVariantText(r) + '</span></button>';
         }).join('');
     }
 
@@ -15453,18 +15540,20 @@
 
     function applyMainRoute(response, routeIndex, baseQuery, fromQuery, toQuery, statusEl) {
         try {
-            const routes = (response && response.routes) || [];
+            const routes = ((response && response.routes) || []).slice(0, ROUTE_ALT_MAX);
             if (!routes.length) throw new Error('порожня відповідь Directions');
             const idx = Math.max(0, Math.min(Number(routeIndex) || 0, routes.length - 1));
             if (!directionsRenderer) throw new Error('DirectionsRenderer не ініціалізовано');
 
             // Спочатку setDirections, потім setRouteIndex — навпаки ламає рендер при alternatives.
-            directionsRenderer.setDirections(response);
-            try {
-                if (typeof directionsRenderer.setRouteIndex === 'function') {
-                    directionsRenderer.setRouteIndex(idx);
-                }
-            } catch (e) { console.warn('setRouteIndex', e); }
+            if (!response.composed) {
+                directionsRenderer.setDirections(response);
+                try {
+                    if (typeof directionsRenderer.setRouteIndex === 'function') {
+                        directionsRenderer.setRouteIndex(idx);
+                    }
+                } catch (e) { console.warn('setRouteIndex', e); }
+            }
 
             const route = routes[idx];
             if (!route) throw new Error('маршрут #' + idx + ' відсутній');

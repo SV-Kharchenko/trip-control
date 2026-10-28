@@ -57,25 +57,40 @@ export function monthLabel(key) {
     return MONTHS[month - 1] || key;
 }
 
-// Прості стовпчики дохід / прибуток: опис фігур [тег, атрибути, текст?] (малює view через createElementNS).
-export const CHART = { w: 420, h: 190 };
-export function monthsChartShapes(months) {
-    const { w, h } = CHART;
+// Графік у реальних пікселях: ширина = ширина контейнера, висота фіксована ~240, шрифти 12px не масштабуються (viewBox = розмір SVG).
+export const CHART = { w: 640, h: 240, font: 12 };
+
+// Коротке значення над стовпчиком: 128 тис / 1,3 млн.
+export function compactMoney(value) {
+    const n = Math.round(Number(value) || 0);
+    const abs = Math.abs(n);
+    if (abs >= 1000000) return (n / 1000000).toFixed(1).replace('.', ',') + ' млн';
+    if (abs >= 1000) return Math.round(n / 1000) + ' тис';
+    return String(n);
+}
+
+// Опис фігур [тег, атрибути, текст?]: малює view через createElementNS.
+export function monthsChartShapes(months, w = CHART.w, h = CHART.h) {
+    const font = CHART.font;
     const left = 12;
-    const bottom = 24;
-    const top = 12;
+    const bottom = 26;
+    const top = 22; // місце під значення над найвищим стовпчиком
     const max = Math.max(1, ...months.map((x) => Math.max(x.revenue, x.profit, 0)));
     const slot = (w - left * 2) / Math.max(1, months.length);
-    const bar = Math.min(26, slot / 2.6);
+    const bar = Math.max(8, Math.min(46, slot / 2.3));
     const y = (v) => top + (h - top - bottom) * (1 - Math.max(0, v) / max);
     const base = h - bottom;
     const f = (n) => Number(n.toFixed(1));
+    const labelled = bar >= 30;
     const shapes = [['line', { x1: left, y1: base, x2: w - left, y2: base, stroke: 'var(--border)' }]];
     months.forEach((x, i) => {
         const cx = left + slot * i + slot / 2;
-        shapes.push(['rect', { x: f(cx - bar - 1), y: f(y(x.revenue)), width: f(bar), height: f(base - y(x.revenue)), rx: 3, fill: 'var(--gold)' }]);
-        shapes.push(['rect', { x: f(cx + 1), y: f(y(x.profit)), width: f(bar), height: f(base - y(x.profit)), rx: 3, fill: 'var(--positive)' }]);
-        shapes.push(['text', { x: f(cx), y: h - 7, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted)' }, monthLabel(x.key)]);
+        [['revenue', cx - bar - 1, 'var(--gold)'], ['profit', cx + 1, 'var(--positive)']].forEach(([key, bx, fill]) => {
+            const v = Math.max(0, x[key]);
+            shapes.push(['rect', { x: f(bx), y: f(y(v)), width: f(bar), height: f(base - y(v)), rx: 3, fill }]);
+            if (labelled && v > 0) shapes.push(['text', { x: f(bx + bar / 2), y: f(y(v) - 4), 'text-anchor': 'middle', 'font-size': font, fill: 'var(--text)' }, compactMoney(x[key])]);
+        });
+        shapes.push(['text', { x: f(cx), y: h - 8, 'text-anchor': 'middle', 'font-size': font, fill: 'var(--muted)' }, monthLabel(x.key)]);
     });
     return shapes;
 }

@@ -4,7 +4,7 @@
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtDate, kyivDate, monthRange, daysBetween } from '../lib/format.js';
 import {
-    DOC_KIND_LABELS, PAY_STATUS_LABELS, docsAccess, docErrorText, docNumberText, fmtAmount, isMissingFeature,
+    DOC_KIND_LABELS, PAY_STATUS_LABELS, docStatusKey, docStatusLabel, docsAccess, docErrorText, docNumberText, fmtAmount, isMissingFeature,
 } from '../lib/docs.js';
 import { ttnErrorText } from '../lib/ttn.js';
 import { downloadDocPdf, downloadDocXlsx, downloadTtnPdf } from '../lib/docs-pdf-client.js';
@@ -60,8 +60,21 @@ export function excelButton(app, id, kind, label = 'Excel', cls = 'btn btn-sm') 
     }, label);
 }
 
-export function statusBadge(status) {
-    return h('span', { class: 'kpd-st kpd-st-' + status }, PAY_STATUS_LABELS[status] || status);
+// Для актів: «Створено» / «Підписано» / «Анульовано»; для рахунків і ТТН — статус оплати як було.
+export function statusBadge(status, kind = null, signed = false) {
+    return h('span', { class: 'kpd-st kpd-st-' + docStatusKey(kind, status, signed) }, docStatusLabel(kind, status, signed));
+}
+
+// Які з актів підписані (kp_doc_signed); без міграції — порожньо.
+export async function signedActs(app, rows) {
+    const ids = (rows || []).filter((r) => r.kind === 'act').map((r) => r.id);
+    if (!ids.length) return new Set();
+    try {
+        const { data, error } = await app.supabase.rpc('kp_doc_signed', { p_ids: ids });
+        return error ? new Set() : new Set(data || []);
+    } catch {
+        return new Set();
+    }
 }
 
 export function missingNotice() {
@@ -152,6 +165,14 @@ export function ttnStatusFilter(status) {
     return { include: false, value: null };
 }
 
+// Кнопки створення за вкладкою «Документів»: рахунок і акт — лише на «Акти», ТТН — лише на «ТТН / 2-ТН», на решті їх немає.
+export function createButtonsFor(tab) {
+    const all = createButtons();
+    if (tab === 'acts') return all.slice(0, 2);
+    if (tab === 'ttn') return all.slice(2);
+    return [];
+}
+
 export { createButtons };
 
 const STATUS_FILTERS = [
@@ -179,7 +200,7 @@ export function listTotals(rows) {
 // Компактне inline-поле фільтра: підпис зліва, поле за змістом.
 const labeled = (text, control) => h('label', { class: 'kpd-f' }, h('span', null, text), control);
 
-function renderDocList(app, access, presetKind = '') {
+function renderDocList(app, access, presetKind = '', tab = '') {
     const range = monthRange(kyivDate());
     const from = h('input', { type: 'date', value: range.from, 'aria-label': 'Період з' });
     const to = h('input', { type: 'date', value: range.to, 'aria-label': 'Період по' });
@@ -222,24 +243,25 @@ function renderDocList(app, access, presetKind = '') {
             .sort((a, b) => String(b.doc_date).localeCompare(String(a.doc_date)) || String(a.kind).localeCompare(String(b.kind)) || Number(b.number) - Number(a.number));
         if (!rows.length) {
             clear(list, h('div', { class: 'empty' }, h('p', null, 'За цей період документів немає.'),
-                access.canWrite ? h('p', { class: 'muted small' }, 'Створіть рахунок, акт або ТТН кнопками вгорі.') : null));
+                access.canWrite && createButtonsFor(tab).length ? h('p', { class: 'muted small' }, 'Створіть документ кнопками вгорі.') : null));
             return;
         }
         const totals = listTotals(rows);
+        const signed = await signedActs(app, rows);
         clear(list,
             h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
                 h('thead', null, h('tr', null, ['Дата', '№', 'Тип', 'Клієнт', 'Сума', 'Оплачено', 'Борг', 'Строк', 'Статус', ''].map((t) => h('th', null, t)))),
                 h('tbody', null, rows.map((r) => h('tr', { class: r.status === 'cancelled' ? 'is-archived' : '' },
                     h('td', { 'data-label': 'Дата' }, fmtDate(r.doc_date)),
                     h('td', { 'data-label': '№', class: 'mono' }, h('a', { href: r.kind === 'ttn' ? '#/docs/ttn/' + r.id : '#/docs/' + r.id }, docNumberText(r))),
-                    h('td', { 'data-label': 'Тип' }, DOC_KIND_LABELS[r.kind] || r.kind,
+                    h('td', { 'data-label': 'Тип' }, r.kind === 'act' ? h('span', { class: 'kpd-kind kpd-kind-act' }, 'Акт') : (DOC_KIND_LABELS[r.kind] || r.kind),
                         r.kind === 'ttn' && r.vehicle_reg ? h('span', { class: 'muted small' }, ' · ' + r.vehicle_reg) : null),
                     h('td', { 'data-label': 'Клієнт' }, h('a', { href: '#/clients/' + r.client_id }, r.client_name || '—')),
                     h('td', { 'data-label': 'Сума', class: 'mono' }, r.total === null || r.total === undefined ? '—' : h('b', null, fmtAmount(r.total, r.currency))),
                     h('td', { 'data-label': 'Оплачено', class: 'mono' }, r.kind === 'invoice' ? fmtAmount(r.paid, r.currency) : '—'),
                     h('td', { 'data-label': 'Борг', class: 'mono' }, r.debt === null || r.debt === undefined ? '—' : fmtAmount(r.debt, r.currency)),
                     h('td', { 'data-label': 'Строк' }, r.due_date ? fmtDate(r.due_date) : '—'),
-                    h('td', { 'data-label': 'Статус' }, statusBadge(r.pay_status)),
+                    h('td', { 'data-label': 'Статус' }, statusBadge(r.pay_status, r.kind, signed.has(r.id))),
                     h('td', { 'data-label': '' }, h('div', { class: 'actions' },
                         pdfButton(app, r.id, 'PDF', 'btn btn-sm', r.kind === 'ttn' ? 'ttn' : null),
                         excelButton(app, r.id, r.kind === 'ttn' ? 'ttn' : null),
@@ -254,7 +276,7 @@ function renderDocList(app, access, presetKind = '') {
     loadClients().then(load, load);
     return h('div', null,
         h('div', { class: 'toolbar kpd-filters' }, labeled('Період з', from), labeled('по', to), labeled('Тип', kind), labeled('Статус', status), labeled('Клієнт', client)),
-        access.canWrite ? h('div', { class: 'toolbar' }, createButtons()) : null,
+        access.canWrite && createButtonsFor(tab).length ? h('div', { class: 'toolbar' }, createButtonsFor(tab)) : null,
         list);
 }
 
@@ -269,7 +291,7 @@ export function renderDocs(app, route) {
     else if (sub === 'doc') body = renderDocCard(app, access, route.id);
     else if (sub === 'ttn') body = renderTtnCard(app, access, route.id);
     else if (EMPTY_TABS[route.tab]) body = h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, EMPTY_TABS[route.tab][0]), h('p', { class: 'muted' }, EMPTY_TABS[route.tab][1])));
-    else body = renderDocList(app, access, TAB_KIND[route.tab] || '');
+    else body = renderDocList(app, access, TAB_KIND[route.tab] || '', route.tab || '');
     return h('section', { class: 'page kpr-page kpd-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'Документи')),
         h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи документів' }, docsTabs().map((t) =>

@@ -30,16 +30,17 @@ test('автопарк: рядки таблиць Авто / Причепи з k
     const cars = vehicleRows(vehicles, 'cars', '2026-10-27');
     assert.deepEqual(cars.map((r) => r.plate), ['AA 4821 KT', 'BC 7705 OA']);
     assert.equal(cars[0].service, '2026-11-02');
-    const trailers = vehicleRows(vehicles, 'trailers', '2026-10-27');
+    const trailers = vehicleRows(vehicles, 'trailers', '2026-10-27', [{ id: 't1', plate: 'AA 2210 XP', make_model: 'Schmitz', type: 'зерновоз', active: true, vehicle_labels: ['AA 4821 KT'] }]);
     assert.deepEqual(trailers.map((r) => r.plate), ['AA 2210 XP']);
     assert.equal(trailers[0].model, 'Schmitz');
+    assert.equal(trailers[0].tractors, 'AA 4821 KT');
     assert.deepEqual(cars.filter((r) => plateMatches(r.plate, 'ка 77')).map((r) => r.plate), [], '«ка 77» не збігається');
     assert.deepEqual(cars.filter((r) => plateMatches(r.plate, 'вс 77')).map((r) => r.plate), ['BC 7705 OA']);
     const view = read('src/views/fleet.js');
-    assert.match(view, /Нічого не знайдено/);
-    assert.match(view, /kpf-clear/);
+    assert.match(read('src/views/registry.js'), /Нічого не знайдено/);
+    assert.match(read('src/views/registry.js'), /kpf-clear/);
     assert.equal(/class: 'chip|chips/.test(view), false, 'чіпів-зразків немає');
-    assert.match(view, /placeholder: 'напр\. 4821'/);
+    assert.match(view, /searchPlaceholder: 'напр\. 4821'/);
 });
 
 test('маршрути: нові розділи, підвкладки і редіректи зі старих #/docs/…', () => {
@@ -114,11 +115,10 @@ test('план/факт: підвкладки План/факт · Борги, �
     assert.match(bridge, /import\('\.\/views\/docs-debts\.js'\)/);
 });
 
-test('водії: режим «drivers» docs-fleet, порожній стан «Скоро тут будуть водії», без нових таблиць', () => {
-    const fleet = read('src/views/docs-fleet.js');
-    assert.match(fleet, /mode === 'drivers'/);
-    assert.match(fleet, /Скоро тут будуть водії/);
-    assert.match(read('src/views/drivers.js'), /renderFleet\(app, access, 'drivers'\)/);
+test('водії: спільний шаблон реєстру, порожній стан «Скоро тут будуть водії»', () => {
+    const drivers = read('src/views/drivers.js');
+    assert.match(drivers, /Скоро тут будуть водії/);
+    assert.match(drivers, /renderRegistry\(app,/);
 });
 
 test('статистика: плитки (рейси, дохід, прибуток, км, дохід на км) і графік по місяцях з наявних розрахунків', () => {

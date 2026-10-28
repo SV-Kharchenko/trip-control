@@ -285,7 +285,7 @@ test('demo path: OSM instead of Google, the paid branch unchanged, POI search st
     // Google code identical to main.
     const hashes = {
         createAddressAutocomplete: '14972e2290e18993',
-        calculateGoogleRoute: '55dfbd10d93b5646',
+        calculateGoogleRoute: '9823e50b0720ba13', // правка F: маршрут розбито на відрізки (подача / рейс / зупинки)
         initMap: 'fbc9a3b9e85c38e0',
         loadGoogleMaps: 'fe25b745d23abd82',
         searchPOIsAlongRoute: '37ed8ce988a61277'

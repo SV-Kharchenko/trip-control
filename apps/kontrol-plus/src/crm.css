@@ -52,7 +52,7 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .badge-director { background: var(--warn-bg); border-color: #E6D2A8; color: var(--warn); }
 
 /* Сторінки */
-#kp-crm .page.narrow { max-width: 760px; margin: 0 auto; }
+#kp-crm .page.narrow { max-width: 760px; margin: 0; }
 #kp-crm .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 #kp-crm .section-title { margin-top: 28px; }
 #kp-crm .back { display: inline-block; margin-bottom: 12px; text-decoration: none; color: var(--muted); font-weight: 600; }
@@ -414,10 +414,12 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 }
 
 /* ===== Ліве меню кабінету (макет design/kontrol-plus-cabinet-mockup.html): 11 пунктів, на ≤1024 — лише іконки ===== */
-body.kp-nav-on { --kp-nav-w: 224px; }
+/* Геометрія меню не залежить від JS: змінні мають значення за замовчуванням і на :root, і на body (див. п.5 PR). */
+:root { --kp-nav-w: 224px; --kp-gap: 24px; }
+body.kp-nav-on { --kp-nav-w: 224px; --kp-gap: 24px; }
 #kp-side {
-    position: fixed; left: 0; top: var(--kp-nav-top, 64px); bottom: 0; width: var(--kp-nav-w); z-index: 35;
-    display: flex; flex-direction: column; padding: 10px 8px; overflow-y: auto; overflow-x: hidden;
+    position: fixed; left: 0; top: var(--kp-nav-top, 64px); bottom: 0; width: var(--kp-nav-w, 224px); z-index: 35; box-sizing: border-box;
+    display: flex; flex-direction: column; padding: 12px 10px; overflow-y: auto; overflow-x: hidden;
     background: var(--surface); border-right: 1px solid var(--border); color: var(--text);
 }
 #kp-side .kp-nav { display: flex; flex-direction: column; gap: 2px; }
@@ -433,12 +435,18 @@ body.kp-nav-on { --kp-nav-w: 224px; }
 #kp-side .kp-nav button.on { background: var(--accent); color: var(--on-accent); }
 #kp-side .kp-nav button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #kp-side .kpr-nav-badge { margin-left: auto; }
-body.kp-nav-on.layout-studio #main-app { padding-left: var(--kp-nav-w) !important; }
-body.kp-nav-on.layout-studio #sticky-top { margin-left: calc(-1 * var(--kp-nav-w)) !important; }
+/* Між меню й контентом завжди 24px, праворуч той самий відступ — у калькуляторі, історії, огляді й усіх розділах Контроль+.
+   Шапка сайту (всередині #main-app) розтягується назад на всю ширину від'ємними відступами. */
+/* Причина «53px замість 24px»: #main-app на сайті — .container (max-width 1480 + margin auto) і центрується на широких екранах, тож до padding додається поле
+   (vw − 1480) / 2. З меню зліва центрування не потрібне: контент починається рівно через --kp-gap від меню. */
+body.kp-nav-on.layout-studio #main-app { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: calc(var(--kp-nav-w, 224px) + var(--kp-gap, 24px)) !important; padding-right: var(--kp-gap, 24px) !important; }
+/* Саму секцію теж не центруємо: на широкому екрані обмеження ширини — лише справа. */
+body.kp-nav-on.layout-studio #main-app > #kp-crm { box-sizing: border-box; width: 100%; max-width: 1480px; margin: 0 !important; padding-left: 0; padding-right: 0; }
+body.kp-nav-on.layout-studio #sticky-top { margin-left: calc(-1 * (var(--kp-nav-w, 224px) + var(--kp-gap, 24px))) !important; margin-right: calc(-1 * var(--kp-gap, 24px)) !important; }
 body.kp-nav-on #studio-nav-overview { display: none; }
 @media (max-width: 1024px) {
     body.kp-nav-on { --kp-nav-w: 60px; }
-    #kp-side .kp-nav button { justify-content: center; padding: 0; }
+    #kp-side .kp-nav button { justify-content: center; padding: 0; width: 40px; margin-inline: auto; }
     #kp-side .kp-nav button .lb { display: none; }
     #kp-side .kpr-nav-badge { position: absolute; margin: -22px 0 0 18px; }
 }
@@ -448,8 +456,8 @@ body.kp-nav-on #studio-nav-overview { display: none; }
     #kp-side { position: static; width: auto; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
     #kp-side .kp-nav { flex-direction: row; }
     #kp-side .kp-nav button { flex: 0 0 auto; width: 44px; }
-    body.kp-nav-on.layout-studio #main-app { padding-left: 0 !important; }
-    body.kp-nav-on.layout-studio #sticky-top { margin-left: 0 !important; }
+    body.kp-nav-on.layout-studio #main-app { padding-left: 12px !important; padding-right: 12px !important; }
+    body.kp-nav-on.layout-studio #sticky-top { margin-left: -12px !important; margin-right: -12px !important; }
 }
 
 /* ===== Автопарк: фільтр за держномером і компактна таблиця ===== */
@@ -542,12 +550,48 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 #kp-crm .kps-tile b { white-space: nowrap; font-size: clamp(15px, 0.9vw + 8px, 22px); }
 #kp-crm .kps-tile small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Історія заявок і Огляд: той самий бічний відступ від меню, що й у калькулятора */
-@media (min-width: 761px) {
-    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #main-app, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #main-app {
-        padding-left: calc(var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px))) !important; padding-right: var(--tc-pad, clamp(12px, 2vw, 32px));
-    }
-    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #sticky-top, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #sticky-top {
-        margin-left: calc(-1 * (var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px)))) !important; margin-right: calc(-1 * var(--tc-pad, clamp(12px, 2vw, 32px)));
-    }
+/* Статуси актів і мітка «Акт» у списку документів */
+#kp-crm .kpd-st-created { color: var(--text); background: var(--bg); }
+#kp-crm .kpd-st-signed { color: var(--positive); border-color: var(--positive); }
+#kp-crm .kpd-kind-act { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; background: var(--info-bg); color: var(--text); border: 1px solid var(--border-soft); }
+
+/* Статистика: графік фіксованої висоти, легенда */
+#kp-crm .kps-chart { padding: 8px 18px 0; min-height: 248px; }
+#kp-crm .kps-chart svg { display: block; max-width: 100%; height: 240px; }
+#kp-crm .kps-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 13px; }
+#kp-crm .kps-legend i { font-style: normal; }
+
+/* Автопарк / Водії — спільний шаблон: пошук + «Додати», список лише для читання, картка в стилі 1С (п.8–10 пачки 28.10) */
+#kp-crm .kpg-bar { flex-wrap: wrap; }
+/* Сайтовий .btn — flex: 1 + min-width 150px, тож у рядку пошуку кнопка розтягувалась: розмір за вмістом, поруч із пошуком. */
+#kp-crm .kpg-bar { justify-content: flex-start; }
+#kp-crm .kpg-bar .kpf-field { width: 260px; flex: 0 0 auto; }
+#kp-crm .kpg-bar .btn { flex: 0 0 auto; width: auto; min-width: 0; margin: 0; }
+#kp-crm .kpg-page .table-wrap { padding: 0; }
+#kp-crm .kpg-page .table-wrap .kpg-table th:first-child, #kp-crm .kpg-page .table-wrap .kpg-table td:first-child { padding-left: 16px !important; }
+#kp-crm .kpg-page .table-wrap .kpg-table th:last-child, #kp-crm .kpg-page .table-wrap .kpg-table td:last-child { padding-right: 16px !important; }
+#kp-crm .kpg-row { cursor: pointer; }
+#kp-crm .kpg-row:hover td, #kp-crm .kpg-row:focus-visible td { background: color-mix(in srgb, var(--gold) 10%, transparent); }
+#kp-crm .kpg-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+#kp-crm .kpg-row.is-archived td { color: var(--muted); }
+#kp-crm .kpg-card[hidden], #kp-crm .kpg-list[hidden] { display: none; }
+#kp-crm .kpc { max-width: 760px; padding: 16px 20px; }
+#kp-crm .kpc-head { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+#kp-crm .kpc-head h2 { margin: 0; font-size: 18px; }
+#kp-crm .kpc-section { margin: 14px 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+#kp-crm .kpc-row { display: grid; grid-template-columns: 200px auto; align-items: center; column-gap: 12px; row-gap: 2px; margin: 0 0 8px; }
+#kp-crm .kpc-row label { font-size: 13px; color: var(--muted); }
+#kp-crm .kpc-row .hint { grid-column: 2; min-height: 0; }
+#kp-crm .kpc-box { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+#kp-crm .kpc-box input, #kp-crm .kpc-box select { width: 100%; padding: 5px 8px; }
+#kp-crm .kpc-w-s { width: 110px; } #kp-crm .kpc-w-m { width: 150px; } #kp-crm .kpc-w-ph { width: 170px; }
+#kp-crm .kpc-w-l { width: 220px; } #kp-crm .kpc-w-xl { width: 300px; } #kp-crm .kpc-w-xxl { width: 360px; }
+#kp-crm .kpc-box.kpc-w-s input { width: 70px; }
+#kp-crm .kpc-suffix { font-style: normal; color: var(--muted); font-size: 13px; }
+#kp-crm .kpc-actions { margin-top: 14px; display: flex; gap: 8px; }
+@media (max-width: 760px) {
+  #kp-crm .kpc-row { grid-template-columns: 1fr; }
+  #kp-crm .kpc-row .hint { grid-column: 1; }
+  #kp-crm .kpc-box { width: 100%; }
+  #kp-crm .kpg-bar .btn { margin-left: 0; }
 }

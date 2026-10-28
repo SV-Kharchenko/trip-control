@@ -21,8 +21,8 @@ test('меню стартує під шапкою: висота шапки ра�
 });
 
 test('«Держномер»: поле type=text без нативного хрестика, лишається власний «×»', () => {
-    const view = read('src/views/fleet.js');
-    assert.match(view, /h\('input', \{ type: 'text', id: 'kpf-plate'/);
+    const view = read('src/views/registry.js');
+    assert.match(view, /h\('input', \{ type: 'text', id: cfg\.id \+ '-q'/);
     assert.equal(/type: 'search'/.test(view), false);
     assert.match(view, /class: 'kpf-clear'/);
 });
@@ -41,10 +41,10 @@ test('реквізити: одна кнопка «Зберегти» звича�
 
 test('документи: фільтри компактні inline, кнопки створення лише раз угорі, у порожньому стані — підказка', () => {
     const docs = read('src/views/docs.js');
-    assert.equal((docs.match(/createButtons\(\)/g) || []).length, 1, 'createButtons() викликається один раз');
+    assert.equal((docs.match(/createButtonsFor\(tab\)\.length \? h\('div'/g) || []).length, 1, 'панель кнопок створення — один раз угорі');
     const empty = docs.slice(docs.indexOf('if (!rows.length) {'), docs.indexOf('const totals = listTotals(rows);'));
-    assert.equal(/createButtons|btn-primary/.test(empty), false);
-    assert.match(empty, /Створіть рахунок, акт або ТТН кнопками вгорі/);
+    assert.equal(/createButtons\(|h\('a', \{ class: 'btn/.test(empty), false, 'кнопок створення в порожньому стані немає');
+    assert.match(empty, /Створіть документ кнопками вгорі/);
     assert.match(docs, /const labeled = \(text, control\) => h\('label', \{ class: 'kpd-f' \}, h\('span', null, text\), control\);/);
     assert.match(docs, /h\('div', \{ class: 'toolbar kpd-filters' \}, labeled\('Період з', from\)/);
     assert.match(css, /\.kpd-f input \{ width: 150px; flex: 0 0 auto; \}/);
@@ -88,8 +88,8 @@ test('вкладки «Розрахунок / Історія заявок» вс
 });
 
 test('історія заявок і огляд мають той самий бічний відступ від меню, що й калькулятор', () => {
-    assert.match(css, /body\.kp-nav-on\[data-studio-view="history"\]:not\(\[data-kp-view\]\) #main-app, body\.kp-nav-on\[data-studio-view="overview"\]:not\(\[data-kp-view\]\) #main-app \{\n\s+padding-left: calc\(var\(--kp-nav-w\) \+ var\(--tc-pad/);
-    assert.match(css, /#sticky-top, body\.kp-nav-on\[data-studio-view="overview"\]:not\(\[data-kp-view\]\) #sticky-top \{\n\s+margin-left: calc\(-1 \* \(var\(--kp-nav-w\) \+ var\(--tc-pad/);
+    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: calc\(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\) !important;/);
+    assert.match(css, /body\.kp-nav-on\.layout-studio #sticky-top \{ margin-left: calc\(-1 \* \(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\)\) !important;/);
     assert.match(bridge, /\}\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-studio-view', 'data-theme'\] \}\);\n    syncNav\(\);\n    return true;/, 'підсвітка при першому рендері');
     assert.match(bridge, /leave\(\);\n        syncNav\(\);\n    \}\)/, 'syncNav після кожної зміни розділу сайту');
 });

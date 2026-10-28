@@ -13,6 +13,21 @@ export const PAY_STATUS_LABELS = {
     overdue: 'Прострочено',
     cancelled: 'Анульовано',
 };
+// Акти не мають оплат: «Створено» -> «Підписано» (підписав директор), «Анульовано» лишається. Рахунки — статуси оплати вище.
+export const ACT_STATUS_LABELS = { created: 'Створено', signed: 'Підписано', cancelled: 'Анульовано' };
+
+// Ключ статусу для відображення: для акта — created | signed | cancelled, для решти — pay_status як є.
+export function docStatusKey(kind, payStatus, signed = false) {
+    if (kind !== 'act') return payStatus;
+    if (payStatus === 'cancelled') return 'cancelled';
+    return signed ? 'signed' : 'created';
+}
+
+export function docStatusLabel(kind, payStatus, signed = false) {
+    const key = docStatusKey(kind, payStatus, signed);
+    return (kind === 'act' ? ACT_STATUS_LABELS : PAY_STATUS_LABELS)[key] || key;
+}
+
 export const CURRENCIES = ['UAH', 'USD', 'EUR'];
 export const CURRENCY_SHORT = { UAH: 'грн', USD: 'USD', EUR: 'EUR' };
 export const VAT_MODES = [
@@ -300,6 +315,7 @@ const DOC_ERRORS = [
     [/DOC_BAD_KIND|DOC_KIND_NOT_READY/, 'Цей тип документа ще недоступний.'],
     [/DOC_NOT_FOUND/, 'Документ не знайдено.'],
     [/DOC_ALREADY_CANCELLED/, 'Документ уже анульовано.'],
+    [/DOC_SIGN_ACT_ONLY/, 'Підписувати можна лише акти.'],
     [/DOC_CANCEL_REASON/, 'Вкажіть причину анулювання (до 500 символів).'],
     [/DOC_HAS_PAYMENTS/, 'Спершу анулюйте оплати цього рахунку.'],
     [/DOC_CANCELLED/, 'Анульований документ не приймає оплат.'],

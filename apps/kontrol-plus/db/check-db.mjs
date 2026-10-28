@@ -726,6 +726,191 @@ const ttnAfter = (await one(`SELECT count(*)::int AS n, (SELECT count(*)::int FR
 check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAfter.v === ttnBefore.v,
     'waybills: the migration re-applied over data keeps waybills and vehicle fields');
 
+// Пакет 28.10: деталі водія (персональні дані) і підпис акта. Усі дані вигадані.
+{
+    const detailsSql = fs.readFileSync(new URL('20261028100100_kp_driver_details.sql', DIR), 'utf8');
+    const signSql = fs.readFileSync(new URL('20261028100000_kp_act_signatures.sql', DIR), 'utf8');
+    await db.exec(detailsSql);
+    await db.exec(signSql);
+    check(true, 'batch: both migrations re-applied (idempotent)');
+    const driver = (await user(OA)(`SELECT public.kp_driver_save(NULL, 'Іваненко Іван Петрович', 'AB123456', true) AS id`));
+    check(driver.ok, 'drivers: owner adds a driver', driver.message);
+    const did = driver.rows[0].id;
+    const save = (who, ipn, passport = 'AB123456', phone = '+380 67 123-45-67', address = 'м. Луцьк') =>
+        user(who)(`SELECT public.kp_driver_details_save($1, $2, $3, $4, $5) AS ok`, [did, phone, passport, ipn, address]);
+    const ok = await save(OA, '1234567890');
+    check(ok.ok && ok.rows[0].ok === true, 'driver details: owner saves phone, passport, IPN, address', ok.message);
+    const stored = await one(`SELECT phone, passport, ipn, address FROM public.kp_driver_details WHERE driver_id = $1`, [did]);
+    check(stored.phone === '+380671234567' && stored.passport === 'AB123456' && stored.ipn === '1234567890', 'driver details: values are normalised (phone without spaces, passport upper case)', JSON.stringify(stored));
+    for (const [label, args, code] of [
+        ['IPN of 9 digits', ['123456789'], /DRIVER_BAD_IPN/],
+        ['IPN of 11 digits', ['12345678901'], /DRIVER_BAD_IPN/],
+        ['IPN with letters', ['12345a7890'], /DRIVER_BAD_IPN/],
+        ['bad passport', ['1234567890', 'A1'], /DRIVER_BAD_PASSPORT/],
+        ['bad phone', ['1234567890', 'AB123456', '12-34'], /DRIVER_BAD_PHONE/],
+    ]) {
+        const bad = await save(OA, ...args);
+        check(!bad.ok && code.test(bad.message), 'driver details: ' + label + ' is refused', bad.message);
+    }
+    const emptyOk = await save(OA, '', '', '', '');
+    check(emptyOk.ok, 'driver details: empty values clear the fields', emptyOk.message);
+    await save(OA, '1234567890');
+    const logistWrite = await save(LA, '1234567890');
+    check(!logistWrite.ok && logistWrite.code === '42501', 'driver details: a logist cannot edit (owner only)', logistWrite.message);
+    const dirWrite = await save(DIR1, '1234567890');
+    check(!dirWrite.ok && dirWrite.code === '42501', 'driver details: a director cannot edit', dirWrite.message);
+    for (const [who, label] of [[OA, 'owner'], [LA, 'logist'], [DIR1, 'director']]) {
+        const read = await user(who)(`SELECT * FROM public.kp_driver_details_get($1)`, [did]);
+        check(read.ok && read.rows.length === 1 && read.rows[0].ipn === '1234567890', 'driver details: ' + label + ' of the organisation reads', read.message);
+    }
+    const foreign = await user(OC)(`SELECT * FROM public.kp_driver_details_get($1)`, [did]);
+    check(!foreign.ok && /DRIVER_NOT_FOUND/.test(foreign.message), 'driver details: another organisation cannot read through the RPC', foreign.message);
+    const noPlan = await user(OB)(`SELECT * FROM public.kp_driver_details_get($1)`, [did]);
+    check(!noPlan.ok && noPlan.code === '42501', 'driver details: an organisation without Контроль+ is refused', noPlan.message);
+    // RLS на самій таблиці: свої бачать, чужі — ні, пряма зміна заборонена всім клієнтам.
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.kp_driver_details`)).rows[0].n === 1, 'driver details RLS: a member sees the rows of its own organisation');
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.kp_driver_details`)).rows[0].n === 0, 'driver details RLS: a foreign organisation sees nothing');
+    for (const [label, sql] of [
+        ['INSERT', `INSERT INTO public.kp_driver_details (driver_id, org_id, ipn) VALUES ('${did}', '${A}', '1234567890')`],
+        ['UPDATE', `UPDATE public.kp_driver_details SET ipn = '0000000000'`],
+        ['DELETE', `DELETE FROM public.kp_driver_details`],
+    ]) {
+        for (const [who, name] of [[OA, 'owner'], [LA, 'logist']]) {
+            const direct = await user(who)(sql);
+            check(!direct.ok && direct.code === '42501', 'driver details RLS: direct ' + label + ' by ' + name + ' is refused', direct.message);
+        }
+    }
+    // У ТТН потрапляють лише ПІБ і посвідчення.
+    const listed = await user(OA)(`SELECT to_jsonb(d) AS j FROM public.kp_driver_list(false) AS d`);
+    check(listed.ok && listed.rows.length >= 1 && listed.rows.every((r) => !('phone' in r.j) && !('ipn' in r.j) && !('passport' in r.j) && !('address' in r.j)),
+        'driver details: kp_driver_list (the waybill source) exposes no personal fields', listed.message);
+    // Підпис акта: лише власник; чужі й тарифи без Контроль+ — ні.
+    const ghost = '77777777-7777-4777-8777-777777777777';
+    const logistSign = await user(LA)(`SELECT public.kp_doc_sign($1, true)`, [ghost]);
+    check(!logistSign.ok && logistSign.code === '42501', 'act signature: a logist cannot sign', logistSign.message);
+    const ownerSign = await user(OA)(`SELECT public.kp_doc_sign($1, true)`, [ghost]);
+    check(!ownerSign.ok && /DOC_NOT_FOUND/.test(ownerSign.message), 'act signature: the owner passes the role gate (unknown document)', ownerSign.message);
+    const signedList = await user(LA)(`SELECT * FROM public.kp_doc_signed(ARRAY[$1::uuid])`, [ghost]);
+    check(signedList.ok && signedList.rows.length === 0, 'act signature: members read the signed list', signedList.message);
+    const signedDirect = await user(OA)(`SELECT * FROM public.kp_document_signatures`);
+    check(!signedDirect.ok && signedDirect.code === '42501', 'act signature: no direct table access for clients', signedDirect.message);
+}
+
+// Пакет 28.10 (правка E): причепи — окрема таблиця fleet_trailers. Усі дані вигадані.
+{
+    const trailersSql = fs.readFileSync(new URL('20261028110000_kp_fleet_trailers.sql', DIR), 'utf8');
+    const T1 = '20000000-0000-4000-8000-0000000000e1', T2 = '20000000-0000-4000-8000-0000000000e2', T3 = '20000000-0000-4000-8000-0000000000e3';
+    // «Старі» дані: тягачі з причепом у колонках trailer_* без зв'язку (тригер дзеркала вимкнено, як було до міграції).
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+    await db.exec('ALTER TABLE public.fleet_vehicles DISABLE TRIGGER trg_fleet_vehicles_trailer_sync');
+    await db.exec(`INSERT INTO public.fleet_vehicles (id, org_id, label, trailer_plate, trailer_type, trailer_make_model) VALUES ('${T1}', '${A}', 'TR-1', 'АА 1234 ХХ', 'тент', 'Schmitz'), ('${T2}', '${A}', 'TR-2', 'AA1234XX', 'тент', 'Schmitz'), ('${T3}', '${A}', 'TR-3', NULL, 'зерновоз', NULL)`);
+    await db.exec('ALTER TABLE public.fleet_vehicles ENABLE TRIGGER trg_fleet_vehicles_trailer_sync');
+    await db.exec(trailersSql);
+    await db.exec(trailersSql);
+    check(true, 'trailers: migration re-applied (idempotent)');
+    const moved = (await service(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1 AND plate_norm = 'AA1234XX'`, [A])).rows[0].n;
+    check(moved === 1, 'trailers: the same trailer written in two spellings is moved once', String(moved));
+    const links = (await service(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE id IN ('${T1}', '${T2}') AND default_trailer_id IS NOT NULL`)).rows[0].n;
+    check(links === 2, 'trailers: both tractors keep the link to the moved trailer', String(links));
+    const bare = (await service(`SELECT default_trailer_id FROM public.fleet_vehicles WHERE id = '${T3}'`)).rows[0].default_trailer_id;
+    check(bare === null, 'trailers: a tractor without a trailer gets no link');
+    const mirror = await one(`SELECT trailer_plate, trailer_type, trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [T1]);
+    check(mirror.trailer_plate === 'АА 1234 ХХ' && mirror.trailer_make_model === 'Schmitz', 'trailers: legacy columns are kept (nothing is lost)', JSON.stringify(mirror));
+    const tid = (await service(`SELECT default_trailer_id AS id FROM public.fleet_vehicles WHERE id = '${T1}'`)).rows[0].id;
+
+    // RLS: свої читають, чужі — ні, пише лише власник.
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.fleet_trailers`)).rows[0].n >= 1, 'trailers RLS: a member of the organisation reads');
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.fleet_trailers`)).rows[0].n === 0, 'trailers RLS: a foreign organisation sees nothing');
+    const logistInsert = await user(LA)(`INSERT INTO public.fleet_trailers (org_id, plate) VALUES ('${A}', 'LL0001')`);
+    check(!logistInsert.ok, 'trailers RLS: a logist cannot add a trailer', logistInsert.message);
+    const logistPlate = await user(LA)(`UPDATE public.fleet_trailers SET plate = 'ZZ9999' WHERE id = $1`, [tid]);
+    check(!logistPlate.ok, 'trailers RLS: a logist cannot change the plate', logistPlate.message);
+    const logistMake = await user(LA)(`SELECT public.kp_trailer_save($1, '{"make_model":"Krone","capacity_t":"28"}'::jsonb) AS ok`, [tid]);
+    check(logistMake.ok && logistMake.rows[0].ok === true, 'trailers: a logist edits the waybill fields (make, capacity)', logistMake.message);
+    const foreignSave = await user(OC)(`SELECT public.kp_trailer_save($1, '{"make_model":"X"}'::jsonb)`, [tid]);
+    check(!foreignSave.ok, 'trailers: another organisation cannot save', foreignSave.message);
+    const ownerInsert = await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate, type) VALUES ('${A}', 'BB 0007 BB', 'цистерна') RETURNING id`);
+    check(ownerInsert.ok, 'trailers RLS: the owner adds a trailer', ownerInsert.message);
+    const dup = await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate) VALUES ('${A}', 'ВВ0007ВВ')`);
+    check(!dup.ok, 'trailers: a duplicate plate (normalised) is refused', dup.message);
+
+    // Вибір причепа в тягача (калькулятор / ТТН беруть його з нової таблиці) і «Відчепити».
+    const listed = await user(OA)(`SELECT * FROM public.kp_vehicles_list() WHERE id = $1`, [T1]);
+    check(listed.ok && listed.rows[0].trailer_make_model === 'Krone', 'trailers: kp_vehicles_list (the waybill source) shows the trailer from fleet_trailers', listed.message || JSON.stringify(listed.rows[0]));
+    const viaSite = await one(`SELECT trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [T2]);
+    check(viaSite.trailer_make_model === 'Krone', 'trailers: a change of the trailer reaches every tractor mirror (site calculator, prefill)', JSON.stringify(viaSite));
+    const tl = await user(OA)(`SELECT * FROM public.kp_trailers_list() WHERE id = $1`, [tid]);
+    check(tl.ok && tl.rows[0].vehicle_ids.length === 2 && tl.rows[0].capacity_t == 28, 'trailers: kp_trailers_list returns the trailer with its tractors', tl.message);
+    const detach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = NULL WHERE id = $1`, [T1]);
+    const detached = await one(`SELECT default_trailer_id, trailer_plate FROM public.fleet_vehicles WHERE id = $1`, [T1]);
+    check(detach.ok && detached.default_trailer_id === null && detached.trailer_plate === null, 'trailers: «Відчепити» clears the link and the mirror', detach.message);
+    const attach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = $2 WHERE id = $1`, [T1, tid]);
+    const attached = await one(`SELECT trailer_plate, trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [T1]);
+    check(attach.ok && attached.trailer_plate === 'АА 1234 ХХ' && attached.trailer_make_model === 'Krone', 'trailers: choosing a trailer fills the tractor mirror', attach.message);
+    const foreignAttach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = '20000000-0000-4000-8000-0000000000ff' WHERE id = $1`, [T1]);
+    check(!foreignAttach.ok && /TRAILER_NOT_FOUND|violates foreign key/i.test(foreignAttach.message), 'trailers: an unknown / foreign trailer cannot be attached', foreignAttach.message);
+    // Запис через стару картку авто на сайті потрапляє в нову таблицю.
+    const oldCard = await user(OA)(`UPDATE public.fleet_vehicles SET trailer_plate = 'CC 5555 CC', trailer_type = 'рефрижератор' WHERE id = $1`, [T3]);
+    const created = await one(`SELECT ft.type FROM public.fleet_vehicles fv JOIN public.fleet_trailers ft ON ft.id = fv.default_trailer_id WHERE fv.id = $1`, [T3]);
+    check(oldCard.ok && created && created.type === 'рефрижератор', 'trailers: the old vehicle card writes through to fleet_trailers', oldCard.message);
+
+    // Деактивація справді вимикає причіп.
+    const off = await user(OA)(`UPDATE public.fleet_trailers SET active = false WHERE id = $1`, [tid]);
+    const left = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE default_trailer_id = $1 OR trailer_plate = 'АА 1234 ХХ'`, [tid])).n;
+    check(off.ok && left === 0, 'trailers: deactivation detaches the trailer from every tractor', off.message || String(left));
+    const reattach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = $2 WHERE id = $1`, [T1, tid]);
+    check(!reattach.ok && /TRAILER_NOT_FOUND/.test(reattach.message), 'trailers: an inactive trailer cannot be chosen', reattach.message);
+
+    // Старий шлях (колонки trailer_*): два тягачі з одним причепом оновлюються разом, номер — в одному написанні.
+    const V5 = '20000000-0000-4000-8000-0000000000e5', V6 = '20000000-0000-4000-8000-0000000000e6';
+    await service(`INSERT INTO public.fleet_vehicles (id, org_id, label) VALUES ('${V5}', '${A}', 'TR-5'), ('${V6}', '${A}', 'TR-6')`);
+    const twin = (await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate, type, make_model) VALUES ('${A}', 'KK 1000 KK', 'тент', 'Old') RETURNING id`)).rows[0].id;
+    await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = $1 WHERE id IN ('${V5}', '${V6}')`, [twin]);
+    const mirrorOf = async (id) => one(`SELECT trailer_plate, trailer_type, trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [id]);
+    const renameCard = await user(OA)(`UPDATE public.fleet_vehicles SET trailer_make_model = 'NewMake', trailer_plate = 'KK 2000 KK' WHERE id = $1`, [V5]);
+    const m6 = await mirrorOf(V6);
+    const tr = await one(`SELECT plate, make_model FROM public.fleet_trailers WHERE id = $1`, [twin]);
+    check(renameCard.ok && tr.plate === 'KK 2000 KK' && tr.make_model === 'NewMake', 'trailers sync: a change of make and plate on the old card renames the trailer', renameCard.message || JSON.stringify(tr));
+    check(m6.trailer_plate === 'KK 2000 KK' && m6.trailer_make_model === 'NewMake', 'trailers sync: the second tractor with the same trailer gets the new plate and make', JSON.stringify(m6));
+    await user(OA)(`UPDATE public.fleet_vehicles SET trailer_plate = 'кк-2000-кк' WHERE id = $1`, [V5]);
+    const same = [await mirrorOf(V5), await mirrorOf(V6)];
+    check(same.every((m) => m.trailer_plate === 'KK 2000 KK'), 'trailers sync: every tractor keeps the one stored spelling of the plate', JSON.stringify(same));
+    const logistOld = await user(LA)(`SELECT public.kp_vehicle_save($1, '{"trailer_make_model":"LogistMake"}'::jsonb) AS ok`, [V5]);
+    const afterLogist = [await mirrorOf(V6), await one(`SELECT make_model FROM public.fleet_trailers WHERE id = $1`, [twin])];
+    check(logistOld.ok && afterLogist[0].trailer_make_model === 'LogistMake' && afterLogist[1].make_model === 'LogistMake', 'trailers sync: a logist changing the make (kp_vehicle_save) reaches the trailer and the other tractor', logistOld.message);
+    const logistPlateOld = await user(LA)(`UPDATE public.fleet_vehicles SET trailer_plate = 'ZZ 0000 ZZ' WHERE id = $1 RETURNING id`, [V5]);
+    check(!logistPlateOld.ok || logistPlateOld.rows.length === 0, 'trailers sync: a logist cannot change the plate on the old card (RLS of the site: owner only, no row is changed)', logistPlateOld.message);
+    const stillOld = await one(`SELECT plate FROM public.fleet_trailers WHERE id = $1`, [twin]);
+    check(stillOld.plate === 'KK 2000 KK', 'trailers sync: the refused change left the trailer untouched');
+
+    // Перенос: різна марка в тягачів з одним номером — береться найсвіжіша, вирівнюються всі.
+    const V7 = '20000000-0000-4000-8000-0000000000e7', V8 = '20000000-0000-4000-8000-0000000000e8';
+    await db.exec('ALTER TABLE public.fleet_vehicles DISABLE TRIGGER USER');
+    await service(`INSERT INTO public.fleet_vehicles (id, org_id, label, trailer_plate, trailer_type, trailer_make_model, updated_at) VALUES ('${V7}', '${A}', 'TR-7', 'MM 3000 MM', 'тент', 'Stale', '2026-01-01'), ('${V8}', '${A}', 'TR-8', 'MM3000MM', 'цистерна', 'Fresh', '2026-10-01')`);
+    await db.exec('ALTER TABLE public.fleet_vehicles ENABLE TRIGGER USER');
+    await db.exec(trailersSql);
+    const aligned = [await mirrorOf(V7), await mirrorOf(V8)];
+    check(aligned.every((m) => m.trailer_make_model === 'Fresh' && m.trailer_type === 'цистерна' && m.trailer_plate === 'MM3000MM'),
+        'trailers migration: different makes for one number → the freshest wins and all tractors are aligned', JSON.stringify(aligned));
+
+    // Відкат із шапки міграції: прибирає таблицю, колонку, тригери й усі функції; дані в trailer_* лишаються.
+    const rbLines = trailersSql.split(String.fromCharCode(10));
+    const rbFrom = rbLines.findIndex((l) => l === '--   BEGIN;');
+    const rbTo = rbLines.findIndex((l) => l === '--   COMMIT;');
+    const rollback = rbLines.slice(rbFrom, rbTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
+    check(/BEGIN;/.test(rollback) && /COMMIT;/.test(rollback) && /kp_plate_norm/.test(rollback) && /fleet_trailers_guard/.test(rollback) && /fleet_vehicles_trailer_sync/.test(rollback) && /fleet_trailers_after/.test(rollback),
+        'trailers rollback: the header block removes the helper functions too');
+    const keep = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n;
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+    await db.exec(rollback);
+    const gone = await one(`SELECT (SELECT count(*)::int FROM pg_proc WHERE proname IN ('kp_plate_norm', 'fleet_trailers_guard', 'fleet_vehicles_trailer_sync', 'fleet_trailers_after', 'kp_trailers_list', 'kp_trailer_save')) AS fns, to_regclass('public.fleet_trailers') AS tbl, (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'fleet_vehicles' AND column_name = 'default_trailer_id') AS col`);
+    check(gone.fns === 0 && gone.tbl === null && gone.col === 0, 'trailers rollback: table, column, triggers and functions are gone', JSON.stringify(gone));
+    check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
+    await db.exec(trailersSql);
+    const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
+    check(back >= 3, 'trailers rollback: re-applying the migration rebuilds fleet_trailers from the kept columns', String(back));
+}
+
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту
 // (tripFactBasis з api/calculate.js: loadedKm + emptyKm + podachaKm по всіх авто заявки). Сайт лише читаємо.
 process.env.SUPABASE_URL ||= 'https://example.supabase.co';

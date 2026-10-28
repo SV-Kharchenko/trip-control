@@ -31,11 +31,12 @@ const fmtT = (n) => (n === null || n === undefined || Number.isNaN(n) ? '—' : 
 export function renderTtnForm(app, access, route) {
     const root = h('div', null, spinner());
     (async () => {
-        const [req, cl, drv, veh] = await Promise.all([
+        const [req, cl, drv, veh, trl] = await Promise.all([
             app.supabase.rpc('kp_requisites_get'),
             app.supabase.from('clients').select('id, name, archived_at').order('name', { ascending: true }).limit(2000),
             app.supabase.rpc('kp_driver_list', { p_active_only: true }),
             app.supabase.rpc('kp_vehicles_list'),
+            app.supabase.rpc('kp_trailers_list'),
         ]);
         if (req.error) return showError(app, root, req.error);
         if (drv.error) return showError(app, root, drv.error);
@@ -47,12 +48,12 @@ export function renderTtnForm(app, access, route) {
             return;
         }
         const clients = (cl.data || []).filter((c) => !c.archived_at);
-        clear(root, buildForm(app, route, clients, drv.data || [], veh.error ? [] : veh.data || []));
+        clear(root, buildForm(app, route, clients, drv.data || [], veh.error ? [] : veh.data || [], trl.error ? [] : (trl.data || []).filter((t) => t.active)));
     })();
     return root;
 }
 
-function buildForm(app, route, clients, drivers, vehicles) {
+function buildForm(app, route, clients, drivers, vehicles, trailers = []) {
     const today = kyivDate();
     let d = ttnFromPrefill(null);
     let pre = null;
@@ -175,6 +176,13 @@ function buildForm(app, route, clients, drivers, vehicles) {
         if (drv) d.driver = { id: drv.id, full_name: drv.full_name, license_no: drv.license_no || '' };
     }
 
+    // Причіп з автопарку (fleet_trailers): підставляє марку, тип і номер у знімок ТТН; поля лишаються редагованими.
+    function applyTrailer(t) {
+        Object.assign(d.vehicle, {
+            trailer_make_model: t ? t.make_model || '' : '', trailer_type: t ? t.type || '' : '', trailer_reg_number: t ? t.plate || '' : '',
+        });
+    }
+
     function transportSection() {
         const tripIds = new Set(((pre && pre.vehicles) || []).map((v) => v.id));
         const sorted = [...vehicles].sort((a, b) => Number(tripIds.has(b.id)) - Number(tripIds.has(a.id)));
@@ -194,6 +202,14 @@ function buildForm(app, route, clients, drivers, vehicles) {
             if (x && !String(d.received_by || '').trim()) d.received_by = x.full_name + ', водій';
             drawBody();
         });
+        const picked = trailers.find((t) => d.vehicle.trailer_reg_number && String(t.plate).toLowerCase() === String(d.vehicle.trailer_reg_number).toLowerCase());
+        const trailerSel = h('select', { id: 't-trailer', 'aria-label': 'Причіп з автопарку' },
+            h('option', { value: '' }, trailers.length ? '— причіп з автопарку (заповнить поля) —' : 'Причепів ще немає — заповніть вручну'),
+            trailers.map((t) => h('option', { value: t.id, selected: Boolean(picked && picked.id === t.id) }, t.plate + (t.make_model ? ' · ' + t.make_model : ''))));
+        trailerSel.addEventListener('change', () => {
+            applyTrailer(trailers.find((t) => t.id === trailerSel.value));
+            drawBody();
+        });
         return [
             h('h2', { class: 'form-section' }, 'Транспорт і водій'),
             h('div', { class: 'kpd-grid' },
@@ -204,6 +220,7 @@ function buildForm(app, route, clients, drivers, vehicles) {
                 field('vehicle.reg_number', null, { maxlength: 20, class: 'mono', placeholder: 'напр. AA0000AA' }),
                 field('driver.full_name', null, { maxlength: 200 }),
                 field('driver.license_no', null, { maxlength: 30, class: 'mono' }),
+                h('div', { class: 'field' }, h('label', { for: 't-trailer' }, 'Причіп'), trailerSel),
                 field('vehicle.trailer_make_model', 'Причіп / напівпричіп: марка, модель', { maxlength: 100 }),
                 field('vehicle.trailer_type', 'Причіп: тип', { maxlength: 100, placeholder: 'напр. напівпричіп-зерновоз' }),
                 field('vehicle.trailer_reg_number', 'Причіп: реєстраційний номер', { maxlength: 20, class: 'mono' }),
@@ -238,7 +255,7 @@ function buildForm(app, route, clients, drivers, vehicles) {
         return h('div', { class: 'kpt-line', 'data-line': String(index) },
             h('div', { class: 'kpt-line-main' },
                 bind('cargo_name', { maxlength: 500, 'aria-label': 'Найменування вантажу, рядок ' + n, placeholder: 'Найменування вантажу / № контейнера', class: 'kpt-cargo' }),
-                bind('unit', { maxlength: 20, 'aria-label': 'Одиниця, рядок ' + n, placeholder: 'т' }),
+                bind('unit', { maxlength: 20, 'aria-label': 'Одиниця вимірювання (т, кг, шт), рядок ' + n, placeholder: 'од.: т, кг, шт', title: 'Назва одиниці вимірювання: т, кг, шт. Кількість вписуйте в «місць» і «брутто, т»' }),
                 bind('places', { inputmode: 'numeric', 'aria-label': 'Кількість місць, рядок ' + n, placeholder: 'місць' }),
                 line.owner_price ? h('span', { class: 'muted small' }, 'ОЦВТ') : bind('price', { inputmode: 'decimal', 'aria-label': 'Ціна без ПДВ, рядок ' + n, placeholder: 'ціна' }),
                 bind('amount', { inputmode: 'decimal', 'aria-label': 'Сума з ПДВ, рядок ' + n, placeholder: 'сума' }),
