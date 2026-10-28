@@ -231,7 +231,6 @@ export function normalizeCargoLine(line) {
     return {
         ...l,
         unit: DEFAULT_UNIT,
-        places: empty(l.places) && Number.isInteger(value) ? value : l.places,
         gross_t: empty(l.gross_t) ? value : l.gross_t,
     };
 }

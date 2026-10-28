@@ -45,7 +45,7 @@ test('п.2: «Одиниця вимірювання» — назва, число
     const { normalizeCargoLine } = await import('../src/lib/ttn.js');
     const { cargoCells, cargoTotals, CARGO_COLUMNS } = await import('../src/lib/ttn-text.js');
     const { ttnSheet } = await import('../src/lib/xlsx-docs.js');
-    assert.deepEqual(normalizeCargoLine({ unit: '22', places: '', gross_t: '' }), { unit: 'т', places: 22, gross_t: 22 });
+    assert.deepEqual(normalizeCargoLine({ unit: '22', places: '', gross_t: '' }), { unit: 'т', places: '', gross_t: 22 }, '«Кількість місць» не заповнюється автоматично');
     assert.deepEqual(normalizeCargoLine({ unit: '22,5', places: null, gross_t: 20 }), { unit: 'т', places: null, gross_t: 20 });
     assert.deepEqual(normalizeCargoLine({ unit: 'кг', places: 3 }), { unit: 'кг', places: 3 }, 'назва лишається як є');
     assert.equal(normalizeCargoLine({ unit: ' 5 ', places: 7, gross_t: 9 }).places, 7, 'заповнені графи не чіпаємо');
@@ -65,12 +65,14 @@ test('п.2: «Одиниця вимірювання» — назва, число
     const dataRows = sheet.rows.filter((r) => r[1] && (r[1].v === 'Пшениця' || r[1].v === 'Ящики'));
     assert.equal(dataRows.length, 2);
     assert.equal(dataRows[0][unitCol].v, 'т', 'у графі 5 — назва одиниці, а не 22');
-    assert.equal(dataRows[0][placesCol].v, 22);
+    assert.notEqual(dataRows[0][placesCol].v, 22, 'місця — лише те, що ввів користувач');
+    assert.ok(!dataRows[0][placesCol].v || dataRows[0][placesCol].v === '—', 'порожньо / прочерк');
     assert.equal(dataRows[0][grossCol].v, 22);
     assert.equal(dataRows[1][unitCol].v, 'шт');
     assert.equal(dataRows[1][placesCol].v, 40);
     assert.equal(cargoCells(doc.lines[0], 0).unit, 'т');
-    assert.equal(cargoTotals(doc).places, '62');
+    assert.equal(cargoTotals(doc).places, '40');
+    assert.equal(cargoCells(doc.lines[0], 0).places, '—');
 });
 
 // ---- 3. Кнопки створення лише на потрібних вкладках ----
