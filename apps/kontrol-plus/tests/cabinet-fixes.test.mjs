@@ -88,7 +88,7 @@ test('вкладки «Розрахунок / Історія заявок» вс
 });
 
 test('історія заявок і огляд мають той самий бічний відступ від меню, що й калькулятор', () => {
-    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ padding-left: calc\(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\) !important;/);
+    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: calc\(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\) !important;/);
     assert.match(css, /body\.kp-nav-on\.layout-studio #sticky-top \{ margin-left: calc\(-1 \* \(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\)\) !important;/);
     assert.match(bridge, /\}\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-studio-view', 'data-theme'\] \}\);\n    syncNav\(\);\n    return true;/, 'підсвітка при першому рендері');
     assert.match(bridge, /leave\(\);\n        syncNav\(\);\n    \}\)/, 'syncNav після кожної зміни розділу сайту');

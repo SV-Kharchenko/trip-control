@@ -127,7 +127,7 @@ test('п.4: графік ~240px заввишки, підписи 12px без м�
 test('п.5: меню має фіксований padding, змінні з fallback, відступ 24px між меню й контентом на всіх сторінках', () => {
     assert.match(css, /:root \{ --kp-nav-w: 224px; --kp-gap: 24px; \}/);
     assert.match(css, /width: var\(--kp-nav-w, 224px\); z-index: 35; box-sizing: border-box;\n\s+display: flex; flex-direction: column; padding: 12px 10px;/);
-    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ padding-left: calc\(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\) !important; padding-right: var\(--kp-gap, 24px\) !important; \}/);
+    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: calc\(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\) !important; padding-right: var\(--kp-gap, 24px\) !important; \}/);
     assert.equal(/data-studio-view="history"\]:not\(\[data-kp-view\]\) #main-app/.test(css), false, 'окремих відступів для історії / огляду більше немає');
     assert.match(css, /#kp-side \.kp-nav button \{ justify-content: center; padding: 0; width: 40px; margin-inline: auto; \}/);
 });
@@ -203,5 +203,18 @@ test('п.8–10: пошук водіїв лише за ПІБ, номер — н
     assert.equal(/renderFleet[(]|docs-fleet|kpf-ttn|aria-expanded/.test(read('src/views/fleet.js') + read('src/views/drivers.js')), false, 'згорнутого блоку під таблицею немає');
     const registry = read('src/views/registry.js');
     assert.match(registry, /onclick: open/);
-    assert.match(css, /\.kpg-page \.table-wrap \{ padding: 0 var\(--kp-gap, 24px\) 0 0; \}/);
+    assert.match(css, /\.kpg-page \.table-wrap \{ padding: 0; \}/);
+    assert.match(css, /\.kpg-table th:first-child, #kp-crm \.kpg-table td:first-child \{ padding-left: 16px; \}/);
+    assert.match(css, /\.kpg-table th:last-child, #kp-crm \.kpg-table td:last-child \{ padding-right: 16px; \}/);
+});
+
+// ---- Правки після перевірки A–B ----
+test('A: між меню й контентом рівно --kp-gap — центрування #main-app (.container) вимкнено, вузькі сторінки без auto-полів', () => {
+    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ max-width: none !important; margin-left: 0 !important; margin-right: 0 !important;/);
+    assert.match(css, /#kp-crm \.page\.narrow \{ max-width: 760px; margin: 0; \}/);
+    assert.equal(/#kp-crm [^{]*\{[^}]*margin: 0 auto/.test(css), false, 'жодного auto-центрування блоків кабінету');
+});
+
+test('B: таблиці реєстру — однакові бокові відступи (16px з обох боків, без padding у .table-wrap)', () => {
+    assert.match(css, /\.kpg-page \.table-wrap \{ padding: 0; \}/);
 });

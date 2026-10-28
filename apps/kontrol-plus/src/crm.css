@@ -52,7 +52,7 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .badge-director { background: var(--warn-bg); border-color: #E6D2A8; color: var(--warn); }
 
 /* Сторінки */
-#kp-crm .page.narrow { max-width: 760px; margin: 0 auto; }
+#kp-crm .page.narrow { max-width: 760px; margin: 0; }
 #kp-crm .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 #kp-crm .section-title { margin-top: 28px; }
 #kp-crm .back { display: inline-block; margin-bottom: 12px; text-decoration: none; color: var(--muted); font-weight: 600; }
@@ -437,7 +437,9 @@ body.kp-nav-on { --kp-nav-w: 224px; --kp-gap: 24px; }
 #kp-side .kpr-nav-badge { margin-left: auto; }
 /* Між меню й контентом завжди 24px, праворуч той самий відступ — у калькуляторі, історії, огляді й усіх розділах Контроль+.
    Шапка сайту (всередині #main-app) розтягується назад на всю ширину від'ємними відступами. */
-body.kp-nav-on.layout-studio #main-app { padding-left: calc(var(--kp-nav-w, 224px) + var(--kp-gap, 24px)) !important; padding-right: var(--kp-gap, 24px) !important; }
+/* Причина «53px замість 24px»: #main-app на сайті — .container (max-width 1480 + margin auto) і центрується на широких екранах, тож до padding додається поле
+   (vw − 1480) / 2. З меню зліва центрування не потрібне: контент починається рівно через --kp-gap від меню. */
+body.kp-nav-on.layout-studio #main-app { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: calc(var(--kp-nav-w, 224px) + var(--kp-gap, 24px)) !important; padding-right: var(--kp-gap, 24px) !important; }
 body.kp-nav-on.layout-studio #sticky-top { margin-left: calc(-1 * (var(--kp-nav-w, 224px) + var(--kp-gap, 24px))) !important; margin-right: calc(-1 * var(--kp-gap, 24px)) !important; }
 body.kp-nav-on #studio-nav-overview { display: none; }
 @media (max-width: 1024px) {
@@ -560,7 +562,9 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 /* Автопарк / Водії — спільний шаблон: пошук + «Додати», список лише для читання, картка в стилі 1С (п.8–10 пачки 28.10) */
 #kp-crm .kpg-bar { flex-wrap: wrap; }
 #kp-crm .kpg-bar .btn { margin-left: auto; }
-#kp-crm .kpg-page .table-wrap { padding: 0 var(--kp-gap, 24px) 0 0; }
+#kp-crm .kpg-page .table-wrap { padding: 0; }
+#kp-crm .kpg-table th:first-child, #kp-crm .kpg-table td:first-child { padding-left: 16px; }
+#kp-crm .kpg-table th:last-child, #kp-crm .kpg-table td:last-child { padding-right: 16px; }
 #kp-crm .kpg-row { cursor: pointer; }
 #kp-crm .kpg-row:hover td, #kp-crm .kpg-row:focus-visible td { background: color-mix(in srgb, var(--gold) 10%, transparent); }
 #kp-crm .kpg-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
