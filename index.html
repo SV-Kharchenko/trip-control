@@ -59,6 +59,7 @@
             --accent: #0D2A29; --on-accent: #F4EFE5; --gold: #B08A4C; --warning-text: #8A6420;
             --positive: #1F6F4D; --negative: #C2453F; --negative-on-dark: #FF8A8A;
             --teal: #1A6B65; --chart-neutral: #CDBF9F; --muted-on-dark: #A9BCB7;
+            --result-muted-on-light: #3F514C; --result-down-on-light: #A63530; --result-be-on-light: #6B4F1C;
             --radius-card: 14px; --radius-control: 10px;
             --bg-color: var(--bg); --card-bg: var(--surface); --border-color: var(--border);
             --text-main: var(--text); --text-muted: var(--muted);
@@ -4140,6 +4141,11 @@
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > #tc-det-side {
             grid-column: 2 !important; grid-row: 2 !important; align-self: stretch; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 20px;
             background: color-mix(in srgb, var(--positive) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--positive) 35%, var(--border)); border-radius: var(--radius-card);
+        }
+        /* П.13: у Light картка результату в «Детально» стоїть на світло-зеленому фоні, а токени --tc-result-* там світлі (для темно-бірюзової картки) —
+           дрібні KPI й «Беззбитковість» блякли. Тут темні токени з контрастом ≥ 4.5:1 (перевіряє tests/batch-calc.test.mjs). */
+        body.layout-studio[data-theme="light"][data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > #dispatcher-result:not(.is-empty) {
+            --tc-result-fg: var(--text); --tc-result-muted: var(--result-muted-on-light); --tc-result-up: var(--positive); --tc-result-down: var(--result-down-on-light); --tc-result-be: var(--result-be-on-light);
         }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > #dispatcher-result { background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar { margin-top: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
