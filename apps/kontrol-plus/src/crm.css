@@ -414,10 +414,12 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 }
 
 /* ===== Ліве меню кабінету (макет design/kontrol-plus-cabinet-mockup.html): 11 пунктів, на ≤1024 — лише іконки ===== */
-body.kp-nav-on { --kp-nav-w: 224px; }
+/* Геометрія меню не залежить від JS: змінні мають значення за замовчуванням і на :root, і на body (див. п.5 PR). */
+:root { --kp-nav-w: 224px; --kp-gap: 24px; }
+body.kp-nav-on { --kp-nav-w: 224px; --kp-gap: 24px; }
 #kp-side {
-    position: fixed; left: 0; top: var(--kp-nav-top, 64px); bottom: 0; width: var(--kp-nav-w); z-index: 35;
-    display: flex; flex-direction: column; padding: 10px 8px; overflow-y: auto; overflow-x: hidden;
+    position: fixed; left: 0; top: var(--kp-nav-top, 64px); bottom: 0; width: var(--kp-nav-w, 224px); z-index: 35; box-sizing: border-box;
+    display: flex; flex-direction: column; padding: 12px 10px; overflow-y: auto; overflow-x: hidden;
     background: var(--surface); border-right: 1px solid var(--border); color: var(--text);
 }
 #kp-side .kp-nav { display: flex; flex-direction: column; gap: 2px; }
@@ -433,12 +435,14 @@ body.kp-nav-on { --kp-nav-w: 224px; }
 #kp-side .kp-nav button.on { background: var(--accent); color: var(--on-accent); }
 #kp-side .kp-nav button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 #kp-side .kpr-nav-badge { margin-left: auto; }
-body.kp-nav-on.layout-studio #main-app { padding-left: var(--kp-nav-w) !important; }
-body.kp-nav-on.layout-studio #sticky-top { margin-left: calc(-1 * var(--kp-nav-w)) !important; }
+/* Між меню й контентом завжди 24px, праворуч той самий відступ — у калькуляторі, історії, огляді й усіх розділах Контроль+.
+   Шапка сайту (всередині #main-app) розтягується назад на всю ширину від'ємними відступами. */
+body.kp-nav-on.layout-studio #main-app { padding-left: calc(var(--kp-nav-w, 224px) + var(--kp-gap, 24px)) !important; padding-right: var(--kp-gap, 24px) !important; }
+body.kp-nav-on.layout-studio #sticky-top { margin-left: calc(-1 * (var(--kp-nav-w, 224px) + var(--kp-gap, 24px))) !important; margin-right: calc(-1 * var(--kp-gap, 24px)) !important; }
 body.kp-nav-on #studio-nav-overview { display: none; }
 @media (max-width: 1024px) {
     body.kp-nav-on { --kp-nav-w: 60px; }
-    #kp-side .kp-nav button { justify-content: center; padding: 0; }
+    #kp-side .kp-nav button { justify-content: center; padding: 0; width: 40px; margin-inline: auto; }
     #kp-side .kp-nav button .lb { display: none; }
     #kp-side .kpr-nav-badge { position: absolute; margin: -22px 0 0 18px; }
 }
@@ -448,8 +452,8 @@ body.kp-nav-on #studio-nav-overview { display: none; }
     #kp-side { position: static; width: auto; padding: 6px 8px; border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
     #kp-side .kp-nav { flex-direction: row; }
     #kp-side .kp-nav button { flex: 0 0 auto; width: 44px; }
-    body.kp-nav-on.layout-studio #main-app { padding-left: 0 !important; }
-    body.kp-nav-on.layout-studio #sticky-top { margin-left: 0 !important; }
+    body.kp-nav-on.layout-studio #main-app { padding-left: 12px !important; padding-right: 12px !important; }
+    body.kp-nav-on.layout-studio #sticky-top { margin-left: -12px !important; margin-right: -12px !important; }
 }
 
 /* ===== Автопарк: фільтр за держномером і компактна таблиця ===== */
@@ -541,16 +545,6 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 #kp-crm .kps-tiles { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
 #kp-crm .kps-tile b { white-space: nowrap; font-size: clamp(15px, 0.9vw + 8px, 22px); }
 #kp-crm .kps-tile small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* Історія заявок і Огляд: той самий бічний відступ від меню, що й у калькулятора */
-@media (min-width: 761px) {
-    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #main-app, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #main-app {
-        padding-left: calc(var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px))) !important; padding-right: var(--tc-pad, clamp(12px, 2vw, 32px));
-    }
-    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #sticky-top, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #sticky-top {
-        margin-left: calc(-1 * (var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px)))) !important; margin-right: calc(-1 * var(--tc-pad, clamp(12px, 2vw, 32px)));
-    }
-}
 
 /* Статуси актів і мітка «Акт» у списку документів */
 #kp-crm .kpd-st-created { color: var(--text); background: var(--bg); }

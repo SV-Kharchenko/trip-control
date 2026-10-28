@@ -122,3 +122,25 @@ test('п.4: графік ~240px заввишки, підписи 12px без м�
     assert.match(view, /class: 'kps-legend'/);
     assert.match(css, /\.kps-chart svg \{ display: block; max-width: 100%; height: 240px; \}/);
 });
+
+// ---- 5. Ліве меню: стабільна геометрія (не залежить від JS-змінних), 24px до контенту скрізь ----
+test('п.5: меню має фіксований padding, змінні з fallback, відступ 24px між меню й контентом на всіх сторінках', () => {
+    assert.match(css, /:root \{ --kp-nav-w: 224px; --kp-gap: 24px; \}/);
+    assert.match(css, /width: var\(--kp-nav-w, 224px\); z-index: 35; box-sizing: border-box;\n\s+display: flex; flex-direction: column; padding: 12px 10px;/);
+    assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ padding-left: calc\(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\) !important; padding-right: var\(--kp-gap, 24px\) !important; \}/);
+    assert.equal(/data-studio-view="history"\]:not\(\[data-kp-view\]\) #main-app/.test(css), false, 'окремих відступів для історії / огляду більше немає');
+    assert.match(css, /#kp-side \.kp-nav button \{ justify-content: center; padding: 0; width: 40px; margin-inline: auto; \}/);
+});
+
+test('п.5: production-збірка містить усі правила меню після стилів сайту', async () => {
+    const dist = new URL('../dist/', import.meta.url);
+    if (!fs.existsSync(new URL('index.html', dist))) return; // dist збирається окремо (npm run build)
+    const html = fs.readFileSync(new URL('index.html', dist), 'utf8');
+    const link = html.match(/<link rel="stylesheet" href="(\/kp-assets\/site-bridge-[^"]+\.css)">/);
+    assert.ok(link, 'стилі Контроль+ підключено <link> у head');
+    assert.ok(html.indexOf(link[0]) > html.lastIndexOf('</style>', html.indexOf(link[0])), 'після стилів сайту');
+    const built = fs.readFileSync(new URL('.' + link[1].replace('/kp-assets/', '/kp-assets/'), dist), 'utf8');
+    for (const needle of ['#kp-side{position:fixed', 'padding:12px 10px', '--kp-gap: 24px', 'padding-left:calc(var(--kp-nav-w, 224px) + var(--kp-gap, 24px))!important', '@media (max-width: 1024px)']) {
+        assert.ok(built.includes(needle), 'у збірці: ' + needle);
+    }
+});
