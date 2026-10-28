@@ -589,6 +589,8 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 #kp-crm .kpc-box.kpc-w-s input { width: 70px; }
 #kp-crm .kpc-suffix { font-style: normal; color: var(--muted); font-size: 13px; }
 #kp-crm .kpc-actions { margin-top: 14px; display: flex; gap: 8px; }
+/* Кнопки картки — за розміром тексту (сайтовий .btn розтягується: flex 1 + min-width). */
+#kp-crm .kpc-head > .btn, #kp-crm .kpc-actions > .btn { flex: 0 0 auto; width: auto; min-width: 0; margin: 0; }
 @media (max-width: 760px) {
   #kp-crm .kpc-row { grid-template-columns: 1fr; }
   #kp-crm .kpc-row .hint { grid-column: 1; }

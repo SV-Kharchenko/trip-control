@@ -23,6 +23,8 @@ export const FLEET_TABS = [
 
 const dash = (value) => (value === null || value === undefined || value === '' ? '—' : String(value));
 const DATE_KEYS = ['oscpv_on', 'kasko_on', 'green_card_on', 'inspection_on', 'tachograph_on', 'service_on'];
+// Причіп: лише страхові строки (ТО / техогляд / тахограф у картці причепа не ведуться; колонки в БД лишаються).
+const TRAILER_DATE_KEYS = ['oscpv_on', 'kasko_on', 'green_card_on'];
 const TTN_KEYS = ['vehicle_type', 'length_m', 'width_m', 'height_m', 'tare_t', 'max_mass_t', 'default_driver_id'];
 const NUM_KEYS = ['length_m', 'width_m', 'height_m', 'tare_t', 'max_mass_t', 'capacity_t', 'volume_m3'];
 const toNum = (value) => {
@@ -186,7 +188,7 @@ export function renderFleetPage(app, sub = 'cars') {
             if (Object.keys(errors).length) return clear(message, notice('Перевірте поля причепа.'));
             let id = t ? t.id : null;
             if (access.isOwner) {
-                const dates = Object.fromEntries(DATE_KEYS.map((k) => [k, values[k] || null]));
+                const dates = Object.fromEntries(TRAILER_DATE_KEYS.map((k) => [k, values[k] || null]));
                 const patch = { plate, type: values.type, ...dates };
                 const op = t
                     ? app.supabase.from('fleet_trailers').update(patch).eq('id', id).select('id').single()
