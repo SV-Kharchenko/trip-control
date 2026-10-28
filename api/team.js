@@ -10,6 +10,13 @@ import { recalculateRequest } from './calculate.js';
 const MAX_TEAM_SEATS = 3;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const TEAM_ROLES = new Set(['owner', 'logist']);
+// Права логіста (колонки org_member_permissions.can_*). Рядка немає = значення за замовчуванням: усе, крім підпису.
+// Право перевіряє БАЗА (member_can у тригерах і RPC); тут лише керування ними і показ у «Команді».
+export const MEMBER_PERMISSIONS = ['acts', 'sign', 'fleet', 'clients', 'contracts'];
+export const DEFAULT_MEMBER_PERMISSIONS = { acts: true, sign: false, fleet: true, clients: true, contracts: true };
+const ALL_PERMISSIONS = { acts: true, sign: true, fleet: true, clients: true, contracts: true };
+const NOTIFICATIONS_LIMIT = 100;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVITE_ROLES = new Set(['logist']);
 // «Команда» shows invites from the last 30 days, newest first.
 const INVITE_HISTORY_MS = 30 * 24 * 60 * 60 * 1000;
@@ -339,12 +346,15 @@ export function createTeamService(deps) {
         const authById = new Map(
             (usersResult.data?.users || []).map(user => [user.id, user])
         );
+        const permissionRows = await loadPermissionRows(orgId);
         const result = (members || []).map(member => {
             const authUser = authById.get(member.id);
+            const visible = actor.profile.org_role === 'owner' || member.id === actor.user.id;
             return {
                 ...member,
                 email: member.email || authUser?.email || '',
-                last_sign_in_at: authUser?.last_sign_in_at || null
+                last_sign_in_at: authUser?.last_sign_in_at || null,
+                ...(visible ? { permissions: permissionsOf(member, permissionRows) } : {})
             };
         });
 
@@ -1132,8 +1142,129 @@ export function createTeamService(deps) {
         return { ok: true, id: calc.id };
     }
 
+    async function loadPermissionRows(orgId) {
+        const { data, error } = await supabase
+            .from('org_member_permissions')
+            .select('user_id, can_acts, can_sign, can_fleet, can_clients, can_contracts')
+            .eq('org_id', orgId);
+        // До міграції таблиці немає: показуємо значення за замовчуванням.
+        if (error) return new Map();
+        return new Map((data || []).map(row => [row.user_id, row]));
+    }
+
+    function permissionsOf(member, rows) {
+        if (member.org_role === 'owner') return { ...ALL_PERMISSIONS };
+        const row = rows.get(member.id);
+        if (!row) return { ...DEFAULT_MEMBER_PERMISSIONS };
+        const out = {};
+        for (const key of MEMBER_PERMISSIONS) out[key] = row['can_' + key] === true;
+        return out;
+    }
+
+    // Права логіста змінює лише директор. Це лише запис: перевірку виконує база (member_can у тригерах/RPC).
+    async function setPermissions(actor, body) {
+        requireOwner(actor);
+        const userId = String(body.user_id || '');
+        if (!UUID_PATTERN.test(userId)) throw new HttpError(400, 'BAD_MEMBER', 'Некоректний учасник.');
+        const patch = body.permissions;
+        if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+            throw new HttpError(400, 'BAD_PERMISSIONS', 'Не вказано права.');
+        }
+        const keys = Object.keys(patch);
+        if (!keys.length || keys.some(key => !MEMBER_PERMISSIONS.includes(key) || typeof patch[key] !== 'boolean')) {
+            throw new HttpError(400, 'BAD_PERMISSIONS', 'Невідоме право або значення не true/false.');
+        }
+        const { data: target, error: targetError } = await supabase
+            .from('profiles')
+            .select('id, org_role, member_status')
+            .eq('id', userId)
+            .eq('org_id', actor.profile.org_id)
+            .maybeSingle();
+        if (targetError) throw targetError;
+        if (!target) throw new HttpError(404, 'MEMBER_NOT_FOUND', 'Учасника не знайдено.');
+        if (target.org_role !== 'logist') {
+            throw new HttpError(400, 'OWNER_ALL_RIGHTS', 'Директор має всі права завжди.');
+        }
+        const rows = await loadPermissionRows(actor.profile.org_id);
+        const next = { ...permissionsOf(target, rows), ...patch };
+        const { error } = await supabase
+            .from('org_member_permissions')
+            .upsert({
+                org_id: actor.profile.org_id,
+                user_id: userId,
+                can_acts: next.acts,
+                can_sign: next.sign,
+                can_fleet: next.fleet,
+                can_clients: next.clients,
+                can_contracts: next.contracts,
+                updated_by: actor.user.id,
+                updated_at: new Date(now()).toISOString()
+            }, { onConflict: 'org_id,user_id' });
+        if (error) throw error;
+        await audit(actor.user.id, actor.profile.org_id, 'set_member_permissions', 'profiles', userId, { permissions: next });
+        return { ok: true, user_id: userId, permissions: next };
+    }
+
+    // Сповіщення директору (пишуться тригерами бази). Список + лічильник непрочитаних.
+    async function listNotifications(actor, body) {
+        requireOwner(actor);
+        const orgId = actor.profile.org_id;
+        const limit = Math.max(1, Math.min(NOTIFICATIONS_LIMIT, Number(body && body.limit) || 50));
+        const { data, error } = await supabase
+            .from('org_notifications')
+            .select('id, kind, ref_kind, ref_id, actor_id, meta, created_at, read_at')
+            .eq('org_id', orgId)
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        if (error) {
+            // До міграції таблиці немає: порожній список замість помилки.
+            if (/org_notifications|relation|schema cache|42P01|PGRST205/i.test(String(error.message || error.code || ''))) {
+                return { items: [], unread: 0 };
+            }
+            throw error;
+        }
+        const { data: unreadRows, error: unreadError } = await supabase
+            .from('org_notifications')
+            .select('id')
+            .eq('org_id', orgId)
+            .is('read_at', null)
+            .limit(1000);
+        if (unreadError) throw unreadError;
+        const actorIds = [...new Set((data || []).map(item => item.actor_id).filter(Boolean))];
+        const emails = new Map();
+        if (actorIds.length) {
+            const { data: people } = await supabase.from('profiles').select('id, email').in('id', actorIds).eq('org_id', orgId);
+            for (const person of people || []) emails.set(person.id, person.email || '');
+        }
+        return {
+            items: (data || []).map(item => ({ ...item, actor_email: emails.get(item.actor_id) || '' })),
+            unread: (unreadRows || []).length
+        };
+    }
+
+    async function markNotificationsRead(actor, body) {
+        requireOwner(actor);
+        const all = body && body.all === true;
+        const ids = Array.isArray(body && body.ids) ? body.ids : [];
+        if (!all && (!ids.length || ids.length > NOTIFICATIONS_LIMIT || ids.some(id => !UUID_PATTERN.test(String(id))))) {
+            throw new HttpError(400, 'BAD_NOTIFICATIONS', 'Не вказано сповіщення.');
+        }
+        let query = supabase
+            .from('org_notifications')
+            .update({ read_at: new Date(now()).toISOString(), read_by: actor.user.id })
+            .eq('org_id', actor.profile.org_id)
+            .is('read_at', null);
+        if (!all) query = query.in('id', ids);
+        const { data, error } = await query.select('id');
+        if (error) throw error;
+        return { ok: true, marked: (data || []).length };
+    }
+
     return {
         requireUser,
+        setPermissions,
+        listNotifications,
+        markNotificationsRead,
         submitCalc,
         decideCalc,
         completeCalc,
@@ -1192,6 +1323,9 @@ export function createTeamHandler(deps) {
             else if (action === 'resend') result = await service.resendInvite(actor, body);
             else if (action === 'set_work_mode') result = await service.setWorkMode(actor, body);
             else if (action === 'set_logists_see_all') result = await service.setVisibility(actor, body);
+            else if (action === 'set_permissions') result = await service.setPermissions(actor, body);
+            else if (action === 'notifications') result = await service.listNotifications(actor, body);
+            else if (action === 'notifications_read') result = await service.markNotificationsRead(actor, body);
             else if (action === 'calc_submit') result = await service.submitCalc(actor, body);
             else if (action === 'calc_decide') result = await service.decideCalc(actor, body);
             else if (action === 'calc_complete') result = await service.completeCalc(actor, body);
