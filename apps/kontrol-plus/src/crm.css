@@ -551,3 +551,8 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
         margin-left: calc(-1 * (var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px)))) !important; margin-right: calc(-1 * var(--tc-pad, clamp(12px, 2vw, 32px)));
     }
 }
+
+/* Статуси актів і мітка «Акт» у списку документів */
+#kp-crm .kpd-st-created { color: var(--text); background: var(--bg); }
+#kp-crm .kpd-st-signed { color: var(--positive); border-color: var(--positive); }
+#kp-crm .kpd-kind-act { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; background: var(--info-bg); color: var(--text); border: 1px solid var(--border-soft); }

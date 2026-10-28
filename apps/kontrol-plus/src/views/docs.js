@@ -4,7 +4,7 @@
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtDate, kyivDate, monthRange, daysBetween } from '../lib/format.js';
 import {
-    DOC_KIND_LABELS, PAY_STATUS_LABELS, docsAccess, docErrorText, docNumberText, fmtAmount, isMissingFeature,
+    DOC_KIND_LABELS, PAY_STATUS_LABELS, docStatusKey, docStatusLabel, docsAccess, docErrorText, docNumberText, fmtAmount, isMissingFeature,
 } from '../lib/docs.js';
 import { ttnErrorText } from '../lib/ttn.js';
 import { downloadDocPdf, downloadDocXlsx, downloadTtnPdf } from '../lib/docs-pdf-client.js';
@@ -60,8 +60,21 @@ export function excelButton(app, id, kind, label = 'Excel', cls = 'btn btn-sm') 
     }, label);
 }
 
-export function statusBadge(status) {
-    return h('span', { class: 'kpd-st kpd-st-' + status }, PAY_STATUS_LABELS[status] || status);
+// Для актів: «Створено» / «Підписано» / «Анульовано»; для рахунків і ТТН — статус оплати як було.
+export function statusBadge(status, kind = null, signed = false) {
+    return h('span', { class: 'kpd-st kpd-st-' + docStatusKey(kind, status, signed) }, docStatusLabel(kind, status, signed));
+}
+
+// Які з актів підписані (kp_doc_signed); без міграції — порожньо.
+export async function signedActs(app, rows) {
+    const ids = (rows || []).filter((r) => r.kind === 'act').map((r) => r.id);
+    if (!ids.length) return new Set();
+    try {
+        const { data, error } = await app.supabase.rpc('kp_doc_signed', { p_ids: ids });
+        return error ? new Set() : new Set(data || []);
+    } catch {
+        return new Set();
+    }
 }
 
 export function missingNotice() {
@@ -226,20 +239,21 @@ function renderDocList(app, access, presetKind = '') {
             return;
         }
         const totals = listTotals(rows);
+        const signed = await signedActs(app, rows);
         clear(list,
             h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
                 h('thead', null, h('tr', null, ['Дата', '№', 'Тип', 'Клієнт', 'Сума', 'Оплачено', 'Борг', 'Строк', 'Статус', ''].map((t) => h('th', null, t)))),
                 h('tbody', null, rows.map((r) => h('tr', { class: r.status === 'cancelled' ? 'is-archived' : '' },
                     h('td', { 'data-label': 'Дата' }, fmtDate(r.doc_date)),
                     h('td', { 'data-label': '№', class: 'mono' }, h('a', { href: r.kind === 'ttn' ? '#/docs/ttn/' + r.id : '#/docs/' + r.id }, docNumberText(r))),
-                    h('td', { 'data-label': 'Тип' }, DOC_KIND_LABELS[r.kind] || r.kind,
+                    h('td', { 'data-label': 'Тип' }, r.kind === 'act' ? h('span', { class: 'kpd-kind kpd-kind-act' }, 'Акт') : (DOC_KIND_LABELS[r.kind] || r.kind),
                         r.kind === 'ttn' && r.vehicle_reg ? h('span', { class: 'muted small' }, ' · ' + r.vehicle_reg) : null),
                     h('td', { 'data-label': 'Клієнт' }, h('a', { href: '#/clients/' + r.client_id }, r.client_name || '—')),
                     h('td', { 'data-label': 'Сума', class: 'mono' }, r.total === null || r.total === undefined ? '—' : h('b', null, fmtAmount(r.total, r.currency))),
                     h('td', { 'data-label': 'Оплачено', class: 'mono' }, r.kind === 'invoice' ? fmtAmount(r.paid, r.currency) : '—'),
                     h('td', { 'data-label': 'Борг', class: 'mono' }, r.debt === null || r.debt === undefined ? '—' : fmtAmount(r.debt, r.currency)),
                     h('td', { 'data-label': 'Строк' }, r.due_date ? fmtDate(r.due_date) : '—'),
-                    h('td', { 'data-label': 'Статус' }, statusBadge(r.pay_status)),
+                    h('td', { 'data-label': 'Статус' }, statusBadge(r.pay_status, r.kind, signed.has(r.id))),
                     h('td', { 'data-label': '' }, h('div', { class: 'actions' },
                         pdfButton(app, r.id, 'PDF', 'btn btn-sm', r.kind === 'ttn' ? 'ttn' : null),
                         excelButton(app, r.id, r.kind === 'ttn' ? 'ttn' : null),

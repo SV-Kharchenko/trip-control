@@ -7,7 +7,7 @@ import {
     DOC_TITLES, docErrorText, docNumberText, fmtAmount, fmtMoneyPlain, fmtQty,
 } from '../lib/docs.js';
 import { partyLines, rateLine } from '../lib/pdf-docs-text.js';
-import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
+import { showError, statusBadge, signedActs, pdfButton, excelButton, cancelControl } from './docs.js';
 
 export function renderDocCard(app, access, id) {
     const box = h('div', null, spinner());
@@ -15,7 +15,9 @@ export function renderDocCard(app, access, id) {
     async function load() {
         const { data, error } = await app.supabase.rpc('kp_doc_get', { p_doc: id });
         if (error) return showError(app, box, error);
-        draw(data);
+        let signed = false;
+        if (data && data.kind === 'act') signed = (await signedActs(app, [{ id, kind: 'act' }])).has(id);
+        draw(data, signed);
     }
 
     function party(title, p) {
@@ -24,7 +26,7 @@ export function renderDocCard(app, access, id) {
             p && (p.signer_position || p.signer_name) ? h('p', { class: 'small muted' }, 'Підписант: ' + [p.signer_position, p.signer_name].filter(Boolean).join(' ')) : null);
     }
 
-    function draw(doc) {
+    function draw(doc, signed = false) {
         const cur = doc.currency;
         const vat = Number(doc.vat_rate) === 20;
         const isInvoice = doc.kind === 'invoice';
@@ -33,13 +35,22 @@ export function renderDocCard(app, access, id) {
             h('a', { class: 'back', href: '#/docs' }, '← До документів'),
             h('div', { class: 'page-head' },
                 h('div', null,
-                    h('h2', null, (DOC_TITLES[doc.kind] || doc.kind) + ' № ' + docNumberText(doc) + ' від ' + fmtDate(doc.doc_date), ' ', statusBadge(doc.pay_status)),
+                    h('h2', null, (DOC_TITLES[doc.kind] || doc.kind) + ' № ' + docNumberText(doc) + ' від ' + fmtDate(doc.doc_date), ' ', statusBadge(doc.pay_status, doc.kind, signed)),
                     h('p', { class: 'muted' }, 'Клієнт: ', h('a', { href: '#/clients/' + doc.client_id }, doc.client_name || '—'),
                         doc.created_by_email ? ' · створив(ла) ' + doc.created_by_email : '',
                         doc.parent ? [' · до рахунку ', h('a', { href: '#/docs/' + doc.parent.id }, '№ ' + doc.parent.number_text)] : null)),
                 h('div', { class: 'actions' },
                     pdfButton(app, doc.id, 'Завантажити PDF', 'btn btn-primary'),
                     excelButton(app, doc.id, null, 'Excel', 'btn'),
+                    doc.kind === 'act' && active && access.isOwner ? h('button', {
+                        type: 'button', class: 'btn',
+                        onclick: async () => {
+                            const { error } = await app.supabase.rpc('kp_doc_sign', { p_doc: doc.id, p_signed: !signed });
+                            if (error) return toast(docErrorText(error), 'error');
+                            toast(signed ? 'Підпис знято' : 'Акт підписано');
+                            load();
+                        },
+                    }, signed ? 'Зняти підпис' : 'Підписати') : null,
                     isInvoice && active && access.canWrite ? h('a', { class: 'btn', href: '#/docs/new/act/' + doc.client_id }, 'Створити акт') : null)),
             doc.status === 'cancelled' ? notice('Анульовано ' + fmtDate(doc.cancelled_at) + (doc.cancelled_by_email ? ' (' + doc.cancelled_by_email + ')' : '')
                 + ': ' + (doc.cancelled_reason || '—') + '. Номер не використовується повторно.', 'error') : null,
