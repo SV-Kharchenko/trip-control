@@ -59,7 +59,7 @@ test('two columns: panel minmax(380px, 40%) + sticky full-height map; ≤900 str
 test('panel «Параметри заявки»: 4 accordion rows, fields in the mockup order, no taxes block', () => {
     assert.match(build, /Параметри заявки/);
     const rows = [...build.matchAll(/opAccRow\('([a-z]+)', '([^']+)', '([^']+)'/g)].map((m) => m[1] + ':' + m[3]);
-    assert.deepEqual(rows, ['route:Назва / маршрут заявки', 'fuel:Пальне', 'extras:Додаткові параметри', 'recent:Останні маршрути']);
+    assert.deepEqual(rows, ['route:Назва / маршрут заявки', 'fuel:Пальне', 'extras:Додаткові параметри', 'costs:Витрати і накладні', 'recent:Останні маршрути']);
     assert.match(build, /opAccRow\('route', '1', 'Назва \/ маршрут заявки', panel1, true\)/);
     assert.match(build, /opAccRow\('recent', '↺', 'Останні маршрути', recentBody, true\)/);
     const order = build.slice(build.indexOf('panel1.appendChild(nameRow)'), build.indexOf('panel1.appendChild(vehicleMore)'));
@@ -69,13 +69,15 @@ test('panel «Параметри заявки»: 4 accordion rows, fields in the
     assert.ok(at("'Подача авто'") < at('if (routeTools)') && at('if (routeTools)') < at("'Відстань'"));
     assert.ok(at("'Відстань'") < at("'Вага вантажу'") && at("'Вага вантажу'") < at('rate'));
     assert.ok(at('rate') < at("'Повернення'") && at("'Повернення'") < at('truck]'));
-    // Блок «Податки і накладні» прибрано з UI; поля лишаються в прихованому #main-sync-fields.
+    // Блок «Податки і накладні» прибрано; ставки водія, ТО, шини, накладні й склад парку — видимі в рядку «Витрати і накладні».
     assert.equal(/Податки і накладні/.test(build), false);
     assert.equal(/id="tc-acc-tax"|tc-acc-body-tax/.test(onepage), false);
-    assert.match(html, /#main-sync-fields \{ display: none !important; \}/);
-    for (const id of ['total-fleet', 'to-cost', 'to-period', 'tire-cost', 'tire-count', 'tire-mileage']) {
-        assert.equal((html.match(new RegExp('<input[^>]* id="' + id + '"', 'g')) || []).length, 1, id);
-        assert.equal(build.includes("'" + id + "'"), false, id + ' stays in #main-sync-fields');
+    assert.match(html, /#main-sync-fields { display: none !important; }/);
+    for (const id of ['total-fleet', 'to-cost', 'to-period', 'tire-cost', 'tire-count', 'tire-mileage', 'overhead-amort', 'overhead-admin',
+        'overhead-other-op', 'overhead-other', 'overhead-repair', 'overhead-fin', 'driver-pay-mode', 'driver-rate-load', 'driver-rate-empty',
+        'driver-pct-val', 'per-diem', 'adblue-price']) {
+        assert.equal((html.match(new RegExp('<(?:input|select)[^>]* id="' + id + '"', 'g')) || []).length, 1, id);
+        assert.equal(build.includes("opMoveField('" + id + "'"), true, id + ' видиме в калькуляторі');
     }
     // Тариф + валюта — одне поле; всі id формул у одному екземплярі.
     assert.match(build, /rateBox\.appendChild\(currency\)/);

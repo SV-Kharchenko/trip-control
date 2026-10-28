@@ -543,6 +543,25 @@
         .tc-fuel-compact .form-row .unit { display: none; }
         .tc-fuel-compact .form-row label { margin-bottom: 0; }
         #main-sync-fields { display: none !important; }
+        /* Витрати і накладні: компактно, як у 1С — підпис зліва, вузьке поле поруч. */
+        .tc-costs-rows .tc-costs-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+        .tc-costs-rows .tc-costs-sub { font-weight: 700; font-size: var(--tc-fs-s, 0.8rem); color: var(--muted); }
+        .tc-costs-rows .tc-costs-note { margin: 0; font-size: var(--tc-fs-s, 0.8rem); color: var(--muted); }
+        .tc-costs-rows .form-row,
+        body.layout-studio .tc-costs-rows .form-row { display: flex; align-items: center; gap: 8px; margin: 0; }
+        .tc-costs-rows .form-row > label,
+        body.layout-studio .tc-costs-rows .form-row > label { flex: 0 0 190px; margin: 0; }
+        .tc-costs-rows .form-row .tc-in,
+        .tc-costs-rows .form-row > select { flex: 0 0 150px; width: 150px; max-width: 100%; }
+        #driver-km-box .form-row + .form-row { margin-top: 6px; }
+        .tc-costs-rows .tc-costs-group > .form-row + *,
+        .tc-costs-rows .tc-costs-group > * + .form-row { margin-top: 0; }
+        @media (max-width: 560px) {
+            .tc-costs-rows .form-row > label,
+            body.layout-studio .tc-costs-rows .form-row > label { flex: 1 1 auto; min-width: 0; }
+            .tc-costs-rows .form-row .tc-in,
+            .tc-costs-rows .form-row > select { flex-basis: 130px; width: 130px; }
+        }
         .tc-costs-body {
             display: grid; grid-template-columns: 120px minmax(0, 1fr);
             gap: 12px 16px; align-items: center;
@@ -6898,8 +6917,54 @@
             fuelPanel.insertBefore(fuelMiss, fuelPanel.firstChild);
         }
 
-        // Додаткові параметри: решта кроку 2 (причіп, норма, авто, діб) + форма розрахунку; блок податків і накладних з UI прибрано —
-        // його поля лишаються в прихованому #main-sync-fields і беруться з кабінету.
+        // Ціна AdBlue: поруч із витратою, видима лише коли AdBlue увімкнено (як і витрата).
+        const adbluePriceRow = opMoveField('adblue-price', 'Ціна AdBlue', 'грн/л');
+        if (adbluePriceRow) {
+            adbluePriceRow.id = 'tc-adblue-price-row';
+            if (adblueRate) adblueRate.after(adbluePriceRow);
+        }
+
+        // Витрати рейсу і накладні: ставки водія, ТО, шини, накладні, склад парку. Поля видимі й редаговані; значення —
+        // з картки авто (де вона їх має), інакше останні введені користувачем, інакше вбудовані. У картку нічого не пишеться.
+        const costsPanel = document.createElement('div');
+        costsPanel.id = 'tc-acc-body-costs';
+        costsPanel.className = 'tc-sec-body tc-costs-rows';
+        const costsGroup = function (title, nodes) {
+            const box = document.createElement('div');
+            box.className = 'tc-costs-group';
+            const h = document.createElement('div');
+            h.className = 'tc-costs-sub';
+            h.textContent = title;
+            box.appendChild(h);
+            nodes.forEach(function (node) { if (node) box.appendChild(node); });
+            costsPanel.appendChild(box);
+        };
+        const payMode = opMoveField('driver-pay-mode', 'Оплата водія');
+        const kmBox = opById('driver-km-box');
+        const pctBox = opById('driver-pct-box');
+        const rateLoadRow = opMoveField('driver-rate-load', 'Ставка з вантажем', 'грн/км');
+        const rateEmptyRow = opMoveField('driver-rate-empty', 'Ставка порожнім', 'грн/км');
+        const pctRow = opMoveField('driver-pct-val', 'Відсоток від фрахту', '%');
+        if (kmBox) [rateLoadRow, rateEmptyRow].forEach(function (row) { if (row) kmBox.appendChild(row); });
+        if (pctBox && pctRow) pctBox.appendChild(pctRow);
+        costsGroup('Водій', [payMode, kmBox, pctBox, opMoveField('per-diem', 'Добові', 'грн/день')]);
+        costsGroup('ТО і шини', [
+            opMoveField('to-cost', 'Вартість ТО', 'грн'), opMoveField('to-period', 'Пробіг між ТО', 'км'),
+            opMoveField('tire-cost', 'Ціна однієї шини', 'грн'), opMoveField('tire-count', 'Шин на авто', 'шт'),
+            opMoveField('tire-mileage', 'Ресурс шини', 'км')
+        ]);
+        const overheadNote = document.createElement('p');
+        overheadNote.className = 'tc-costs-note';
+        overheadNote.textContent = 'Річні суми на весь парк. Порожньо = 0 у розрахунку.';
+        costsGroup('Накладні', [
+            overheadNote,
+            opMoveField('total-fleet', 'Всього авто в парку', 'шт'),
+            opMoveField('overhead-amort', 'Амортизація', 'грн/рік'), opMoveField('overhead-admin', 'Адміністративні', 'грн/рік'),
+            opMoveField('overhead-other-op', 'Інші операційні', 'грн/рік'), opMoveField('overhead-other', 'Інші витрати', 'грн/рік'),
+            opMoveField('overhead-repair', 'Ремонти та інші оп.', 'грн/рік'), opMoveField('overhead-fin', 'Фінансові (кредити)', 'грн/рік')
+        ]);
+
+        // Додаткові параметри: решта кроку 2 (причіп, норма, авто, діб) + форма розрахунку.
         const extrasPanel = panel(4);
         const trip = document.createElement('div');
         trip.className = 'tc-sg tc-op-sub';
@@ -6926,6 +6991,7 @@
         acc.appendChild(opAccRow('route', '1', 'Назва / маршрут заявки', panel1, true));
         if (fuelPanel) acc.appendChild(opAccRow('fuel', '2', 'Пальне', fuelPanel, false));
         if (extrasPanel) acc.appendChild(opAccRow('extras', '3', 'Додаткові параметри', extrasPanel, false));
+        acc.appendChild(opAccRow('costs', '4', 'Витрати і накладні', costsPanel, false));
         acc.appendChild(opAccRow('recent', '↺', 'Останні маршрути', recentBody, true));
         opWrapFields(acc);
         // Використання AdBlue: перемикач замість select (select лишається джерелом значення для коду).
@@ -7055,6 +7121,8 @@
         }
         const adRateRow = opById('tc-adblue-rate-row');
         if (adRateRow) adRateRow.hidden = !adOn;
+        const adPriceRow = opById('tc-adblue-price-row');
+        if (adPriceRow) adPriceRow.hidden = !adOn;
         const result = given !== undefined ? given : opResult();
         const km = stepFieldNum('dist') + stepFieldNum('podacha-dist');
         const missingFuel = opFuelMissing();
@@ -7101,6 +7169,13 @@
         // Саме розгортається лише в момент появи проблеми, щоб не сперечатися з користувачем.
         if (fuelOff && !opFuelWasMissing) setAccOpen('fuel', true);
         opFuelWasMissing = fuelOff;
+
+        // 4. Витрати і накладні: обов'язкові поля, які порожні, підсвічують рядок
+        const costsMiss = [['total-fleet', 'авто в парку'], ['to-period', 'пробіг між ТО'], ['tire-mileage', 'ресурс шини']]
+            .filter(function (pair) { return !(stepFieldNum(pair[0]) > 0); });
+        const costsRow = opById('tc-acc-costs');
+        if (costsRow) costsRow.classList.toggle('is-miss', costsMiss.length > 0);
+        opSetText('tc-acc-sum-costs', costsMiss.length ? 'Не заповнено: ' + costsMiss.map(function (pair) { return pair[1]; }).join(', ') : 'Водій, ТО, шини, накладні');
 
         // 3. Додаткові параметри
         const extraNames = [];
@@ -9901,6 +9976,7 @@
         vehicleSearchQuery = '';
         const search = document.getElementById('vehicle-search');
         if (search) search.value = '';
+        syncCardNormsToForm();
         markVehicleSplitMode();
         renderVehicleNormSelect();
         refreshVehicleTonnage();
@@ -10229,6 +10305,95 @@
         updateVehicleSplitNote(shares);
         if (currentSessionToken) scheduleVehicleCalc();
     }
+    // Поля калькулятора, які може заповнити картка авто з Автопарку: картка → останнє введене користувачем → вбудоване.
+    // Картка має пріоритет, коли поле в ній заповнене (в усіх обраних авто однакове). Ручна правка такого поля діє лише
+    // на цей рейс: у картку вона не пишеться, а при зміні авто поля знову беруться з картки.
+    const CARD_NORM_FIELDS = [
+        { key: 'fuelLoad', id: 'fuel-load' },
+        { key: 'fuelEmpty', id: 'fuel-empty' },
+        { key: 'adblueEnable', id: 'adblue-enable' },
+        { key: 'adblueConsumption', id: 'adblue-consumption' }
+    ];
+    let cardSig = '';
+    let cardSyncing = false;
+    const cardSourced = {};
+    const cardPrev = {};
+    const cardOverrides = {};
+    function cardNormOf(key, vehicle) {
+        if (key === 'fuelLoad') return vehicleNormNumber(vehicle.fuel_load, 0.1, 80);
+        if (key === 'fuelEmpty') return vehicleNormNumber(vehicle.fuel_empty, 0.1, 80);
+        const on = vehicle.adblue_on === true || vehicle.adblue_on === 'on' || vehicle.adblue_on === 'true'
+            ? 'on'
+            : (vehicle.adblue_on === false || vehicle.adblue_on === 'off' || vehicle.adblue_on === 'false' ? 'off' : null);
+        if (key === 'adblueEnable') return on;
+        return on === 'off' ? null : vehicleNormNumber(vehicle.adblue_consumption, 0.05, 30);
+    }
+    // Значення, спільне для всіх обраних авто; null — у картці не заповнено або у авто різні.
+    function cardCommonNorm(key, chosen) {
+        if (!chosen.length) return null;
+        const first = cardNormOf(key, chosen[0]);
+        if (first === null) return null;
+        return chosen.every(function (vehicle) { return cardNormOf(key, vehicle) === first; }) ? first : null;
+    }
+    function syncCardNormsToForm() {
+        const chosen = fleetChoiceActive() ? chosenFleetVehicles() : [];
+        const sig = chosen.map(function (vehicle) { return String(vehicle.id); }).sort().join(',');
+        if (sig === cardSig) return;
+        cardSig = sig;
+        cardSyncing = true;
+        try {
+            CARD_NORM_FIELDS.forEach(function (field) {
+                delete cardOverrides[field.key];
+                const el = document.getElementById(field.id);
+                if (!el) return;
+                const value = cardCommonNorm(field.key, chosen);
+                if (value !== null) {
+                    if (!cardSourced[field.key]) cardPrev[field.key] = el.value;
+                    cardSourced[field.key] = true;
+                    el.value = value;
+                } else if (cardSourced[field.key]) {
+                    // Нове авто без цього поля в картці: повертаємо те, що було в полі до підстановки з картки.
+                    cardSourced[field.key] = false;
+                    el.value = cardPrev[field.key] === undefined ? '' : cardPrev[field.key];
+                }
+            });
+        } finally {
+            cardSyncing = false;
+        }
+        const on = document.getElementById('adblue-enable');
+        if (on) {
+            ['field-adblue-consumption', 'field-adblue-price'].forEach(function (id) {
+                const box = document.getElementById(id);
+                if (box) box.classList.toggle('active', on.value === 'on');
+            });
+        }
+    }
+    function markCardOverride(key) {
+        if (cardSyncing || !cardSourced[key] || !fleetChoiceActive()) return;
+        cardOverrides[key] = true;
+    }
+    // Поле, виправлене руками для цього рейсу, не береться з картки: розрахунок бере його з форми.
+    function stripCardOverrides(resolved) {
+        const out = Object.assign({}, resolved);
+        if (cardOverrides.fuelLoad) delete out.fuelLoad;
+        if (cardOverrides.fuelEmpty) delete out.fuelEmpty;
+        if (cardOverrides.adblueConsumption) delete out.adblueConsumption;
+        if (cardOverrides.adblueEnable) { delete out.useAdblue; delete out.adblueConsumption; }
+        return out;
+    }
+    function bindCardOverrides() {
+        CARD_NORM_FIELDS.forEach(function (field) {
+            const el = document.getElementById(field.id);
+            if (!el || el.dataset.cardBound) return;
+            el.dataset.cardBound = '1';
+            el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', function () { markCardOverride(field.key); });
+        });
+    }
+    // Відкрито збережену заявку: значення в полях вже її, з картки їх не перепідставляємо.
+    function resetCardSync() {
+        cardSig = (fleetChoiceActive() ? chosenFleetVehicles() : []).map(function (vehicle) { return String(vehicle.id); }).sort().join(',');
+        CARD_NORM_FIELDS.forEach(function (field) { cardSourced[field.key] = false; delete cardOverrides[field.key]; });
+    }
     function reapplySelectedVehicleNorms() {
         if (!fleetChoiceActive()) return;
         refreshVehicleTonnage();
@@ -10242,12 +10407,14 @@
             if (vehicleSourceMode !== 'fleet' || !chosen.length) {
                 restoreVehicleCarsCount();
                 if (!chosen.length) vehicleNormBaseline = null;
+                syncCardNormsToForm();
                 renderVehicleNormSelect();
                 refreshVehicleTonnage();
                 if (currentSessionToken) scheduleVehicleCalc();
                 return;
             }
             if (!vehicleNormBaseline) vehicleNormBaseline = readVehicleNormForm();
+            syncCardNormsToForm();
             const cars = document.getElementById('cars-count');
             if (cars) cars.value = String(chosen.length);
             if (vehicleSplitMode === 'manual') {
@@ -10270,7 +10437,7 @@
         if (vehicleSourceMode !== 'fleet') return [];
         return chosenFleetVehicles().map(function (vehicle) {
             const id = String(vehicle.id);
-            const resolved = vehicleResolvedNorms(vehicle);
+            const resolved = stripCardOverrides(vehicleResolvedNorms(vehicle));
             const snapshot = {
                 label: vehicle.label || 'Авто',
                 make_model: vehicle.make_model || null,
@@ -10313,6 +10480,7 @@
         renderVehicleNormSelect();
         const cars = document.getElementById('cars-count');
         if (cars && has) cars.value = String(vehicles.length);
+        resetCardSync();
         if (has) refreshVehicleTonnage();
     }
     document.addEventListener('click', function (event) {
@@ -10348,6 +10516,7 @@
     }
 
     function onAdblueToggle() {
+        markCardOverride('adblueEnable');
         const enabled = document.getElementById('adblue-enable').value === 'on';
         document.getElementById('field-adblue-consumption').classList.toggle('active', enabled);
         document.getElementById('field-adblue-price').classList.toggle('active', enabled);
@@ -10751,6 +10920,7 @@
             if (el && v !== undefined && v !== null && v !== '') el.value = v;
         });
         bindCalcLast();
+        bindCardOverrides();
         if (companyTax) document.getElementById('calc-type').value = companyTax;
         // Синхронізуємо видимість залежних блоків (без запуску розрахунку — він піде один раз пізніше)
         const mode = document.getElementById('driver-pay-mode').value;
@@ -12414,18 +12584,21 @@
     }
     // Усі статті вводяться в калькуляторі: поля рейсу (промивка, реф) і значення калькулятора (SETTINGS_MAP).
     const CALC_WARNING_FIELDS = { washCost: 'wash-cost', washFreq: 'wash-freq', refFuelRate: 'ref-fuel-rate', refHours: 'ref-hours' };
+    Object.keys(SETTINGS_MAP).forEach(function (key) { if (!CALC_WARNING_FIELDS[key]) CALC_WARNING_FIELDS[key] = SETTINGS_MAP[key].id; });
     // Перше поле з попереджень, яке видно на кроці калькулятора.
     function calcWarningField(list) {
         for (const item of list) {
             const input = document.getElementById(CALC_WARNING_FIELDS[item.key]);
             const panel = input && input.closest('.tc-step-panel');
             if (panel && panel.id) return { input: input, step: parseInt(panel.id.replace('tc-step-panel-', ''), 10) };
+            if (input && input.closest('.tc-acc-row')) return { input: input, step: 0 };
         }
         return null;
     }
     function focusCalcWarningField(target) {
         toggleResultDock(false); // на мобільному розгорнутий док закрив би поле
-        showCalcStep(target.step);
+        if (target.step) showCalcStep(target.step);
+        openAccFor(target.input);
         if (target.input.scrollIntoView) target.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.input.focus();
     }

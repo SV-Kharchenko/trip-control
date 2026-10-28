@@ -107,11 +107,11 @@ function fakeElement(tag) {
         click() { if (this.listeners.click) this.listeners.click(); },
         focus() { this.focused = true; },
         scrollIntoView() {},
-        closest() { return this.panel; }
+        closest(selector) { return selector === '.tc-acc-row' ? this.acc || null : this.panel; }
     };
 }
 
-function warningUi({ role, fields = {} }) {
+function warningUi({ role, fields = {}, accFields = [] }) {
     const start = html.indexOf('    // Усі статті вводяться в калькуляторі');
     const end = html.indexOf('    function applyCalcResult(');
     assert.ok(start > 0 && end > start);
@@ -122,26 +122,35 @@ function warningUi({ role, fields = {} }) {
         inputs[id].id = id;
         if (step) inputs[id].panel = { id: 'tc-step-panel-' + step };
     }
+    for (const id of accFields) {
+        inputs[id] = fakeElement('input');
+        inputs[id].id = id;
+        inputs[id].acc = { id: 'tc-acc-costs' };
+    }
     const calls = [];
+    const accCalls = [];
     const document = {
         getElementById: (id) => (id === 'cost-warnings' ? box : inputs[id] || null),
         createElement: fakeElement
     };
     const dock = [];
     const plural = (n, forms) => (n % 10 === 1 && n % 100 !== 11 ? forms[0] : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? forms[1] : forms[2]);
-    const render = new Function('document', 'currentOrgRole', 'openCabinet', 'switchCabTab', 'showCalcStep', 'toggleResultDock', 'plural',
+    const SETTINGS_MAP = { amort: { id: 'overhead-amort' }, fin: { id: 'overhead-fin' }, toCost: { id: 'to-cost' } };
+    const render = new Function('document', 'currentOrgRole', 'openCabinet', 'switchCabTab', 'showCalcStep', 'toggleResultDock', 'plural', 'SETTINGS_MAP', 'openAccFor',
         html.slice(start, end) + '\nreturn renderCostWarnings;')(
         document, role,
         () => calls.push('openCabinet'),
         (tab) => calls.push('tab:' + tab),
         (step) => calls.push('step:' + step),
         (open) => dock.push(open),
-        plural
+        plural,
+        SETTINGS_MAP,
+        (input) => accCalls.push(input.id)
     );
     const full = () => box.children.find((child) => child.className === 'tc-cost-warn-full');
     const short = () => box.children.find((child) => child.className === 'tc-cost-warn-short');
     const buttons = () => full().children.filter((child) => child.tag === 'button');
-    return { box, inputs, calls, dock, full, short, buttons, render };
+    return { box, inputs, calls, accCalls, dock, full, short, buttons, render };
 }
 
 const OVERHEAD_WARNINGS = [{ key: 'amort', label: 'Амортизація' }, { key: 'fin', label: 'Фінансові витрати (кредити)' }];
@@ -160,6 +169,19 @@ test('overhead warnings are shown for owner and logist without a cabinet button 
     }
     assert.equal(html.includes('openCostsCabinet'), false, '«Значення за замовчуванням» прибрано разом зі сторінкою');
     assert.equal(html.includes('Заповнити в кабінеті'), false);
+});
+
+test('п.2: «Не заповнено» без кнопки в кабінет; поле накладних є в калькуляторі, кнопка веде до нього', () => {
+    for (const role of ['owner', 'logist']) {
+        const ui = warningUi({ role, accFields: ['overhead-amort', 'overhead-fin'] });
+        ui.render({ warnings: OVERHEAD_WARNINGS });
+        assert.equal(ui.full().children[0].textContent, WARNING_TEXT);
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        ui.buttons()[0].click();
+        assert.deepEqual(ui.accCalls, ['overhead-amort'], 'розгортає рядок «Витрати і накладні»');
+        assert.equal(ui.inputs['overhead-amort'].focused, true);
+        assert.equal(html.includes('Заповнити в кабінеті'), false);
+    }
 });
 
 test('trip-only warnings focus the calculator field instead of the cabinet', () => {
