@@ -541,3 +541,13 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 #kp-crm .kps-tiles { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
 #kp-crm .kps-tile b { white-space: nowrap; font-size: clamp(15px, 0.9vw + 8px, 22px); }
 #kp-crm .kps-tile small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Історія заявок і Огляд: той самий бічний відступ від меню, що й у калькулятора */
+@media (min-width: 761px) {
+    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #main-app, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #main-app {
+        padding-left: calc(var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px))) !important; padding-right: var(--tc-pad, clamp(12px, 2vw, 32px));
+    }
+    body.kp-nav-on[data-studio-view="history"]:not([data-kp-view]) #sticky-top, body.kp-nav-on[data-studio-view="overview"]:not([data-kp-view]) #sticky-top {
+        margin-left: calc(-1 * (var(--kp-nav-w) + var(--tc-pad, clamp(12px, 2vw, 32px)))) !important; margin-right: calc(-1 * var(--tc-pad, clamp(12px, 2vw, 32px)));
+    }
+}

@@ -86,3 +86,10 @@ test('вкладки «Розрахунок / Історія заявок» вс
     assert.match(bridge, /insertAfterHeader\(main, calcTabs, document\.getElementById\('sticky-top'\), root\);/);
     assert.equal(/main\.insertBefore\(calcTabs, root\)/.test(bridge), false);
 });
+
+test('історія заявок і огляд мають той самий бічний відступ від меню, що й калькулятор', () => {
+    assert.match(css, /body\.kp-nav-on\[data-studio-view="history"\]:not\(\[data-kp-view\]\) #main-app, body\.kp-nav-on\[data-studio-view="overview"\]:not\(\[data-kp-view\]\) #main-app \{\n\s+padding-left: calc\(var\(--kp-nav-w\) \+ var\(--tc-pad/);
+    assert.match(css, /#sticky-top, body\.kp-nav-on\[data-studio-view="overview"\]:not\(\[data-kp-view\]\) #sticky-top \{\n\s+margin-left: calc\(-1 \* \(var\(--kp-nav-w\) \+ var\(--tc-pad/);
+    assert.match(bridge, /\}\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-studio-view', 'data-theme'\] \}\);\n    syncNav\(\);\n    return true;/, 'підсвітка при першому рендері');
+    assert.match(bridge, /leave\(\);\n        syncNav\(\);\n    \}\)/, 'syncNav після кожної зміни розділу сайту');
+});

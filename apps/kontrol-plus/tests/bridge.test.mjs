@@ -60,7 +60,7 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
             if (fetchGate) await fetchGate;
             return { ok: acceptResponse.status < 400, status: acceptResponse.status, json: async () => acceptResponse.body };
         },
-        MutationObserver: class { observe() { calls.observers += 1; } },
+        MutationObserver: class { constructor(cb) { calls.mutationCb = cb; } observe() { calls.observers += 1; } },
         localStorage: {
             getItem: (k) => (storage.has(k) ? storage.get(k) : null),
             setItem: (k, v) => { storage.set(k, String(v)); },
@@ -413,3 +413,34 @@ test('bridge: old #/docs/debts | fleet | requisites redirect to the new sections
     }
 });
 
+
+// Підсвітка «Розрахунки» і вкладок «Розрахунок / Історія заявок» одразу при завантаженні й при кожній зміні data-studio-view.
+test('bridge: active menu item and calc tabs follow data-studio-view from the first render', async () => {
+    const env = setup();
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        const tabsNav = env.byId['main-app'].children.find((c) => c.id === 'kp-calc-tabs');
+        env.byId['kp-calc-tab-calc'] = tabsNav.children[0];
+        env.byId['kp-calc-tab-history'] = tabsNav.children[1];
+        const items = () => navItems(env).filter((b) => b.classList.contains('on')).map((b) => b.id.replace('kp-nav-', ''));
+        const tabs = () => tabsNav.children.filter((b) => b.classList.contains('on')).map((b) => b.id);
+        const change = (view) => {
+            env.body.setAttribute('data-studio-view', view);
+            env.calls.mutationCb([{ attributeName: 'data-studio-view' }]);
+        };
+        env.calls.mutationCb([{ attributeName: 'data-theme' }]);
+        assert.deepEqual(items(), ['calc'], 'калькулятор за замовчуванням: «Розрахунки» підсвічено');
+        assert.deepEqual(tabs(), ['kp-calc-tab-calc']);
+        change('history');
+        assert.deepEqual(items(), ['calc'], 'історія заявок — теж «Розрахунки»');
+        assert.deepEqual(tabs(), ['kp-calc-tab-history']);
+        change('overview');
+        assert.deepEqual(items(), ['overview']);
+        change('calc');
+        assert.deepEqual(items(), ['calc']);
+        assert.deepEqual(tabs(), ['kp-calc-tab-calc']);
+    } finally {
+        env.restore();
+    }
+});

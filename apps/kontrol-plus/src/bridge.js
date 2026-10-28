@@ -468,10 +468,12 @@ function mount() {
     // Одразу під шапкою, над калькулятором (#studio-columns сайт перебудовує, тому прив'язуємось до шапки, а не до нього).
     insertAfterHeader(main, calcTabs, document.getElementById('sticky-top'), root);
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
+    // Зміна розділу сайту: закриваємо розділ Контроль+ і завжди перемальовуємо підсвітку (leave() без відкритого розділу нічого не робить).
     new MutationObserver((records) => {
         if (records.some((r) => r.attributeName === 'data-studio-view')) leave();
-        else syncNav();
+        syncNav();
     }).observe(document.body, { attributes: true, attributeFilter: ['data-studio-view', 'data-theme'] });
+    syncNav();
     return true;
 }
 
