@@ -1161,6 +1161,152 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(recalc.ok && Number(recalc.rows[0].distance_km) === 884 && Number(recalc.rows[0].profit) === 4400, 'approved variant: km and profit follow the approved variant', recalc.message || JSON.stringify(recalc.rows));
     await service(`DELETE FROM public.calculations WHERE id = $1`, [variantCalc]);
 }
+// Кабінет директора (20261031090000): права учасників на сервері і сповіщення директору.
+{
+    const cabinetSql = fs.readFileSync(new URL('20261031090000_director_cabinet.sql', DIR), 'utf8');
+    // Попередні блоки перевиконували 4a / 4b: наша міграція йде останньою, як і на проді (двічі — ідемпотентність).
+    await db.exec(cabinetSql);
+    await db.exec(cabinetSql);
+    check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(cabinetSql)
+        && /РУЧНИЙ ВІДКАТ/.test(cabinetSql), 'director cabinet: migration re-applied (idempotent), manual-apply header and manual rollback');
+    const denied = (r) => !r.ok && r.code === '42501' && /MEMBER_PERMISSION_DENIED/.test(r.message);
+    const setPerm = (who, patch) => service(
+        `INSERT INTO public.org_member_permissions (org_id, user_id, can_acts, can_sign, can_fleet, can_clients, can_contracts)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (org_id, user_id) DO UPDATE SET can_acts = $3, can_sign = $4, can_fleet = $5, can_clients = $6, can_contracts = $7`,
+        [A, who, patch.acts ?? true, patch.sign ?? false, patch.fleet ?? true, patch.clients ?? true, patch.contracts ?? true]);
+    const can = async (who, perm) => (await user(who)(`SELECT public.member_can($1) AS ok`, [perm])).rows[0].ok;
+
+    // Значення за замовчуванням: усе дозволено, крім підпису й печатки; власник завжди все.
+    for (const perm of ['acts', 'fleet', 'clients', 'contracts']) check(await can(LA, perm) === true, 'director cabinet: a logist without a row can ' + perm);
+    check(await can(LA, 'sign') === false, 'director cabinet: a logist without a row cannot use the signature and stamp by default');
+    for (const perm of ['acts', 'sign', 'fleet', 'clients', 'contracts']) check(await can(OA, perm) === true, 'director cabinet: the owner can ' + perm);
+    check((await user(LA)(`SELECT public.member_can('nonsense') AS ok`)).rows[0].ok === false, 'director cabinet: an unknown permission is refused');
+
+    // Таблиця прав: свій рядок — логісту, всі рядки організації — директору, клієнт напряму не пише.
+    await setPerm(LA, { sign: true });
+    await setPerm(LA2, {});
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.org_member_permissions`)).rows[0].n === 1, 'director cabinet RLS: a logist sees only its own permissions row');
+    check((await user(OA)(`SELECT count(*)::int AS n FROM public.org_member_permissions`)).rows[0].n === 2, 'director cabinet RLS: the owner sees the rows of its organisation');
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.org_member_permissions`)).rows[0].n === 0, 'director cabinet RLS: another organisation sees nothing');
+    for (const [who, name] of [[OA, 'owner'], [LA, 'logist']]) {
+        const w = await user(who)(`UPDATE public.org_member_permissions SET can_sign = true`);
+        check(!w.ok && w.code === '42501', 'director cabinet RLS: direct UPDATE by the ' + name + ' is refused', w.message);
+        const i = await user(who)(`INSERT INTO public.org_member_permissions (org_id, user_id) VALUES ($1, $2)`, [A, OA]);
+        check(!i.ok && i.code === '42501', 'director cabinet RLS: direct INSERT by the ' + name + ' is refused', i.message);
+    }
+
+    // Клієнти і договори: перевірка в тригері, тож ховання в інтерфейсі нічого не вирішує.
+    await setPerm(LA, { clients: false, sign: true });
+    const noClient = await user(LA)(`INSERT INTO public.clients (org_id, name) VALUES ($1, 'Без права') RETURNING id`, [A]);
+    check(denied(noClient), 'director cabinet: a logist without "add clients" gets 403 on INSERT', noClient.message);
+    await setPerm(LA, { clients: true, contracts: false, sign: true });
+    const plainClient = await user(LA)(`INSERT INTO public.clients (org_id, name) VALUES ($1, 'Клієнт логіста') RETURNING id`, [A]);
+    check(plainClient.ok, 'director cabinet: with "add clients" a logist adds a client', plainClient.message);
+    const contractClient = await user(LA)(`INSERT INTO public.clients (org_id, name, contract_no) VALUES ($1, 'З договором', 'Д-1') RETURNING id`, [A]);
+    check(denied(contractClient), 'director cabinet: a logist without "contracts" cannot create a client with a contract', contractClient.message);
+    const editContract = await user(LA)(`UPDATE public.clients SET contract_no = 'Д-2', payment_terms_days = 10 WHERE id = $1`, [plainClient.rows[0].id]);
+    check(denied(editContract), 'director cabinet: a logist without "contracts" cannot change contract fields', editContract.message);
+    const rename = await user(LA)(`UPDATE public.clients SET name = 'Перейменовано' WHERE id = $1 RETURNING name`, [plainClient.rows[0].id]);
+    check(rename.ok && rename.rows.length === 1, 'director cabinet: other client fields stay editable without "contracts"', rename.message);
+    const ownerContract = await user(OA)(`UPDATE public.clients SET contract_no = 'Д-3', contract_date = DATE '2026-10-01' WHERE id = $1 RETURNING contract_no`, [plainClient.rows[0].id]);
+    check(ownerContract.ok && ownerContract.rows.length === 1, 'director cabinet: the owner always works with contracts', ownerContract.message);
+    await setPerm(LA, { sign: true });
+    const withContract = await user(LA)(`UPDATE public.clients SET payment_terms_days = 12 WHERE id = $1 RETURNING payment_terms_days`, [plainClient.rows[0].id]);
+    check(withContract.ok && withContract.rows.length === 1, 'director cabinet: with "contracts" a logist changes the contract terms', withContract.message);
+    const clientId = plainClient.rows[0].id;
+
+    // Автопарк: kp_vehicle_save (логіст пише ТТН-колонки) і прямі зміни.
+    const veh = await service(`INSERT INTO public.fleet_vehicles (org_id, label) VALUES ($1, 'AA1234BB') RETURNING id`, [A]);
+    check(veh.ok, 'director cabinet: fixture vehicle created', veh.message);
+    const vehId = veh.rows[0] && veh.rows[0].id;
+    await setPerm(LA, { fleet: false, sign: true });
+    const noFleet = await user(LA)(`SELECT public.kp_vehicle_save($1, '{"vehicle_type":"Тягач сідловий"}'::jsonb)`, [vehId]);
+    check(denied(noFleet), 'director cabinet: a logist without "edit fleet" gets 403 from kp_vehicle_save', noFleet.message);
+    await setPerm(LA, { fleet: true, sign: true });
+    const okFleet = await user(LA)(`SELECT public.kp_vehicle_save($1, '{"vehicle_type":"Тягач сідловий"}'::jsonb)`, [vehId]);
+    check(okFleet.ok, 'director cabinet: with "edit fleet" a logist saves the vehicle', okFleet.message);
+    const ownerFleet = await user(OA)(`UPDATE public.fleet_vehicles SET label = 'AA1234BB' WHERE id = $1 RETURNING id`, [vehId]);
+    check(ownerFleet.ok && ownerFleet.rows.length === 1, 'director cabinet: the owner edits the fleet', ownerFleet.message);
+
+    // Реквізити з підписом і печаткою + документи.
+    const REQ = JSON.stringify({ legal_name: 'ТОВ «Тест Перевезення»', legal_form: 'tov', edrpou: '12345678', vat_payer: false, iban: 'UA21 3223 1300 0002 6007 2335 6600 1',
+        bank_name: 'АТ «Тест Банк»', legal_address: 'м. Київ, вул. Тестова, 1', signer_name: 'Петренко Петро', signer_position: 'Директор', doc_place: 'м. Київ',
+        invoice_prefix: 'РФ-', act_prefix: 'АКТ-', default_currency: 'UAH', default_vat_mode: 'net',
+        signature_path: A + '/signature.png', stamp_path: A + '/stamp.png' });
+    await service(`INSERT INTO storage.objects (bucket_id, name) VALUES ('kp-doc-assets', $1), ('kp-doc-assets', $2)`, [A + '/signature.png', A + '/stamp.png']);
+    const saved = await user(OA)(`SELECT public.kp_requisites_save($1::jsonb)`, [REQ]);
+    check(saved.ok, 'director cabinet: the owner saves the requisites with a signature and a stamp', saved.message);
+    const lines = JSON.stringify([{ title: 'Послуга', qty: 1, price: 100 }]);
+    const assetsFor = async (who) => (await user(who)(`SELECT signature_path AS s, stamp_path AS t FROM public.kp_doc_assets_source()`)).rows[0];
+    check((await assetsFor(OA)).s === A + '/signature.png', 'director cabinet: the owner gets the signature file for a new document');
+
+    await setPerm(LA, { acts: false, sign: true });
+    const noAct = await user(LA)(`SELECT public.kp_doc_create('act', $1, DATE '2026-10-10', 'UAH', NULL, $2::jsonb)`, [clientId, lines]);
+    check(denied(noAct), 'director cabinet: a logist without "create acts" gets 403 on an act', noAct.message);
+    const invoiceOk = await user(LA)(`SELECT public.kp_doc_create('invoice', $1, DATE '2026-10-10', 'UAH', NULL, $2::jsonb, NULL, NULL, NULL, NULL, NULL, $3)`,
+        [clientId, lines, '99000000-0000-4000-8000-000000000001']);
+    check(!invoiceOk.ok && !/MEMBER_PERMISSION_DENIED/.test(invoiceOk.message), '"create acts" does not block invoices (the next error is only the missing file copy)', invoiceOk.message);
+
+    // Без права на підпис: файли не віддаються, акт створюється без підпису й печатки, сповіщення немає.
+    await setPerm(LA, { acts: true, sign: false });
+    const src = await assetsFor(LA);
+    check(src.s === null && src.t === null, 'director cabinet: without "signature" the assets source returns no files', JSON.stringify(src));
+    const unsigned = await user(LA)(`SELECT public.kp_doc_create('act', $1, DATE '2026-10-10', 'UAH', NULL, $2::jsonb) AS id`, [clientId, lines]);
+    check(unsigned.ok, 'director cabinet: without "signature" a logist still creates an act', unsigned.message);
+    const unsignedSeller = (await service(`SELECT seller FROM public.kp_documents WHERE id = $1`, [unsigned.rows[0].id])).rows[0].seller;
+    check(unsignedSeller.signature_path === null && unsignedSeller.stamp_path === null, 'director cabinet: the act carries neither signature nor stamp');
+    check((await service(`SELECT count(*)::int AS n FROM public.org_notifications WHERE kind = 'signature_used'`)).rows[0].n === 0, 'director cabinet: no notification when the signature is not used');
+
+    // З правом: копії знімків (їх кладе /api/docs/assets), документ із підписом, сповіщення директору.
+    await setPerm(LA, { acts: true, sign: true });
+    const docId = '99000000-0000-4000-8000-0000000000aa';
+    await service(`INSERT INTO storage.objects (bucket_id, name) VALUES ('kp-doc-assets', $1), ('kp-doc-assets', $2)`,
+        [A + '/docs/' + docId + '/signature.png', A + '/docs/' + docId + '/stamp.png']);
+    const signed = await user(LA)(`SELECT public.kp_doc_create('act', $1, DATE '2026-10-11', 'UAH', NULL, $2::jsonb, NULL, NULL, NULL, NULL, NULL, $3) AS id`, [clientId, lines, docId]);
+    check(signed.ok && signed.rows[0].id === docId, 'director cabinet: with "signature" a logist creates a signed act', signed.message);
+    const sigNote = (await service(`SELECT kind, ref_kind, ref_id, actor_id, meta, read_at FROM public.org_notifications WHERE kind = 'signature_used'`)).rows;
+    check(sigNote.length === 1 && sigNote[0].ref_kind === 'document' && sigNote[0].ref_id === docId && sigNote[0].actor_id === LA
+        && sigNote[0].meta.doc_kind === 'act' && sigNote[0].read_at === null,
+    'director cabinet: using the signature writes one notification (who, which document, unread)', JSON.stringify(sigNote));
+    const ownerDoc = await user(OA)(`SELECT public.kp_doc_create('act', $1, DATE '2026-10-12', 'UAH', NULL, $2::jsonb) AS id`, [clientId, lines]);
+    check(!ownerDoc.ok && /DOC_ASSETS_NOT_COPIED/.test(ownerDoc.message), 'director cabinet: the owner keeps the original asset-copy rule', ownerDoc.message);
+
+    // Відправка заявки на погодження → сповіщення; вхід від директора — ні.
+    const calc = await service(`INSERT INTO public.calculations (user_id, org_id, name, inputs, results) VALUES ($1, $2, 'Київ — Львів', '{}'::jsonb, '{}'::jsonb) RETURNING id`, [LA, A]);
+    const calcId = calc.rows[0].id;
+    const submit = await user(LA)(`UPDATE public.calculations SET status = 'pending' WHERE id = $1 RETURNING status`, [calcId]);
+    check(submit.ok && submit.rows[0].status === 'pending', 'director cabinet: the logist submits the request for approval', submit.message);
+    const pend = (await service(`SELECT kind, ref_kind, ref_id, actor_id, meta FROM public.org_notifications WHERE kind = 'approval_pending'`)).rows;
+    check(pend.length === 1 && pend[0].ref_kind === 'calculation' && pend[0].ref_id === calcId && pend[0].actor_id === LA && pend[0].meta.name === 'Київ — Львів',
+        'director cabinet: submitting for approval writes a notification on the server', JSON.stringify(pend));
+    const ownerCalc = await service(`INSERT INTO public.calculations (user_id, org_id, name, inputs, results) VALUES ($1, $2, 'Власна', '{}'::jsonb, '{}'::jsonb) RETURNING id`, [OA, A]);
+    await user(OA)(`UPDATE public.calculations SET status = 'pending' WHERE id = $1`, [ownerCalc.rows[0].id]);
+    check((await service(`SELECT count(*)::int AS n FROM public.org_notifications WHERE kind = 'approval_pending'`)).rows[0].n === 1, 'director cabinet: the owner submitting its own request does not notify itself');
+    await service(`UPDATE public.calculations SET status = 'pending' WHERE id = $1`, [calcId]);
+    check((await service(`SELECT count(*)::int AS n FROM public.org_notifications WHERE kind = 'approval_pending'`)).rows[0].n === 1, 'director cabinet: a repeated write of the same status does not duplicate the notification');
+
+    // Читання сповіщень: лише директор своєї організації; клієнт нічого не пише.
+    check((await user(OA)(`SELECT count(*)::int AS n FROM public.org_notifications`)).rows[0].n === 2, 'director cabinet RLS: the owner reads the notifications of its organisation');
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.org_notifications`)).rows[0].n === 0, 'director cabinet RLS: a logist sees no notifications');
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.org_notifications`)).rows[0].n === 0, 'director cabinet RLS: another organisation sees no notifications');
+    for (const [label, sql] of [
+        ['INSERT', `INSERT INTO public.org_notifications (org_id, kind) VALUES ('${A}', 'signature_used')`],
+        ['UPDATE', `UPDATE public.org_notifications SET read_at = now()`],
+        ['DELETE', `DELETE FROM public.org_notifications`],
+    ]) {
+        for (const [who, name] of [[OA, 'owner'], [LA, 'logist']]) {
+            const direct = await user(who)(sql);
+            check(!direct.ok && direct.code === '42501', 'director cabinet RLS: direct ' + label + ' by the ' + name + ' is refused', direct.message);
+        }
+    }
+    const callNotify = await user(OA)(`SELECT public.org_notify($1, 'signature_used', NULL, NULL, NULL, '{}'::jsonb)`, [A]);
+    check(!callNotify.ok && callNotify.code === '42501', 'director cabinet: org_notify is not callable from the client', callNotify.message);
+    const badKind = await service(`INSERT INTO public.org_notifications (org_id, kind) VALUES ($1, 'nonsense')`, [A]);
+    check(!badKind.ok, 'director cabinet: an unknown notification kind is refused', badKind.message);
+    const marked = await service(`UPDATE public.org_notifications SET read_at = now(), read_by = $1 WHERE kind = 'approval_pending' RETURNING read_at`, [OA]);
+    check(marked.ok && marked.rows[0].read_at, 'director cabinet: the service marks a notification as read', marked.message);
+}
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
 if (failed) {

@@ -29,8 +29,8 @@ SELECT ok(has_table_privilege('authenticated', 'public.fleet_vehicles', 'SELECT'
   AND NOT has_table_privilege('anon', 'public.fleet_vehicles', 'SELECT'),
   'fleet_vehicles: the site grants are unchanged (authenticated CRUD under RLS, anon nothing)');
 SELECT ok((SELECT tgenabled = 'O' FROM pg_trigger WHERE tgname = 'trg_fleet_vehicles_guard')
-  AND (SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = 'public.fleet_vehicles'::regclass AND NOT tgisinternal) = 'trg_fleet_vehicles_guard,trg_fleet_vehicles_guard_driver,trg_fleet_vehicles_trailer_sync',
-  'fleet_vehicles: the guard trigger (still enabled), the driver-org trigger and the trailer mirror trigger (20261028110000) only');
+  AND (SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = 'public.fleet_vehicles'::regclass AND NOT tgisinternal) = 'trg_fleet_vehicles_guard,trg_fleet_vehicles_guard_driver,trg_fleet_vehicles_member_guard,trg_fleet_vehicles_trailer_sync',
+  'fleet_vehicles: the guard trigger (still enabled), the driver-org, the trailer mirror (20261028110000) and the member-permission (20261031090000) triggers only');
 
 -- T: control_plus (owner e001, logist e002, директор e009, менеджер з ремонтів e005); U: control_plus (owner e008);
 -- V: тариф «Компанія» (owner e007).
