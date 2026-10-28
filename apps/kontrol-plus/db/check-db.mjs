@@ -860,6 +860,55 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check(off.ok && left === 0, 'trailers: deactivation detaches the trailer from every tractor', off.message || String(left));
     const reattach = await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = $2 WHERE id = $1`, [T1, tid]);
     check(!reattach.ok && /TRAILER_NOT_FOUND/.test(reattach.message), 'trailers: an inactive trailer cannot be chosen', reattach.message);
+
+    // Старий шлях (колонки trailer_*): два тягачі з одним причепом оновлюються разом, номер — в одному написанні.
+    const V5 = '20000000-0000-4000-8000-0000000000e5', V6 = '20000000-0000-4000-8000-0000000000e6';
+    await service(`INSERT INTO public.fleet_vehicles (id, org_id, label) VALUES ('${V5}', '${A}', 'TR-5'), ('${V6}', '${A}', 'TR-6')`);
+    const twin = (await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate, type, make_model) VALUES ('${A}', 'KK 1000 KK', 'тент', 'Old') RETURNING id`)).rows[0].id;
+    await user(OA)(`UPDATE public.fleet_vehicles SET default_trailer_id = $1 WHERE id IN ('${V5}', '${V6}')`, [twin]);
+    const mirrorOf = async (id) => one(`SELECT trailer_plate, trailer_type, trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [id]);
+    const renameCard = await user(OA)(`UPDATE public.fleet_vehicles SET trailer_make_model = 'NewMake', trailer_plate = 'KK 2000 KK' WHERE id = $1`, [V5]);
+    const m6 = await mirrorOf(V6);
+    const tr = await one(`SELECT plate, make_model FROM public.fleet_trailers WHERE id = $1`, [twin]);
+    check(renameCard.ok && tr.plate === 'KK 2000 KK' && tr.make_model === 'NewMake', 'trailers sync: a change of make and plate on the old card renames the trailer', renameCard.message || JSON.stringify(tr));
+    check(m6.trailer_plate === 'KK 2000 KK' && m6.trailer_make_model === 'NewMake', 'trailers sync: the second tractor with the same trailer gets the new plate and make', JSON.stringify(m6));
+    await user(OA)(`UPDATE public.fleet_vehicles SET trailer_plate = 'кк-2000-кк' WHERE id = $1`, [V5]);
+    const same = [await mirrorOf(V5), await mirrorOf(V6)];
+    check(same.every((m) => m.trailer_plate === 'KK 2000 KK'), 'trailers sync: every tractor keeps the one stored spelling of the plate', JSON.stringify(same));
+    const logistOld = await user(LA)(`SELECT public.kp_vehicle_save($1, '{"trailer_make_model":"LogistMake"}'::jsonb) AS ok`, [V5]);
+    const afterLogist = [await mirrorOf(V6), await one(`SELECT make_model FROM public.fleet_trailers WHERE id = $1`, [twin])];
+    check(logistOld.ok && afterLogist[0].trailer_make_model === 'LogistMake' && afterLogist[1].make_model === 'LogistMake', 'trailers sync: a logist changing the make (kp_vehicle_save) reaches the trailer and the other tractor', logistOld.message);
+    const logistPlateOld = await user(LA)(`UPDATE public.fleet_vehicles SET trailer_plate = 'ZZ 0000 ZZ' WHERE id = $1 RETURNING id`, [V5]);
+    check(!logistPlateOld.ok || logistPlateOld.rows.length === 0, 'trailers sync: a logist cannot change the plate on the old card (RLS of the site: owner only, no row is changed)', logistPlateOld.message);
+    const stillOld = await one(`SELECT plate FROM public.fleet_trailers WHERE id = $1`, [twin]);
+    check(stillOld.plate === 'KK 2000 KK', 'trailers sync: the refused change left the trailer untouched');
+
+    // Перенос: різна марка в тягачів з одним номером — береться найсвіжіша, вирівнюються всі.
+    const V7 = '20000000-0000-4000-8000-0000000000e7', V8 = '20000000-0000-4000-8000-0000000000e8';
+    await db.exec('ALTER TABLE public.fleet_vehicles DISABLE TRIGGER USER');
+    await service(`INSERT INTO public.fleet_vehicles (id, org_id, label, trailer_plate, trailer_type, trailer_make_model, updated_at) VALUES ('${V7}', '${A}', 'TR-7', 'MM 3000 MM', 'тент', 'Stale', '2026-01-01'), ('${V8}', '${A}', 'TR-8', 'MM3000MM', 'цистерна', 'Fresh', '2026-10-01')`);
+    await db.exec('ALTER TABLE public.fleet_vehicles ENABLE TRIGGER USER');
+    await db.exec(trailersSql);
+    const aligned = [await mirrorOf(V7), await mirrorOf(V8)];
+    check(aligned.every((m) => m.trailer_make_model === 'Fresh' && m.trailer_type === 'цистерна' && m.trailer_plate === 'MM3000MM'),
+        'trailers migration: different makes for one number → the freshest wins and all tractors are aligned', JSON.stringify(aligned));
+
+    // Відкат із шапки міграції: прибирає таблицю, колонку, тригери й усі функції; дані в trailer_* лишаються.
+    const rbLines = trailersSql.split(String.fromCharCode(10));
+    const rbFrom = rbLines.findIndex((l) => l === '--   BEGIN;');
+    const rbTo = rbLines.findIndex((l) => l === '--   COMMIT;');
+    const rollback = rbLines.slice(rbFrom, rbTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
+    check(/BEGIN;/.test(rollback) && /COMMIT;/.test(rollback) && /kp_plate_norm/.test(rollback) && /fleet_trailers_guard/.test(rollback) && /fleet_vehicles_trailer_sync/.test(rollback) && /fleet_trailers_after/.test(rollback),
+        'trailers rollback: the header block removes the helper functions too');
+    const keep = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n;
+    await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
+    await db.exec(rollback);
+    const gone = await one(`SELECT (SELECT count(*)::int FROM pg_proc WHERE proname IN ('kp_plate_norm', 'fleet_trailers_guard', 'fleet_vehicles_trailer_sync', 'fleet_trailers_after', 'kp_trailers_list', 'kp_trailer_save')) AS fns, to_regclass('public.fleet_trailers') AS tbl, (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'fleet_vehicles' AND column_name = 'default_trailer_id') AS col`);
+    check(gone.fns === 0 && gone.tbl === null && gone.col === 0, 'trailers rollback: table, column, triggers and functions are gone', JSON.stringify(gone));
+    check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
+    await db.exec(trailersSql);
+    const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
+    check(back >= 3, 'trailers rollback: re-applying the migration rebuilds fleet_trailers from the kept columns', String(back));
 }
 
 // Плановий пробіг у SQL (kp_trip_plan_km + розподіл у kp_vehicle_trip_km) = план редактора факту сайту

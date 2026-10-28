@@ -18,9 +18,16 @@
 --   BEGIN;
 --   DROP TRIGGER IF EXISTS trg_fleet_vehicles_trailer_sync ON public.fleet_vehicles;
 --   DROP TRIGGER IF EXISTS trg_fleet_trailers_after ON public.fleet_trailers;
+--   DROP TRIGGER IF EXISTS trg_fleet_trailers_guard ON public.fleet_trailers;
+--   DROP INDEX IF EXISTS public.fleet_vehicles_trailer_idx;
 --   ALTER TABLE public.fleet_vehicles DROP COLUMN IF EXISTS default_trailer_id;
---   DROP FUNCTION IF EXISTS public.kp_trailers_list(), public.kp_trailer_save(uuid, jsonb);
 --   DROP TABLE IF EXISTS public.fleet_trailers;
+--   DROP FUNCTION IF EXISTS public.kp_trailers_list();
+--   DROP FUNCTION IF EXISTS public.kp_trailer_save(uuid, jsonb);
+--   DROP FUNCTION IF EXISTS public.fleet_vehicles_trailer_sync();
+--   DROP FUNCTION IF EXISTS public.fleet_trailers_after();
+--   DROP FUNCTION IF EXISTS public.fleet_trailers_guard();
+--   DROP FUNCTION IF EXISTS public.kp_plate_norm(text);
 --   COMMIT;
 -- Дані причепів при цьому не губляться — вони лишаються в trailer_* тягачів.
 
@@ -170,13 +177,13 @@ ALTER TABLE public.fleet_vehicles
 
 CREATE INDEX IF NOT EXISTS fleet_vehicles_trailer_idx ON public.fleet_vehicles (default_trailer_id) WHERE default_trailer_id IS NOT NULL;
 
--- Перенос даних (ідемпотентний): один причіп на org + нормалізований номер; тип і марка — з першого тягача (за міткою).
+-- Перенос даних (ідемпотентний): один причіп на org + нормалізований номер; тип, марка й написання номера — з найсвіжішого тягача (updated_at).
 INSERT INTO public.fleet_trailers (org_id, plate, plate_norm, type, make_model)
 SELECT DISTINCT ON (fv.org_id, public.kp_plate_norm(fv.trailer_plate))
        fv.org_id, btrim(fv.trailer_plate), public.kp_plate_norm(fv.trailer_plate), coalesce(fv.trailer_type, 'зерновоз'), fv.trailer_make_model
 FROM public.fleet_vehicles AS fv
 WHERE fv.trailer_plate IS NOT NULL AND btrim(fv.trailer_plate) <> '' AND public.kp_plate_norm(fv.trailer_plate) <> ''
-ORDER BY fv.org_id, public.kp_plate_norm(fv.trailer_plate), lower(fv.label)
+ORDER BY fv.org_id, public.kp_plate_norm(fv.trailer_plate), fv.updated_at DESC, lower(fv.label)
 ON CONFLICT (org_id, plate_norm) DO NOTHING;
 
 UPDATE public.fleet_vehicles AS fv
@@ -186,6 +193,13 @@ WHERE fv.default_trailer_id IS NULL
   AND fv.trailer_plate IS NOT NULL
   AND ft.org_id = fv.org_id
   AND ft.plate_norm = public.kp_plate_norm(fv.trailer_plate);
+
+-- Однаковий номер, тип і марка в усіх тягачів одного причепа (раніше могли розійтися).
+UPDATE public.fleet_vehicles AS fv
+SET trailer_plate = ft.plate, trailer_type = ft.type, trailer_make_model = ft.make_model
+FROM public.fleet_trailers AS ft
+WHERE fv.default_trailer_id = ft.id
+  AND (fv.trailer_plate, fv.trailer_type, fv.trailer_make_model) IS DISTINCT FROM (ft.plate, ft.type, ft.make_model);
 
 -- Тригер fleet_vehicles: зв'язок ↔ дзеркальні колонки (див. шапку).
 CREATE OR REPLACE FUNCTION public.fleet_vehicles_trailer_sync()
@@ -228,17 +242,36 @@ BEGIN
     END IF;
     v_norm := public.kp_plate_norm(NEW.trailer_plate);
     SELECT * INTO t FROM public.fleet_trailers WHERE org_id = NEW.org_id AND plate_norm = v_norm;
+    IF NOT FOUND AND NEW.default_trailer_id IS NOT NULL THEN
+      -- Номер змінено в картці авто з прив'язаним причепом: перейменовуємо сам причіп (тягачі з ним оновляться нижче).
+      SELECT * INTO t FROM public.fleet_trailers WHERE id = NEW.default_trailer_id AND org_id = NEW.org_id;
+      IF FOUND THEN
+        UPDATE public.fleet_trailers SET plate = btrim(NEW.trailer_plate) WHERE id = t.id;
+      END IF;
+    END IF;
     IF FOUND THEN
       UPDATE public.fleet_trailers
       SET type = coalesce(NEW.trailer_type, type), make_model = NEW.trailer_make_model, active = true
       WHERE id = t.id AND (type, make_model, active) IS DISTINCT FROM (coalesce(NEW.trailer_type, type), NEW.trailer_make_model, true);
-      NEW.default_trailer_id := t.id;
     ELSE
       INSERT INTO public.fleet_trailers (org_id, plate, plate_norm, type, make_model)
       VALUES (NEW.org_id, NEW.trailer_plate, v_norm, coalesce(NEW.trailer_type, 'зерновоз'), NEW.trailer_make_model)
       RETURNING * INTO t;
-      NEW.default_trailer_id := t.id;
     END IF;
+    SELECT * INTO t FROM public.fleet_trailers WHERE id = t.id;
+    IF t.make_model IS DISTINCT FROM NEW.trailer_make_model OR (NEW.trailer_type IS NOT NULL AND t.type <> NEW.trailer_type) THEN
+      -- Тихого «успіху» без змін не буває.
+      RAISE EXCEPTION 'TRAILER_SYNC_FAILED' USING ERRCODE = 'P0001';
+    END IF;
+    NEW.default_trailer_id := t.id;
+    NEW.trailer_plate := t.plate;
+    NEW.trailer_type := t.type;
+    NEW.trailer_make_model := t.make_model;
+    -- Той самий причіп в інших тягачах: однаковий номер, тип і марка (вкладений UPDATE не запускає цей шлях повторно).
+    UPDATE public.fleet_vehicles
+    SET trailer_plate = t.plate, trailer_type = t.type, trailer_make_model = t.make_model
+    WHERE default_trailer_id = t.id AND org_id = NEW.org_id AND id <> NEW.id
+      AND (trailer_plate, trailer_type, trailer_make_model) IS DISTINCT FROM (t.plate, t.type, t.make_model);
   END IF;
   RETURN NEW;
 END;
