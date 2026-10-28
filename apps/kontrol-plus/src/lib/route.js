@@ -1,15 +1,17 @@
 // Маршрути вкладок Контроль+ усередині сторінки сайту: #/clients, #/clients/new, #/clients/<id>, #/clients/<id>/edit, #/report, #/gps,
 // #/repairs, #/repairs/new, #/repairs/stock, #/repairs/handlers, #/repairs/maintenance, #/repairs/cost,
-// #/fleet, #/fleet/trailers, #/drivers, #/company, #/stats, #/report/debts,
+// #/fleet, #/fleet/trailers, #/drivers, #/report/debts,
 // #/docs, #/docs/tab/<contracts|ttn|acts|other>, #/docs/new/<invoice|act|ttn>[/<клієнт>[/<рейс>]], #/docs/<id документа>, #/docs/ttn/<id ТТН>.
-// Старі #/docs/fleet, #/docs/requisites, #/docs/debts ведуть на нові розділи (legacyRedirect).
+// Старі #/docs/fleet, #/docs/debts ведуть на нові розділи (legacyRedirect). «Реквізити компанії» (#/company, #/docs/requisites) і
+// «Статистика» (#/stats) переїхали у вкладки «Особистого кабінету» сайту: ці адреси веде туди сам сайт (#/cabinet/requisites, #/cabinet/stats),
+// тут вони не є розділами Контроль+.
 // Будь-який інший hash (порожній, auth-потоки Supabase, #calculator) належить сайту — null.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const DOC_TABS = ['contracts', 'ttn', 'acts', 'other'];
 
 // Куди переїхали розділи, що були підвкладками «Документів». null — hash не старий.
-const LEGACY = { 'docs/fleet': '#/fleet', 'docs/requisites': '#/company', 'docs/debts': '#/report/debts' };
+const LEGACY = { 'docs/fleet': '#/fleet', 'docs/requisites': '#/cabinet/requisites', 'docs/debts': '#/report/debts' };
 export function legacyRedirect(hash) {
     const raw = String(hash || '').replace(/^#\//, '').split(/[?&]/)[0].replace(/\/+$/, '');
     return LEGACY[raw] || null;
@@ -43,7 +45,7 @@ export function parseCrmHash(hash) {
     if (parts[0] === 'report' && parts.length === 2 && parts[1] === 'debts') return { view: 'report', sub: 'debts' };
     if (parts[0] === 'fleet' && parts.length === 1) return { view: 'fleet', sub: 'cars' };
     if (parts[0] === 'fleet' && parts.length === 2 && parts[1] === 'trailers') return { view: 'fleet', sub: 'trailers' };
-    if ((parts[0] === 'drivers' || parts[0] === 'company' || parts[0] === 'stats') && parts.length === 1) return { view: parts[0] };
+    if (parts[0] === 'drivers' && parts.length === 1) return { view: 'drivers' };
     if (parts[0] === 'gps' && parts.length === 1) return { view: 'gps' };
     if (parts[0] === 'repairs' && parts.length === 1) return { view: 'repairs', sub: 'list' };
     if (parts[0] === 'repairs' && parts.length === 2 && ['new', 'stock', 'handlers', 'maintenance', 'cost'].includes(parts[1])) return { view: 'repairs', sub: parts[1] };
@@ -57,6 +59,6 @@ export function parseCrmHash(hash) {
 
 export function tabOf(route) {
     if (!route) return null;
-    if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers', 'company', 'stats'].includes(route.view)) return route.view;
+    if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers'].includes(route.view)) return route.view;
     return 'clients';
 }

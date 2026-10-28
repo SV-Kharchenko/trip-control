@@ -147,9 +147,9 @@ test('bridge: site with nav, #main-app and supabaseClient → five tabs and #kp-
         assert.equal(await startBridge(), true);
         const items = navItems(env);
         assert.deepEqual(items.map((b) => b.id.replace('kp-nav-', '')),
-            ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report', 'stats', 'company']);
+            ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report']);
         const hidden = Object.fromEntries(items.map((b) => [b.id.replace('kp-nav-', ''), b.hidden === true]));
-        assert.deepEqual(hidden, { overview: false, calc: false, clients: false, fleet: true, drivers: true, repairs: true, gps: true, docs: true, report: false, stats: false, company: true },
+        assert.deepEqual(hidden, { overview: false, calc: false, clients: false, fleet: true, drivers: true, repairs: true, gps: true, docs: true, report: false },
             'без сесії: GPS, Ремонти, Документи, Автопарк, Водії, Реквізити сховані');
         assert.equal(env.body.classList.contains('kp-nav-on'), true);
         assert.equal(env.navEl.children.length, 0, 'the site nav is left alone');
@@ -369,20 +369,20 @@ test('bridge: repair invite — start and onAuthStateChange at once → one acce
     }
 });
 
-const NAV_ORDER = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report', 'stats', 'company'];
-// Ліве меню: Автопарк, Водії, Реквізити компанії з'являються разом з «Документами» (функції 4a/4b); менеджер ремонтів бачить лише «Ремонти».
+const NAV_ORDER = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report'];
+// Ліве меню (Реквізити й Статистика переїхали у вкладки Особистого кабінету сайту): Автопарк, Водії з'являються разом з «Документами» (функції 4a/4b); менеджер ремонтів бачить лише «Ремонти».
 const visibleKeys = (env) => navItems(env).filter((b) => b.hidden !== true).map((b) => b.id.replace('kp-nav-', ''));
 for (const [name, opts, expected] of [
     ['owner, migration applied', { context: { control_plus: true, role: 'owner' }, docs: 'ok', repairs: null },
-        ['overview', 'calc', 'clients', 'fleet', 'drivers', 'gps', 'docs', 'report', 'stats', 'company']],
+        ['overview', 'calc', 'clients', 'fleet', 'drivers', 'gps', 'docs', 'report']],
     ['director (read only)', { context: { control_plus: true, role: 'director' }, docs: 'ok', repairs: null },
-        ['overview', 'calc', 'clients', 'fleet', 'drivers', 'gps', 'docs', 'report', 'stats', 'company']],
+        ['overview', 'calc', 'clients', 'fleet', 'drivers', 'gps', 'docs', 'report']],
     ['migration 4a not applied', { context: { control_plus: true, role: 'owner' }, docs: 'missing', repairs: null },
-        ['overview', 'calc', 'clients', 'gps', 'report', 'stats']],
+        ['overview', 'calc', 'clients', 'gps', 'report']],
     ['repair manager of another org sees only Ремонти', { context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: RM },
         ['repairs']],
     ['company plan: site pages and report only', { context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: null },
-        ['overview', 'calc', 'clients', 'report', 'stats']],
+        ['overview', 'calc', 'clients', 'report']],
 ]) {
     test(`bridge: left menu — ${name}`, async () => {
         const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: opts.context, docs: opts.docs, repairs: opts.repairs });
@@ -400,7 +400,7 @@ for (const [name, opts, expected] of [
 }
 
 test('bridge: old #/docs/debts | fleet | requisites redirect to the new sections', async () => {
-    for (const [from, to] of [['#/docs/debts', '#/report/debts'], ['#/docs/fleet', '#/fleet'], ['#/docs/requisites', '#/company']]) {
+    for (const [from, to] of [['#/docs/debts', '#/report/debts'], ['#/docs/fleet', '#/fleet'], ['#/docs/requisites', '#/cabinet/requisites']]) {
         const env = setup(); // без сесії: після редіректу розділ не рендериться, перевіряємо лише hash
         env.loc.hash = from;
         try {

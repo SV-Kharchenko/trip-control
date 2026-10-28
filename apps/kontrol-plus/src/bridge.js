@@ -91,8 +91,6 @@ export const NAV_ITEMS = [
     ['gps', 'GPS', go('#/gps'), true],
     ['docs', 'Документи', go('#/docs'), true],
     ['report', 'План/факт', go('#/report'), false],
-    ['stats', 'Статистика', go('#/stats'), false],
-    ['company', 'Реквізити компанії', go('#/company'), true],
 ];
 
 // Верх меню = низ шапки сайту, поки вона в кадрі (шапка пролистується, меню лишається біля верху вікна).
@@ -149,12 +147,12 @@ function syncGpsTab() {
     const repairs = repairsAccess(current ? state.repairs : null, current);
     if (tabs.repairs) tabs.repairs.hidden = !repairs.visible;
     // Менеджер з ремонтів чужої організації бачить лише «Ремонти»; решта розділів — як і раніше за ролями й тарифом.
-    for (const key of ['clients', 'report', 'stats', 'overview', 'calc']) {
+    for (const key of ['clients', 'report', 'overview', 'calc']) {
         if (tabs[key] && (repairs.repairsOnly || tabs[key].hidden)) tabs[key].hidden = repairs.repairsOnly;
     }
-    // Документи, Автопарк, Водії, Реквізити компанії спираються на функції 4a/4b: з'являються після перевірки.
+    // Документи, Автопарк, Водії спираються на функції 4a/4b: з'являються після перевірки.
     const docsOn = docsAccess(current).visible && state.docs === true;
-    for (const key of ['docs', 'fleet', 'drivers', 'company']) if (tabs[key]) tabs[key].hidden = !docsOn;
+    for (const key of ['docs', 'fleet', 'drivers']) if (tabs[key]) tabs[key].hidden = !docsOn;
 }
 
 async function refreshGpsTab() {
@@ -404,8 +402,6 @@ async function render() {
             ? lazyView(() => import('./views/docs-debts.js').then((m) => m.renderDebts(app()))) : null);
     } else if (route.view === 'fleet') view = lazyView(() => import('./views/fleet.js').then((m) => m.renderFleetPage(app(), route.sub)));
     else if (route.view === 'drivers') view = lazyView(() => import('./views/drivers.js').then((m) => m.renderDrivers(app())));
-    else if (route.view === 'company') view = lazyView(() => import('./views/company.js').then((m) => m.renderCompany(app())));
-    else if (route.view === 'stats') view = lazyView(() => import('./views/stats.js').then((m) => m.renderStats(app())));
     else if (route.view === 'client-new') view = renderClientForm(app(), null);
     else if (route.view === 'client-edit') view = renderClientForm(app(), route.id);
     else if (route.view === 'client') view = renderClientCard(app(), route.id);
@@ -425,6 +421,54 @@ function lazyView(load) {
         clear(box, h('section', { class: 'page' }, notice('Не вдалося завантажити розділ. Оновіть сторінку.')));
     });
     return box;
+}
+
+// «Реквізити» і «Статистика» — вкладки «Особистого кабінету» сайту (index.html шле tc:cabinet-tab). Сайт лишає в слоті підказку,
+// а тут, коли є доступ Контроль+, слот заповнюється тим самим екраном, що раніше був окремою сторінкою.
+const SLOT_IDS = { requisites: 'cab-req-slot', stats: 'cab-stats-slot' };
+let slotTicket = 0;
+export async function fillCabinetSlot(tab) {
+    const slot = SLOT_IDS[tab] && document.getElementById(SLOT_IDS[tab]);
+    if (!slot || !state.session) return;
+    const ticket = ++slotTicket;
+    const stale = () => ticket !== slotTicket || !slot.isConnected;
+    clear(slot, spinner('Перевіряємо доступ…'));
+    if (!state.context || state.contextUser !== state.session.user.id) {
+        const result = await loadContext();
+        if (stale()) return;
+        syncGpsTab();
+        if (result && result.error) {
+            clear(slot, notice(errorText(result.error)));
+            return;
+        }
+    }
+    if (crmAccess(state.context) !== 'open') {
+        clear(slot, notice('Цей розділ доступний на тарифі Контроль+.', 'info'));
+        return;
+    }
+    runCleanups();
+    try {
+        if (tab === 'requisites') {
+            if (state.docs === null) await loadDocsAvailability();
+            if (stale()) return;
+            if (!docsAccess(state.context).visible || state.docs !== true) {
+                clear(slot, notice('Реквізити ще не ввімкнено для вашої компанії.', 'info'));
+                return;
+            }
+            const view = await import('./views/company.js').then((m) => m.renderCabinetRequisites(app()));
+            if (!stale()) clear(slot, view);
+        } else {
+            const view = await import('./views/stats.js').then((m) => m.renderStats(app()));
+            if (!stale()) clear(slot, view);
+        }
+    } catch {
+        if (!stale()) clear(slot, notice('Не вдалося завантажити розділ. Оновіть сторінку.'));
+    }
+}
+
+function onCabinetTab(event) {
+    const tab = event && event.detail && event.detail.tab;
+    if (tab === 'requisites' || tab === 'stats') fillCabinetSlot(tab);
 }
 
 function onHash() {
@@ -512,7 +556,11 @@ export async function startBridge() {
         }
     });
     window.addEventListener('hashchange', onHash);
+    window.addEventListener('tc:cabinet-tab', onCabinetTab);
     onHash();
+    // Кабінет міг відкритися на «Реквізитах» (#/cabinet/requisites) раніше, ніж міст був готовий.
+    const openTab = document.querySelector && document.querySelector('#cabinet-screen .cab-tab.active');
+    if (openTab && SLOT_IDS[openTab.getAttribute('data-tab')]) fillCabinetSlot(openTab.getAttribute('data-tab'));
     patchSiteFleet();
     if (!state.route) await refreshGpsTab();
     await topUpSiteFleet();
