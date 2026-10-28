@@ -21,8 +21,8 @@ test('меню стартує під шапкою: висота шапки ра�
 });
 
 test('«Держномер»: поле type=text без нативного хрестика, лишається власний «×»', () => {
-    const view = read('src/views/fleet.js');
-    assert.match(view, /h\('input', \{ type: 'text', id: 'kpf-plate'/);
+    const view = read('src/views/registry.js');
+    assert.match(view, /h\('input', \{ type: 'text', id: cfg\.id \+ '-q'/);
     assert.equal(/type: 'search'/.test(view), false);
     assert.match(view, /class: 'kpf-clear'/);
 });

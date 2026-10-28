@@ -556,3 +556,33 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 #kp-crm .kps-chart svg { display: block; max-width: 100%; height: 240px; }
 #kp-crm .kps-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 13px; }
 #kp-crm .kps-legend i { font-style: normal; }
+
+/* Автопарк / Водії — спільний шаблон: пошук + «Додати», список лише для читання, картка в стилі 1С (п.8–10 пачки 28.10) */
+#kp-crm .kpg-bar { flex-wrap: wrap; }
+#kp-crm .kpg-bar .btn { margin-left: auto; }
+#kp-crm .kpg-page .table-wrap { padding: 0 var(--kp-gap, 24px) 0 0; }
+#kp-crm .kpg-row { cursor: pointer; }
+#kp-crm .kpg-row:hover td, #kp-crm .kpg-row:focus-visible td { background: color-mix(in srgb, var(--gold) 10%, transparent); }
+#kp-crm .kpg-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+#kp-crm .kpg-row.is-archived td { color: var(--muted); }
+#kp-crm .kpg-card[hidden], #kp-crm .kpg-list[hidden] { display: none; }
+#kp-crm .kpc { max-width: 760px; padding: 16px 20px; }
+#kp-crm .kpc-head { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+#kp-crm .kpc-head h2 { margin: 0; font-size: 18px; }
+#kp-crm .kpc-section { margin: 14px 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+#kp-crm .kpc-row { display: grid; grid-template-columns: 200px auto; align-items: center; column-gap: 12px; row-gap: 2px; margin: 0 0 8px; }
+#kp-crm .kpc-row label { font-size: 13px; color: var(--muted); }
+#kp-crm .kpc-row .hint { grid-column: 2; min-height: 0; }
+#kp-crm .kpc-box { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+#kp-crm .kpc-box input, #kp-crm .kpc-box select { width: 100%; padding: 5px 8px; }
+#kp-crm .kpc-w-s { width: 110px; } #kp-crm .kpc-w-m { width: 150px; } #kp-crm .kpc-w-ph { width: 170px; }
+#kp-crm .kpc-w-l { width: 220px; } #kp-crm .kpc-w-xl { width: 300px; } #kp-crm .kpc-w-xxl { width: 360px; }
+#kp-crm .kpc-box.kpc-w-s input { width: 70px; }
+#kp-crm .kpc-suffix { font-style: normal; color: var(--muted); font-size: 13px; }
+#kp-crm .kpc-actions { margin-top: 14px; display: flex; gap: 8px; }
+@media (max-width: 760px) {
+  #kp-crm .kpc-row { grid-template-columns: 1fr; }
+  #kp-crm .kpc-row .hint { grid-column: 1; }
+  #kp-crm .kpc-box { width: 100%; }
+  #kp-crm .kpg-bar .btn { margin-left: 0; }
+}

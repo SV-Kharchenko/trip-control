@@ -182,3 +182,26 @@ test('п.6: міграція деталей водія — окрема табл
     assert.equal(/passport|kp_driver_details|\bipn\b/i.test(ttnPrint), false, 'ТТН (PDF / Excel / текст) не виводить нові поля');
     assert.match(read('db/check-db.mjs'), /'driver details RLS: direct ' \+ label \+ ' by ' \+ name \+ ' is refused'/);
 });
+
+// ---- 8–10. Спільний реєстр Авто / Причепи / Водії ----
+test('п.8–10: пошук водіїв лише за ПІБ, номер — нормалізований, один компонент на всі три розділи', async () => {
+    const { driverMatches, DRIVER_FIELDS, VEHICLE_FIELDS, TRAILER_FIELDS } = await import('../src/lib/registry.js');
+    assert.equal(driverMatches('Іваненко Петро Олегович', 'іван'), true);
+    assert.equal(driverMatches('Іваненко Петро Олегович', 'ПЕТРО  '), true);
+    assert.equal(driverMatches('Іваненко Петро Олегович', 'AA1234'), false);
+    assert.equal(driverMatches('Іваненко Петро Олегович', ''), true);
+    const keys = (spec) => spec.filter((f) => f.key).map((f) => f.key);
+    assert.deepEqual(keys(DRIVER_FIELDS), ['full_name', 'license_no', 'phone', 'passport', 'ipn', 'address']);
+    assert.ok(keys(VEHICLE_FIELDS).includes('label') && keys(VEHICLE_FIELDS).includes('make_model') && keys(VEHICLE_FIELDS).includes('vehicle_type'));
+    for (const k of ['length_m', 'tare_t', 'max_mass_t', 'default_driver_id', 'oscpv_on', 'kasko_on', 'service_on']) assert.ok(keys(VEHICLE_FIELDS).includes(k), k);
+    assert.ok(keys(TRAILER_FIELDS).includes('trailer_plate'));
+    for (const file of ['fleet', 'drivers']) assert.match(read('src/views/' + file + '.js'), /renderRegistry\(app,/);
+    const drivers = read('src/views/drivers.js');
+    assert.equal(/validateDriver\(\{ full_name: nameIn|Додати водія'\)\)/.test(drivers), false);
+    assert.match(drivers, /match: \(r, q\) => driverMatches\(r\.full_name, q\)/);
+    assert.match(read('src/views/fleet.js'), /plateMatches\(r\.plate, q\)/);
+    assert.equal(/renderFleet[(]|docs-fleet|kpf-ttn|aria-expanded/.test(read('src/views/fleet.js') + read('src/views/drivers.js')), false, 'згорнутого блоку під таблицею немає');
+    const registry = read('src/views/registry.js');
+    assert.match(registry, /onclick: open/);
+    assert.match(css, /\.kpg-page \.table-wrap \{ padding: 0 var\(--kp-gap, 24px\) 0 0; \}/);
+});
