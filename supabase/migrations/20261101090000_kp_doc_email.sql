@@ -16,8 +16,10 @@
 --
 -- РУЧНИЙ ВІДКАТ (SQL editor):
 --   DROP TRIGGER IF EXISTS trg_kp_doc_emails_notify ON public.kp_doc_emails;
---   DROP FUNCTION IF EXISTS public.kp_doc_emails_notify(), public.kp_doc_email_context(uuid), public.kp_doc_email_log(uuid), public.kp_doc_email_reserve(uuid, uuid[], uuid, text, text, integer);
+--   DROP FUNCTION IF EXISTS public.kp_doc_emails_notify(), public.kp_doc_email_context(uuid), public.kp_doc_email_log(uuid), public.kp_doc_email_reserve(uuid, uuid[], uuid, text, text, integer), public.kp_is_org_member(uuid, uuid);
 --   DROP TABLE IF EXISTS public.kp_doc_emails;
+--   (УВАГА: повторний запуск ЦІЄЇ міграції після 20261102090000_kp_contracts.sql поверне старий kp_doc_emails_notify без гілки договорів —
+--    після повторного запуску потрібно ще раз застосувати 20261102090000_kp_contracts.sql.)
 --   DELETE FROM public.org_notifications WHERE kind = 'doc_emailed';
 --   ALTER TABLE public.org_notifications DROP CONSTRAINT IF EXISTS org_notifications_kind_check;
 --   ALTER TABLE public.org_notifications ADD CONSTRAINT org_notifications_kind_check CHECK (kind IN ('approval_pending', 'signature_used'));
@@ -147,6 +149,24 @@ REVOKE ALL ON FUNCTION public.kp_doc_email_log(uuid) FROM PUBLIC, anon, authenti
 GRANT EXECUTE ON FUNCTION public.kp_doc_email_context(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_doc_email_log(uuid) TO authenticated, service_role;
 
+-- Членство відправника в організації — та сама логіка, що в kp_org_id / kp_role: активний учасник своєї організації (profiles.org_id)
+-- АБО директор цієї організації (org_directors, організація на control_plus). Лише service_role.
+CREATE OR REPLACE FUNCTION public.kp_is_org_member(p_user uuid, p_org uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT p_user IS NOT NULL AND p_org IS NOT NULL AND (
+    EXISTS (SELECT 1 FROM public.profiles AS p WHERE p.id = p_user AND p.org_id = p_org AND p.member_status = 'active')
+    OR EXISTS (SELECT 1 FROM public.org_directors AS d WHERE d.user_id = p_user AND d.org_id = p_org AND public.org_has_plan(d.org_id, 'control_plus'))
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.kp_is_org_member(uuid, uuid) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.kp_is_org_member(uuid, uuid) TO service_role;
+
 -- Ліміт без гонки: резервування рядка журналу й підрахунок за останню годину — в одній транзакції під advisory-замком організації
 -- (pg_advisory_xact_lock). Паралельні запити стають у чергу на замку, тому 21-й лист за годину неможливий. Лише service_role
 -- (API передає org з перевіреного kp_doc_email_context); відправник має бути учасником цієї організації.
@@ -159,7 +179,7 @@ AS $$
 DECLARE
   v_id uuid;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.profiles AS p WHERE p.id = p_sent_by AND p.org_id = p_org) THEN
+  IF NOT public.kp_is_org_member(p_sent_by, p_org) THEN
     RAISE EXCEPTION 'KP_FORBIDDEN' USING ERRCODE = '42501';
   END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('kp_doc_emails:' || p_org::text, 0));

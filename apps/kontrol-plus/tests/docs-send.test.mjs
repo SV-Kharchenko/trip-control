@@ -156,6 +156,16 @@ test('parallel requests cannot pass the limit: 25 at once → exactly 20 sent, 5
     assert.equal(state.logs.length, 20);
 });
 
+test('one letter, one client: documents of different clients → 400 MIXED_CLIENTS, nothing reserved or sent', async () => {
+    const { state, handler } = setup({ getContext: async (_j, id) => ({ org_id: ORG, doc: doc(id, { client_id: id === D2 ? 'c2' : 'c1' }), client_email: 'client@example.com', sender_role: 'logist' }) });
+    const mixed = await call(handler, { body: { ...BODY, doc_ids: [D1, D2] } });
+    assert.equal(mixed.statusCode, 400);
+    assert.equal(mixed.body.code, 'MIXED_CLIENTS');
+    assert.deepEqual([state.logs.length, state.mails.length], [0, 0]);
+    const same = setup();
+    assert.equal((await call(same.handler, { body: { ...BODY, doc_ids: [D1, D2] } })).statusCode, 200, 'the same client passes');
+});
+
 test('anti-spam: only the card address by default; another address needs the explicit flag and the owner role', async () => {
     const { state, handler } = setup();
     const other = { ...BODY, to: 'someone@else.com' };

@@ -1424,6 +1424,19 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(!rsvForeign.ok && /KP_FORBIDDEN/.test(rsvForeign.message), 'doc email limit: a sender from another organisation is refused', rsvForeign.message);
     const rsvClient = await user(LA)(`SELECT public.kp_doc_email_reserve($1, ARRAY[$2::uuid], $3, 'a@b.ua', 'x', 20)`, [A, rsvDoc, LA]);
     check(!rsvClient.ok && rsvClient.code === '42501', 'doc email limit: the reservation is not callable from the client', rsvClient.message);
+    // Членство: та сама логіка, що в kp_org_id — директор, чий org береться через org_directors, теж проходить.
+    const dirOrg = await user(DIR1)(`SELECT public.kp_org_id() AS o`);
+    check(dirOrg.ok && dirOrg.rows[0].o === A, 'doc email limit: fixture — the director gets the organisation through kp_org_id (director link)', dirOrg.message);
+    const member = (u, o) => service(`SELECT public.kp_is_org_member($1, $2) AS m`, [u, o]);
+    check((await member(DIR1, A)).rows[0].m === true, 'doc email limit: a director (org via org_directors) is a member of that organisation');
+    check((await member(LA, A)).rows[0].m === true && (await member(OA, A)).rows[0].m === true, 'doc email limit: owner and logist are members through profiles.org_id');
+    check((await member(DIR1, C)).rows[0].m === false && (await member(OC, A)).rows[0].m === false && (await member(null, A)).rows[0].m === false, 'doc email limit: nobody is a member of a foreign organisation');
+    const rsvDir = await service(reserveSql, [A, rsvDoc, DIR1, 20]);
+    check(rsvDir.ok && rsvDir.rows[0].id, 'doc email limit: a director sender passes the reservation (same membership as kp_org_id)', rsvDir.message);
+    const rsvDirForeign = await service(reserveSql, [C, rsvDoc, DIR1, 20]);
+    check(!rsvDirForeign.ok && /KP_FORBIDDEN/.test(rsvDirForeign.message), "doc email limit: a director of one organisation cannot reserve in another", rsvDirForeign.message);
+    const memberClient = await user(LA)(`SELECT public.kp_is_org_member($1, $2)`, [LA, A]);
+    check(!memberClient.ok && memberClient.code === '42501', 'doc email limit: kp_is_org_member is not callable from the client', memberClient.message);
     await setActs(true);
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);

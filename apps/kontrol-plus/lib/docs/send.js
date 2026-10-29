@@ -108,6 +108,11 @@ export function createSendHandler(deps) {
         const orgId = contexts[0].org_id;
         if (!orgId || contexts.some((c) => c.org_id !== orgId)) return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостатньо прав для відправки цього документа.' });
 
+        // Один лист — один клієнт: усі документи мають однаковий client_id (інакше можна розіслати чужі документи на одну адресу).
+        if (!contractId && new Set(contexts.map((c) => String(c.doc && c.doc.client_id))).size > 1) {
+            return res.status(400).json({ code: 'MIXED_CLIENTS', error: 'В одному листі можуть бути документи лише одного контрагента.' });
+        }
+
         const first = contexts[0];
         const cardEmail = String(first.client_email || '').trim().toLowerCase();
         if (!cardEmail || to !== cardEmail) {
