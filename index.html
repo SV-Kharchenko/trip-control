@@ -7902,16 +7902,18 @@
         approval_pending: function (note) { return 'Заявка чекає погодження' + (note.meta && note.meta.name ? ': «' + note.meta.name + '»' : ''); },
         doc_emailed: function (note) {
             const meta = note.meta || {};
-            return 'Документ надіслано на пошту: ' + (meta.to || '') + (meta.count > 1 ? ' (' + meta.count + ' докум.)' : '');
+            return (meta.doc_kind === 'contract' ? 'Договір надіслано на пошту: ' : 'Документ надіслано на пошту: ') + (meta.to || '') + (meta.count > 1 ? ' (' + meta.count + ' докум.)' : '');
         },
         signature_used: function (note) {
             const meta = note.meta || {};
-            const kind = meta.doc_kind === 'ttn' ? 'ТТН' : (meta.doc_kind === 'invoice' ? 'рахунок' : 'акт');
-            return 'Використано підпис і печатку: ' + kind + (meta.number ? ' ' + (meta.prefix || '') + meta.number : '');
+            const kind = meta.doc_kind === 'ttn' ? 'ТТН' : (meta.doc_kind === 'invoice' ? 'рахунок' : (meta.doc_kind === 'contract' ? 'договір' : 'акт'));
+            const how = meta.method === 'kep' ? ' (КЕП)' : '';
+            return (meta.method === 'kep' ? 'Договір підписано КЕП: ' : 'Використано підпис і печатку: ') + kind + (meta.number ? ' ' + (meta.prefix || '') + meta.number : '') + (meta.method === 'kep' ? '' : how);
         }
     };
     function noteHref(note) {
         if (note.ref_kind === 'document') return '#/docs/' + note.ref_id;
+        if (note.ref_kind === 'contract') return note.meta && note.meta.client_id ? '#/clients/' + note.meta.client_id : '';
         if (note.ref_kind === 'ttn') return '#/docs/ttn/' + note.ref_id;
         return '';
     }
@@ -7928,7 +7930,7 @@
                 const when = new Date(note.created_at).toLocaleString('uk-UA');
                 const open = note.ref_kind === 'calculation'
                     ? '<button type="button" onclick="openNotification(\'' + teamEsc(note.id) + '\')">Відкрити заявку</button>'
-                    : '<a class="btn" href="' + teamEsc(noteHref(note)) + '" onclick="openNotification(\'' + teamEsc(note.id) + '\', event)">Відкрити документ</a>';
+                    : '<a class="btn" href="' + teamEsc(noteHref(note)) + '" onclick="openNotification(\'' + teamEsc(note.id) + '\', event)">' + (note.ref_kind === 'contract' ? 'Відкрити контрагента' : 'Відкрити документ') + '</a>';
                 const read = note.read_at ? '' : '<button type="button" onclick="markNoteRead(\'' + teamEsc(note.id) + '\')">Прочитано</button>';
                 return '<div class="tc-note-row' + (note.read_at ? ' is-read' : '') + '" data-note="' + teamEsc(note.id) + '">' +
                     '<div class="tc-note-text"><b>' + teamEsc(text) + '</b>' + who + '<small>' + teamEsc(when) + '</small></div>' +

@@ -2,6 +2,7 @@ import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import { LEGAL_FORMS } from '../lib/validate.js';
 import { emailControl } from './doc-email.js';
+import { renderContracts } from './contracts.js';
 import { fmtMoney, fmtNumber, fmtDate, num, STATUS_LABELS, kyivDate, monthRange } from '../lib/format.js';
 import { CALC_DOC_HINT, DOC_KIND_LABELS, PAY_STATUS_LABELS, calcAccepted, docNumberText, fmtAmount, isMissingFeature } from '../lib/docs.js';
 
@@ -31,9 +32,10 @@ function ibanGroups(iban) {
 export function renderClientCard(app, clientId) {
     const head = h('div', null, spinner());
     const history = h('div', null);
-    const docs = h('div', null);
+    const docs = h('div', { class: 'kpk-docs' });
+    const contracts = h('div', null);
     const linker = h('div', null);
-    const page = h('section', { class: 'page' }, h('a', { class: 'back', href: '#/clients' }, '← Усі клієнти'), head, docs, history, linker);
+    const page = h('section', { class: 'page' }, h('a', { class: 'back', href: '#/clients' }, '← Усі клієнти'), head, docs, contracts, history, linker);
 
     async function load() {
         const { data, error } = await app.supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
@@ -43,6 +45,7 @@ export function renderClientCard(app, clientId) {
             return;
         }
         drawHead(data);
+        clear(contracts, renderContracts(app, data));
         loadDocs(data);
         loadHistory();
         if (app.canWrite && !data.archived_at) drawLinker();

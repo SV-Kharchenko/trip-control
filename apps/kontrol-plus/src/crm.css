@@ -631,3 +631,35 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
     #kp-crm .kpd-email .field > label, #kp-crm .kpd-email .field > input, #kp-crm .kpd-email .field > textarea, #kp-crm .kpd-email .kpd-email-docs { grid-column: 1; }
     #kp-crm .kpd-email .field > input, #kp-crm .kpd-email .field > textarea { width: 100%; }
 }
+
+/* ===== Договори контрагента: той самий компактний вигляд, що й форма пошти; кнопки за розміром тексту =====
+   Префікс kpk-, бо kpc-row / kpc-head вже зайняті сторінкою «Реквізити» (сітка 200px + auto) — вони ламали картку договору. */
+#kp-crm .kpk-contracts { margin-top: 18px; }
+#kp-crm .kpk-row { margin-bottom: 10px; padding: 12px 16px; }
+#kp-crm .kpk-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#kp-crm .kpk-form { max-width: 640px; margin: 0 0 12px; padding: 14px 18px; }
+#kp-crm .kpk-form .form { display: block; }
+#kp-crm .kpk-form .field { display: grid; grid-template-columns: 160px auto; column-gap: 12px; justify-content: start; align-items: center; margin: 0; padding: 4px 0; }
+#kp-crm .kpk-form .field > label { grid-column: 1; font-weight: 600; font-size: 13px; }
+#kp-crm .kpk-form .field > input { grid-column: 2; width: 360px; max-width: 100%; text-align: left; }
+#kp-crm .kpk-form .field > input[type="date"] { width: 160px; }
+#kp-crm .kpk-form .actions { justify-content: flex-start; margin-top: 10px; }
+#kp-crm .kpk-kep { max-width: 640px; margin: 8px 0 0; padding: 12px 16px; }
+#kp-crm .kpk-kep[hidden] { display: none; }
+@media (max-width: 560px) {
+    #kp-crm .kpk-form .field { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .kpk-form .field > label, #kp-crm .kpk-form .field > input { grid-column: 1; }
+    #kp-crm .kpk-form .field > input { width: 100%; }
+    #kp-crm .kpk-form .field > input[type="date"] { width: 160px; }
+}
+#kp-crm .kpk-contracts, #kp-crm .kpk-row { min-width: 0; max-width: 100%; }
+#kp-crm .kpk-row { overflow-wrap: anywhere; }
+#kp-crm .kpk-row .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-start; margin-top: 8px; }
+#kp-crm .kpk-row .actions > .btn, #kp-crm .kpk-row .actions > button, #kp-crm .kpk-form .actions > .btn { flex: 0 0 auto; width: auto; min-width: 0; margin: 0; white-space: normal; }
+#kp-crm .kpk-row .kpd-email, #kp-crm .kpk-row .kpk-kep { max-width: 100%; }
+/* «Документи і борг» у картці контрагента: таблиця скролиться вбік, нічого не обрізається (390 px) */
+#kp-crm .kpk-docs { min-width: 0; max-width: 100%; }
+#kp-crm .kpk-docs .table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#kp-crm .kpk-docs .table { min-width: 520px; }
+#kp-crm .kpk-docs .table th, #kp-crm .kpk-docs .table td { white-space: nowrap; }
+#kp-crm .kpk-docs .table td.text { white-space: nowrap; }

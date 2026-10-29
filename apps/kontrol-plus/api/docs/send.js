@@ -43,6 +43,20 @@ export default async function docsSend(req, res) {
                 if (error) throw new Error(String(error.message || 'context'));
                 return data;
             },
+            getContractContext: async (jwt, id) => {
+                const asUser = createClient(url, key, { auth: NO_SESSION, global: { headers: { Authorization: 'Bearer ' + jwt } } });
+                const { data, error } = await asUser.rpc('kp_contract_email_context', { p_id: id });
+                if (error) throw new Error(String(error.message || 'context'));
+                return data;
+            },
+            loadFile: async (path) => {
+                if (!path) return null;
+                const { data, error } = await supabase.storage.from('kp-contracts').download(path);
+                return error || !data ? null : new Uint8Array(await data.arrayBuffer());
+            },
+            markContractSent: async (id) => {
+                await supabase.rpc('kp_contract_mark_sent', { p_id: id });
+            },
             loadAsset: async (path) => {
                 if (!path) return null;
                 const { data, error } = await supabase.storage.from(BUCKET).download(path);
@@ -57,7 +71,7 @@ export default async function docsSend(req, res) {
             fileName: (doc) => docs.docFileName(doc),
             docAssetPaths: (doc) => docs.docAssetPaths(doc),
             reserve: async (row, limit) => {
-                const { data, error } = await supabase.rpc('kp_doc_email_reserve', { p_org: row.org_id, p_doc_ids: row.doc_ids, p_sent_by: row.sent_by, p_to: row.to_email, p_subject: row.subject, p_limit: limit });
+                const { data, error } = await supabase.rpc('kp_mail_reserve', { p_org: row.org_id, p_doc_ids: row.doc_ids, p_sent_by: row.sent_by, p_to: row.to_email, p_subject: row.subject, p_limit: limit, p_contract_id: row.contract_id || null });
                 if (error || !data) throw new Error(String((error && error.message) || 'reserve'));
                 return data;
             },
