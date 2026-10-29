@@ -1410,6 +1410,20 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(log.ok && log.rows.length === 2 && log.rows[0].sender_email && log.rows.every((r) => r.doc_count === 1), 'doc email: the document history lists the letters (who, when, status)', log.message);
     const foreignLog = await user(OC)(`SELECT * FROM public.kp_doc_email_log($1)`, [docId]);
     check(!foreignLog.ok || foreignLog.rows.length === 0, "doc email: another organisation does not read the document's log", foreignLog.message);
+    // Ліміт без гонки: резервування під advisory-замком організації, лише service_role.
+    check(/pg_advisory_xact_lock\(hashtextextended\('kp_doc_emails:'/.test(emailSql), 'doc email limit: the reservation takes the organisation advisory lock before counting');
+    const rsvDoc = (await service(`SELECT doc_ids[1] AS d FROM public.kp_doc_emails WHERE org_id = $1 LIMIT 1`, [A])).rows[0].d;
+    const reserveSql = `SELECT public.kp_doc_email_reserve($1, ARRAY[$2::uuid], $3, 'buyer@example.com', 'Акт', $4) AS id`;
+    const rsvOk = await service(reserveSql, [A, rsvDoc, LA, 20]);
+    check(rsvOk.ok && rsvOk.rows[0].id, 'doc email limit: the service reserves a log row (queued)', rsvOk.message);
+    const rsvRow = await service(`SELECT status FROM public.kp_doc_emails WHERE id = $1`, [rsvOk.rows[0] && rsvOk.rows[0].id]);
+    check(rsvRow.ok && rsvRow.rows[0] && rsvRow.rows[0].status === 'queued', 'doc email limit: the reserved row is queued');
+    const rsvFull = await service(reserveSql, [A, rsvDoc, LA, 1]);
+    check(!rsvFull.ok && /RATE_LIMIT/.test(rsvFull.message), 'doc email limit: the count and the insert are one call — over the limit raises RATE_LIMIT', rsvFull.message);
+    const rsvForeign = await service(reserveSql, [A, rsvDoc, OC, 20]);
+    check(!rsvForeign.ok && /KP_FORBIDDEN/.test(rsvForeign.message), 'doc email limit: a sender from another organisation is refused', rsvForeign.message);
+    const rsvClient = await user(LA)(`SELECT public.kp_doc_email_reserve($1, ARRAY[$2::uuid], $3, 'a@b.ua', 'x', 20)`, [A, rsvDoc, LA]);
+    check(!rsvClient.ok && rsvClient.code === '42501', 'doc email limit: the reservation is not callable from the client', rsvClient.message);
     await setActs(true);
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);

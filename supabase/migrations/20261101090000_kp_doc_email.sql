@@ -16,7 +16,7 @@
 --
 -- РУЧНИЙ ВІДКАТ (SQL editor):
 --   DROP TRIGGER IF EXISTS trg_kp_doc_emails_notify ON public.kp_doc_emails;
---   DROP FUNCTION IF EXISTS public.kp_doc_emails_notify(), public.kp_doc_email_context(uuid), public.kp_doc_email_log(uuid);
+--   DROP FUNCTION IF EXISTS public.kp_doc_emails_notify(), public.kp_doc_email_context(uuid), public.kp_doc_email_log(uuid), public.kp_doc_email_reserve(uuid, uuid[], uuid, text, text, integer);
 --   DROP TABLE IF EXISTS public.kp_doc_emails;
 --   DELETE FROM public.org_notifications WHERE kind = 'doc_emailed';
 --   ALTER TABLE public.org_notifications DROP CONSTRAINT IF EXISTS org_notifications_kind_check;
@@ -146,3 +146,32 @@ REVOKE ALL ON FUNCTION public.kp_doc_email_context(uuid) FROM PUBLIC, anon, auth
 REVOKE ALL ON FUNCTION public.kp_doc_email_log(uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_doc_email_context(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_doc_email_log(uuid) TO authenticated, service_role;
+
+-- Ліміт без гонки: резервування рядка журналу й підрахунок за останню годину — в одній транзакції під advisory-замком організації
+-- (pg_advisory_xact_lock). Паралельні запити стають у чергу на замку, тому 21-й лист за годину неможливий. Лише service_role
+-- (API передає org з перевіреного kp_doc_email_context); відправник має бути учасником цієї організації.
+CREATE OR REPLACE FUNCTION public.kp_doc_email_reserve(p_org uuid, p_doc_ids uuid[], p_sent_by uuid, p_to text, p_subject text, p_limit integer DEFAULT 20)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.profiles AS p WHERE p.id = p_sent_by AND p.org_id = p_org) THEN
+    RAISE EXCEPTION 'KP_FORBIDDEN' USING ERRCODE = '42501';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('kp_doc_emails:' || p_org::text, 0));
+  IF (SELECT count(*) FROM public.kp_doc_emails AS e WHERE e.org_id = p_org AND e.created_at >= now() - interval '1 hour') >= least(coalesce(p_limit, 20), 20) THEN
+    RAISE EXCEPTION 'RATE_LIMIT' USING ERRCODE = 'P0001';
+  END IF;
+  INSERT INTO public.kp_doc_emails (org_id, doc_ids, sent_by, to_email, subject, status)
+  VALUES (p_org, p_doc_ids, p_sent_by, p_to, p_subject, 'queued')
+  RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.kp_doc_email_reserve(uuid, uuid[], uuid, text, text, integer) FROM PUBLIC, anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.kp_doc_email_reserve(uuid, uuid[], uuid, text, text, integer) TO service_role;

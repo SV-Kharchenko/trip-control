@@ -1,6 +1,7 @@
 // Відправка актів і рахунків на пошту (Resend). GET /api/docs/send → { configured } (кнопка знає, чи є пошта).
 // POST { doc_ids: [1…5], to, subject, text } → лист із PDF-вкладеннями. Усе — на сервері: JWT користувача, перевірка документа
-// своєї організації й права «акти» (RPC kp_doc_email_context від імені користувача), ліміт 20 листів на годину на організацію,
+// своєї організації й права «акти» (RPC kp_doc_email_context від імені користувача), ліміт 20 листів на годину на організацію
+// (резервування рядка журналу й підрахунок в одній транзакції під advisory-замком: kp_doc_email_reserve),
 // PDF тим самим шаблоном, що й у браузері (src/lib/pdf-docs.js, з підписом і печаткою, якщо вони є в самому документі), лог у
 // kp_doc_emails. Ключ і відправник — лише з env (RESEND_API_KEY, EMAIL_FROM); без них — 503 EMAIL_NOT_CONFIGURED, без падіння.
 // Усі залежності (база, Resend, PDF) передаються ззовні, щоб логіку можна було перевірити без мережі.
@@ -8,6 +9,29 @@ export const HOURLY_LIMIT = 20;
 export const MAX_DOCS = 5;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^@\s,;<>()"]+@[^@\s,;<>()"]+\.[^@\s,;<>()"]+$/;
+
+// Антиспам: за замовчуванням лист іде лише на пошту контрагента з картки. Інша адреса — тільки з явним підтвердженням
+// (other_address: true) і лише від директора (owner); логіст іншу адресу не може. Футер додає сервер, клієнт його не прибирає.
+export const OTHER_ADDRESS_ROLES = ['owner'];
+
+export function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+export function mailFooter(orgName) {
+    return 'Надіслано через TripControl від ' + (cleanLine(orgName, 200) || 'організації');
+}
+
+// Текст і HTML листа: текст користувача лише екранований, футер дописує сервер.
+export function composeBody(text, orgName) {
+    const footer = mailFooter(orgName);
+    const body = String(text || '').trim();
+    return {
+        text: (body ? body + '\n\n' : '') + '--\n' + footer,
+        html: '<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">' + (body ? '<p>' + escapeHtml(body).replace(/\n/g, '<br>') + '</p>' : '')
+            + '<hr style="border:0;border-top:1px solid #ccc;margin:16px 0"><p style="color:#666;font-size:12px">' + escapeHtml(footer) + '</p></div>',
+    };
+}
 
 export const NOT_CONFIGURED = { code: 'EMAIL_NOT_CONFIGURED', error: 'Пошта не налаштована. Зверніться до адміністратора.' };
 
@@ -33,14 +57,14 @@ export function parseSendBody(body) {
     const subject = cleanLine(b.subject, 200);
     if (!subject) return { ok: false, error: 'Вкажіть тему листа.' };
     const text = String(b.text == null ? '' : b.text).replace(/\r\n/g, '\n').slice(0, 5000);
-    return { ok: true, value: { ids, to, subject, text } };
+    return { ok: true, value: { ids, to, subject, text, otherAddress: b.other_address === true } };
 }
 
 const b64 = (bytes) => Buffer.from(bytes).toString('base64');
 
 // deps: getUser(jwt) → user|null; getContext(jwt, docId) → context (throw з message бази); loadAsset(path) → bytes|null;
 // loadFonts() → { regular, bold }; buildPdf(doc, { fonts, images }) → { bytes }; fileName(doc) → string;
-// countRecent(orgId, sinceIso) → number; logStart(row) → id; logFinish(id, patch); sendMail(payload) → { id } (throw { message });
+// reserve(row, limit) → id (одна транзакція: замок організації, підрахунок за годину, вставка; ліміт → throw 'RATE_LIMIT'); logFinish(id, patch); sendMail(payload) → { id } (throw { message });
 // docAssetPaths(doc) → { signature, stamp }; env; now()
 export function createSendHandler(deps) {
     const { env = {}, now = () => Date.now(), log = console } = deps;
@@ -66,7 +90,7 @@ export function createSendHandler(deps) {
 
         const parsed = parseSendBody(req.body);
         if (!parsed.ok) return res.status(400).json({ code: 'BAD_REQUEST', error: parsed.error });
-        const { ids, to, subject, text } = parsed.value;
+        const { ids, to, subject, text, otherAddress } = parsed.value;
 
         const contexts = [];
         for (const id of ids) {
@@ -84,22 +108,25 @@ export function createSendHandler(deps) {
         const orgId = contexts[0].org_id;
         if (!orgId || contexts.some((c) => c.org_id !== orgId)) return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостатньо прав для відправки цього документа.' });
 
-        const since = new Date(now() - 60 * 60 * 1000).toISOString();
-        let recent;
-        try {
-            recent = await deps.countRecent(orgId, since);
-        } catch {
-            return res.status(502).json({ code: 'LIMIT_CHECK_FAILED', error: 'Не вдалося перевірити ліміт відправок. Спробуйте ще раз.' });
-        }
-        if (recent >= HOURLY_LIMIT) {
-            res.setHeader('Retry-After', '3600');
-            return res.status(429).json({ code: 'RATE_LIMIT', error: 'Ліміт: ' + HOURLY_LIMIT + ' листів на годину. Спробуйте пізніше.', limit: HOURLY_LIMIT });
+        const first = contexts[0];
+        const cardEmail = String(first.client_email || '').trim().toLowerCase();
+        if (!cardEmail || to !== cardEmail) {
+            if (!otherAddress) {
+                return res.status(400).json({ code: 'OTHER_ADDRESS_CONFIRM', error: cardEmail ? 'Лист іде лише на пошту контрагента з картки. Щоб надіслати на іншу адресу, підтвердіть це у формі.' : 'У картці контрагента немає пошти. Щоб надіслати на іншу адресу, підтвердіть це у формі.' });
+            }
+            if (!OTHER_ADDRESS_ROLES.includes(String(first.sender_role || ''))) {
+                return res.status(403).json({ code: 'OTHER_ADDRESS_FORBIDDEN', error: 'Іншу адресу може вказати лише директор. Додайте пошту в картку контрагента.' });
+            }
         }
 
         let logId = null;
         try {
-            logId = await deps.logStart({ org_id: orgId, doc_ids: ids, sent_by: user.id, to_email: to, subject, status: 'queued' });
-        } catch {
+            logId = await deps.reserve({ org_id: orgId, doc_ids: ids, sent_by: user.id, to_email: to, subject }, HOURLY_LIMIT);
+        } catch (error) {
+            if (/RATE_LIMIT/.test(String((error && error.message) || ''))) {
+                res.setHeader('Retry-After', '3600');
+                return res.status(429).json({ code: 'RATE_LIMIT', error: 'Ліміт: ' + HOURLY_LIMIT + ' листів на годину. Спробуйте пізніше.', limit: HOURLY_LIMIT });
+            }
             return res.status(502).json({ code: 'LOG_FAILED', error: 'Не вдалося записати відправку в журнал. Лист не надіслано.' });
         }
         const finish = (patch) => deps.logFinish(logId, { ...patch, finished_at: new Date(now()).toISOString() }).catch(() => {});
@@ -120,12 +147,13 @@ export function createSendHandler(deps) {
             return res.status(500).json({ code: 'PDF_FAILED', error: 'Не вдалося сформувати PDF. Лист не надіслано.' });
         }
 
-        const first = contexts[0];
+        const body = composeBody(text, first.org_name);
         const payload = {
             from: String(env.EMAIL_FROM).trim(),
             to: [to],
             subject,
-            text: text || subject,
+            text: body.text,
+            html: body.html,
             attachments,
         };
         if (first.reply_to && EMAIL.test(String(first.reply_to))) payload.reply_to = String(first.reply_to);

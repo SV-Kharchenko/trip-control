@@ -56,15 +56,10 @@ export default async function docsSend(req, res) {
             buildPdf: (doc, options) => pdf.buildDocPdf(doc, options),
             fileName: (doc) => docs.docFileName(doc),
             docAssetPaths: (doc) => docs.docAssetPaths(doc),
-            countRecent: async (orgId, since) => {
-                const { count, error } = await supabase.from('kp_doc_emails').select('id', { count: 'exact', head: true }).eq('org_id', orgId).gte('created_at', since);
-                if (error) throw new Error('count');
-                return count || 0;
-            },
-            logStart: async (row) => {
-                const { data, error } = await supabase.from('kp_doc_emails').insert(row).select('id').single();
-                if (error || !data) throw new Error('log');
-                return data.id;
+            reserve: async (row, limit) => {
+                const { data, error } = await supabase.rpc('kp_doc_email_reserve', { p_org: row.org_id, p_doc_ids: row.doc_ids, p_sent_by: row.sent_by, p_to: row.to_email, p_subject: row.subject, p_limit: limit });
+                if (error || !data) throw new Error(String((error && error.message) || 'reserve'));
+                return data;
             },
             logFinish: async (id, patch) => {
                 const { error } = await supabase.from('kp_doc_emails').update(patch).eq('id', id);

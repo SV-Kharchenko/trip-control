@@ -34,7 +34,7 @@ const doc = (id, extra = {}) => ({
 });
 
 function setup(over = {}) {
-    const state = { logs: [], finished: [], mails: [], recent: 0, contextCalls: [] };
+    const state = { logs: [], finished: [], mails: [], recent: 0, contextCalls: [], lock: Promise.resolve() };
     const deps = {
         env: ENV,
         now: () => Date.parse('2026-10-28T12:00:00Z'),
@@ -49,8 +49,18 @@ function setup(over = {}) {
         buildPdf: buildDocPdf,
         fileName: docFileName,
         docAssetPaths,
-        countRecent: async () => state.recent,
-        logStart: async (row) => { state.logs.push(row); return 'log-' + state.logs.length; },
+        // Як kp_doc_email_reserve: черга на замку організації, підрахунок і вставка без розриву.
+        reserve: (row, limit) => {
+            const run = async () => {
+                await new Promise((resolve) => setImmediate(resolve));
+                if (state.recent + state.logs.length >= limit) throw new Error('RATE_LIMIT');
+                state.logs.push(row);
+                return 'log-' + state.logs.length;
+            };
+            const next = state.lock.then(run, run);
+            state.lock = next.catch(() => {});
+            return next;
+        },
         logFinish: async (id, patch) => { state.finished.push({ id, ...patch }); },
         sendMail: async (payload) => { state.mails.push(payload); return { id: 'em_1' }; },
         ...over,
@@ -137,11 +147,50 @@ test('limit: 20 letters per hour per organisation → 429 with Retry-After, befo
     assert.equal(state.mails.length, 1, 'the 21st letter is not sent');
 });
 
-test('the window is the last hour of the organisation', async () => {
-    let seen = null;
-    const { handler } = setup({ countRecent: async (org, since) => { seen = { org, since }; return 0; } });
-    await call(handler, { body: BODY });
-    assert.deepEqual(seen, { org: ORG, since: '2026-10-28T11:00:00.000Z' });
+test('parallel requests cannot pass the limit: 25 at once → exactly 20 sent, 5 get 429', async () => {
+    const { state, handler } = setup();
+    const results = await Promise.all(Array.from({ length: 25 }, () => call(handler, { body: BODY })));
+    assert.equal(results.filter((r) => r.statusCode === 200).length, 20);
+    assert.equal(results.filter((r) => r.statusCode === 429).length, 5);
+    assert.equal(state.mails.length, 20);
+    assert.equal(state.logs.length, 20);
+});
+
+test('anti-spam: only the card address by default; another address needs the explicit flag and the owner role', async () => {
+    const { state, handler } = setup();
+    const other = { ...BODY, to: 'someone@else.com' };
+    const noFlag = await call(handler, { body: other });
+    assert.equal(noFlag.statusCode, 400);
+    assert.equal(noFlag.body.code, 'OTHER_ADDRESS_CONFIRM');
+    const logist = await call(handler, { body: { ...other, other_address: true } });
+    assert.equal(logist.statusCode, 403, 'a logist cannot send to a foreign address even when confirmed');
+    assert.equal(logist.body.code, 'OTHER_ADDRESS_FORBIDDEN');
+    assert.deepEqual([state.logs.length, state.mails.length], [0, 0]);
+    const own = setup({ getContext: async (_j, id) => ({ org_id: ORG, doc: doc(id), client_email: 'client@example.com', sender_role: 'owner' }) });
+    assert.equal((await call(own.handler, { body: other })).statusCode, 400, 'the owner also needs the confirmation');
+    const ok = await call(own.handler, { body: { ...other, other_address: true } });
+    assert.equal(ok.statusCode, 200);
+    assert.deepEqual(own.state.mails[0].to, ['someone@else.com']);
+    const noCard = setup({ getContext: async (_j, id) => ({ org_id: ORG, doc: doc(id), client_email: null, sender_role: 'logist' }) });
+    assert.equal((await call(noCard.handler, { body: { ...BODY, other_address: true } })).statusCode, 403, 'no card address: a logist cannot choose one');
+    assert.equal((await call(handler, { body: BODY })).statusCode, 200, 'the card address (any case) goes through without a flag');
+});
+
+test('the server adds an unremovable footer and escapes user HTML', async () => {
+    const { state, handler } = setup({ getContext: async (_j, id) => ({ org_id: ORG, doc: doc(id), client_email: 'client@example.com', org_name: 'ТОВ «Тест» <b>', sender_role: 'logist' }) });
+    const res = await call(handler, { body: { ...BODY, text: 'Привіт <script>alert(1)</script> & "інше"' } });
+    assert.equal(res.statusCode, 200);
+    const mail = state.mails[0];
+    assert.match(mail.text, /Надіслано через TripControl від ТОВ «Тест» <b>$/);
+    assert.match(mail.html, /Надіслано через TripControl від ТОВ «Тест» &lt;b&gt;/);
+    assert.ok(!/<script/i.test(mail.html), 'user HTML is escaped');
+    assert.match(mail.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt; &amp; &quot;інше&quot;/);
+    const empty = await call(handler, { body: { ...BODY, text: '' } });
+    assert.equal(empty.statusCode, 200);
+    assert.match(state.mails[1].text, /Надіслано через TripControl від/);
+    const forged = await call(handler, { body: { ...BODY, text: 'x', footer: 'прибрати', html: '<i>x</i>' } });
+    assert.match(state.mails[2].html, /Надіслано через TripControl/);
+    assert.equal(forged.statusCode, 200);
 });
 
 test('success: PDF attachment from the same template, From / Reply-To from env and requisites, queued → sent in the log', async () => {
@@ -161,7 +210,7 @@ test('success: PDF attachment from the same template, From / Reply-To from env a
         assert.equal(Buffer.from(a.content, 'base64').subarray(0, 5).toString(), '%PDF-');
     }
     assert.equal(state.logs.length, 1);
-    assert.deepEqual([state.logs[0].status, state.logs[0].doc_ids, state.logs[0].sent_by, state.logs[0].to_email], ['queued', [D1, D2], 'u1', 'client@example.com']);
+    assert.deepEqual([state.logs[0].subject && 'reserved', state.logs[0].doc_ids, state.logs[0].sent_by, state.logs[0].to_email], ['reserved', [D1, D2], 'u1', 'client@example.com']);
     assert.equal(state.finished[0].status, 'sent');
     assert.equal(state.finished[0].provider_id, 'em_1');
     assert.ok(state.finished[0].finished_at);
@@ -171,7 +220,7 @@ test('the signature and stamp already in the document go into the PDF; missing f
     const asked = [];
     const withAssets = doc(D1, { seller: { legal_name: 'ТОВ', signature_path: ORG + '/docs/' + D1 + '/signature.png', stamp_path: ORG + '/docs/' + D1 + '/stamp.png' } });
     const { handler, state } = setup({
-        getContext: async () => ({ org_id: ORG, doc: withAssets, reply_to: null }),
+        getContext: async () => ({ org_id: ORG, doc: withAssets, reply_to: null, client_email: 'client@example.com' }),
         loadAsset: async (path) => { asked.push(path); return null; },
     });
     assert.equal((await call(handler, { body: BODY })).statusCode, 200);

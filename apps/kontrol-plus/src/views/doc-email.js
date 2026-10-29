@@ -64,7 +64,16 @@ export function emailControl(app, { docs, to = '', clientName = '', orgName = ''
     function draw(configured) {
         const picks = docs.map((d) => ({ doc: d, box: h('input', { type: 'checkbox', checked: d.checked !== false, id: 'kpe-doc-' + d.id }) }));
         const selected = () => picks.filter((p) => p.box.checked).map((p) => p.doc);
-        const toInput = h('input', { type: 'email', id: 'kpe-to', value: to || '', maxlength: 254, autocomplete: 'off', placeholder: 'client@example.com' });
+        // Антиспам: за замовчуванням лише пошта контрагента з картки (поле тільки для читання). Інша адреса — після явного підтвердження.
+        const cardEmail = String(to || '').trim();
+        const toInput = h('input', { type: 'email', id: 'kpe-to', value: cardEmail, maxlength: 254, autocomplete: 'off', placeholder: 'client@example.com', readonly: Boolean(cardEmail) });
+        const otherBox = h('input', { type: 'checkbox', id: 'kpe-other' });
+        otherBox.onchange = () => {
+            toInput.readOnly = !otherBox.checked;
+            if (!otherBox.checked) toInput.value = cardEmail;
+            else toInput.focus();
+        };
+        if (!cardEmail) otherBox.checked = true;
         const subject = h('input', { type: 'text', id: 'kpe-subject', maxlength: 200, value: defaultSubject(selected().length ? selected() : docs, orgName) });
         const text = h('textarea', { id: 'kpe-text', rows: 5, maxlength: 5000 }, defaultText(selected().length ? selected() : docs, clientName));
         const status = h('div', { 'aria-live': 'polite' });
@@ -77,7 +86,7 @@ export function emailControl(app, { docs, to = '', clientName = '', orgName = ''
             if (!subject.value.trim()) return clear(status, notice('Вкажіть тему листа.'));
             send.disabled = true;
             clear(status, h('p', { class: 'muted' }, 'Надсилаємо…'));
-            const out = await callKpApi(app, '/api/docs/send', { doc_ids: chosen.map((d) => d.id), to: toInput.value.trim(), subject: subject.value, text: text.value });
+            const out = await callKpApi(app, '/api/docs/send', { doc_ids: chosen.map((d) => d.id), to: toInput.value.trim(), other_address: toInput.value.trim().toLowerCase() !== cardEmail.toLowerCase(), subject: subject.value, text: text.value });
             send.disabled = false;
             if (!out.ok) return clear(status, notice(out.error || 'Не вдалося надіслати лист.'));
             clear(status);
@@ -92,6 +101,8 @@ export function emailControl(app, { docs, to = '', clientName = '', orgName = ''
             configured === true ? null : notice(configured === false ? 'Пошта не налаштована.' : 'Не вдалося перевірити пошту. Спробуйте ще раз.', 'info'),
             h('div', { class: 'form kpd-email-form' },
                 field('Кому', 'kpe-to', toInput),
+                h('div', { class: 'field' }, h('label', { for: 'kpe-other' }, 'Інша адреса'),
+                    h('label', { class: 'kpd-email-pick', for: 'kpe-other' }, otherBox, ' Надіслати на іншу адресу? Лист піде не на пошту з картки контрагента.')),
                 field('Тема', 'kpe-subject', subject),
                 field('Текст', 'kpe-text', text),
                 h('div', { class: 'field' }, h('label', null, 'PDF'),
