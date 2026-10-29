@@ -1,0 +1,103 @@
+// «Надіслати на пошту»: невелика форма (кому, тема, текст, галочки PDF документів) і журнал відправок документа.
+// Лист відправляє сервер (/api/docs/send, Resend): тут лише форма. Ключів у браузері немає. Без налаштованої пошти кнопка
+// відправки вимкнена з підписом «Пошта не налаштована».
+import { h, clear, notice, toast } from '../ui.js';
+import { fmtDate } from '../lib/format.js';
+import { callKpApi } from '../lib/gps-client.js';
+import { DOC_TITLES, docNumberText } from '../lib/docs.js';
+
+export const EMAIL_RE = /^[^@\s,;<>()"]+@[^@\s,;<>()"]+\.[^@\s,;<>()"]+$/;
+export const MAX_DOCS = 5;
+
+export function docLabel(doc) {
+    return (DOC_TITLES[doc.kind] || doc.kind) + ' № ' + (doc.number_text || docNumberText(doc)) + ' від ' + fmtDate(doc.doc_date);
+}
+
+export function defaultSubject(docs, orgName) {
+    const first = docs[0];
+    const what = docs.length === 1 ? docLabel(first) : 'Документи (' + docs.length + ')';
+    return what + (orgName ? ' — ' + orgName : '');
+}
+
+export function defaultText(docs, clientName) {
+    const list = docs.map((d) => '— ' + docLabel(d)).join('\n');
+    return 'Добрий день' + (clientName ? ', ' + clientName : '') + '!\n\nУ вкладенні:\n' + list + '\n\nЗ повагою.';
+}
+
+export async function emailConfigured(app) {
+    const out = await callKpApi(app, '/api/docs/send', null, 'GET');
+    return out.ok ? out.configured === true : null;
+}
+
+const STATUS_TEXT = { sent: 'надіслано', failed: 'помилка', queued: 'у черзі' };
+
+// Журнал відправок документа (kp_doc_email_log). Порожній — нічого не малюємо.
+export async function renderEmailLog(app, docId) {
+    const { data, error } = await app.supabase.rpc('kp_doc_email_log', { p_doc: docId });
+    if (error || !Array.isArray(data) || !data.length) return null;
+    return h('div', { class: 'card kpd-email-log' }, h('h3', null, 'Надсилання на пошту'),
+        h('div', { class: 'table-wrap' }, h('table', { class: 'table' },
+            h('thead', null, h('tr', null, ['Коли', 'Кому', 'Хто', 'Статус'].map((t) => h('th', null, t)))),
+            h('tbody', null, data.map((r) => h('tr', null,
+                h('td', null, new Date(r.created_at).toLocaleString('uk-UA')),
+                h('td', null, r.to_email),
+                h('td', null, r.sender_email || '—'),
+                h('td', null, (STATUS_TEXT[r.status] || r.status) + (r.error ? ': ' + r.error : ''))))))));
+}
+
+// docs — [{ id, kind, number_text, doc_date, checked }]. Повертає { button, panel }: кнопка показує/ховає форму.
+export function emailControl(app, { docs, to = '', clientName = '', orgName = '', onSent = null, label = 'Надіслати на пошту' }) {
+    const panel = h('div', { class: 'card kpd-email', hidden: true });
+    let opened = false;
+    const button = h('button', {
+        type: 'button', class: 'btn',
+        onclick: async () => {
+            panel.hidden = !panel.hidden;
+            if (panel.hidden || opened) return;
+            opened = true;
+            clear(panel, h('p', { class: 'muted' }, 'Перевіряємо пошту…'));
+            const configured = await emailConfigured(app);
+            draw(configured);
+        },
+    }, label);
+
+    function draw(configured) {
+        const picks = docs.map((d) => ({ doc: d, box: h('input', { type: 'checkbox', checked: d.checked !== false, id: 'kpe-doc-' + d.id }) }));
+        const selected = () => picks.filter((p) => p.box.checked).map((p) => p.doc);
+        const toInput = h('input', { type: 'email', id: 'kpe-to', value: to || '', maxlength: 254, autocomplete: 'off', placeholder: 'client@example.com' });
+        const subject = h('input', { type: 'text', id: 'kpe-subject', maxlength: 200, value: defaultSubject(selected().length ? selected() : docs, orgName) });
+        const text = h('textarea', { id: 'kpe-text', rows: 5, maxlength: 5000 }, defaultText(selected().length ? selected() : docs, clientName));
+        const status = h('div', { 'aria-live': 'polite' });
+        const send = h('button', { type: 'button', class: 'btn btn-primary', disabled: configured !== true }, 'Надіслати');
+        send.onclick = async () => {
+            const chosen = selected();
+            if (!chosen.length) return clear(status, notice('Оберіть хоча б один документ.'));
+            if (chosen.length > MAX_DOCS) return clear(status, notice('Не більше ' + MAX_DOCS + ' документів за раз.'));
+            if (!EMAIL_RE.test(toInput.value.trim())) return clear(status, notice('Вкажіть коректну пошту одержувача.'));
+            if (!subject.value.trim()) return clear(status, notice('Вкажіть тему листа.'));
+            send.disabled = true;
+            clear(status, h('p', { class: 'muted' }, 'Надсилаємо…'));
+            const out = await callKpApi(app, '/api/docs/send', { doc_ids: chosen.map((d) => d.id), to: toInput.value.trim(), subject: subject.value, text: text.value });
+            send.disabled = false;
+            if (!out.ok) return clear(status, notice(out.error || 'Не вдалося надіслати лист.'));
+            clear(status);
+            toast('Лист надіслано: ' + toInput.value.trim());
+            panel.hidden = true;
+            opened = false;
+            if (onSent) onSent();
+        };
+        const field = (labelText, id, control) => h('div', { class: 'field' }, h('label', { for: id }, labelText), control);
+        clear(panel,
+            h('h3', null, 'Надіслати на пошту'),
+            configured === true ? null : notice(configured === false ? 'Пошта не налаштована.' : 'Не вдалося перевірити пошту. Спробуйте ще раз.', 'info'),
+            h('div', { class: 'form kpd-email-form' },
+                field('Кому', 'kpe-to', toInput),
+                field('Тема', 'kpe-subject', subject),
+                field('Текст', 'kpe-text', text),
+                h('div', { class: 'field' }, h('label', null, 'PDF'),
+                    h('div', { class: 'kpd-email-docs' }, picks.map((p) => h('label', { class: 'kpd-email-pick', for: p.box.id }, p.box, ' ' + docLabel(p.doc))))),
+                status,
+                h('div', { class: 'actions' }, send, h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { panel.hidden = true; } }, 'Скасувати'))));
+    }
+    return { button, panel };
+}

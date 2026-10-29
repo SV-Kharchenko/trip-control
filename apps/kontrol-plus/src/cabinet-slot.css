@@ -525,3 +525,24 @@ body[data-theme="dark"] #cabinet-screen .cab-slot {
 @media (max-width: 760px) {
   #cabinet-screen .cab-slot .kpc-view .kpt-dl .kv { grid-template-columns: 1fr; gap: 0; }
 }
+#cabinet-screen .cab-slot .kpd-email { max-width: 640px; margin: 0 0 14px; padding: 14px 18px; }
+#cabinet-screen .cab-slot .kpd-email[hidden] { display: none; }
+#cabinet-screen .cab-slot .kpd-email .form { display: block; }
+#cabinet-screen .cab-slot .kpd-email .field { display: grid; grid-template-columns: 160px auto; column-gap: 12px; row-gap: 2px; justify-content: start; align-items: start; margin: 0; padding: 4px 0; }
+#cabinet-screen .cab-slot .kpd-email .field > label { grid-column: 1; font-weight: 600; font-size: 13px; padding-top: 6px; }
+#cabinet-screen .cab-slot .kpd-email .field > input,
+#cabinet-screen .cab-slot .kpd-email .field > textarea { grid-column: 2; width: 360px; max-width: 100%; text-align: left; }
+#cabinet-screen .cab-slot .kpd-email .kpd-email-docs { grid-column: 2; display: flex; flex-direction: column; gap: 4px; }
+#cabinet-screen .cab-slot .kpd-email .kpd-email-pick { display: flex; align-items: center; gap: 6px; font-weight: 400; padding-top: 0; }
+#cabinet-screen .cab-slot .kpd-email .kpd-email-pick input { width: auto; }
+#cabinet-screen .cab-slot .kpd-email .actions { justify-content: flex-start; margin-top: 10px; }
+#cabinet-screen .cab-slot .kpd-email-log { max-width: 760px; }
+@media (max-width: 560px) {
+  #cabinet-screen .cab-slot .kpd-email .field { grid-template-columns: minmax(0, 1fr); }
+  #cabinet-screen .cab-slot .kpd-email .field > label,
+  #cabinet-screen .cab-slot .kpd-email .field > input,
+  #cabinet-screen .cab-slot .kpd-email .field > textarea,
+  #cabinet-screen .cab-slot .kpd-email .kpd-email-docs { grid-column: 1; }
+  #cabinet-screen .cab-slot .kpd-email .field > input,
+  #cabinet-screen .cab-slot .kpd-email .field > textarea { width: 100%; }
+}

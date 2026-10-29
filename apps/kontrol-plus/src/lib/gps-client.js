@@ -4,16 +4,16 @@ export function callGpsApi(app, route, body) {
     return callKpApi(app, '/api/gps/' + route, body);
 }
 
-export async function callKpApi(app, path, body) {
+export async function callKpApi(app, path, body, method = 'POST') {
     const { data } = await app.supabase.auth.getSession();
     const jwt = data && data.session && data.session.access_token;
     if (!jwt) return { ok: false, status: 401, error: 'Сесія завершилась — увійдіть ще раз.' };
     let res;
     try {
         res = await fetch(path, {
-            method: 'POST',
+            method,
             headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + jwt },
-            body: JSON.stringify(body || {}),
+            body: method === 'GET' ? undefined : JSON.stringify(body || {}),
             cache: 'no-store',
         });
     } catch {
