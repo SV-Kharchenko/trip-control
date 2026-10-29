@@ -26,8 +26,8 @@
 --
 -- РУЧНИЙ ВІДКАТ (SQL editor):
 --   DROP FUNCTION IF EXISTS public.kp_mail_reserve(uuid, uuid[], uuid, text, text, integer, uuid), public.kp_contract_scan_context(uuid);
---   DROP FUNCTION IF EXISTS public.kp_contract_list(uuid), public.kp_contract_save(uuid, uuid, jsonb), public.kp_contract_attach(uuid, text, text),
---     public.kp_contract_attach_sig(uuid, text), public.kp_contract_sign_context(uuid), public.kp_contract_set_signed(uuid, uuid, text, text),
+--   DROP FUNCTION IF EXISTS public.kp_contract_list(uuid), public.kp_contract_save(uuid, uuid, jsonb), public.kp_contract_attach(uuid, uuid, text, text),
+--     public.kp_contract_attach_sig(uuid, uuid, text), public.kp_actor_can(uuid, uuid, text), public.kp_contract_sign_context(uuid), public.kp_contract_set_signed(uuid, uuid, text, text),
 --     public.kp_contract_email_context(uuid), public.kp_contract_mark_sent(uuid);
 --   DROP POLICY IF EXISTS kp_contracts_storage_select ON storage.objects;  (так само _insert, _delete)
 --   DROP TABLE IF EXISTS public.kp_contracts;   -- спершу: ALTER TABLE public.kp_doc_emails DROP COLUMN IF EXISTS contract_id;
@@ -231,26 +231,70 @@ END;
 $$;
 
 -- Файл скану, уже завантажений у бакет: шлях <org>/<contract>/scan-<uuid>.(pdf|jpg|png), розмір ≤ 10 МБ.
-CREATE OR REPLACE FUNCTION public.kp_contract_attach(p_id uuid, p_path text, p_name text)
+-- Право учасника без auth.uid() (виклик службовою роллю від імені p_actor): та сама логіка, що в member_can, але для явного користувача.
+-- Запис дозволено лише owner / logist цієї організації (директор — тільки читає); у логіста — права з org_member_permissions
+-- (немає рядка: усе, крім 'sign').
+CREATE OR REPLACE FUNCTION public.kp_actor_can(p_actor uuid, p_org uuid, p_perm text)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role text;
+  v_row public.org_member_permissions%ROWTYPE;
+BEGIN
+  IF p_perm IS NULL OR p_perm NOT IN ('acts', 'sign', 'fleet', 'clients', 'contracts') THEN
+    RETURN false;
+  END IF;
+  IF NOT public.kp_is_org_member(p_actor, p_org) THEN
+    RETURN false;
+  END IF;
+  SELECT p.org_role INTO v_role FROM public.profiles AS p WHERE p.id = p_actor AND p.org_id = p_org AND p.member_status = 'active';
+  IF v_role = 'owner' THEN
+    RETURN true;
+  END IF;
+  IF v_role IS DISTINCT FROM 'logist' THEN
+    RETURN false;
+  END IF;
+  SELECT * INTO v_row FROM public.org_member_permissions WHERE org_id = p_org AND user_id = p_actor;
+  IF NOT FOUND THEN
+    RETURN p_perm <> 'sign';
+  END IF;
+  RETURN CASE p_perm
+    WHEN 'acts' THEN v_row.can_acts
+    WHEN 'sign' THEN v_row.can_sign
+    WHEN 'fleet' THEN v_row.can_fleet
+    WHEN 'clients' THEN v_row.can_clients
+    ELSE v_row.can_contracts
+  END;
+END;
+$$;
+
+-- Скан і .p7s: ЛИШЕ service_role (/api/contracts/sign після перевірки magic bytes). p_actor — користувач із перевіреного JWT:
+-- членство в організації договору, право «Договори», статус чернетки.
+CREATE OR REPLACE FUNCTION public.kp_contract_attach(p_id uuid, p_actor uuid, p_path text, p_name text)
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_org uuid := public.kp_docs_org('write');
   v_old public.kp_contracts%ROWTYPE;
   v_size bigint;
 BEGIN
-  PERFORM public.member_require('contracts');
-  SELECT * INTO v_old FROM public.kp_contracts WHERE id = p_id AND org_id = v_org FOR UPDATE;
-  IF NOT FOUND THEN
+  SELECT * INTO v_old FROM public.kp_contracts WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND OR NOT public.kp_is_org_member(p_actor, v_old.org_id) THEN
     RAISE EXCEPTION 'CONTRACT_NOT_FOUND' USING ERRCODE = 'P0001';
+  END IF;
+  IF NOT public.kp_actor_can(p_actor, v_old.org_id, 'contracts') THEN
+    RAISE EXCEPTION 'MEMBER_PERMISSION_DENIED' USING ERRCODE = '42501', DETAIL = 'contracts';
   END IF;
   IF v_old.status <> 'draft' THEN
     RAISE EXCEPTION 'CONTRACT_LOCKED' USING ERRCODE = 'P0001';
   END IF;
-  IF p_path IS NULL OR p_path !~ ('^' || v_org::text || '/' || p_id::text || '/scan-[0-9a-f-]{36}\.(pdf|jpg|png)$') THEN
+  IF p_path IS NULL OR p_path !~ ('^' || v_old.org_id::text || '/' || p_id::text || '/scan-[0-9a-f-]{36}\.(pdf|jpg|png)$') THEN
     RAISE EXCEPTION 'CONTRACT_FILE_BAD' USING ERRCODE = 'P0001';
   END IF;
   SELECT coalesce((o.metadata ->> 'size')::bigint, 0) INTO v_size
@@ -269,27 +313,31 @@ END;
 $$;
 
 -- Відокремлений підпис CAdES (.p7s) до скану: право «Договори» І «Підпис і печатка». Структуру .p7s перевіряє /api/contracts/sign.
-CREATE OR REPLACE FUNCTION public.kp_contract_attach_sig(p_id uuid, p_path text)
+CREATE OR REPLACE FUNCTION public.kp_contract_attach_sig(p_id uuid, p_actor uuid, p_path text)
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_org uuid := public.kp_docs_org('write');
   v_old public.kp_contracts%ROWTYPE;
   v_size bigint;
+  v_role text;
 BEGIN
-  PERFORM public.member_require('contracts');
-  PERFORM public.member_require('sign');
-  SELECT * INTO v_old FROM public.kp_contracts WHERE id = p_id AND org_id = v_org FOR UPDATE;
-  IF NOT FOUND THEN
+  SELECT * INTO v_old FROM public.kp_contracts WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND OR NOT public.kp_is_org_member(p_actor, v_old.org_id) THEN
     RAISE EXCEPTION 'CONTRACT_NOT_FOUND' USING ERRCODE = 'P0001';
+  END IF;
+  IF NOT public.kp_actor_can(p_actor, v_old.org_id, 'contracts') THEN
+    RAISE EXCEPTION 'MEMBER_PERMISSION_DENIED' USING ERRCODE = '42501', DETAIL = 'contracts';
+  END IF;
+  IF NOT public.kp_actor_can(p_actor, v_old.org_id, 'sign') THEN
+    RAISE EXCEPTION 'MEMBER_PERMISSION_DENIED' USING ERRCODE = '42501', DETAIL = 'sign';
   END IF;
   IF v_old.status <> 'draft' OR v_old.file_path IS NULL THEN
     RAISE EXCEPTION 'CONTRACT_LOCKED' USING ERRCODE = 'P0001';
   END IF;
-  IF p_path IS NULL OR p_path !~ ('^' || v_org::text || '/' || p_id::text || '/sig-[0-9a-f-]{36}\.p7s$') THEN
+  IF p_path IS NULL OR p_path !~ ('^' || v_old.org_id::text || '/' || p_id::text || '/sig-[0-9a-f-]{36}\.p7s$') THEN
     RAISE EXCEPTION 'CONTRACT_FILE_BAD' USING ERRCODE = 'P0001';
   END IF;
   SELECT coalesce((o.metadata ->> 'size')::bigint, 0) INTO v_size
@@ -301,10 +349,11 @@ BEGIN
     RAISE EXCEPTION 'CONTRACT_FILE_TOO_BIG' USING ERRCODE = 'P0001';
   END IF;
   UPDATE public.kp_contracts
-  SET sig_path = p_path, status = 'signed', sign_method = 'kep', signed_by = auth.uid(), signed_at = now(), updated_at = now()
+  SET sig_path = p_path, status = 'signed', sign_method = 'kep', signed_by = p_actor, signed_at = now(), updated_at = now()
   WHERE id = p_id;
-  IF public.kp_role() = 'logist' THEN
-    PERFORM public.org_notify(v_org, 'signature_used', 'contract', p_id, auth.uid(),
+  SELECT p.org_role INTO v_role FROM public.profiles AS p WHERE p.id = p_actor;
+  IF v_role = 'logist' THEN
+    PERFORM public.org_notify(v_old.org_id, 'signature_used', 'contract', p_id, p_actor,
       jsonb_build_object('doc_kind', 'contract', 'number', left(v_old.number, 100), 'method', 'kep', 'client_id', v_old.client_id));
   END IF;
   RETURN true;
@@ -378,7 +427,7 @@ AS $$
 DECLARE
   v_id uuid;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.profiles AS p WHERE p.id = p_sent_by AND p.org_id = p_org) THEN
+  IF NOT public.kp_is_org_member(p_sent_by, p_org) THEN
     RAISE EXCEPTION 'KP_FORBIDDEN' USING ERRCODE = '42501';
   END IF;
   IF p_contract_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.kp_contracts AS c WHERE c.id = p_contract_id AND c.org_id = p_org) THEN
@@ -472,8 +521,9 @@ $$;
 
 REVOKE ALL ON FUNCTION public.kp_contract_list(uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_contract_save(uuid, uuid, jsonb) FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION public.kp_contract_attach(uuid, text, text) FROM PUBLIC, anon, authenticated, service_role;
-REVOKE ALL ON FUNCTION public.kp_contract_attach_sig(uuid, text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.kp_contract_attach(uuid, uuid, text, text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.kp_actor_can(uuid, uuid, text) FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.kp_contract_attach_sig(uuid, uuid, text) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_contract_sign_context(uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_contract_email_context(uuid) FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON FUNCTION public.kp_contract_set_signed(uuid, uuid, text, text) FROM PUBLIC, anon, authenticated, service_role;
@@ -482,8 +532,9 @@ REVOKE ALL ON FUNCTION public.kp_contract_scan_context(uuid) FROM PUBLIC, anon, 
 REVOKE ALL ON FUNCTION public.kp_mail_reserve(uuid, uuid[], uuid, text, text, integer, uuid) FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_contract_list(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_contract_save(uuid, uuid, jsonb) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.kp_contract_attach(uuid, text, text) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.kp_contract_attach_sig(uuid, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.kp_contract_attach(uuid, uuid, text, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.kp_actor_can(uuid, uuid, text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.kp_contract_attach_sig(uuid, uuid, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.kp_contract_sign_context(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_contract_email_context(uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_contract_set_signed(uuid, uuid, text, text) TO service_role;

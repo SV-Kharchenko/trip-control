@@ -1498,14 +1498,26 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check((await user(OB)(`SELECT count(*)::int AS n FROM storage.objects WHERE bucket_id = 'kp-contracts'`)).rows[0].n === 0, 'contracts storage: an organisation without Контроль+ sees nothing');
 
     // Прив'язка файлу.
-    const attachBad = await user(LA)(`SELECT public.kp_contract_attach($1, $2, 'x.pdf')`, [cid, A + '/' + cid + '/scan-99999999-9999-4999-8999-999999999999.pdf']);
+    const attachBad = await service(`SELECT public.kp_contract_attach($1, $2, $3, 'x.pdf')`, [cid, LA, A + '/' + cid + '/scan-99999999-9999-4999-8999-999999999999.pdf']);
     check(!attachBad.ok && /CONTRACT_FILE_MISSING/.test(attachBad.message), 'contracts: attaching a file that is not in the bucket is refused', attachBad.message);
-    const attachForeign = await user(OC)(`SELECT public.kp_contract_attach($1, $2, 'x.pdf')`, [cid, scan]);
-    check(!attachForeign.ok, 'contracts: another organisation cannot attach', attachForeign.message);
-    const attach = await user(LA)(`SELECT public.kp_contract_attach($1, $2, 'Договір Д-15.pdf') AS ok`, [cid, scan]);
+    const attachForeign = await service(`SELECT public.kp_contract_attach($1, $2, $3, 'x.pdf')`, [cid, OC, scan]);
+    check(!attachForeign.ok && /CONTRACT_NOT_FOUND/.test(attachForeign.message), 'contracts: a user of another organisation cannot attach (membership checked inside)', attachForeign.message);
+    const attachDirect = await user(LA)(`SELECT public.kp_contract_attach($1, $2, $3, 'x.pdf')`, [cid, LA, scan]);
+    check(!attachDirect.ok && attachDirect.code === '42501', 'contracts: kp_contract_attach is service-only (no direct call from the client)', attachDirect.message);
+    const attachSigDirect = await user(OA)(`SELECT public.kp_contract_attach_sig($1, $2, $3)`, [cid, OA, scan]);
+    check(!attachSigDirect.ok && attachSigDirect.code === '42501', 'contracts: kp_contract_attach_sig is service-only', attachSigDirect.message);
+    const actorDirect = await user(LA)(`SELECT public.kp_actor_can($1, $2, 'contracts')`, [LA, A]);
+    check(!actorDirect.ok && actorDirect.code === '42501', 'contracts: kp_actor_can is service-only', actorDirect.message);
+    const attachDirector = await service(`SELECT public.kp_contract_attach($1, $2, $3, 'x.pdf')`, [cid, DIR1, scan]);
+    check(!attachDirector.ok && /MEMBER_PERMISSION_DENIED/.test(attachDirector.message), 'contracts: a director (member through org_directors) only reads — cannot attach', attachDirector.message);
+    await perms({ sign: false, contracts: false });
+    const attachNoRight = await service(`SELECT public.kp_contract_attach($1, $2, $3, 'x.pdf')`, [cid, LA, scan]);
+    check(denied(attachNoRight), 'contracts: a logist without "contracts" cannot attach (right checked for the actor)', attachNoRight.message);
+    await perms({ sign: false, contracts: true });
+    const attach = await service(`SELECT public.kp_contract_attach($1, $2, $3, 'Договір Д-15.pdf') AS ok`, [cid, LA, scan]);
     check(attach.ok, 'contracts: the uploaded scan is attached', attach.message);
     await service(`INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-contracts', $1, '{"size": 20000000}')`, [A + '/' + cid + '/scan-33333333-3333-4333-8333-333333333333.pdf']);
-    const tooBig = await user(LA)(`SELECT public.kp_contract_attach($1, $2, 'big.pdf')`, [cid, A + '/' + cid + '/scan-33333333-3333-4333-8333-333333333333.pdf']);
+    const tooBig = await service(`SELECT public.kp_contract_attach($1, $2, $3, 'big.pdf')`, [cid, LA, A + '/' + cid + '/scan-33333333-3333-4333-8333-333333333333.pdf']);
     check(!tooBig.ok && /CONTRACT_FILE_TOO_BIG/.test(tooBig.message), 'contracts: a file over 10 MB is refused', tooBig.message);
 
     // Підпис зображеннями: право «Підпис і печатка», сповіщення директору.
@@ -1530,7 +1542,7 @@ for (const [index, [name, extra]] of planCases.entries()) {
         'contracts: signing as a logist notifies the director (who, which contract)', JSON.stringify(note));
     const locked = await user(LA)(`SELECT public.kp_contract_save($1, $2, $3::jsonb)`, [cid, client.id, data]);
     check(!locked.ok && /CONTRACT_LOCKED/.test(locked.message), 'contracts: a signed contract is not edited', locked.message);
-    const lockedAttach = await user(LA)(`SELECT public.kp_contract_attach($1, $2, 'y.pdf')`, [cid, scan]);
+    const lockedAttach = await service(`SELECT public.kp_contract_attach($1, $2, $3, 'y.pdf')`, [cid, LA, scan]);
     check(!lockedAttach.ok && /CONTRACT_LOCKED/.test(lockedAttach.message), 'contracts: a signed contract keeps its file', lockedAttach.message);
 
     // КЕП (.p7s): друге право + файл sig-….
@@ -1539,14 +1551,14 @@ for (const [index, [name, extra]] of planCases.entries()) {
     const scan2 = A + '/' + cid2 + '/scan-55555555-5555-4555-8555-555555555555.pdf';
     const sig2 = A + '/' + cid2 + '/sig-66666666-6666-4666-8666-666666666666.p7s';
     check((await user(OA)(`INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-contracts', $1, '{"size": 1000}')`, [scan2])).ok, 'contracts: the owner uploads a scan');
-    check((await user(OA)(`SELECT public.kp_contract_attach($1, $2, 'D.pdf')`, [cid2, scan2])).ok, 'contracts: the owner attaches it');
+    check((await service(`SELECT public.kp_contract_attach($1, $2, $3, 'D.pdf')`, [cid2, OA, scan2])).ok, 'contracts: the owner attaches it');
     await perms({ sign: false, contracts: true });
     const sigNoRight = await user(LA)(`INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-contracts', $1, '{"size": 900}')`, [sig2]);
     check(!sigNoRight.ok && sigNoRight.code === '42501', 'contracts storage: a .p7s needs the "sign" right too', sigNoRight.message);
     check((await user(OA)(`INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-contracts', $1, '{"size": 900}')`, [sig2])).ok, 'contracts storage: the owner uploads the .p7s');
-    const sigAttachNoRight = await user(LA)(`SELECT public.kp_contract_attach_sig($1, $2)`, [cid2, sig2]);
+    const sigAttachNoRight = await service(`SELECT public.kp_contract_attach_sig($1, $2, $3)`, [cid2, LA, sig2]);
     check(denied(sigAttachNoRight), 'contracts: attaching a КЕП signature without "sign" is 403', sigAttachNoRight.message);
-    const sigAttach = await user(OA)(`SELECT public.kp_contract_attach_sig($1, $2)`, [cid2, sig2]);
+    const sigAttach = await service(`SELECT public.kp_contract_attach_sig($1, $2, $3)`, [cid2, OA, sig2]);
     check(sigAttach.ok, 'contracts: the owner attaches the .p7s', sigAttach.message);
     const row2 = (await service(`SELECT status, sign_method, sig_path FROM public.kp_contracts WHERE id = $1`, [cid2])).rows[0];
     check(row2.status === 'signed' && row2.sign_method === 'kep' && row2.sig_path === sig2, 'contracts: КЕП status signed, method kep, .p7s stored next to the file');
@@ -1594,6 +1606,8 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(!rsvCfull.ok && /RATE_LIMIT/.test(rsvCfull.message), 'contracts mail: the same limit applies to contracts', rsvCfull.message);
     const rsvCforeign = await service(`SELECT public.kp_mail_reserve($1, ARRAY[]::uuid[], $2, 'a@b.ua', 'x', 20, $3)`, [C, OC, cid]);
     check(!rsvCforeign.ok && /KP_FORBIDDEN/.test(rsvCforeign.message), "contracts mail: another organisation's contract cannot be reserved", rsvCforeign.message);
+    const rsvCdir = await service(`SELECT public.kp_mail_reserve($1, ARRAY[]::uuid[], $2, 'buyer@example.com', 'Договір', 20, $3) AS id`, [A, DIR1, cid]);
+    check(rsvCdir.ok, 'contracts mail: a director sender passes the shared membership check', rsvCdir.message);
     const rsvCclient = await user(LA)(`SELECT public.kp_mail_reserve($1, ARRAY[]::uuid[], $2, 'a@b.ua', 'x', 20, $3)`, [A, LA, cid]);
     check(!rsvCclient.ok && rsvCclient.code === '42501', 'contracts mail: the reservation is not callable from the client', rsvCclient.message);
 

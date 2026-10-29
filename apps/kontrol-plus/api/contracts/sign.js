@@ -41,8 +41,9 @@ export default async function contractsSign(req, res) {
             removeFile: async (path) => {
                 await supabase.storage.from('kp-contracts').remove([path]);
             },
-            attachScan: async (jwt, id, path, name) => {
-                const { error } = await asUser(jwt).rpc('kp_contract_attach', { p_id: id, p_path: path, p_name: name });
+            // Службовою роллю від імені користувача з перевіреного JWT (p_actor): членство, право «Договори», статус — всередині RPC.
+            attachScan: async (actorId, id, path, name) => {
+                const { error } = await supabase.rpc('kp_contract_attach', { p_id: id, p_actor: actorId, p_path: path, p_name: name });
                 if (error) throw new Error(String(error.message || 'attach'));
             },
             getSignContext: async (jwt, id) => {
@@ -60,8 +61,8 @@ export default async function contractsSign(req, res) {
                 const { error } = await supabase.rpc('kp_contract_set_signed', { p_id: id, p_user: userId, p_path: path, p_method: 'image' });
                 if (error) throw new Error(String(error.message || 'set'));
             },
-            attachSig: async (jwt, id, path) => {
-                const { error } = await asUser(jwt).rpc('kp_contract_attach_sig', { p_id: id, p_path: path });
+            attachSig: async (actorId, id, path) => {
+                const { error } = await supabase.rpc('kp_contract_attach_sig', { p_id: id, p_actor: actorId, p_path: path });
                 if (error) throw new Error(String(error.message || 'attach'));
             },
             newId: randomUUID,

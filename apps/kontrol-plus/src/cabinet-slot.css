@@ -580,3 +580,13 @@ body[data-theme="dark"] #cabinet-screen .cab-slot {
 #cabinet-screen .cab-slot .kpk-docs .table th,
 #cabinet-screen .cab-slot .kpk-docs .table td { white-space: nowrap; }
 #cabinet-screen .cab-slot .kpk-docs .table td.text { white-space: nowrap; }
+#cabinet-screen .cab-slot { min-width: 0; max-width: 100%; }
+#cabinet-screen .cab-slot > *,
+#cabinet-screen .cab-slot .card,
+#cabinet-screen .cab-slot .stats,
+#cabinet-screen .cab-slot .actions,
+#cabinet-screen .cab-slot .form,
+#cabinet-screen .cab-slot .field,
+#cabinet-screen .cab-slot .section-title { min-width: 0; max-width: 100%; }
+#cabinet-screen .cab-slot .table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#cabinet-screen .cab-slot .stats { flex-wrap: wrap; }

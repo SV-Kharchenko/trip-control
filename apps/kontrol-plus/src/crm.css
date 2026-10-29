@@ -663,3 +663,11 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 #kp-crm .kpk-docs .table { min-width: 520px; }
 #kp-crm .kpk-docs .table th, #kp-crm .kpk-docs .table td { white-space: nowrap; }
 #kp-crm .kpk-docs .table td.text { white-space: nowrap; }
+
+/* ===== 390 px: сторінка не скролиться вбік, скролиться лише .table-wrap =====
+   #kp-crm — елемент grid (#main-app): min-width: auto робив секцію такою ж широкою, як найширша таблиця (583 px у вікні 390). */
+#kp-crm, body[data-kp-view] #kp-crm { min-width: 0; max-width: 100%; }
+body.kp-nav-on #main-app { min-width: 0; }
+#kp-crm > *, #kp-crm .card, #kp-crm .stats, #kp-crm .actions, #kp-crm .form, #kp-crm .field, #kp-crm .section-title { min-width: 0; max-width: 100%; }
+#kp-crm .table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+#kp-crm .stats { flex-wrap: wrap; }

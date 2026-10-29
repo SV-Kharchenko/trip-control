@@ -24,8 +24,8 @@ export function kepConfig(env) {
     return { widget_url: origin ? widget : null, widget_origin: origin, sign_url: 'https://id.gov.ua/sign' };
 }
 
-// deps: getUser, getSignContext(jwt, id), getScanContext(jwt, id), loadFile(path), removeFile(path), attachScan(jwt, id, path, name), loadAsset(path), saveSigned(path, bytes), setSigned(id, userId, path),
-// attachSig(jwt, id, path) (throw з message бази), newId(), env
+// deps: getUser, getSignContext(jwt, id), getScanContext(jwt, id), loadFile(path), removeFile(path), attachScan(actorId, id, path, name), loadAsset(path), saveSigned(path, bytes), setSigned(id, userId, path),
+// attachSig(actorId, id, path) (service, p_actor; throw з message бази), newId(), env
 export function createSignHandler(deps) {
     const { env = {}, log = console } = deps;
     return async function signHandler(req, res) {
@@ -89,7 +89,7 @@ export function createSignHandler(deps) {
                 return res.status(415).json({ code: 'BAD_FILE_TYPE', error: 'Вміст файлу не відповідає PDF, JPG чи PNG. Завантажте справжній скан.' });
             }
             try {
-                await deps.attachScan(jwt, id, path, String(body.name || '').slice(0, 200));
+                await deps.attachScan(user.id, id, path, String(body.name || '').slice(0, 200));
             } catch (error) {
                 const [status, payload] = mapError(error);
                 return res.status(status).json(payload);
@@ -118,7 +118,7 @@ export function createSignHandler(deps) {
             if (!bytes) return res.status(409).json({ code: 'CONTRACT_FILE_MISSING', error: 'Файл підпису (.p7s) не знайдено. Завантажте його ще раз.' });
             if (!looksLikeP7s(bytes)) return res.status(422).json({ code: 'BAD_P7S', error: 'Це не схоже на відокремлений підпис CAdES (.p7s). Підпишіть файл договору на id.gov.ua/sign й завантажте .p7s.' });
             try {
-                await deps.attachSig(jwt, id, path);
+                await deps.attachSig(user.id, id, path);
             } catch (error) {
                 const [status, payload] = mapError(error);
                 return res.status(status).json(payload);

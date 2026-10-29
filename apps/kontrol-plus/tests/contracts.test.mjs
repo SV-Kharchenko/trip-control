@@ -91,11 +91,11 @@ function signSetup(over = {}) {
         getScanContext: async () => ({ org_id: ORG, contract_id: CID }),
         loadFile: async (path) => { state.loads.push(path); return path === SCAN ? await onePagePdf() : path === SIG ? P7S : null; },
         removeFile: async (path) => { state.removed.push(path); },
-        attachScan: async (jwt, id, path, name) => { state.scans.push({ id, path, name }); },
+        attachScan: async (actor, id, path, name) => { state.scans.push({ id, path, name, actor }); },
         loadAsset: async () => png(),
         saveSigned: async (path, bytes) => { state.saved.push({ path, bytes }); },
         setSigned: async (id, userId, path) => { state.set.push({ id, userId, path }); },
-        attachSig: async (jwt, id, path) => { state.attached.push({ id, path }); },
+        attachSig: async (actor, id, path) => { state.attached.push({ id, path, actor }); },
         newId: () => '33333333-3333-4333-8333-333333333333',
         ...over,
     };
@@ -134,7 +134,7 @@ test('sign by КЕП: the .p7s format is checked, then the user-level RPC (right
     const { state, handler } = signSetup();
     const ok = await run(handler, { body: { contract_id: CID, method: 'kep', sig_path: SIG } });
     assert.equal(ok.statusCode, 200);
-    assert.deepEqual(state.attached, [{ id: CID, path: SIG }]);
+    assert.deepEqual(state.attached, [{ id: CID, path: SIG, actor: 'u1' }], 'the service attaches on behalf of the verified user');
     const notP7s = await run(signSetup({ loadFile: async () => await onePagePdf() }).handler, { body: { contract_id: CID, method: 'kep', sig_path: SIG } });
     assert.equal(notP7s.statusCode, 422);
     assert.equal(notP7s.body.code, 'BAD_P7S');
@@ -182,7 +182,7 @@ test('scan: organisation first, then magic bytes; a file of another type is dele
     const ok = signSetup();
     const res = await run(ok.handler, { body });
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(ok.state.scans, [{ id: CID, path: SCAN, name: 'Договір.pdf' }]);
+    assert.deepEqual(ok.state.scans, [{ id: CID, path: SCAN, name: 'Договір.pdf', actor: 'u1' }]);
 
     const html = signSetup({ loadFile: async () => new Uint8Array(Buffer.from('<html><body>not a pdf</body></html>')) });
     const bad = await run(html.handler, { body });
