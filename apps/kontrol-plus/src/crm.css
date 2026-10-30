@@ -689,3 +689,6 @@ body.kp-nav-on #main-app { min-width: 0; }
 #kp-crm .kpd-page .btn:not(.btn-block), #kp-crm .kpd-page button.btn:not(.btn-block) { flex: 0 0 auto; width: auto; min-width: 0; }
 #kp-crm .kpd-page .kpr-cards td .actions > :not(.btn-block) { flex: 0 0 auto; }
 #kp-crm .kpd-page .kpt-docs-toggle { width: auto; max-width: 100%; }
+/* ТТН: кнопки всередині grid-контейнерів не розтягуються на клітинку: «Заповнити…» за текстом, «✕» — компактний квадрат. */
+#kp-crm .kpd-page .kpt-fill { justify-self: start; align-self: start; width: auto; min-width: 0; flex: 0 0 auto; }
+#kp-crm .kpd-page .kpt-line-del { justify-self: start; align-self: center; width: 30px; min-width: 0; padding: 4px 0; flex: 0 0 auto; }

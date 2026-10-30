@@ -288,7 +288,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
                 bind('amount', { inputmode: 'decimal', 'aria-label': 'Сума з ПДВ, рядок ' + n, placeholder: 'сума' }),
                 bind('packaging', { maxlength: 100, 'aria-label': 'Вид пакування, рядок ' + n, placeholder: 'Насипом' }),
                 bind('gross_t', { inputmode: 'decimal', 'aria-label': 'Маса брутто, т, рядок ' + n, placeholder: 'брутто, т' }),
-                h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'aria-label': 'Прибрати рядок ' + n, disabled: d.lines.length <= 1,
+                h('button', { type: 'button', class: 'btn btn-sm btn-ghost kpt-line-del', 'aria-label': 'Прибрати рядок ' + n, disabled: d.lines.length <= 1,
                     onclick: () => { d.lines.splice(index, 1); drawBody(); } }, '✕')),
             h('div', { class: 'kpt-line-extra' },
                 check('owner_price', 'Облікова ціна власника (ОЦВТ)'),
@@ -363,7 +363,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
             h('p', { class: 'muted small' }, 'Вантажно-розвантажувальні операції: маса брутто / тара / нетто друкується як «39,84/15,75/24,09». Можна лишити порожнім — заповнять на місці.'),
             row('load', 'Завантаження'),
             row('unload', 'Розвантаження'),
-            h('button', { type: 'button', class: 'btn btn-sm', onclick: fill }, 'Заповнити завантаження масами з форми'),
+            h('button', { type: 'button', class: 'btn btn-sm kpt-fill', onclick: fill }, 'Заповнити завантаження масами з форми'),
         ];
     }
 
