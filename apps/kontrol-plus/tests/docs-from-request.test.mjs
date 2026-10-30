@@ -93,7 +93,9 @@ test('create from a request: a repeat is a warning, not a ban', () => {
     assert.equal(duplicateWarning('invoice', docs), '');
     assert.equal(duplicateWarning('trip_sheet', []), '');
     // Попередження лише інформує: форма не блокує відправку.
-    assert.doesNotMatch(read('src/views/docs-request-picker.js'), /disabled|submit\.disabled|return false/);
+    const pickerCode = read('src/views/docs-request-picker.js');
+    // Блок привʼязки клієнта (після коментаря «Прив'язка клієнта») має власні кнопки з disabled: перевіряємо лише пікер і перелік документів.
+    assert.doesNotMatch(pickerCode.slice(0, pickerCode.indexOf('// Прив')), /disabled|submit\.disabled|return false/);
 });
 
 test('route from the request: the variant picked by the director wins over the logist one', () => {

@@ -9,7 +9,7 @@ import {
 } from '../lib/docs.js';
 import { showError } from './docs.js';
 import { docsBackHash } from '../lib/docs-requests.js';
-import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { requestPicker, requestDocsNotice, linkClientPanel } from './docs-request-picker.js';
 
 function shiftDays(iso, days) {
     return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
@@ -19,7 +19,7 @@ export function renderDocForm(app, access, route) {
     const kind = route.kind === 'act' ? 'act' : 'invoice';
     const root = h('div', null, spinner());
 
-    (async () => {
+    const load = async () => {
         const [req, cl] = await Promise.all([
             app.supabase.rpc('kp_requisites_get'),
             app.supabase.from('clients').select('id, name, archived_at, payment_terms_days, contract_no, contract_date').order('name', { ascending: true }).limit(2000),
@@ -39,9 +39,15 @@ export function renderDocForm(app, access, route) {
                 : h('p', { class: 'muted' }, 'Реквізити заповнює власник компанії.'));
             return;
         }
+        if (route.calc && !route.client) {
+            clear(root, h('a', { class: 'back', href: docsBackHash(kind) }, '← До документів'),
+                linkClientPanel(app, { kind, calcId: route.calc, onLinked: (client) => { route = { ...route, client }; clear(root, spinner()); load(); } }));
+            return;
+        }
         const clients = (cl.data || []).filter((c) => !c.archived_at);
         clear(root, buildForm(app, kind, route, requisites, clients));
-    })();
+    };
+    load();
     return root;
 }
 

@@ -11,7 +11,7 @@ import {
 } from '../lib/ttn.js';
 import { changedPaths, prefillSnapshot } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
-import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { requestPicker, requestDocsNotice, linkClientPanel } from './docs-request-picker.js';
 import { withApprovedVariant, docsBackHash } from '../lib/docs-requests.js';
 
 function shiftDays(iso, days) {
@@ -33,7 +33,8 @@ const fmtT = (n) => (n === null || n === undefined || Number.isNaN(n) ? '—' : 
 
 export function renderTtnForm(app, access, route) {
     const root = h('div', null, spinner());
-    (async () => {
+    // Після привʼязки клієнта до заявки форма завантажується заново: kp_calc_doc_prefill тепер повертає клієнта.
+    const load = async () => {
         const [req, cl, drv, veh, trl] = await Promise.all([
             app.supabase.rpc('kp_requisites_get'),
             app.supabase.from('clients').select('id, name, archived_at').order('name', { ascending: true }).limit(2000),
@@ -63,12 +64,13 @@ export function renderTtnForm(app, access, route) {
             calcPre = withApprovedVariant(res.data);
             if (!route.client && calcPre.client) route = { ...route, client: calcPre.client.id };
             if (!route.client) {
-                clear(root, back, notice('У заявки немає клієнта. Додайте клієнта до заявки або створіть ТТН без заявки (вкладка «Документи»).'));
+                clear(root, back, linkClientPanel(app, { kind: 'ttn', calcId: route.calc, onLinked: (client) => { route = { ...route, client }; clear(root, spinner()); load(); } }));
                 return;
             }
         }
         clear(root, buildForm(app, route, clients, drv.data || [], veh.error ? [] : veh.data || [], trl.error ? [] : (trl.data || []).filter((t) => t.active), calcPre));
-    })();
+    };
+    load();
     return root;
 }
 
