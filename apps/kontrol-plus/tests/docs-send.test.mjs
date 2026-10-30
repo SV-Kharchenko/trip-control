@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { createSendHandler, createResendSender, mailConfigured, parseSendBody, HOURLY_LIMIT } from '../lib/docs/send.js';
+import { createSendHandler, createResendSender, mailConfigured, parseSendBody, senderFrom, fromAddress, HOURLY_LIMIT } from '../lib/docs/send.js';
 import docsSend from '../api/docs/send.js';
 import { buildDocPdf } from '../src/lib/pdf-docs.js';
 import { docAssetPaths, docFileName } from '../src/lib/docs.js';
@@ -42,7 +42,7 @@ function setup(over = {}) {
         getUser: async (jwt) => (jwt === JWT ? { id: 'u1' } : null),
         getContext: async (jwt, id) => {
             state.contextCalls.push(id);
-            return { org_id: ORG, doc: doc(id), client_email: 'client@example.com', reply_to: 'office@firm.ua', sender_id: 'u1', sender_role: 'logist' };
+            return { org_id: ORG, doc: doc(id), client_email: 'client@example.com', reply_to: 'office@firm.ua', org_name: 'ТОВ «Тест»', sender_id: 'u1', sender_role: 'logist' };
         },
         loadAsset: async () => null,
         loadFonts: async () => FONTS,
@@ -210,7 +210,7 @@ test('success: PDF attachment from the same template, From / Reply-To from env a
     assert.equal(res.body.ok, true);
     assert.equal(res.body.attachments, 2);
     const mail = state.mails[0];
-    assert.equal(mail.from, 'docs@trip-control.com');
+    assert.equal(mail.from, 'ТОВ «Тест» через TripControl <docs@trip-control.com>');
     assert.deepEqual(mail.to, ['client@example.com']);
     assert.equal(mail.reply_to, 'office@firm.ua');
     assert.equal(mail.subject, 'Акт № АКТ-7');
@@ -299,4 +299,35 @@ test('the browser side: form with To / Subject / Text / PDF ticks, status check,
     assert.match(client, /emailControl\(app/);
     const vercel = JSON.parse(fs.readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
     assert.equal(vercel.functions['api/docs/send.js'].includeFiles, 'public/fonts/**', 'fonts ship with the function');
+});
+
+test('From: organisation name + «через TripControl», address only from EMAIL_FROM (with or without a name)', () => {
+    assert.equal(senderFrom('docs@trip-control.com', 'ТОВ «Тест»'), 'ТОВ «Тест» через TripControl <docs@trip-control.com>');
+    assert.equal(senderFrom('TripControl <docs@trip-control.com>', 'ФОП Іваненко'), 'ФОП Іваненко через TripControl <docs@trip-control.com>');
+    assert.equal(fromAddress("Ім'я Фірми <docs@trip-control.com>"), 'docs@trip-control.com');
+    assert.equal(fromAddress('  docs@trip-control.com '), 'docs@trip-control.com');
+    for (const empty of ['', '   ', null, undefined, '"<>"']) {
+        assert.equal(senderFrom('docs@trip-control.com', empty), 'TripControl <docs@trip-control.com>');
+    }
+});
+
+test('From: quotes, <>, line breaks and control characters in the name cannot inject an address or header', () => {
+    const evil = senderFrom('docs@trip-control.com', 'Evil" <hacker@evil.com>\r\nBcc: x@y.com\u0000\u0007 Ltd');
+    assert.ok(!/[\r\n\u0000\u0007]/.test(evil));
+    assert.equal(evil, '"Evil hacker@evil.com Bcc: x@y.com Ltd через TripControl" <docs@trip-control.com>');
+    assert.equal(evil.match(/</g).length, 1, 'exactly one angle address');
+    assert.ok(evil.endsWith(' <docs@trip-control.com>'));
+    assert.equal(senderFrom('Name <a@b.c>', 'А'.repeat(200)), 'А'.repeat(70) + ' через TripControl <a@b.c>');
+});
+
+test('handler: From uses the organisation name from the server context, not from the client', async () => {
+    const { state, handler } = setup({ getContext: async (_j, id) => ({ org_id: ORG, doc: doc(id), client_email: 'client@example.com', org_name: 'ТОВ "Ромашка"\n', sender_role: 'owner' }) });
+    const res = await call(handler, { body: { ...BODY, org_name: 'Підміна', from: 'x@evil.com' } });
+    assert.equal(res.statusCode, 200);
+    assert.equal(state.mails[0].from, 'ТОВ Ромашка через TripControl <docs@trip-control.com>');
+});
+
+test('From: a dot in the name (RFC 5322 specials) puts the display name in quotes; plain names stay unquoted', () => {
+    assert.equal(senderFrom('docs@trip-control.com', 'ТОВ "А.Б.В."'), '"ТОВ А.Б.В. через TripControl" <docs@trip-control.com>');
+    assert.equal(senderFrom('docs@trip-control.com', 'ФОП Іваненко'), 'ФОП Іваненко через TripControl <docs@trip-control.com>');
 });

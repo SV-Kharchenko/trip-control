@@ -503,7 +503,7 @@ BEGIN
     (SELECT p.email FROM public.profiles AS p
       WHERE p.org_id = v_org AND p.org_role = 'owner' AND p.member_status = 'active' ORDER BY p.created_at LIMIT 1));
   RETURN jsonb_build_object('org_id', v_org, 'contract', to_jsonb(v_c), 'client_email', v_client, 'client_name', v_name,
-    'reply_to', v_reply, 'org_name', (SELECT r.legal_name FROM public.kp_org_requisites AS r WHERE r.org_id = v_org),
+    'reply_to', v_reply, 'org_name', coalesce((SELECT nullif(btrim(r.legal_name), '') FROM public.kp_org_requisites AS r WHERE r.org_id = v_org), (SELECT nullif(btrim(o.name), '') FROM public.organizations AS o WHERE o.id = v_org)),
     'sender_id', auth.uid(), 'sender_role', public.kp_role());
 END;
 $$;

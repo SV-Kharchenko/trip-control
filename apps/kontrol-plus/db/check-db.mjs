@@ -1357,6 +1357,8 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(ctx.ok && ctx.rows[0].c.org_id === A && ctx.rows[0].c.client_email === 'buyer@example.com' && ctx.rows[0].c.doc.id === docId
         && ctx.rows[0].c.sender_role === 'logist', 'doc email: a logist with "acts" gets the context (client email, sender, document)', ctx.message || JSON.stringify(ctx.rows));
     const reply = ctx.rows[0] && ctx.rows[0].c.reply_to;
+    const expName = (await service(`SELECT coalesce((SELECT nullif(btrim(legal_name), '') FROM public.kp_org_requisites WHERE org_id = $1), (SELECT nullif(btrim(name), '') FROM public.organizations WHERE id = $1)) AS n`, [A])).rows[0].n;
+    check(ctx.rows[0].c.org_name === expName, 'doc email: org_name = requisites legal_name, else organizations.name', String(ctx.rows[0].c.org_name));
     check(reply === 'owner@a.ua', 'doc email: Reply-To falls back to the director email when the company has no report email', String(reply));
     await service(`INSERT INTO public.org_company_profiles (org_id, report_email) VALUES ($1, 'office@a.ua') ON CONFLICT (org_id) DO UPDATE SET report_email = 'office@a.ua'`, [A]);
     check((await user(OA)(`SELECT public.kp_doc_email_context($1) AS c`, [docId])).rows[0].c.reply_to === 'office@a.ua', 'doc email: Reply-To is the organisation report email when set');
