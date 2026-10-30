@@ -168,22 +168,22 @@ test('buttons in Documents are content-sized, even the one in the waybill form o
     assert.match(css, /#kp-crm \.kpd-page \.kpr-cards td \.actions > :not\(\.btn-block\) \{ flex: 0 0 auto; \}/);
     assert.match(css, /#kp-crm \.btn-block \{ width: 100%; \}/, 'full width only through .btn-block');
     const ttn = read('src/views/docs-ttn-form.js');
-    assert.match(ttn, /class: 'btn btn-sm kpt-fill', onclick: fill }, 'Заповнити завантаження масами з форми'/);
+    assert.match(ttn, /class: 'btn btn-sm kpt-fill', onclick: fill \}, 'Заповнити завантаження масами з форми'/);
     assert.match(ttn, /class: 'btn btn-sm btn-ghost kpt-line-del'/);
     // Обидві кнопки лежать у grid (.kpd-form, .kpt-line-main): без justify-self вони розтягуються на всю клітинку (1068px / 300px / 138px).
-    const fillRule = css.match(/#kp-crm .kpd-page .kpt-fill {([^}]*)}/);
+    const fillRule = css.match(/#kp-crm \.kpd-page \.kpt-fill \{([^}]*)\}/);
     assert.ok(fillRule, 'правило .kpt-fill');
     for (const part of [/justify-self: start/, /align-self: start/, /width: auto/, /flex: 0 0 auto/]) assert.match(fillRule[1], part);
-    const delRule = css.match(/(#kp-crm .kpd-page .btn.kpt-line-del[^{]*){([^}]*)}/);
+    const delRule = css.match(/(#kp-crm \.kpd-page \.btn\.kpt-line-del[^{]*)\{([^}]*)\}/);
     assert.ok(delRule, 'правило .kpt-line-del');
-    for (const part of [/justify-self: start/, /min-width: 30px/, /(^|[^-])width: 30px/, /padding: 0[;s]/, /flex: 0 0 auto/]) assert.match(delRule[2], part);
+    for (const part of [/justify-self: start/, /min-width: 30px/, /(^|[^-])width: 30px/, /padding: 0[;\s]/, /flex: 0 0 auto/]) assert.match(delRule[2], part);
     // Специфічність: (id, класи + псевдокласи) не нижча за загальне `.kpd-page .btn:not(.btn-block)` (1,3,0), інакше width:auto перебиває 30px.
     const spec = (sel) => [sel.split('#').length - 1, sel.split('.').length - 1];
     const general = spec('#kp-crm .kpd-page .btn:not(.btn-block)');
     const own = spec(delRule[1].trim());
     assert.ok(own[0] > general[0] || (own[0] === general[0] && own[1] >= general[1]), 'специфічність .kpt-line-del: ' + own + ' < ' + general);
     assert.ok(css.indexOf(delRule[1]) > css.indexOf('#kp-crm .kpd-page .btn:not(.btn-block)'), 'правило після загального');
-    assert.doesNotMatch(delRule[2] + fillRule[1], /width: (100%|d{3,}px)/, 'не ширші за вміст');
+    assert.doesNotMatch(delRule[2] + fillRule[1], /width: (100%|\d{3,}px)/, 'не ширші за вміст');
     for (const file of fs.readdirSync(new URL('src/views/', APP)).filter((f) => /^docs.*\.js$/.test(f))) {
         const code = read('src/views/' + file);
         for (const m of code.matchAll(/class: '([^']*btn-block[^']*)'/g)) assert.fail(file + ': .btn-block in Documents: ' + m[1]);
