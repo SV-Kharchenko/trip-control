@@ -14559,20 +14559,23 @@
         if (currentOrgRole === 'logist') return 'logist';
         return currentOrgRole === 'owner' && uiView === 'logist' ? 'logist' : 'director';
     }
-    // ТТН і подорожній лист — лише з ПРИЙНЯТОЇ заявки (accepted | done); сервер перевіряє те саме (CALC_NOT_ACCEPTED).
+    // calcDocButtons: ТТН, акт, рахунок і подорожній лист — лише з ПРИЙНЯТОЇ заявки (accepted | done); сервер перевіряє те саме (CALC_NOT_ACCEPTED).
     // Створюють власник і логіст; кнопки відкривають форму Контроль+ вже заповненою даними заявки.
     function calcDocButtons(row) {
         const status = historyFields(row).status;
         if ((status !== 'accepted' && status !== 'done') || (currentOrgRole !== 'owner' && currentOrgRole !== 'logist')) return '';
         const id = escHtml(row.id);
         return '<button type="button" class="is-doc" onclick="openCalcDoc(\'ttn\', \'' + id + '\')">Створити ТТН</button>'
+            + '<button type="button" class="is-doc" onclick="openCalcDoc(\'act\', \'' + id + '\')">Створити акт</button>'
+            + '<button type="button" class="is-doc" onclick="openCalcDoc(\'invoice\', \'' + id + '\')">Створити рахунок</button>'
             + '<button type="button" class="is-doc" onclick="openCalcDoc(\'trip_sheet\', \'' + id + '\')">Створити подорожній лист</button>'
             + '<button type="button" class="is-doc" onclick="showCalcDocs(\'' + id + '\')">Документи заявки</button>';
     }
     function openCalcDoc(kind, id) {
-        location.hash = '#/docs/new/' + (kind === 'trip_sheet' ? 'trip_sheet' : 'ttn') + '/calc/' + encodeURIComponent(id);
+        const target = ['ttn', 'trip_sheet', 'act', 'invoice'].indexOf(kind) >= 0 ? kind : 'ttn';
+        location.hash = '#/docs/new/' + target + '/calc/' + encodeURIComponent(id);
     }
-    // Список ТТН і подорожніх листів заявки зі статусами.
+    // Список ТТН, подорожніх листів, актів і рахунків заявки зі статусами.
     async function showCalcDocs(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
         const from = '2000-01-01';
@@ -14584,6 +14587,9 @@
             const ts = await supabaseClient.rpc('kp_trip_sheet_list', { p_from: from, p_to: to, p_status: null, p_calculation: id });
             (ttn.data || []).forEach(function (t) { lines.push('ТТН № ' + (t.number_text || t.number) + ' від ' + t.doc_date + ' — ' + (labels[t.status] || t.status)); });
             (ts.data || []).forEach(function (t) { lines.push('Подорожній лист № ' + (t.number_text || t.number) + ' від ' + t.doc_date + ' — ' + (labels[t.status] || t.status)); });
+            // Акти й рахунки заявки (рядки документів із цією заявкою); без міграції — просто без них.
+            const billed = await supabaseClient.rpc('kp_calc_documents', { p_calculation: id });
+            (billed.data || []).filter(function (t) { return t.kind === 'act' || t.kind === 'invoice'; }).forEach(function (t) { lines.push((t.kind === 'act' ? 'Акт' : 'Рахунок') + ' № ' + t.number_text + ' від ' + t.doc_date + ' — ' + (t.status === 'cancelled' ? 'Анульовано' : 'Виписано')); });
             if (ttn.error && ts.error) throw ttn.error;
         } catch (e) {
             showToast('Не вдалося завантажити документи заявки.', 3600, 'error');

@@ -16,19 +16,23 @@ import { renderTtnForm } from './docs-ttn-form.js';
 import { renderTtnCard } from './docs-ttn-card.js';
 import { renderTripSheetForm } from './docs-ts-form.js';
 import { renderTripSheetCard } from './docs-ts-card.js';
+import { requestPicker } from './docs-request-picker.js';
+import { TAB_DOC_KIND, filterRows } from '../lib/docs-requests.js';
 
 export function docsTabs() {
     return [
         { key: 'all', hash: '#/docs', label: 'Усі' },
         { key: 'contracts', hash: '#/docs/tab/contracts', label: 'Договори' },
-        { key: 'ttn', hash: '#/docs/tab/ttn', label: 'ТТН / Подорожній лист' },
+        { key: 'ttn', hash: '#/docs/tab/ttn', label: 'ТТН' },
         { key: 'acts', hash: '#/docs/tab/acts', label: 'Акти' },
+        { key: 'invoices', hash: '#/docs/tab/invoices', label: 'Рахунки' },
+        { key: 'trip_sheets', hash: '#/docs/tab/trip_sheets', label: 'Подорожні листи' },
         { key: 'other', hash: '#/docs/tab/other', label: 'Інше' },
     ];
 }
 
-// Вкладка «ТТН / Подорожній лист» показує обидва види (ttn_group), «Акти» — лише акти.
-const TAB_KIND = { ttn: 'ttn_group', acts: 'act' };
+// Кожна вкладка показує свій вид документів: ТТН, акти, рахунки, подорожні листи (вкладка «Усі» — усі разом).
+const TAB_KIND = TAB_DOC_KIND;
 const EMPTY_TABS = {
     contracts: ['Договорів ще немає', 'Договір із клієнтом з’явиться тут і підтягне реквізити компанії.'],
     other: ['Тут будуть інші файли', 'Довіреності, страхові поліси, сканкопії — усе, що не потрапляє в інші вкладки.'],
@@ -186,12 +190,11 @@ export function ttnStatusFilter(status) {
     return { include: false, value: null };
 }
 
-// Кнопки створення за вкладкою «Документів»: рахунок і акт — лише на «Акти», ТТН — лише на «ТТН / Подорожній лист», на решті їх немає.
+// Кнопка створення за вкладкою «Документів»: на кожній вкладці — лише свій вид (рахунок, акт, ТТН, подорожній лист), на решті їх немає.
 export function createButtonsFor(tab) {
     const all = createButtons();
-    if (tab === 'acts') return all.slice(0, 2);
-    if (tab === 'ttn') return all.slice(2); // «Створити ТТН» і «Створити подорожній лист»
-    return [];
+    const index = { invoices: 0, acts: 1, ttn: 2, trip_sheets: 3 }[tab];
+    return index === undefined ? [] : [all[index]];
 }
 
 export { createButtons };
@@ -231,6 +234,8 @@ function renderDocList(app, access, presetKind = '', tab = '') {
         h('option', { value: 'ttn' }, 'ТТН'), h('option', { value: 'trip_sheet' }, 'Подорожні листи'),
         h('option', { value: 'ttn_group' }, 'ТТН і подорожні листи'));
     kind.value = presetKind;
+    const number = h('input', { type: 'search', placeholder: '№', 'aria-label': 'Номер документа', size: 8 });
+    const vehicle = h('input', { type: 'search', placeholder: 'Авто / водій', 'aria-label': 'Авто або водій', size: 12 });
     const status = h('select', { 'aria-label': 'Статус' }, STATUS_FILTERS.map((s) => h('option', { value: s.value }, s.label)));
     const client = h('select', { 'aria-label': 'Клієнт' }, h('option', { value: '' }, 'Усі клієнти'));
     const list = h('div', { class: 'list' }, spinner());
@@ -270,7 +275,8 @@ function renderDocList(app, access, presetKind = '', tab = '') {
             if (kind.value === 'trip_sheet' && isMissingFeature(tsRes.error)) return clear(list, notice('Подорожні листи ще не ввімкнено для вашої компанії (міграцію бази не застосовано).', 'info'));
             return showError(app, list, tsRes.error);
         }
-        const rows = [...(docsRes.data || []), ...(ttnRes.error ? [] : (ttnRes.data || []).map(ttnListRow)), ...(tsRes.error ? [] : (tsRes.data || []).map(tsListRow))]
+        const rows = filterRows([...(docsRes.data || []), ...(ttnRes.error ? [] : (ttnRes.data || []).map(ttnListRow)), ...(tsRes.error ? [] : (tsRes.data || []).map(tsListRow))],
+            { number: number.value, vehicle: vehicle.value })
             .sort((a, b) => String(b.doc_date).localeCompare(String(a.doc_date)) || String(a.kind).localeCompare(String(b.kind)) || Number(b.number) - Number(a.number));
         if (!rows.length) {
             clear(list, h('div', { class: 'empty' }, h('p', null, 'За цей період документів немає.'),
@@ -305,10 +311,12 @@ function renderDocList(app, access, presetKind = '', tab = '') {
     }
 
     for (const el of [from, to, kind, status, client]) el.addEventListener('change', load);
+    for (const el of [number, vehicle]) el.addEventListener('input', () => { clearTimeout(el.timer); el.timer = setTimeout(load, 250); });
     loadClients().then(load, load);
     return h('div', null,
-        h('div', { class: 'toolbar kpd-filters' }, labeled('Період з', from), labeled('по', to), labeled('Тип', kind), labeled('Статус', status), labeled('Клієнт', client)),
-        access.canWrite && createButtonsFor(tab).length ? h('div', { class: 'toolbar' }, createButtonsFor(tab)) : null,
+        h('div', { class: 'toolbar kpd-filters' }, labeled('Період з', from), labeled('по', to), presetKind ? null : labeled('Тип', kind), labeled('Статус', status), labeled('Клієнт', client),
+            labeled('Номер', number), ['ttn', 'trip_sheet'].includes(presetKind) ? labeled('Авто / водій', vehicle) : null),
+        access.canWrite && createButtonsFor(tab).length ? h('div', { class: 'toolbar' }, createButtonsFor(tab), requestPicker(app, presetKind, { compact: true })) : null,
         list);
 }
 
@@ -316,8 +324,8 @@ export function renderDocs(app, route) {
     const access = docsAccess(app.context);
     const sub = route.sub || 'list';
     // Картки й форми ТТН / подорожнього листа лежать у підвкладці «ТТН / Подорожній лист», а не в «Усі».
-    const inTtnGroup = sub === 'ttn' || sub === 'trip_sheet' || (sub === 'new' && (route.kind === 'ttn' || route.kind === 'trip_sheet'));
-    const currentKey = route.tab || (inTtnGroup ? 'ttn' : 'all');
+    const cardTab = { ttn: 'ttn', trip_sheet: 'trip_sheets', act: 'acts', invoice: 'invoices' }[sub === 'new' ? route.kind : sub];
+    const currentKey = route.tab || cardTab || 'all';
     let body;
     if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть власник і логіст.', 'info');
     else if (sub === 'new' && route.kind === 'ttn') body = renderTtnForm(app, access, route);

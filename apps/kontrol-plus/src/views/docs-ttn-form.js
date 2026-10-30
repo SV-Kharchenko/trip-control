@@ -11,6 +11,8 @@ import {
 } from '../lib/ttn.js';
 import { changedPaths, prefillSnapshot } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
+import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { withApprovedVariant } from '../lib/docs-requests.js';
 
 function shiftDays(iso, days) {
     return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
@@ -58,7 +60,7 @@ export function renderTtnForm(app, access, route) {
                 clear(root, back, notice(/CALC_NOT_ACCEPTED/.test(String(res.error.message)) ? 'Спершу прийміть заявку: ТТН з рейсу створюється лише з прийнятої заявки.' : ttnErrorText(res.error)));
                 return;
             }
-            calcPre = res.data;
+            calcPre = withApprovedVariant(res.data);
             if (!route.client && calcPre.client) route = { ...route, client: calcPre.client.id };
             if (!route.client) {
                 clear(root, back, notice('У заявки немає клієнта. Додайте клієнта до заявки або створіть ТТН без заявки (вкладка «Документи»).'));
@@ -506,5 +508,6 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
     return h('div', null,
         h('a', { class: 'back', href: '#/docs' }, '← До документів'),
         h('h2', null, 'Товарно-транспортна накладна (форма № 1-ТН) — нова'),
+        h('div', { class: 'card' }, requestPicker(app, 'ttn', { current: route.calc }), requestDocsNotice(app, 'ttn', route.calc)),
         form);
 }

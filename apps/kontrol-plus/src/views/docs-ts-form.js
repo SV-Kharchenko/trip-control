@@ -11,6 +11,8 @@ import {
     tsFromPrefill, validateTripSheet,
 } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
+import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { withApprovedVariant } from '../lib/docs-requests.js';
 
 // Поля форми: [шлях, ширина, атрибути]. Порядок — як у розділах картки: Шапка, ТЗ і водій, Завдання, Виїзд, Відмітки.
 const SECTIONS = [
@@ -51,7 +53,7 @@ export function renderTripSheetForm(app, access, route) {
                 }
                 return showError(app, root, res.error);
             }
-            pre = res.data;
+            pre = withApprovedVariant(res.data);
         }
         const [veh, trl, drv] = await Promise.all([
             app.supabase.rpc('kp_vehicles_list'), app.supabase.rpc('kp_trailers_list'), app.supabase.rpc('kp_driver_list', { p_active_only: true }),
@@ -195,7 +197,7 @@ function build(app, route, pre, today, vehicles, trailers, drivers, access) {
     message,
     body,
     h('p', { class: 'muted small' }, h('span', { class: 'req' }, '*'), ' — обовʼязкові поля. Після видачі шапка, ТЗ, водій і завдання не змінюються; на поверненні вносяться лише спідометр, залишок пального й час. Телефон, паспорт, ІПН і адреса водія в лист не потрапляють.'),
-    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: '#/docs/tab/ttn' }, 'Скасувати')));
+    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: '#/docs/tab/trip_sheets' }, 'Скасувати')));
 
     async function loadNumber() {
         const { data, error } = await app.supabase.rpc('kp_trip_sheet_next_number', { p_doc_date: docDate.value || today });
@@ -208,7 +210,8 @@ function build(app, route, pre, today, vehicles, trailers, drivers, access) {
         clear(message, notice('Заявку «' + (pre.calculation.name || '') + '» прийнято: поля підставлено. Змінені вручну позначені «змінено» — їх можна повернути.', 'info'));
     }
     return h('div', null,
-        h('a', { class: 'back', href: '#/docs/tab/ttn' }, '← До документів'),
+        h('a', { class: 'back', href: '#/docs/tab/trip_sheets' }, '← До документів'),
         h('h2', null, 'Подорожній лист вантажного автомобіля — новий'),
+        h('div', { class: 'card' }, requestPicker(app, 'trip_sheet', { current: route.calc }), requestDocsNotice(app, 'trip_sheet', route.calc)),
         form);
 }

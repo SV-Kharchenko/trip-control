@@ -28,6 +28,8 @@ test('історія заявок: «Створити ТТН» і «Створи
         const out = owner({ id: 'c1', status });
         assert.match(out, /openCalcDoc\('ttn', 'c1'\)">Створити ТТН</);
         assert.match(out, /openCalcDoc\('trip_sheet', 'c1'\)">Створити подорожній лист</);
+        assert.match(out, /openCalcDoc\('act', 'c1'\)">Створити акт</);
+        assert.match(out, /openCalcDoc\('invoice', 'c1'\)">Створити рахунок</);
         assert.match(out, /showCalcDocs\('c1'\)/);
     }
     assert.notEqual(make('logist')({ id: 'c2', status: 'accepted' }), '');
@@ -35,11 +37,13 @@ test('історія заявок: «Створити ТТН» і «Створи
 });
 
 test('кнопки ведуть у Контроль+ з id заявки; список документів заявки читає обидва списки за calculation_id; кнопки є і в режимі «лише перегляд»', () => {
-    assert.match(fnSource('openCalcDoc'), /#\/docs\/new\/' \+ \(kind === 'trip_sheet' \? 'trip_sheet' : 'ttn'\) \+ '\/calc\/'/);
+    assert.match(fnSource('openCalcDoc'), /\['ttn', 'trip_sheet', 'act', 'invoice'\]\.indexOf\(kind\)/);
+    assert.match(fnSource('openCalcDoc'), /#\/docs\/new\/' \+ target \+ '\/calc\/'/);
     const docs = fnSource('showCalcDocs');
     assert.match(docs, /kp_ttn_list/);
     assert.match(docs, /kp_trip_sheet_list/);
     assert.match(docs, /p_calculation: id/);
+    assert.match(docs, /kp_calc_documents/, 'акти й рахунки заявки');
     const actions = fnSource('historyActions');
     assert.match(actions, /лише перегляд<\/span>' \+ calcDocButtons\(row\)/);
     assert.match(actions, /parts\.push\(calcDocButtons\(row\)\)/);

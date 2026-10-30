@@ -93,7 +93,7 @@ export function renderTripSheetCard(app, access, id) {
     function draw(doc) {
         const issued = doc.status === 'issued';
         clear(box,
-            h('a', { class: 'back', href: '#/docs/tab/ttn' }, '← До документів'),
+            h('a', { class: 'back', href: '#/docs/tab/trip_sheets' }, '← До документів'),
             h('div', { class: 'page-head' },
                 h('div', null,
                     h('h2', null, tsHeading(doc), ' від ' + fmtDate(doc.doc_date), ' ', statusBadge(doc.status, 'trip_sheet')),
