@@ -34,7 +34,7 @@ export function requestPicker(app, kind, { current = null, compact = false } = {
     select.addEventListener('change', () => {
         const row = rows.find((r) => r.calculation_id === select.value);
         if (!row) return;
-        if ((kind === 'invoice' || kind === 'act') && !row.client_id) toast('У заявки немає клієнта: його можна обрати у формі вручну', 'info');
+        if (!row.client_id) toast('У заявки немає клієнта — оберете його на наступному кроці', 'info');
         app.go(requestDocHash(kind, row.calculation_id, row.client_id));
     });
     search.addEventListener('keydown', (event) => { if (event.key === 'Enter') event.preventDefault(); });

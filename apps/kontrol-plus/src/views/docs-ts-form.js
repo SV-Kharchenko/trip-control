@@ -12,6 +12,7 @@ import {
 } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
 import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { linkClientPanel } from './docs-link-client.js';
 import { withApprovedVariant, docsBackHash } from '../lib/docs-requests.js';
 
 // Поля форми: [шлях, ширина, атрибути]. Порядок — як у розділах картки: Шапка, ТЗ і водій, Завдання, Виїзд, Відмітки.
@@ -41,7 +42,7 @@ const ALL_PATHS = SECTIONS.flatMap(([, fields]) => fields.map(([p]) => p));
 
 export function renderTripSheetForm(app, access, route) {
     const root = h('div', null, spinner());
-    (async () => {
+    const load = async () => {
         const accessInfo = access || docsAccess(app.context);
         const today = kyivDate();
         let pre = null;
@@ -54,12 +55,17 @@ export function renderTripSheetForm(app, access, route) {
                 return showError(app, root, res.error);
             }
             pre = withApprovedVariant(res.data);
+            if (!pre.client) {
+                return clear(root, h('a', { class: 'back', href: docsBackHash('trip_sheet') }, '← До документів'),
+                    linkClientPanel(app, { kind: 'trip_sheet', calcId: route.calc, onLinked: () => { clear(root, spinner()); load(); } }));
+            }
         }
         const [veh, trl, drv] = await Promise.all([
             app.supabase.rpc('kp_vehicles_list'), app.supabase.rpc('kp_trailers_list'), app.supabase.rpc('kp_driver_list', { p_active_only: true }),
         ]);
         clear(root, build(app, route, pre, today, veh.error ? [] : veh.data || [], trl.error ? [] : (trl.data || []).filter((t) => t.active), drv.error ? [] : drv.data || [], accessInfo));
-    })();
+    };
+    load();
     return root;
 }
 
