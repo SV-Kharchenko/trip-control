@@ -46,6 +46,23 @@ function cleanLine(value, max) {
     return String(value == null ? '' : value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+// Адреса відправника з EMAIL_FROM: підтримує і "addr", і "Ім'я <addr>"; ім'я з env відкидається.
+export function fromAddress(envFrom) {
+    const raw = String(envFrom || '').trim();
+    const m = raw.match(/<([^<>]+)>\s*$/);
+    return (m ? m[1] : raw).trim();
+}
+
+// Ім'я відправника = назва організації (з реквізитів на сервері) + «через TripControl». Лапки, <>, \, переноси й керуючі
+// символи прибираються, назва ≤ 70 символів: підставити іншу адресу через ім'я неможливо (адреса лише з EMAIL_FROM).
+export function senderFrom(envFrom, orgName) {
+    const addr = fromAddress(envFrom);
+    const name = String(orgName == null ? '' : orgName)
+        .replace(/[\u0000-\u001f\u007f-\u009f"<>\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 70).trim();
+    const display = name ? name + ' через TripControl' : 'TripControl';
+    return (/[.,;:@()[\]]/.test(display) ? '"' + display + '"' : display) + ' <' + addr + '>';
+}
+
 // Перевірка тіла запиту. → { ok, value } або { ok: false, error }. Або doc_ids (акти / рахунки), або contract_id (договір).
 export function parseSendBody(body) {
     const b = body && typeof body === 'object' ? body : {};
@@ -180,7 +197,7 @@ export function createSendHandler(deps) {
 
         const body = composeBody(text, first.org_name);
         const payload = {
-            from: String(env.EMAIL_FROM).trim(),
+            from: senderFrom(env.EMAIL_FROM, first.org_name),
             to: [to],
             subject,
             text: body.text,

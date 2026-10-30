@@ -366,3 +366,12 @@ test('contract card layout: own kpk- classes (kpc-row is the 200px requisites gr
     const card = fs.readFileSync(new URL('../src/views/client-card.js', import.meta.url), 'utf8');
     assert.match(card, /class: 'kpk-docs'/);
 });
+
+test('send contract: From carries the organisation name from the server context (same sender as acts), name with a dot is quoted', async () => {
+    const plain = mailSetup();
+    assert.equal((await run(plain.handler, { body: BODY })).statusCode, 200);
+    assert.match(plain.state.mails[0].from, /^ТОВ «Тест» через TripControl <docs@trip-control\.com>$/);
+    const dotted = mailSetup({ getContractContext: async () => ({ org_id: ORG, contract: { id: CID, number: 'Д-15', file_path: SCAN, signed_path: null, sig_path: null }, client_email: 'buyer@example.com', org_name: 'ТОВ "А.Б.В."', sender_role: 'owner' }) });
+    assert.equal((await run(dotted.handler, { body: BODY })).statusCode, 200);
+    assert.equal(dotted.state.mails[0].from, '"ТОВ А.Б.В. через TripControl" <docs@trip-control.com>');
+});
