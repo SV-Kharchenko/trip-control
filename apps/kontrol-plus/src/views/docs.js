@@ -17,7 +17,7 @@ import { renderTtnCard } from './docs-ttn-card.js';
 import { renderTripSheetForm } from './docs-ts-form.js';
 import { renderTripSheetCard } from './docs-ts-card.js';
 import { requestPicker } from './docs-request-picker.js';
-import { TAB_DOC_KIND, filterRows } from '../lib/docs-requests.js';
+import { TAB_DOC_KIND, filterRows, rememberDocsList } from '../lib/docs-requests.js';
 
 export function docsTabs() {
     return [
@@ -326,6 +326,7 @@ export function renderDocs(app, route) {
     // Картки й форми ТТН / подорожнього листа лежать у підвкладці «ТТН / Подорожній лист», а не в «Усі».
     const cardTab = { ttn: 'ttn', trip_sheet: 'trip_sheets', act: 'acts', invoice: 'invoices' }[sub === 'new' ? route.kind : sub];
     const currentKey = route.tab || cardTab || 'all';
+    if (sub === 'list') rememberDocsList(route.tab ? '#/docs/tab/' + route.tab : '#/docs');
     let body;
     if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть власник і логіст.', 'info');
     else if (sub === 'new' && route.kind === 'ttn') body = renderTtnForm(app, access, route);

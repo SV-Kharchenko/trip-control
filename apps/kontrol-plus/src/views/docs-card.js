@@ -9,6 +9,7 @@ import {
 import { partyLines, rateLine } from '../lib/pdf-docs-text.js';
 import { showError, statusBadge, signedActs, pdfButton, excelButton, cancelControl } from './docs.js';
 import { emailControl, renderEmailLog } from './doc-email.js';
+import { docsBackHash } from '../lib/docs-requests.js';
 
 export function renderDocCard(app, access, id) {
     const box = h('div', null, spinner());
@@ -42,7 +43,7 @@ export function renderDocCard(app, access, id) {
         const isInvoice = doc.kind === 'invoice';
         const active = doc.status === 'issued';
         clear(box,
-            h('a', { class: 'back', href: '#/docs' }, '← До документів'),
+            h('a', { class: 'back', href: docsBackHash(doc.kind) }, '← До документів'),
             h('div', { class: 'page-head' },
                 h('div', null,
                     h('h2', null, (DOC_TITLES[doc.kind] || doc.kind) + ' № ' + docNumberText(doc) + ' від ' + fmtDate(doc.doc_date), ' ', statusBadge(doc.pay_status, doc.kind, signed)),

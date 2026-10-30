@@ -1,6 +1,14 @@
 // Документи «на основі заявки»: адреса форми, попередження про повтор, маршрут із варіантом директора, фільтри вкладок.
 import { DOC_KIND_LABELS } from './docs.js';
 
+// Остання відкрита вкладка списку «Документів»: кнопка «Назад» у формах і картках веде на неї, а не на «Усі». Лише пам'ять сторінки.
+let lastListHash = null;
+export function rememberDocsList(hash) { lastListHash = typeof hash === 'string' && hash.startsWith('#/docs') ? hash : null; }
+const KIND_TAB = { ttn: 'ttn', act: 'acts', invoice: 'invoices', trip_sheet: 'trip_sheets' };
+export function docsBackHash(kind) {
+    return lastListHash || (KIND_TAB[kind] ? '#/docs/tab/' + KIND_TAB[kind] : '#/docs');
+}
+
 export const REQUEST_DOC_KINDS = ['ttn', 'act', 'invoice', 'trip_sheet'];
 
 // Адреса форми створення документа з заявки. Рахунок / акт потребують клієнта заявки, ТТН і подорожній лист беруть його з заявки самі.

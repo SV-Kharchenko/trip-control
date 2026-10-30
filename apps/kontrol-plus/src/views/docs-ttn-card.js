@@ -5,6 +5,7 @@ import { fmtDate } from '../lib/format.js';
 import { CALC_DOC_HINT, calcAccepted, docNumberText } from '../lib/docs.js';
 import { CARGO_COLUMNS, cargoCells, cargoTotals, frontFields, operationRows, FOOTNOTES } from '../lib/ttn-text.js';
 import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
+import { docsBackHash } from '../lib/docs-requests.js';
 
 export function renderTtnCard(app, access, id) {
     const box = h('div', null, spinner());
@@ -26,7 +27,7 @@ export function renderTtnCard(app, access, id) {
         const copies = h('input', { type: 'checkbox', id: 'ttn-copies' });
         const used = new Set((doc.lines || []).flatMap((l) => [l.owner_price ? 'owner' : null, l.bulk ? 'bulk' : null]).filter(Boolean));
         clear(box,
-            h('a', { class: 'back', href: '#/docs' }, '← До документів'),
+            h('a', { class: 'back', href: docsBackHash('ttn') }, '← До документів'),
             h('div', { class: 'page-head' },
                 h('div', null,
                     h('h2', null, 'ТТН № ' + docNumberText(doc) + ' від ' + fmtDate(doc.doc_date), ' ', statusBadge(doc.status === 'cancelled' ? 'cancelled' : 'issued')),

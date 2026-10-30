@@ -8,6 +8,7 @@ import {
     tripRoute, tripsToLines, validateLines, docNumberText, MAX_LINES,
 } from '../lib/docs.js';
 import { showError } from './docs.js';
+import { docsBackHash } from '../lib/docs-requests.js';
 import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
 
 function shiftDays(iso, days) {
@@ -320,7 +321,7 @@ function buildForm(app, kind, route, requisites, clients) {
     h('div', { class: 'toolbar' }, tripsFrom, tripsTo, h('button', { type: 'button', class: 'btn btn-sm', onclick: loadTrips }, 'Показати рейси')),
     tripsBox,
     message,
-    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: '#/docs' }, 'Скасувати')));
+    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: docsBackHash(kind) }, 'Скасувати')));
 
     clientSel.addEventListener('change', () => { updateDue(); loadTrips(); loadParents(); });
     docDate.addEventListener('change', () => { updateDue(); loadNextNumber(); fetchRate(false); });
@@ -335,7 +336,7 @@ function buildForm(app, kind, route, requisites, clients) {
     loadTrips();
     loadParents();
     return h('div', null,
-        h('a', { class: 'back', href: '#/docs' }, '← До документів'),
+        h('a', { class: 'back', href: docsBackHash(kind) }, '← До документів'),
         h('h2', null, (DOC_TITLES[kind] || 'Документ') + ' — новий'),
         form);
 }

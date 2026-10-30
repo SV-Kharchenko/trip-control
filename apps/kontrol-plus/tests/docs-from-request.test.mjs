@@ -140,3 +140,36 @@ test('layout: compact tabs, buttons by text size, full width only through .btn-b
     assert.match(css, /@media \(max-width: 560px\) \{\n    #kp-crm \.kpr-tab \{ padding: 6px 10px; \}/);
     for (const file of ['docs-request-picker.js', 'docs.js']) assert.doesNotMatch(read('src/views/' + file), /btn-block/, file);
 });
+
+test('«← До документів» leads back to the tab the user came from (default: the tab of the document kind)', async () => {
+    const { docsBackHash, rememberDocsList } = await import('../src/lib/docs-requests.js');
+    rememberDocsList(null);
+    assert.equal(docsBackHash('act'), '#/docs/tab/acts');
+    assert.equal(docsBackHash('invoice'), '#/docs/tab/invoices');
+    assert.equal(docsBackHash('ttn'), '#/docs/tab/ttn');
+    assert.equal(docsBackHash('trip_sheet'), '#/docs/tab/trip_sheets');
+    rememberDocsList('#/docs/tab/invoices');
+    assert.equal(docsBackHash('ttn'), '#/docs/tab/invoices', 'the remembered tab wins');
+    rememberDocsList('#/docs');
+    assert.equal(docsBackHash('act'), '#/docs', 'came from «Усі»');
+    rememberDocsList('https://evil.example/');
+    assert.equal(docsBackHash('act'), '#/docs/tab/acts', 'only #/docs… addresses are remembered');
+    for (const file of ['docs-card.js', 'docs-form.js', 'docs-ttn-card.js', 'docs-ttn-form.js', 'docs-ts-card.js', 'docs-ts-form.js']) {
+        const code = read('src/views/' + file);
+        assert.match(code, /docsBackHash\(/, file);
+        assert.doesNotMatch(code, /class: 'back', href: '#\/docs'/, file + ': no fixed link to #/docs');
+    }
+    assert.match(read('src/views/docs.js'), /if \(sub === 'list'\) rememberDocsList\(route\.tab \? '#\/docs\/tab\/' \+ route\.tab : '#\/docs'\)/);
+});
+
+test('buttons in Documents are content-sized, even the one in the waybill form on 390px', () => {
+    const css = read('src/crm.css');
+    assert.match(css, /#kp-crm \.kpd-page \.btn:not\(\.btn-block\), #kp-crm \.kpd-page button\.btn:not\(\.btn-block\) \{ flex: 0 0 auto; width: auto; min-width: 0; \}/);
+    assert.match(css, /#kp-crm \.kpd-page \.kpr-cards td \.actions > :not\(\.btn-block\) \{ flex: 0 0 auto; \}/);
+    assert.match(css, /#kp-crm \.btn-block \{ width: 100%; \}/, 'full width only through .btn-block');
+    assert.match(read('src/views/docs-ttn-form.js'), /class: 'btn btn-sm', onclick: fill \}, 'Заповнити завантаження масами з форми'/);
+    for (const file of fs.readdirSync(new URL('src/views/', APP)).filter((f) => /^docs.*\.js$/.test(f))) {
+        const code = read('src/views/' + file);
+        for (const m of code.matchAll(/class: '([^']*btn-block[^']*)'/g)) assert.fail(file + ': .btn-block in Documents: ' + m[1]);
+    }
+});

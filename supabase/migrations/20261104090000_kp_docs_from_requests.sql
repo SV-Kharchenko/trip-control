@@ -16,8 +16,6 @@
 --   DROP FUNCTION IF EXISTS public.kp_calc_documents(uuid);
 --   DROP FUNCTION IF EXISTS public.kp_calc_accepted_list(text);
 
-BEGIN;
-
 CREATE OR REPLACE FUNCTION public.kp_calc_accepted_list(p_q text DEFAULT NULL)
 RETURNS TABLE (
   calculation_id uuid, name text, trip_date date, route_from text, route_to text, status text, client_id uuid, client_name text
@@ -114,4 +112,3 @@ REVOKE ALL ON FUNCTION public.kp_calc_documents(uuid) FROM PUBLIC, anon, authent
 GRANT EXECUTE ON FUNCTION public.kp_calc_accepted_list(text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.kp_calc_documents(uuid) TO authenticated, service_role;
 
-COMMIT;

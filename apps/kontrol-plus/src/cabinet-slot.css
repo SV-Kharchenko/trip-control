@@ -601,3 +601,7 @@ body[data-theme="dark"] #cabinet-screen .cab-slot {
   #cabinet-screen .cab-slot .kpr-tab { padding: 6px 10px; }
   #cabinet-screen .cab-slot .kpd-req-compact { display: block; margin: 8px 0 0; }
 }
+#cabinet-screen .cab-slot .kpd-page .btn:not(.btn-block),
+#cabinet-screen .cab-slot .kpd-page button.btn:not(.btn-block) { flex: 0 0 auto; width: auto; min-width: 0; }
+#cabinet-screen .cab-slot .kpd-page .kpr-cards td .actions > :not(.btn-block) { flex: 0 0 auto; }
+#cabinet-screen .cab-slot .kpd-page .kpt-docs-toggle { width: auto; max-width: 100%; }

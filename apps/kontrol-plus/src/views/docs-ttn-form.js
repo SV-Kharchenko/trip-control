@@ -12,7 +12,7 @@ import {
 import { changedPaths, prefillSnapshot } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
 import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
-import { withApprovedVariant } from '../lib/docs-requests.js';
+import { withApprovedVariant, docsBackHash } from '../lib/docs-requests.js';
 
 function shiftDays(iso, days) {
     return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
@@ -55,7 +55,7 @@ export function renderTtnForm(app, access, route) {
         let calcPre = null;
         if (route.calc) {
             const res = await app.supabase.rpc('kp_calc_doc_prefill', { p_calculation: route.calc });
-            const back = h('a', { class: 'back', href: '#/docs' }, '← До документів');
+            const back = h('a', { class: 'back', href: docsBackHash('ttn') }, '← До документів');
             if (res.error) {
                 clear(root, back, notice(/CALC_NOT_ACCEPTED/.test(String(res.error.message)) ? 'Спершу прийміть заявку: ТТН з рейсу створюється лише з прийнятої заявки.' : ttnErrorText(res.error)));
                 return;
@@ -500,13 +500,13 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
     message,
     body,
     h('p', { class: 'muted small' }, h('span', { class: 'req' }, '*'), ' — обовʼязкові реквізити ст. 48 Закону «Про автомобільний транспорт». Решту полів форми № 1-ТН можна лишити порожніми — у PDF буде прочерк.'),
-    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: '#/docs' }, 'Скасувати')));
+    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: docsBackHash('ttn') }, 'Скасувати')));
 
     clientSel.addEventListener('change', prefill);
     docDate.addEventListener('change', loadNextNumber);
     prefill();
     return h('div', null,
-        h('a', { class: 'back', href: '#/docs' }, '← До документів'),
+        h('a', { class: 'back', href: docsBackHash('ttn') }, '← До документів'),
         h('h2', null, 'Товарно-транспортна накладна (форма № 1-ТН) — нова'),
         h('div', { class: 'card' }, requestPicker(app, 'ttn', { current: route.calc }), requestDocsNotice(app, 'ttn', route.calc)),
         form);
