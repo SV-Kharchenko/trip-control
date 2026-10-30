@@ -8,6 +8,8 @@ import {
     tripRoute, tripsToLines, validateLines, docNumberText, MAX_LINES,
 } from '../lib/docs.js';
 import { showError } from './docs.js';
+import { docsBackHash } from '../lib/docs-requests.js';
+import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
 
 function shiftDays(iso, days) {
     return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
@@ -23,6 +25,11 @@ export function renderDocForm(app, access, route) {
             app.supabase.from('clients').select('id, name, archived_at, payment_terms_days, contract_no, contract_date').order('name', { ascending: true }).limit(2000),
         ]);
         if (req.error) return showError(app, root, req.error);
+        // Адреса з заявки без клієнта (#/docs/new/act/calc/<id>): клієнт береться із заявки; якщо його немає — обирається вручну.
+        if (route.calc && !route.client) {
+            const link = await app.supabase.from('calculation_clients').select('client_id').eq('calculation_id', route.calc).limit(1);
+            route = { ...route, client: link.data && link.data[0] ? link.data[0].client_id : null };
+        }
         const requisites = (req.data || [])[0];
         if (!requisites || (!requisites.edrpou && !requisites.ipn) || (kind === 'invoice' && !requisites.iban)) {
             clear(root, notice(requisites
@@ -296,6 +303,7 @@ function buildForm(app, kind, route, requisites, clients) {
             app.go('#/docs/' + id);
         },
     },
+    h('div', { class: 'field kpr-wide' }, requestPicker(app, kind, { current: route.calc }), requestDocsNotice(app, kind, route.calc)),
     h('div', { class: 'kpd-grid' },
         h('div', { class: 'field kpr-wide' }, h('label', { for: 'd-client' }, 'Клієнт', h('span', { class: 'req', 'aria-hidden': 'true' }, ' *')), clientSel),
         h('div', { class: 'field' }, h('label', { for: 'd-date' }, 'Дата документа'), docDate),
@@ -313,7 +321,7 @@ function buildForm(app, kind, route, requisites, clients) {
     h('div', { class: 'toolbar' }, tripsFrom, tripsTo, h('button', { type: 'button', class: 'btn btn-sm', onclick: loadTrips }, 'Показати рейси')),
     tripsBox,
     message,
-    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: '#/docs' }, 'Скасувати')));
+    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: docsBackHash(kind) }, 'Скасувати')));
 
     clientSel.addEventListener('change', () => { updateDue(); loadTrips(); loadParents(); });
     docDate.addEventListener('change', () => { updateDue(); loadNextNumber(); fetchRate(false); });
@@ -328,7 +336,7 @@ function buildForm(app, kind, route, requisites, clients) {
     loadTrips();
     loadParents();
     return h('div', null,
-        h('a', { class: 'back', href: '#/docs' }, '← До документів'),
+        h('a', { class: 'back', href: docsBackHash(kind) }, '← До документів'),
         h('h2', null, (DOC_TITLES[kind] || 'Документ') + ' — новий'),
         form);
 }

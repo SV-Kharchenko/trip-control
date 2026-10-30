@@ -6,6 +6,7 @@ import { fmtDate, shiftDate } from '../lib/format.js';
 import { docNumberText } from '../lib/docs.js';
 import { NORM_NEEDS_LOADED_KM, calcTripSheet, closePayload, fmtDateTime, isoToLocal, tsErrorText, tsHeading, tsSections } from '../lib/trip-sheet.js';
 import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
+import { docsBackHash } from '../lib/docs-requests.js';
 
 const fmt1 = (n) => (n === null || n === undefined ? '—' : String(n).replace('.', ','));
 
@@ -93,7 +94,7 @@ export function renderTripSheetCard(app, access, id) {
     function draw(doc) {
         const issued = doc.status === 'issued';
         clear(box,
-            h('a', { class: 'back', href: '#/docs/tab/ttn' }, '← До документів'),
+            h('a', { class: 'back', href: docsBackHash('trip_sheet') }, '← До документів'),
             h('div', { class: 'page-head' },
                 h('div', null,
                     h('h2', null, tsHeading(doc), ' від ' + fmtDate(doc.doc_date), ' ', statusBadge(doc.status, 'trip_sheet')),

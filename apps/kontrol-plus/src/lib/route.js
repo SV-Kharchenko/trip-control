@@ -1,14 +1,14 @@
 // Маршрути вкладок Контроль+ усередині сторінки сайту: #/clients, #/clients/new, #/clients/<id>, #/clients/<id>/edit, #/report, #/gps,
 // #/repairs, #/repairs/new, #/repairs/stock, #/repairs/handlers, #/repairs/maintenance, #/repairs/cost,
 // #/fleet, #/fleet/trailers, #/drivers, #/report/debts,
-// #/docs, #/docs/tab/<contracts|ttn|acts|other>, #/docs/new/<invoice|act|ttn>[/<клієнт>[/<рейс>]], #/docs/<id документа>, #/docs/ttn/<id ТТН>.
+// #/docs, #/docs/tab/<contracts|ttn|acts|invoices|trip_sheets|other>, #/docs/new/<invoice|act|ttn>[/<клієнт>[/<рейс>]], #/docs/<id документа>, #/docs/ttn/<id ТТН>.
 // Старі #/docs/fleet, #/docs/debts ведуть на нові розділи (legacyRedirect). «Реквізити компанії» (#/company, #/docs/requisites) і
 // «Статистика» (#/stats) переїхали у вкладки «Особистого кабінету» сайту: ці адреси веде туди сам сайт (#/cabinet/requisites, #/cabinet/stats),
 // тут вони не є розділами Контроль+.
 // Будь-який інший hash (порожній, auth-потоки Supabase, #calculator) належить сайту — null.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const DOC_TABS = ['contracts', 'ttn', 'acts', 'other'];
+export const DOC_TABS = ['contracts', 'ttn', 'acts', 'invoices', 'trip_sheets', 'other'];
 
 // Куди переїхали розділи, що були підвкладками «Документів». null — hash не старий.
 const LEGACY = { 'docs/fleet': '#/fleet', 'docs/requisites': '#/cabinet/requisites', 'docs/debts': '#/report/debts' };
@@ -25,7 +25,7 @@ function parseDocsHash(parts) {
     if (parts.length === 3 && parts[1] === 'ttn' && UUID.test(parts[2])) return { view: 'docs', sub: 'ttn', id: parts[2] };
     if (parts.length === 3 && parts[1] === 'trip_sheet' && UUID.test(parts[2])) return { view: 'docs', sub: 'trip_sheet', id: parts[2] };
     // Документ із прийнятої заявки: #/docs/new/ttn/calc/<id> і #/docs/new/trip_sheet/calc/<id>; подорожній лист без заявки — #/docs/new/trip_sheet.
-    if (parts[1] === 'new' && (parts[2] === 'ttn' || parts[2] === 'trip_sheet') && parts[3] === 'calc' && parts.length === 5 && UUID.test(parts[4])) {
+    if (parts[1] === 'new' && (parts[2] === 'ttn' || parts[2] === 'trip_sheet' || parts[2] === 'act' || parts[2] === 'invoice') && parts[3] === 'calc' && parts.length === 5 && UUID.test(parts[4])) {
         return { view: 'docs', sub: 'new', kind: parts[2], client: null, calc: parts[4] };
     }
     if (parts[1] === 'new' && parts[2] === 'trip_sheet' && parts.length === 3) return { view: 'docs', sub: 'new', kind: 'trip_sheet', client: null, calc: null };

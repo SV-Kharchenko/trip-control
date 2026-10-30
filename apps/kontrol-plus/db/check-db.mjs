@@ -700,7 +700,10 @@ const dTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_documents.sq
     .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
 const dPlanned = Number((dTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
 const dBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+// Фікстури pgTAP вставляють заявки з claims користувача: без цього тригер погодження робить їх чернетками, а рядки рахунків вимагають прийняту заявку.
+await db.exec(`ALTER TABLE public.calculations DISABLE TRIGGER trg_calculations_enforce_approval`);
 await db.exec(dTapSql);
+await db.exec(`ALTER TABLE public.calculations ENABLE TRIGGER trg_calculations_enforce_approval`);
 const dTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(dBefore);
 for (const row of dTap) check(row.ok, 'pgTAP kp_documents.sql: ' + row.label);
 check(dTap.length === dPlanned, `pgTAP kp_documents.sql: ran ${dTap.length} of plan(${dPlanned})`);
@@ -1624,6 +1627,56 @@ for (const [index, [name, extra]] of planCases.entries()) {
     const scanCtxNoRight = await user(LA)(`SELECT public.kp_contract_scan_context($1)`, [cid3]);
     check(denied(scanCtxNoRight), 'contracts: scan context needs the "contracts" right', scanCtxNoRight.message);
     await perms({ sign: true, contracts: true });
+}
+// Документи з заявки (20261104090000): список прийнятих заявок, документи заявки, рядки лише з прийнятої заявки своєї організації.
+{
+    const reqSql = fs.readFileSync(new URL('20261104090000_kp_docs_from_requests.sql', DIR), 'utf8');
+    await db.exec(reqSql);
+    await db.exec(reqSql);
+    check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(reqSql) && /РУЧНИЙ ВІДКАТ/.test(reqSql),
+        'docs from requests: migration re-applied (idempotent), manual-apply header and manual rollback');
+    await service(`UPDATE public.kp_org_requisites SET signature_path = NULL, stamp_path = NULL WHERE org_id = $1`, [A]);
+    const RC = (await service(`INSERT INTO public.clients (org_id, name) VALUES ($1, 'Заявковий клієнт') RETURNING id`, [A])).rows[0].id;
+    const RAC = '30000000-0000-4000-8000-0000000000e1', RDR = '30000000-0000-4000-8000-0000000000e2', RDONE = '30000000-0000-4000-8000-0000000000e3', RFOR = '30000000-0000-4000-8000-0000000000e4';
+    await service(`INSERT INTO public.calculations (id, org_id, user_id, name, inputs, results, status, trip_date, route_from, route_to) VALUES
+      ($1, $5, $6, 'Прийнята заявка', '{}'::jsonb, '{}'::jsonb, 'accepted', '2026-10-20', 'Луцьк', 'Одеса'),
+      ($2, $5, $6, 'Чернетка заявки', '{}'::jsonb, '{}'::jsonb, 'draft', '2026-10-21', 'Київ', 'Львів'),
+      ($3, $5, $6, 'Виконана заявка', '{}'::jsonb, '{}'::jsonb, 'done', '2026-10-19', 'Рівне', 'Харків'),
+      ($4, $7, $8, 'Чужа заявка', '{}'::jsonb, '{}'::jsonb, 'accepted', '2026-10-20', 'Чужа', 'Дорога')`, [RAC, RDR, RDONE, RFOR, A, OA, C, OC]);
+    await service(`INSERT INTO public.calculation_clients (calculation_id, client_id) VALUES ($1, $3), ($2, $3)`, [RAC, RDR, RC]);
+    const list = await user(OA)(`SELECT calculation_id, name, status, client_id, client_name FROM public.kp_calc_accepted_list(NULL)`);
+    const ids = list.rows.map((r) => r.calculation_id);
+    check(list.ok && ids.includes(RAC) && ids.includes(RDONE) && !ids.includes(RDR) && !ids.includes(RFOR),
+        'requests list: accepted and done requests of the organisation only (no draft, no foreign)', list.message || JSON.stringify(ids));
+    check(list.rows.find((r) => r.calculation_id === RAC).client_id === RC, 'requests list: the linked client is returned');
+    const found = await user(OA)(`SELECT calculation_id FROM public.kp_calc_accepted_list('Прийнята')`);
+    check(found.ok && found.rows.length === 1 && found.rows[0].calculation_id === RAC, 'requests list: search by name', found.message);
+    check(!(await user(DIR1)(`SELECT * FROM public.kp_calc_accepted_list(NULL)`)).ok, 'requests list: a director (read-only) cannot pick a source');
+    const foreignList = await user(OC)(`SELECT calculation_id FROM public.kp_calc_accepted_list(NULL)`);
+    check(foreignList.ok && foreignList.rows.every((r) => r.calculation_id !== RAC), 'requests list: another organisation does not see it', foreignList.message);
+
+    const mkLines = (calc) => JSON.stringify([{ title: 'Рейс', qty: 1, price: 500, calculation_id: calc }]);
+    const okInvoice = await user(OA)(`SELECT public.kp_doc_create('invoice', $1, DATE '2026-10-22', 'UAH', NULL, $2::jsonb) AS id`, [RC, mkLines(RAC)]);
+    check(okInvoice.ok, 'invoice from an accepted request is created', okInvoice.message);
+    const draftInvoice = await user(OA)(`SELECT public.kp_doc_create('invoice', $1, DATE '2026-10-22', 'UAH', NULL, $2::jsonb) AS id`, [RC, mkLines(RDR)]);
+    check(!draftInvoice.ok, 'invoice from a draft request is refused on the server', draftInvoice.message);
+    const direct = await service(`INSERT INTO public.kp_document_lines (doc_id, org_id, kind, sort, calculation_id, title, qty, price, amount)
+      SELECT $1, $2, 'invoice', 9, $3, 'x', 1, 1, 1`, [okInvoice.rows[0] && okInvoice.rows[0].id, A, RDR]);
+    check(!direct.ok && /CALC_NOT_ACCEPTED|DOC_IMMUTABLE/.test(direct.message), 'document lines: a draft request cannot be written even directly (trigger)', direct.message);
+    const act = await user(OA)(`SELECT public.kp_doc_create('act', $1, DATE '2026-10-23', 'UAH', NULL, $2::jsonb) AS id`, [RC, mkLines(RAC)]);
+    check(act.ok, 'act from an accepted request is created (a second document type for the same request is allowed)', act.message);
+    const foreignInvoice = await user(OC)(`SELECT public.kp_doc_create('invoice', $1, DATE '2026-10-22', 'UAH', NULL, $2::jsonb) AS id`, [RC, mkLines(RAC)]);
+    check(!foreignInvoice.ok, 'another organisation cannot create a document from this request', foreignInvoice.message);
+
+    const docs = await user(OA)(`SELECT kind, number_text, status FROM public.kp_calc_documents($1) ORDER BY kind`, [RAC]);
+    check(docs.ok && docs.rows.map((r) => r.kind).join() === 'act,invoice', 'request documents: the invoice and the act created from it are listed', docs.message || JSON.stringify(docs.rows));
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.kp_calc_documents($1)`, [RAC])).rows[0].n === 2, 'request documents: a logist sees them too');
+    check(!(await user(OC)(`SELECT * FROM public.kp_calc_documents($1)`, [RAC])).ok, 'request documents: another organisation is refused');
+    check((await user(OA)(`SELECT count(*)::int AS n FROM public.kp_calc_documents($1)`, [RDONE])).rows[0].n === 0, 'request documents: a request without documents has an empty list');
+    for (const fn of ['kp_calc_accepted_list(text)', 'kp_calc_documents(uuid)']) {
+        const anon = await as('anon', null, `SELECT 1 FROM public.${fn.split('(')[0]}(${fn.includes('text') ? 'NULL' : '$1'})`, fn.includes('text') ? [] : [RAC]);
+        check(!anon.ok, 'requests: ' + fn + ' is not callable by anon', anon.message);
+    }
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 

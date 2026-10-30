@@ -11,6 +11,8 @@ import {
 } from '../lib/ttn.js';
 import { changedPaths, prefillSnapshot } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
+import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { withApprovedVariant, docsBackHash } from '../lib/docs-requests.js';
 
 function shiftDays(iso, days) {
     return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
@@ -53,12 +55,12 @@ export function renderTtnForm(app, access, route) {
         let calcPre = null;
         if (route.calc) {
             const res = await app.supabase.rpc('kp_calc_doc_prefill', { p_calculation: route.calc });
-            const back = h('a', { class: 'back', href: '#/docs' }, '← До документів');
+            const back = h('a', { class: 'back', href: docsBackHash('ttn') }, '← До документів');
             if (res.error) {
                 clear(root, back, notice(/CALC_NOT_ACCEPTED/.test(String(res.error.message)) ? 'Спершу прийміть заявку: ТТН з рейсу створюється лише з прийнятої заявки.' : ttnErrorText(res.error)));
                 return;
             }
-            calcPre = res.data;
+            calcPre = withApprovedVariant(res.data);
             if (!route.client && calcPre.client) route = { ...route, client: calcPre.client.id };
             if (!route.client) {
                 clear(root, back, notice('У заявки немає клієнта. Додайте клієнта до заявки або створіть ТТН без заявки (вкладка «Документи»).'));
@@ -286,7 +288,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
                 bind('amount', { inputmode: 'decimal', 'aria-label': 'Сума з ПДВ, рядок ' + n, placeholder: 'сума' }),
                 bind('packaging', { maxlength: 100, 'aria-label': 'Вид пакування, рядок ' + n, placeholder: 'Насипом' }),
                 bind('gross_t', { inputmode: 'decimal', 'aria-label': 'Маса брутто, т, рядок ' + n, placeholder: 'брутто, т' }),
-                h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'aria-label': 'Прибрати рядок ' + n, disabled: d.lines.length <= 1,
+                h('button', { type: 'button', class: 'btn btn-sm btn-ghost kpt-line-del', 'aria-label': 'Прибрати рядок ' + n, disabled: d.lines.length <= 1,
                     onclick: () => { d.lines.splice(index, 1); drawBody(); } }, '✕')),
             h('div', { class: 'kpt-line-extra' },
                 check('owner_price', 'Облікова ціна власника (ОЦВТ)'),
@@ -361,7 +363,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
             h('p', { class: 'muted small' }, 'Вантажно-розвантажувальні операції: маса брутто / тара / нетто друкується як «39,84/15,75/24,09». Можна лишити порожнім — заповнять на місці.'),
             row('load', 'Завантаження'),
             row('unload', 'Розвантаження'),
-            h('button', { type: 'button', class: 'btn btn-sm', onclick: fill }, 'Заповнити завантаження масами з форми'),
+            h('button', { type: 'button', class: 'btn btn-sm kpt-fill', onclick: fill }, 'Заповнити завантаження масами з форми'),
         ];
     }
 
@@ -498,13 +500,14 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
     message,
     body,
     h('p', { class: 'muted small' }, h('span', { class: 'req' }, '*'), ' — обовʼязкові реквізити ст. 48 Закону «Про автомобільний транспорт». Решту полів форми № 1-ТН можна лишити порожніми — у PDF буде прочерк.'),
-    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: '#/docs' }, 'Скасувати')));
+    h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: docsBackHash('ttn') }, 'Скасувати')));
 
     clientSel.addEventListener('change', prefill);
     docDate.addEventListener('change', loadNextNumber);
     prefill();
     return h('div', null,
-        h('a', { class: 'back', href: '#/docs' }, '← До документів'),
+        h('a', { class: 'back', href: docsBackHash('ttn') }, '← До документів'),
         h('h2', null, 'Товарно-транспортна накладна (форма № 1-ТН) — нова'),
+        h('div', { class: 'card' }, requestPicker(app, 'ttn', { current: route.calc }), requestDocsNotice(app, 'ttn', route.calc)),
         form);
 }

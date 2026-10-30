@@ -20,10 +20,10 @@ test('п.9: ТТН з рейсу лише з прийнятої заявки —
     assert.ok(ttn.includes("disabled: true, title: CALC_DOC_HINT }, 'Ще одна ТТН на рейс')"));
 });
 
-test('п.9: на картці подорожнього (і ТТН) активна підвкладка «ТТН / Подорожній лист»', () => {
+test('п.9: на картці подорожнього активна вкладка «Подорожні листи», на картці ТТН — «ТТН»', () => {
     const docs = read('src/views/docs.js');
-    assert.ok(docs.includes("const inTtnGroup = sub === 'ttn' || sub === 'trip_sheet'"));
-    assert.ok(docs.includes("const currentKey = route.tab || (inTtnGroup ? 'ttn' : 'all');"));
+    assert.ok(docs.includes("const cardTab = { ttn: 'ttn', trip_sheet: 'trip_sheets', act: 'acts', invoice: 'invoices' }[sub === 'new' ? route.kind : sub];"));
+    assert.ok(docs.includes("const currentKey = route.tab || cardTab || 'all';"));
 });
 
 test('п.9: без «пробігу з вантажем» норму не рахуємо (—), а не весь пробіг за нормою завантаженого', () => {
