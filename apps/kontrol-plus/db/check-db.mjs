@@ -1330,6 +1330,115 @@ for (const [index, [name, extra]] of planCases.entries()) {
     const marked = await service(`UPDATE public.org_notifications SET read_at = now(), read_by = $1 WHERE kind = 'approval_pending' RETURNING read_at`, [OA]);
     check(marked.ok && marked.rows[0].read_at, 'director cabinet: the service marks a notification as read', marked.message);
 }
+// Відправка документів на пошту (20261101090000): контекст перевірок, журнал, сповіщення директору.
+{
+    const emailSql = fs.readFileSync(new URL('20261101090000_kp_doc_email.sql', DIR), 'utf8');
+    await db.exec(emailSql);
+    await db.exec(emailSql);
+    check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(emailSql) && /РУЧНИЙ ВІДКАТ/.test(emailSql),
+        'doc email: migration re-applied (idempotent), manual-apply header and manual rollback');
+    const denied = (r) => !r.ok && r.code === '42501' && /MEMBER_PERMISSION_DENIED/.test(r.message);
+    const setActs = (acts) => service(
+        `INSERT INTO public.org_member_permissions (org_id, user_id, can_acts, can_sign) VALUES ($1, $2, $3, true)
+         ON CONFLICT (org_id, user_id) DO UPDATE SET can_acts = $3`, [A, LA, acts]);
+    const client = (await service(`SELECT id FROM public.clients WHERE org_id = $1 AND name = 'Перейменовано' LIMIT 1`, [A])).rows[0];
+    check(Boolean(client), 'doc email: fixture client exists');
+    await service(`UPDATE public.clients SET email = 'buyer@example.com' WHERE id = $1`, [client.id]);
+    const lines = JSON.stringify([{ title: 'Послуга', qty: 1, price: 100 }]);
+    const docId = '99000000-0000-4000-8000-0000000000bb';
+    await service(`INSERT INTO storage.objects (bucket_id, name) VALUES ('kp-doc-assets', $1), ('kp-doc-assets', $2)`,
+        [A + '/docs/' + docId + '/signature.png', A + '/docs/' + docId + '/stamp.png']);
+    const created = await user(OA)(`SELECT public.kp_doc_create('act', $1, DATE '2026-10-20', 'UAH', NULL, $2::jsonb, NULL, NULL, NULL, NULL, NULL, $3) AS id`, [client.id, lines, docId]);
+    check(created.ok, 'doc email: fixture act created by the owner', created.message);
+
+    // Контекст: свій документ, право «акти», чужа організація, анульований, ТТН.
+    await setActs(true);
+    const ctx = await user(LA)(`SELECT public.kp_doc_email_context($1) AS c`, [docId]);
+    check(ctx.ok && ctx.rows[0].c.org_id === A && ctx.rows[0].c.client_email === 'buyer@example.com' && ctx.rows[0].c.doc.id === docId
+        && ctx.rows[0].c.sender_role === 'logist', 'doc email: a logist with "acts" gets the context (client email, sender, document)', ctx.message || JSON.stringify(ctx.rows));
+    const reply = ctx.rows[0] && ctx.rows[0].c.reply_to;
+    check(reply === 'owner@a.ua', 'doc email: Reply-To falls back to the director email when the company has no report email', String(reply));
+    await service(`INSERT INTO public.org_company_profiles (org_id, report_email) VALUES ($1, 'office@a.ua') ON CONFLICT (org_id) DO UPDATE SET report_email = 'office@a.ua'`, [A]);
+    check((await user(OA)(`SELECT public.kp_doc_email_context($1) AS c`, [docId])).rows[0].c.reply_to === 'office@a.ua', 'doc email: Reply-To is the organisation report email when set');
+    await setActs(false);
+    const noActs = await user(LA)(`SELECT public.kp_doc_email_context($1)`, [docId]);
+    check(denied(noActs), 'doc email: without the "acts" right the context is 403', noActs.message);
+    const foreign = await user(OC)(`SELECT public.kp_doc_email_context($1)`, [docId]);
+    check(!foreign.ok && /DOC_NOT_FOUND/.test(foreign.message), "doc email: another organisation's owner gets DOC_NOT_FOUND (the API answers 403)", foreign.message);
+    const noPlan = await user(OB)(`SELECT public.kp_doc_email_context($1)`, [docId]);
+    check(!noPlan.ok && noPlan.code === '42501', 'doc email: an organisation without Контроль+ is refused', noPlan.message);
+    const ghost = await user(OA)(`SELECT public.kp_doc_email_context('77777777-7777-4777-8777-777777777777')`);
+    check(!ghost.ok && /DOC_NOT_FOUND/.test(ghost.message), 'doc email: an unknown document is not found', ghost.message);
+    const dir = await user(DIR1)(`SELECT public.kp_doc_email_context($1)`, [docId]);
+    check(!dir.ok && dir.code === '42501', 'doc email: a read-only director cannot send', dir.message);
+    await setActs(true);
+
+    // Журнал і ліміт: пише лише сервіс; читають свої.
+    const row = await service(`INSERT INTO public.kp_doc_emails (org_id, doc_ids, sent_by, to_email, subject) VALUES ($1, ARRAY[$2::uuid], $3, 'buyer@example.com', 'Акт') RETURNING id, status`, [A, docId, LA]);
+    check(row.ok && row.rows[0].status === 'queued', 'doc email: the service writes a queued log row', row.message);
+    check((await service(`SELECT count(*)::int AS n FROM public.org_notifications WHERE kind = 'doc_emailed'`)).rows[0].n === 0, 'doc email: queued rows do not notify');
+    const done = await service(`UPDATE public.kp_doc_emails SET status = 'sent', provider_id = 'em_1', finished_at = now() WHERE id = $1 RETURNING status`, [row.rows[0].id]);
+    check(done.ok, 'doc email: the row becomes sent', done.message);
+    const note = (await service(`SELECT kind, ref_kind, ref_id, actor_id, meta FROM public.org_notifications WHERE kind = 'doc_emailed'`)).rows;
+    check(note.length === 1 && note[0].ref_kind === 'document' && note[0].ref_id === docId && note[0].actor_id === LA && note[0].meta.to === 'buyer@example.com',
+        'doc email: a letter sent by a logist notifies the director (org_notify)', JSON.stringify(note));
+    await service(`UPDATE public.kp_doc_emails SET status = 'sent' WHERE id = $1`, [row.rows[0].id]);
+    check((await service(`SELECT count(*)::int AS n FROM public.org_notifications WHERE kind = 'doc_emailed'`)).rows[0].n === 1, 'doc email: a repeated "sent" does not notify twice');
+    const ownerRow = await service(`INSERT INTO public.kp_doc_emails (org_id, doc_ids, sent_by, to_email, subject) VALUES ($1, ARRAY[$2::uuid], $3, 'b@example.com', 'Акт') RETURNING id`, [A, docId, OA]);
+    await service(`UPDATE public.kp_doc_emails SET status = 'failed', error = 'Resend 422' WHERE id = $1`, [ownerRow.rows[0].id]);
+    await service(`UPDATE public.kp_doc_emails SET status = 'sent' WHERE id = $1`, [ownerRow.rows[0].id]);
+    check((await service(`SELECT count(*)::int AS n FROM public.org_notifications WHERE kind = 'doc_emailed'`)).rows[0].n === 1, 'doc email: a letter sent by the director does not notify the director');
+    const badStatus = await service(`UPDATE public.kp_doc_emails SET status = 'weird' WHERE id = $1`, [ownerRow.rows[0].id]);
+    check(!badStatus.ok, 'doc email: unknown status is refused', badStatus.message);
+    const tooMany = await service(`INSERT INTO public.kp_doc_emails (org_id, doc_ids, to_email, subject) VALUES ($1, ARRAY[]::uuid[], 'a@b.ua', 'x')`, [A]);
+    check(!tooMany.ok, 'doc email: a letter needs at least one document', tooMany.message);
+
+    // RLS журналу.
+    check((await user(LA)(`SELECT count(*)::int AS n FROM public.kp_doc_emails`)).rows[0].n === 2, 'doc email RLS: members read the log of their organisation');
+    check((await user(OC)(`SELECT count(*)::int AS n FROM public.kp_doc_emails`)).rows[0].n === 0, 'doc email RLS: another organisation sees nothing');
+    for (const [label, sql] of [
+        ['INSERT', `INSERT INTO public.kp_doc_emails (org_id, doc_ids, to_email, subject) VALUES ('${A}', ARRAY['${docId}'::uuid], 'a@b.ua', 'x')`],
+        ['UPDATE', `UPDATE public.kp_doc_emails SET status = 'sent'`],
+        ['DELETE', `DELETE FROM public.kp_doc_emails`],
+    ]) {
+        for (const [who, name] of [[OA, 'owner'], [LA, 'logist']]) {
+            const direct = await user(who)(sql);
+            check(!direct.ok && direct.code === '42501', 'doc email RLS: direct ' + label + ' by the ' + name + ' is refused', direct.message);
+        }
+    }
+    const log = await user(LA)(`SELECT * FROM public.kp_doc_email_log($1)`, [docId]);
+    check(log.ok && log.rows.length === 2 && log.rows[0].sender_email && log.rows.every((r) => r.doc_count === 1), 'doc email: the document history lists the letters (who, when, status)', log.message);
+    const foreignLog = await user(OC)(`SELECT * FROM public.kp_doc_email_log($1)`, [docId]);
+    check(!foreignLog.ok || foreignLog.rows.length === 0, "doc email: another organisation does not read the document's log", foreignLog.message);
+    // Ліміт без гонки: резервування під advisory-замком організації, лише service_role.
+    check(/pg_advisory_xact_lock\(hashtextextended\('kp_doc_emails:'/.test(emailSql), 'doc email limit: the reservation takes the organisation advisory lock before counting');
+    const rsvDoc = (await service(`SELECT doc_ids[1] AS d FROM public.kp_doc_emails WHERE org_id = $1 LIMIT 1`, [A])).rows[0].d;
+    const reserveSql = `SELECT public.kp_doc_email_reserve($1, ARRAY[$2::uuid], $3, 'buyer@example.com', 'Акт', $4) AS id`;
+    const rsvOk = await service(reserveSql, [A, rsvDoc, LA, 20]);
+    check(rsvOk.ok && rsvOk.rows[0].id, 'doc email limit: the service reserves a log row (queued)', rsvOk.message);
+    const rsvRow = await service(`SELECT status FROM public.kp_doc_emails WHERE id = $1`, [rsvOk.rows[0] && rsvOk.rows[0].id]);
+    check(rsvRow.ok && rsvRow.rows[0] && rsvRow.rows[0].status === 'queued', 'doc email limit: the reserved row is queued');
+    const rsvFull = await service(reserveSql, [A, rsvDoc, LA, 1]);
+    check(!rsvFull.ok && /RATE_LIMIT/.test(rsvFull.message), 'doc email limit: the count and the insert are one call — over the limit raises RATE_LIMIT', rsvFull.message);
+    const rsvForeign = await service(reserveSql, [A, rsvDoc, OC, 20]);
+    check(!rsvForeign.ok && /KP_FORBIDDEN/.test(rsvForeign.message), 'doc email limit: a sender from another organisation is refused', rsvForeign.message);
+    const rsvClient = await user(LA)(`SELECT public.kp_doc_email_reserve($1, ARRAY[$2::uuid], $3, 'a@b.ua', 'x', 20)`, [A, rsvDoc, LA]);
+    check(!rsvClient.ok && rsvClient.code === '42501', 'doc email limit: the reservation is not callable from the client', rsvClient.message);
+    // Членство: та сама логіка, що в kp_org_id — директор, чий org береться через org_directors, теж проходить.
+    const dirOrg = await user(DIR1)(`SELECT public.kp_org_id() AS o`);
+    check(dirOrg.ok && dirOrg.rows[0].o === A, 'doc email limit: fixture — the director gets the organisation through kp_org_id (director link)', dirOrg.message);
+    const member = (u, o) => service(`SELECT public.kp_is_org_member($1, $2) AS m`, [u, o]);
+    check((await member(DIR1, A)).rows[0].m === true, 'doc email limit: a director (org via org_directors) is a member of that organisation');
+    check((await member(LA, A)).rows[0].m === true && (await member(OA, A)).rows[0].m === true, 'doc email limit: owner and logist are members through profiles.org_id');
+    check((await member(DIR1, C)).rows[0].m === false && (await member(OC, A)).rows[0].m === false && (await member(null, A)).rows[0].m === false, 'doc email limit: nobody is a member of a foreign organisation');
+    const rsvDir = await service(reserveSql, [A, rsvDoc, DIR1, 20]);
+    check(rsvDir.ok && rsvDir.rows[0].id, 'doc email limit: a director sender passes the reservation (same membership as kp_org_id)', rsvDir.message);
+    const rsvDirForeign = await service(reserveSql, [C, rsvDoc, DIR1, 20]);
+    check(!rsvDirForeign.ok && /KP_FORBIDDEN/.test(rsvDirForeign.message), "doc email limit: a director of one organisation cannot reserve in another", rsvDirForeign.message);
+    const memberClient = await user(LA)(`SELECT public.kp_is_org_member($1, $2)`, [LA, A]);
+    check(!memberClient.ok && memberClient.code === '42501', 'doc email limit: kp_is_org_member is not callable from the client', memberClient.message);
+    await setActs(true);
+}
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
 if (failed) {

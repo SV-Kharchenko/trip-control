@@ -613,3 +613,21 @@ body.kp-nav-on[data-studio-view="calc"]:not([data-kp-view]) .kp-calc-tabs, body.
 @media (max-width: 760px) {
   #kp-crm .kpc-view .kpt-dl .kv { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* ===== Надсилання документів на пошту (форма в картці документа і контрагента): підпис зліва, вузьке поле, кнопки за розміром тексту ===== */
+#kp-crm .kpd-email { max-width: 640px; margin: 0 0 14px; padding: 14px 18px; }
+#kp-crm .kpd-email[hidden] { display: none; }
+#kp-crm .kpd-email .form { display: block; }
+#kp-crm .kpd-email .field { display: grid; grid-template-columns: 160px auto; column-gap: 12px; row-gap: 2px; justify-content: start; align-items: start; margin: 0; padding: 4px 0; }
+#kp-crm .kpd-email .field > label { grid-column: 1; font-weight: 600; font-size: 13px; padding-top: 6px; }
+#kp-crm .kpd-email .field > input, #kp-crm .kpd-email .field > textarea { grid-column: 2; width: 360px; max-width: 100%; text-align: left; }
+#kp-crm .kpd-email .kpd-email-docs { grid-column: 2; display: flex; flex-direction: column; gap: 4px; }
+#kp-crm .kpd-email .kpd-email-pick { display: flex; align-items: center; gap: 6px; font-weight: 400; padding-top: 0; }
+#kp-crm .kpd-email .kpd-email-pick input { width: auto; }
+#kp-crm .kpd-email .actions { justify-content: flex-start; margin-top: 10px; }
+#kp-crm .kpd-email-log { max-width: 760px; }
+@media (max-width: 560px) {
+    #kp-crm .kpd-email .field { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .kpd-email .field > label, #kp-crm .kpd-email .field > input, #kp-crm .kpd-email .field > textarea, #kp-crm .kpd-email .kpd-email-docs { grid-column: 1; }
+    #kp-crm .kpd-email .field > input, #kp-crm .kpd-email .field > textarea { width: 100%; }
+}

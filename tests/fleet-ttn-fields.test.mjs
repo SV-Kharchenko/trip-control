@@ -115,7 +115,7 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
     const preview = [lineOf("{ id: 'preview-fleet-1', label: 'AA0001KA', make_model"), lineOf("{ id: 'preview-fleet-2', label: 'AA0002KA', make_model")];
     const inside = (n) => [fleetCode, fleetFns, css, preview].some(([a, b]) => n >= a && n <= b);
     const hunks = [...diff.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)].map((m) => [Number(m[1]), m[2] === undefined ? 1 : Number(m[2])]);
-    if (diff.includes('studio-nav-history') || diff.includes('tc-kpi-bar') || diff.includes("menuGo('fleet')") || diff.includes('calcDocButtons') || diff.includes('routeVariantLabel') || diff.includes('CABINET_REDIRECTS')) {
+    if (diff.includes('studio-nav-history') || diff.includes('tc-kpi-bar') || diff.includes("menuGo('fleet')") || diff.includes('calcDocButtons') || diff.includes('routeVariantLabel') || diff.includes('CABINET_REDIRECTS') || diff.includes('doc_emailed')) {
         // Інша зміна index.html (вкладка «Історія рейсів» — tests/trip-history-tab.test.mjs; калькулятор на одній сторінці — tests/calc-onepage.test.mjs; перемикачі варіантів маршруту — tests/route-switchers.test.mjs; єдиний «Особистий кабінет» — tests/director-cabinet-ui.test.mjs): картки авто вона торкатися не має.
         for (const [start, count] of hunks) {
             for (let n = start; n < start + count; n += 1) assert.ok(!inside(n), 'history-tab change touches the vehicle card at line ' + n + ': ' + lines[n - 1]);

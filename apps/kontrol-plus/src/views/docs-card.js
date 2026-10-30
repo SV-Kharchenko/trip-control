@@ -8,6 +8,7 @@ import {
 } from '../lib/docs.js';
 import { partyLines, rateLine } from '../lib/pdf-docs-text.js';
 import { showError, statusBadge, signedActs, pdfButton, excelButton, cancelControl } from './docs.js';
+import { emailControl, renderEmailLog } from './doc-email.js';
 
 export function renderDocCard(app, access, id) {
     const box = h('div', null, spinner());
@@ -17,7 +18,12 @@ export function renderDocCard(app, access, id) {
         if (error) return showError(app, box, error);
         let signed = false;
         if (data && data.kind === 'act') signed = (await signedActs(app, [{ id, kind: 'act' }])).has(id);
-        draw(data, signed);
+        let clientEmail = '';
+        if (data && data.client_id && access.canWrite) {
+            const { data: client } = await app.supabase.from('clients').select('email').eq('id', data.client_id).maybeSingle();
+            clientEmail = (client && client.email) || '';
+        }
+        draw(data, signed, clientEmail);
     }
 
     function party(title, p) {
@@ -26,8 +32,12 @@ export function renderDocCard(app, access, id) {
             p && (p.signer_position || p.signer_name) ? h('p', { class: 'small muted' }, 'Підписант: ' + [p.signer_position, p.signer_name].filter(Boolean).join(' ')) : null);
     }
 
-    function draw(doc, signed = false) {
+    function draw(doc, signed = false, clientEmail = '') {
         const cur = doc.currency;
+        const mail = access.canWrite && doc.status === 'issued'
+            ? emailControl(app, { docs: [{ ...doc, checked: true }], to: clientEmail, clientName: doc.client_name || '', orgName: (doc.seller && doc.seller.legal_name) || '', onSent: () => load() }) : null;
+        const logBox = h('div', null);
+        if (doc.status !== 'draft') renderEmailLog(app, doc.id).then((el) => { if (el && logBox.isConnected) logBox.append(el); });
         const vat = Number(doc.vat_rate) === 20;
         const isInvoice = doc.kind === 'invoice';
         const active = doc.status === 'issued';
@@ -42,6 +52,7 @@ export function renderDocCard(app, access, id) {
                 h('div', { class: 'actions' },
                     pdfButton(app, doc.id, 'Завантажити PDF', 'btn btn-primary'),
                     excelButton(app, doc.id, null, 'Excel', 'btn'),
+                    mail ? mail.button : null,
                     doc.kind === 'act' && active && access.isOwner ? h('button', {
                         type: 'button', class: 'btn',
                         onclick: async () => {
@@ -52,6 +63,7 @@ export function renderDocCard(app, access, id) {
                         },
                     }, signed ? 'Зняти підпис' : 'Підписати') : null,
                     isInvoice && active && access.canWrite ? h('a', { class: 'btn', href: '#/docs/new/act/' + doc.client_id }, 'Створити акт') : null)),
+            mail ? mail.panel : null,
             doc.status === 'cancelled' ? notice('Анульовано ' + fmtDate(doc.cancelled_at) + (doc.cancelled_by_email ? ' (' + doc.cancelled_by_email + ')' : '')
                 + ': ' + (doc.cancelled_reason || '—') + '. Номер не використовується повторно.', 'error') : null,
             h('div', { class: 'grid-2 kpd-parties' }, party(isInvoice ? 'Постачальник' : 'Виконавець', doc.seller), party(isInvoice ? 'Покупець' : 'Замовник', doc.buyer)),
@@ -74,6 +86,7 @@ export function renderDocCard(app, access, id) {
             (doc.children || []).length ? h('p', { class: 'small' }, 'Акти до рахунку: ', doc.children.map((c, i) => [i ? ', ' : '',
                 h('a', { href: '#/docs/' + c.id }, '№ ' + c.number_text), c.status === 'cancelled' ? ' (анульовано)' : ''])) : null,
             isInvoice ? payments(doc) : null,
+            logBox,
             access.isOwner && active ? h('div', { class: 'card kpd-danger' }, h('h3', null, 'Анулювання'),
                 h('p', { class: 'small muted' }, 'Документ не видаляється: він лишається в списку з позначкою «Анульовано», номер не повторюється. '
                     + (isInvoice ? 'Рахунок з оплатами — спершу анулюйте оплати.' : 'Рейси акта можна буде виставити знову.')),

@@ -1,6 +1,7 @@
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import { LEGAL_FORMS } from '../lib/validate.js';
+import { emailControl } from './doc-email.js';
 import { fmtMoney, fmtNumber, fmtDate, num, STATUS_LABELS, kyivDate, monthRange } from '../lib/format.js';
 import { CALC_DOC_HINT, DOC_KIND_LABELS, PAY_STATUS_LABELS, calcAccepted, docNumberText, fmtAmount, isMissingFeature } from '../lib/docs.js';
 
@@ -118,8 +119,12 @@ export function renderClientCard(app, clientId) {
             return;
         }
         const rows = list.data || [];
+        const mailable = rows.filter((d) => (d.kind === 'act' || d.kind === 'invoice') && d.status !== 'cancelled').slice(0, 20).map((d) => ({ ...d, checked: false }));
+        const mail = app.canWrite && mailable.length
+            ? emailControl(app, { docs: mailable, to: client.email || '', clientName: client.name, orgName: (app.context && app.context.org_name) || '' }) : null;
         const mine = (debts.data || []).filter((d) => d.client_id === clientId);
         clear(docs, h('h2', { class: 'section-title' }, 'Документи і борг'),
+            mail ? h('div', { class: 'actions' }, mail.button) : null, mail ? mail.panel : null,
             mine.length ? h('div', { class: 'stats' }, mine.map((d) => [
                 stat('Борг, ' + d.currency, fmtAmount(d.debt, d.currency)),
                 stat('Прострочено, ' + d.currency, Number(d.overdue) > 0 ? fmtAmount(d.overdue, d.currency) + ' (' + d.overdue_days + ' дн.)' : '—')])) : null,

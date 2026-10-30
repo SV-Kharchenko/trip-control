@@ -7900,6 +7900,10 @@
     }
     const NOTE_KIND_TEXT = {
         approval_pending: function (note) { return 'Заявка чекає погодження' + (note.meta && note.meta.name ? ': «' + note.meta.name + '»' : ''); },
+        doc_emailed: function (note) {
+            const meta = note.meta || {};
+            return 'Документ надіслано на пошту: ' + (meta.to || '') + (meta.count > 1 ? ' (' + meta.count + ' докум.)' : '');
+        },
         signature_used: function (note) {
             const meta = note.meta || {};
             const kind = meta.doc_kind === 'ttn' ? 'ТТН' : (meta.doc_kind === 'invoice' ? 'рахунок' : 'акт');
