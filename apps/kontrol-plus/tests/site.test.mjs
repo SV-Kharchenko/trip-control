@@ -116,7 +116,7 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     }
     assert.match(fs.readFileSync(path.join(APP, 'api/docs/rate.js'), 'utf8'), /createRateHandler/);
     assert.match(fs.readFileSync(path.join(APP, 'api/docs/assets.js'), 'utf8'), /createAssetsHandler/);
-    assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 }, 'api/repairs/*.js': { maxDuration: 15 }, 'api/docs/*.js': { maxDuration: 10 }, 'api/docs/send.js': { maxDuration: 30, includeFiles: 'public/fonts/**' } });
+    assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 }, 'api/repairs/*.js': { maxDuration: 15 }, 'api/docs/assets.js': { maxDuration: 10 }, 'api/docs/rate.js': { maxDuration: 10 }, 'api/docs/send.js': { maxDuration: 30, includeFiles: 'public/fonts/**' } });
     assert.equal(cfg.rewrites.filter((r) => r.source.startsWith('/api')).length, 1, 'one proxy rule, unchanged');
 });
 
