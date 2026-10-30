@@ -255,7 +255,7 @@ test('client contract fields: validation as the CHECKs; sent only when the datab
 
 test('documents views: only h() / textContent, no innerHTML / outerHTML / insertAdjacentHTML, no inline styles or dialogs', () => {
     const files = fs.readdirSync(new URL('src/views/', APP)).filter((f) => /^docs.*\.js$/.test(f));
-    assert.deepEqual(files.sort(), ['docs-card.js', 'docs-debts.js', 'docs-fleet.js', 'docs-form.js', 'docs-request-picker.js', 'docs-requisites.js', 'docs-ts-card.js', 'docs-ts-form.js', 'docs-ttn-card.js', 'docs-ttn-form.js', 'docs.js']);
+    assert.deepEqual(files.sort(), ['docs-card.js', 'docs-debts.js', 'docs-fleet.js', 'docs-form.js', 'docs-link-client.js', 'docs-request-picker.js', 'docs-requisites.js', 'docs-ts-card.js', 'docs-ts-form.js', 'docs-ttn-card.js', 'docs-ttn-form.js', 'docs.js']);
     for (const file of [...files.map((f) => 'src/views/' + f), 'src/lib/docs.js', 'src/lib/pdf-docs.js', 'src/lib/pdf-docs-text.js', 'src/lib/docs-pdf-client.js', 'src/lib/amount-words.js',
         'src/lib/ttn.js', 'src/lib/ttn-text.js', 'src/lib/pdf-ttn.js', 'src/lib/trip-sheet.js', 'src/lib/pdf-trip-sheet.js', 'src/lib/count-words.js', 'src/lib/fleet.js', 'src/lib/xlsx.js', 'src/lib/xlsx-docs.js']) {
         const code = read(file);

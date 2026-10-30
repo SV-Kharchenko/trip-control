@@ -11,7 +11,8 @@ import {
 } from '../lib/ttn.js';
 import { changedPaths, prefillSnapshot } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
-import { requestPicker, requestDocsNotice, linkClientPanel } from './docs-request-picker.js';
+import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { linkClientPanel } from './docs-link-client.js';
 import { withApprovedVariant, docsBackHash } from '../lib/docs-requests.js';
 
 function shiftDays(iso, days) {

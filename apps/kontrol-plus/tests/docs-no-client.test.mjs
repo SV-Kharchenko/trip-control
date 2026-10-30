@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { linkCalcClient } from '../src/views/docs-request-picker.js';
+import { linkCalcClient } from '../src/views/docs-link-client.js';
 
 const APP = new URL('../', import.meta.url);
 const read = (rel) => fs.readFileSync(new URL(rel, APP), 'utf8');
@@ -29,7 +29,7 @@ test('linking failed: readable text (no rights → ask the owner), no throw', as
 });
 
 test('panel: shared component, success opens the normal form, failure shows the text and does not', () => {
-    const picker = read('src/views/docs-request-picker.js');
+    const picker = read('src/views/docs-link-client.js');
     const panel = picker.slice(picker.indexOf('export function linkClientPanel'));
     assert.match(panel, /У заявці не вказано клієнта\. Оберіть клієнта — його буде привʼязано до заявки\./);
     assert.match(panel, /'Привʼязати і продовжити'/);
@@ -40,7 +40,7 @@ test('panel: shared component, success opens the normal form, failure shows the 
     // Усі чотири форми беруть один компонент, а не копіюють його.
     for (const [file, kind] of [['docs-ttn-form.js', 'ttn'], ['docs-form.js', 'kind'], ['docs-ts-form.js', 'trip_sheet']]) {
         const code = read('src/views/' + file);
-        assert.match(code, /import \{ requestPicker, requestDocsNotice, linkClientPanel \} from '\.\/docs-request-picker\.js'/, file);
+        assert.match(code, /import \{ linkClientPanel \} from '\.\/docs-link-client\.js'/, file);
         const kindArg = kind === 'kind' ? 'kind,' : "kind: '" + kind + "',";
         assert.ok(code.includes('linkClientPanel(app, { ' + kindArg + ' calcId: route.calc'), file);
         assert.match(code, /const load = async \(\) => \{/, file + ': форма перезавантажується після привʼязки');
@@ -78,4 +78,19 @@ test('layout: the new button is content-sized and the panel does not widen the p
     assert.match(css, /#kp-crm \.kpd-link-client select \{ width: 100%; max-width: 100%; min-width: 0; \}/);
     // Блок лежить усередині .kpd-page: у ньому немає ні alert/confirm, ні .btn-block.
     assert.match(read('src/views/docs.js'), /kpd-page/);
+});
+
+// Статичні перевірки не ловлять ReferenceError: кожен хелпер ui.js, який викликає файл документів, має бути в його import з ../ui.js.
+test('every ui.js helper called in the Documents views is imported there (no «notice is not defined»)', () => {
+    const helpers = ['h', 'clear', 'spinner', 'notice', 'toast'];
+    for (const file of fs.readdirSync(new URL('src/views/', APP)).filter((f) => /^docs.*\.js$/.test(f))) {
+        const code = read('src/views/' + file);
+        const imp = code.match(/import \{([^}]*)\} from '\.\.\/ui\.js'/);
+        const imported = new Set(imp ? imp[1].split(',').map((x) => x.trim()) : []);
+        for (const name of helpers) {
+            const declared = new RegExp('(function|const|let) ' + name + '\\b').test(code);
+            const called = new RegExp('(^|[^.\\w$])' + name + '\\(', 'm').test(code);
+            if (called && !declared) assert.ok(imported.has(name), file + ': ' + name + '() is called but not imported from ui.js');
+        }
+    }
 });

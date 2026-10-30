@@ -9,7 +9,8 @@ import {
 } from '../lib/docs.js';
 import { showError } from './docs.js';
 import { docsBackHash } from '../lib/docs-requests.js';
-import { requestPicker, requestDocsNotice, linkClientPanel } from './docs-request-picker.js';
+import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { linkClientPanel } from './docs-link-client.js';
 
 function shiftDays(iso, days) {
     return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);

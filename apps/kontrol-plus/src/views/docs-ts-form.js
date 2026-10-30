@@ -11,7 +11,8 @@ import {
     tsFromPrefill, validateTripSheet,
 } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
-import { requestPicker, requestDocsNotice, linkClientPanel } from './docs-request-picker.js';
+import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
+import { linkClientPanel } from './docs-link-client.js';
 import { withApprovedVariant, docsBackHash } from '../lib/docs-requests.js';
 
 // Поля форми: [шлях, ширина, атрибути]. Порядок — як у розділах картки: Шапка, ТЗ і водій, Завдання, Виїзд, Відмітки.
