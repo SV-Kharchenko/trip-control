@@ -375,7 +375,3 @@ test('send contract: From carries the organisation name from the server context 
     assert.equal((await run(dotted.handler, { body: BODY })).statusCode, 200);
     assert.equal(dotted.state.mails[0].from, '"ТОВ А.Б.В. через TripControl" <docs@trip-control.com>');
 });
-    assert.notEqual((await run(dotted.handler, { body: BODY })).statusCode, 500);
-    const from = (dotted.state.mails[0] || {}).from;
-    if (from) assert.match(from, /^"ТОВ А\.Б\.В\. через TripControl" <[^<>\s]+@[^<>\s]+>$/);
-});
