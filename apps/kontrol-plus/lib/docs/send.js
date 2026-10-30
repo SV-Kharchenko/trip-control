@@ -5,6 +5,7 @@
 // PDF тим самим шаблоном, що й у браузері (src/lib/pdf-docs.js, з підписом і печаткою, якщо вони є в самому документі), лог у
 // kp_doc_emails. Ключ і відправник — лише з env (RESEND_API_KEY, EMAIL_FROM); без них — 503 EMAIL_NOT_CONFIGURED, без падіння.
 // Усі залежності (база, Resend, PDF) передаються ззовні, щоб логіку можна було перевірити без мережі.
+import { looksLikeP7s, typeMatchesPath } from '../contracts/stamp.js';
 export const HOURLY_LIMIT = 20;
 export const MAX_DOCS = 5;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -45,11 +46,14 @@ function cleanLine(value, max) {
     return String(value == null ? '' : value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-// Перевірка тіла запиту. → { ok, value } або { ok: false, error }.
+// Перевірка тіла запиту. → { ok, value } або { ok: false, error }. Або doc_ids (акти / рахунки), або contract_id (договір).
 export function parseSendBody(body) {
     const b = body && typeof body === 'object' ? body : {};
     const ids = Array.isArray(b.doc_ids) ? b.doc_ids.map(String) : [];
-    if (!ids.length || ids.length > MAX_DOCS || ids.some((id) => !UUID.test(id)) || new Set(ids).size !== ids.length) {
+    const contractId = b.contract_id === undefined || b.contract_id === null ? null : String(b.contract_id);
+    if (contractId !== null) {
+        if (!UUID.test(contractId) || ids.length) return { ok: false, error: 'Оберіть договір або документи, не разом.' };
+    } else if (!ids.length || ids.length > MAX_DOCS || ids.some((id) => !UUID.test(id)) || new Set(ids).size !== ids.length) {
         return { ok: false, error: 'Оберіть від 1 до ' + MAX_DOCS + ' документів.' };
     }
     const to = cleanLine(b.to, 254).toLowerCase();
@@ -57,7 +61,7 @@ export function parseSendBody(body) {
     const subject = cleanLine(b.subject, 200);
     if (!subject) return { ok: false, error: 'Вкажіть тему листа.' };
     const text = String(b.text == null ? '' : b.text).replace(/\r\n/g, '\n').slice(0, 5000);
-    return { ok: true, value: { ids, to, subject, text, otherAddress: b.other_address === true } };
+    return { ok: true, value: { ids, contractId, to, subject, text, otherAddress: b.other_address === true } };
 }
 
 const b64 = (bytes) => Buffer.from(bytes).toString('base64');
@@ -90,16 +94,17 @@ export function createSendHandler(deps) {
 
         const parsed = parseSendBody(req.body);
         if (!parsed.ok) return res.status(400).json({ code: 'BAD_REQUEST', error: parsed.error });
-        const { ids, to, subject, text, otherAddress } = parsed.value;
+        const { ids, contractId, to, subject, text, otherAddress } = parsed.value;
 
         const contexts = [];
-        for (const id of ids) {
+        for (const id of contractId ? [contractId] : ids) {
             try {
-                contexts.push(await deps.getContext(jwt, id));
+                contexts.push(contractId ? await deps.getContractContext(jwt, id) : await deps.getContext(jwt, id));
             } catch (error) {
                 const message = String((error && error.message) || '');
                 if (FORBIDDEN.test(message)) return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостатньо прав для відправки цього документа.' });
                 if (/DOC_CANCELLED/.test(message)) return res.status(409).json({ code: 'DOC_CANCELLED', error: 'Анульований документ не відправляється.' });
+                if (/CONTRACT_FILE_MISSING/.test(message)) return res.status(409).json({ code: 'CONTRACT_FILE_MISSING', error: 'У договорі немає файлу. Спершу завантажте скан.' });
                 if (/DOC_BAD_KIND/.test(message)) return res.status(400).json({ code: 'BAD_KIND', error: 'На пошту відправляються лише акти й рахунки.' });
                 log.warn('[docs/send] CONTEXT_FAILED');
                 return res.status(502).json({ code: 'CONTEXT_FAILED', error: 'Не вдалося перевірити документ. Спробуйте ще раз.' });
@@ -126,7 +131,7 @@ export function createSendHandler(deps) {
 
         let logId = null;
         try {
-            logId = await deps.reserve({ org_id: orgId, doc_ids: ids, sent_by: user.id, to_email: to, subject }, HOURLY_LIMIT);
+            logId = await deps.reserve({ org_id: orgId, doc_ids: ids, contract_id: contractId || null, sent_by: user.id, to_email: to, subject }, HOURLY_LIMIT);
         } catch (error) {
             if (/RATE_LIMIT/.test(String((error && error.message) || ''))) {
                 res.setHeader('Retry-After', '3600');
@@ -138,15 +143,36 @@ export function createSendHandler(deps) {
 
         let attachments;
         try {
-            const fonts = await deps.loadFonts();
             attachments = [];
-            for (const ctx of contexts) {
+            if (contractId) {
+                // Договір: підписана копія (зображення підпису й печатки) або скан, плюс відокремлений підпис .p7s, якщо є.
+                const c = contexts[0].contract;
+                const base = 'dogovir_' + String(c.number || 'bez-nomera').replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 40);
+                const main = c.signed_path || c.file_path;
+                const bytes = await deps.loadFile(main);
+                if (!bytes) throw new Error('file');
+                // Тип за magic bytes, не за розширенням: підроблений файл не йде в лист.
+                if (!typeMatchesPath(bytes, main)) throw Object.assign(new Error('type'), { code: 'BAD_FILE_TYPE' });
+                attachments.push({ filename: base + '.' + String(main).split('.').pop(), content: b64(bytes) });
+                if (c.sig_path) {
+                    const sig = await deps.loadFile(c.sig_path);
+                    if (!sig) throw new Error('sig');
+                    if (!looksLikeP7s(sig)) throw Object.assign(new Error('type'), { code: 'BAD_FILE_TYPE' });
+                    attachments.push({ filename: base + '.' + String(c.file_path).split('.').pop() + '.p7s', content: b64(sig) });
+                }
+            }
+            const fonts = contractId ? null : await deps.loadFonts();
+            for (const ctx of contractId ? [] : contexts) {
                 const paths = deps.docAssetPaths(ctx.doc);
                 const [signature, stamp] = await Promise.all([deps.loadAsset(paths.signature), deps.loadAsset(paths.stamp)]);
                 const { bytes } = await deps.buildPdf(ctx.doc, { fonts, images: { signature, stamp } });
                 attachments.push({ filename: deps.fileName(ctx.doc), content: b64(bytes) });
             }
-        } catch {
+        } catch (error) {
+            if (error && error.code === 'BAD_FILE_TYPE') {
+                await finish({ status: 'failed', error: 'Файл договору не відповідає своєму типу' });
+                return res.status(415).json({ code: 'BAD_FILE_TYPE', error: 'Вміст файлу договору не відповідає PDF, JPG чи PNG. Лист не надіслано.' });
+            }
             log.warn('[docs/send] PDF_FAILED');
             await finish({ status: 'failed', error: 'Не вдалося сформувати PDF' });
             return res.status(500).json({ code: 'PDF_FAILED', error: 'Не вдалося сформувати PDF. Лист не надіслано.' });
@@ -165,6 +191,7 @@ export function createSendHandler(deps) {
         try {
             const sent = await deps.sendMail(payload);
             await finish({ status: 'sent', provider_id: sent && sent.id ? String(sent.id).slice(0, 100) : null });
+            if (contractId && deps.markContractSent) await deps.markContractSent(contractId).catch(() => {});
             return res.status(200).json({ ok: true, id: sent && sent.id ? String(sent.id) : null, attachments: attachments.length });
         } catch (error) {
             const reason = cleanLine((error && error.message) || 'send failed', 300);

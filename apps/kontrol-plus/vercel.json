@@ -11,7 +11,8 @@
     "api/repairs/*.js": { "maxDuration": 15 },
     "api/docs/assets.js": { "maxDuration": 10 },
     "api/docs/rate.js": { "maxDuration": 10 },
-    "api/docs/send.js": { "maxDuration": 30, "includeFiles": "public/fonts/**" }
+    "api/docs/send.js": { "maxDuration": 30, "includeFiles": "public/fonts/**" },
+    "api/contracts/*.js": { "maxDuration": 30 }
   },
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://trip-control.com/api/:path*" },
