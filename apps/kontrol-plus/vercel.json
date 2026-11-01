@@ -18,7 +18,8 @@
     { "source": "/api/:path*", "destination": "https://trip-control.com/api/:path*" },
     { "source": "/offer", "destination": "/legal/offer.html" },
     { "source": "/privacy", "destination": "/legal/privacy.html" },
-    { "source": "/payment-refund", "destination": "/legal/payment-refund.html" }
+    { "source": "/payment-refund", "destination": "/legal/payment-refund.html" },
+    { "source": "/support", "destination": "/legal/support.html" }
   ],
   "headers": [
     {
@@ -33,7 +34,7 @@
       ]
     },
     {
-      "source": "/((?!$|index\\.html$|offer$|privacy$|payment-refund$|legal/).*)",
+      "source": "/((?!$|index\\.html$|offer$|privacy$|payment-refund$|support$|legal/).*)",
       "headers": [
         {
           "key": "Content-Security-Policy",
@@ -42,7 +43,7 @@
       ]
     },
     {
-      "source": "/(|index\\.html|offer|privacy|payment-refund|legal/.*)",
+      "source": "/(|index\\.html|offer|privacy|payment-refund|support|legal/.*)",
       "headers": [
         {
           "key": "Content-Security-Policy",

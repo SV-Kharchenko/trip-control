@@ -55,12 +55,13 @@ test('three legal pages: full page around <article class="legal-doc">, canonical
     }
 });
 
-test('vercel.json: three rewrites to legal/*.html, headers and CSP untouched', () => {
+test('vercel.json: rewrites to legal/*.html, headers and CSP untouched', () => {
     const config = JSON.parse(read('vercel.json'));
     assert.deepEqual(config.rewrites, [
         { source: '/offer', destination: '/legal/offer.html' },
         { source: '/privacy', destination: '/legal/privacy.html' },
-        { source: '/payment-refund', destination: '/legal/payment-refund.html' }
+        { source: '/payment-refund', destination: '/legal/payment-refund.html' },
+        { source: '/support', destination: '/legal/support.html' }
     ]);
     const csp = config.headers[0].headers.find((h) => h.key === 'Content-Security-Policy').value;
     assert.match(csp, /^default-src 'self'; script-src 'self' 'unsafe-inline'/);

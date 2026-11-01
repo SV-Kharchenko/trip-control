@@ -2,11 +2,13 @@
   "id": "/",
   "name": "Контроль+ — Trip Control",
   "short_name": "Контроль+",
-  "description": "CRM перевізника: клієнти з реквізитами, історія рейсів і ставок, звіт план/факт. Працює з акаунтом Trip Control.",
+  "description": "CRM перевізника: клієнти з реквізитами, історія рейсів і ставок, документи та звіт план/факт. Працює з акаунтом Trip Control.",
   "lang": "uk",
   "dir": "ltr",
   "start_url": "/?source=pwa",
   "scope": "/",
+  "handle_links": "preferred",
+  "launch_handler": { "client_mode": "navigate-existing" },
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#F4EFE4",
@@ -16,6 +18,7 @@
     { "src": "/icons/icon-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-1024.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [
@@ -24,6 +27,7 @@
     { "src": "/screenshots/client-narrow.png", "sizes": "412x915", "type": "image/png", "form_factor": "narrow", "label": "Картка клієнта на телефоні" }
   ],
   "shortcuts": [
+    { "name": "Розрахунки", "url": "/#calculator", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Клієнти", "url": "/#/clients", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Звіт план/факт", "url": "/#/report", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
   ]

@@ -325,6 +325,8 @@ test('vercel.json: CSP unchanged (same strings as main); no blob: in the strict 
     try {
         main = JSON.parse(execFileSync('git', ['show', 'origin/main:apps/kontrol-plus/vercel.json'], { cwd: new URL('.', APP), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
     } catch { /* без origin/main — лише константа */ }
-    if (main) assert.deepEqual(now, csps(main), 'CSP headers equal origin/main');
+    // /support (PR store-pwa) лише додано до шляхів двох CSP; самі рядки політик не змінені.
+    const withoutSupport = now.map((line) => line.replace('support$|', '').replace('|support', ''));
+    if (main) assert.deepEqual(withoutSupport, csps(main), 'CSP headers equal origin/main');
     assert.doesNotMatch(STRICT_CSP, /blob:|unsafe-inline|unsafe-eval|bank\.gov\.ua/);
 });

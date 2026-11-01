@@ -33,6 +33,13 @@ test('manifest is ready for install and PWABuilder', () => {
     }
     assert.ok(m.screenshots.some((s) => s.form_factor === 'wide') && m.screenshots.some((s) => s.form_factor === 'narrow'));
     assert.ok(m.icons.some((i) => i.purpose === 'maskable' && i.sizes === '512x512'));
+    assert.ok(m.icons.some((i) => i.purpose === 'any' && i.sizes === '192x192'));
+    assert.ok(m.icons.some((i) => i.purpose === 'any' && i.sizes === '1024x1024' && i.src === '/icons/icon-1024.png'));
+    assert.equal(m.handle_links, 'preferred');
+    assert.deepEqual(m.launch_handler, { client_mode: 'navigate-existing' });
+    assert.ok(m.shortcuts.some((x) => x.url === '/#calculator'), 'shortcut на розрахунки');
+    assert.equal(m.name, 'Контроль+ — Trip Control');
+    assert.equal(m.short_name, 'Контроль+');
     assert.ok(m.icons.some((i) => i.purpose === 'any' && i.sizes === '512x512'));
     // Сторінка застосунку — копія index.html сайту з маніфестом Контроль+ замість /site.webmanifest.
     const html = injectSite(fs.readFileSync(new URL('../../index.html', APP), 'utf8'), { js: '/kp-assets/x.js' });
