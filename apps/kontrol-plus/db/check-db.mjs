@@ -71,7 +71,7 @@ CREATE SCHEMA storage;
 CREATE TABLE storage.buckets (id text PRIMARY KEY, name text NOT NULL, owner uuid, public boolean DEFAULT false,
   file_size_limit bigint, allowed_mime_types text[], created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
 CREATE TABLE storage.objects (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text REFERENCES storage.buckets (id),
-  name text NOT NULL, owner uuid, metadata jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(),
+  name text NOT NULL, owner uuid, owner_id text, metadata jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(),
   UNIQUE (bucket_id, name));
 ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
@@ -1680,7 +1680,7 @@ for (const [index, [name, extra]] of planCases.entries()) {
 }
 // «Документи»: реєстр договорів і вкладка «Інше» (20261105090000 / 20261105091000): повторне застосування, pgTAP kp_docs_polish.sql.
 {
-    for (const name of ['20261105090000_kp_contracts_register.sql', '20261105091000_kp_other_docs.sql']) {
+    for (const name of ['20261105090000_kp_contracts_register.sql', '20261105091000_kp_other_docs.sql', '20261106090000_kp_contract_cancelled_guards.sql']) {
         const sql = fs.readFileSync(new URL(name, DIR), 'utf8');
         await db.exec(sql);
         await db.exec(sql);

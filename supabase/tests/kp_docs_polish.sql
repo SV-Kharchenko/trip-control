@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(69);
+SELECT plan(77);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000f101","role":"service_role"}', true);
 
@@ -170,17 +170,23 @@ SELECT throws_ok($$SELECT public.kp_other_save('b1000000-0000-4000-8000-00000000
 SELECT is((SELECT string_agg(title, ',') FROM public.kp_other_list(p_status => 'cancelled')), 'Довіреність (нова)', 'other: cancelled filter');
 SELECT is((SELECT count(*)::integer FROM public.kp_other_list(p_status => 'active')), 0, 'other: no active ones left (the other is expired)');
 
--- 7. Storage: політики за ролями й шляхом.
+-- 7. Storage: політики за ролями й шляхом; автор видаляє лише власний файл без запису, власник — будь-який.
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000f102","role":"authenticated"}', true);
-SELECT lives_ok($$INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-other-docs', 'a1000000-0000-4000-8000-00000000000a/b1000000-0000-4000-8000-000000000010/file-c1000000-0000-4000-8000-000000000010.pdf', '{"size": 100}')$$,
+SELECT lives_ok($$INSERT INTO storage.objects (bucket_id, name, owner_id, metadata) VALUES ('kp-other-docs', 'a1000000-0000-4000-8000-00000000000a/b1000000-0000-4000-8000-000000000010/file-c1000000-0000-4000-8000-000000000010.pdf', '00000000-0000-0000-0000-00000000f102', '{"size": 100}')$$,
   'storage: a logist uploads into the own organisation path');
 SELECT throws_ok($$INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-other-docs', 'a1000000-0000-4000-8000-00000000000b/b1000000-0000-4000-8000-000000000011/file-c1000000-0000-4000-8000-000000000011.pdf', '{"size": 100}')$$,
   '42501', NULL, 'storage: a path of another organisation is refused');
 SELECT throws_ok($$INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-other-docs', 'a1000000-0000-4000-8000-00000000000a/b1000000-0000-4000-8000-000000000012/evil.exe', '{"size": 100}')$$,
   '42501', NULL, 'storage: only file-<uuid>.(pdf|jpg|png|doc|docx|xls|xlsx) names are accepted');
-SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs'), 4, 'storage: a logist reads the files of the organisation');
+SELECT lives_ok($$INSERT INTO storage.objects (bucket_id, name, owner_id, metadata) VALUES ('kp-other-docs', 'a1000000-0000-4000-8000-00000000000a/b1000000-0000-4000-8000-000000000014/file-c1000000-0000-4000-8000-000000000014.pdf', '00000000-0000-0000-0000-00000000f101', '{"size": 100}')$$,
+  'storage: (fixture) a file whose author is the owner');
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs'), 5, 'storage: a logist reads the files of the organisation');
+DELETE FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000001/%';
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000001/%'), 1, 'storage: a logist cannot delete a file that has a record');
+DELETE FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000014/%';
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000014/%'), 1, 'storage: a logist cannot delete somebody else''s file');
 DELETE FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000010/%';
-SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000010/%'), 1, 'storage: a logist cannot delete files');
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000010/%'), 0, 'storage: the author deletes the own file that has no record');
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000f103","role":"authenticated"}', true);
 SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs'), 4, 'storage: the director reads the files');
 SELECT throws_ok($$INSERT INTO storage.objects (bucket_id, name, metadata) VALUES ('kp-other-docs', 'a1000000-0000-4000-8000-00000000000a/b1000000-0000-4000-8000-000000000013/file-c1000000-0000-4000-8000-000000000013.pdf', '{"size": 100}')$$,
@@ -188,12 +194,22 @@ SELECT throws_ok($$INSERT INTO storage.objects (bucket_id, name, metadata) VALUE
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000f104","role":"authenticated"}', true);
 SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs'), 0, 'storage: another organisation sees no files');
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000f101","role":"authenticated"}', true);
+SELECT throws_ok($$SELECT public.kp_other_delete('b1000000-0000-4000-8000-000000000002')$$, 'P0001', 'OTHER_FILE_STILL_THERE', 'other: the record is not deleted while the file is still in the bucket');
+DELETE FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000002/%';
 SELECT is(public.kp_other_delete('b1000000-0000-4000-8000-000000000002'),
-  'a1000000-0000-4000-8000-00000000000a/b1000000-0000-4000-8000-000000000002/file-c1000000-0000-4000-8000-000000000002.png', 'other: the owner deletes the record and gets the file path');
-DELETE FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000010/%';
-SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000010/%'), 0, 'storage: the owner deletes files');
+  'a1000000-0000-4000-8000-00000000000a/b1000000-0000-4000-8000-000000000002/file-c1000000-0000-4000-8000-000000000002.png', 'other: file first, then the owner deletes the record');
+DELETE FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000014/%';
+SELECT is((SELECT count(*)::integer FROM storage.objects WHERE bucket_id = 'kp-other-docs' AND name LIKE '%000000000014/%'), 0, 'storage: the owner deletes any file of the organisation');
 SELECT throws_ok($$SELECT public.kp_other_delete('b1000000-0000-4000-8000-000000000002')$$, 'P0001', 'OTHER_NOT_FOUND', 'other: a deleted record is gone');
+
+-- 8. Анульований договір не надсилається контрагенту (контекст листа і резервування відправки).
+SELECT throws_ok($$SELECT public.kp_contract_email_context('a5000000-0000-4000-8000-000000000002')$$, 'P0001', 'CONTRACT_CANCELLED', 'contracts: the email context of a cancelled contract is refused');
+SELECT throws_ok($$SELECT public.kp_contract_email_context('a5000000-0000-4000-8000-000000000001')$$, 'P0001', 'CONTRACT_FILE_MISSING', 'contracts: a draft without a scan still reports the missing file');
 RESET ROLE;
+SELECT throws_ok($$SELECT public.kp_mail_reserve('a1000000-0000-4000-8000-00000000000a', ARRAY[]::uuid[], '00000000-0000-0000-0000-00000000f101', 'a@example.com', 'Договір', 20, 'a5000000-0000-4000-8000-000000000002')$$,
+  'P0001', 'CONTRACT_CANCELLED', 'contracts: sending is not reserved for a cancelled contract');
+SELECT lives_ok($$SELECT public.kp_mail_reserve('a1000000-0000-4000-8000-00000000000a', ARRAY[]::uuid[], '00000000-0000-0000-0000-00000000f101', 'a@example.com', 'Договір', 20, 'a5000000-0000-4000-8000-000000000001')$$,
+  'contracts: sending is reserved for a live contract');
 
 SELECT * FROM finish();
 ROLLBACK;

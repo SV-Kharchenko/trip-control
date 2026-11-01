@@ -325,7 +325,7 @@ test('client rules: scan PDF / JPG / PNG up to 10 MB, .p7s only, paths match the
     assert.deepEqual(attachmentNames({ number: 'Д 15/2', file_path: 'x/scan-1.pdf', sig_path: 'x/sig-1.p7s' }), ['dogovir__15_2.pdf', 'dogovir__15_2.pdf.p7s']);
     assert.match(contractErrorText({ message: 'MEMBER_PERMISSION_DENIED' }), /Договори|Підпис/);
     assert.match(contractErrorText({ message: 'CONTRACT_LOCKED' }), /підписано/);
-    assert.deepEqual(Object.keys(CONTRACT_STATUS), ['draft', 'signed', 'sent']);
+    assert.deepEqual(Object.keys(CONTRACT_STATUS), ['draft', 'signed', 'sent', 'cancelled']);
 });
 
 test('contracts UI: private signed URLs only, no public URL, content-sized buttons, rights are server-side', () => {

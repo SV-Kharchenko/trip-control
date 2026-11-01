@@ -51,6 +51,7 @@ export function otherErrorText(error) {
     if (/OTHER_LINK_NOT_FOUND/.test(text)) return 'Клієнта, авто, водія чи заявку не знайдено.';
     if (/OTHER_CANCELLED/.test(text)) return 'Документ анульовано.';
     if (/OTHER_REASON/.test(text)) return 'Вкажіть причину анулювання (до 500 символів).';
+    if (/OTHER_FILE_STILL_THERE/.test(text)) return 'Не вдалося видалити файл зі сховища. Спробуйте ще раз.';
     if (/OTHER_NOT_FOUND/.test(text)) return 'Документ не знайдено.';
     if (/OTHER_BAD|check constraint|invalid input/i.test(text)) return 'Перевірте назву, дату й строк дії.';
     if (/KP_FORBIDDEN|row-level security|42501/.test(text)) return 'Немає права на цю дію.';

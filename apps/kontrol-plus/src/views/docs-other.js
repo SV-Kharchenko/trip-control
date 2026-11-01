@@ -110,9 +110,11 @@ export function renderOtherDocs(app, access) {
                         h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openSigned(app, OTHER_BUCKET, r.file_path, otherErrorText) }, 'Відкрити'),
                         access.isOwner && r.status === 'active' ? reasonCancel((reason) => app.supabase.rpc('kp_other_cancel', { p_id: r.id, p_reason: reason }), load, otherErrorText) : null,
                         access.isOwner ? confirmButton('Видалити', 'Точно видалити?', async () => {
-                            const { data: path, error: delError } = await app.supabase.rpc('kp_other_delete', { p_id: r.id });
+                            // Спершу файл, потім запис: база не видаляє запис, поки файл ще в бакеті.
+                            const removed = await app.supabase.storage.from(OTHER_BUCKET).remove([r.file_path]);
+                            if (removed.error) return toast(otherErrorText(removed.error), 'error');
+                            const { error: delError } = await app.supabase.rpc('kp_other_delete', { p_id: r.id });
                             if (delError) return toast(otherErrorText(delError), 'error');
-                            if (path) await app.supabase.storage.from(OTHER_BUCKET).remove([path]);
                             toast('Файл видалено');
                             return load();
                         }, 'btn btn-sm btn-danger') : null)));
@@ -162,7 +164,11 @@ export function renderOtherDocs(app, access) {
                 },
             });
             save.disabled = false;
-            if (error) return clear(status, notice(otherErrorText(error)));
+            if (error) {
+                // Запису немає — одразу прибираємо щойно завантажений файл (автору дозволено видаляти власний файл без запису).
+                await app.supabase.storage.from(OTHER_BUCKET).remove([path]).catch(() => null);
+                return clear(status, notice(otherErrorText(error)));
+            }
             clear(formBox);
             toast('Файл додано');
             return load();

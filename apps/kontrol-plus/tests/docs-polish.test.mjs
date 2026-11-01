@@ -123,3 +123,38 @@ test('contracts / other tabs: private storage, signed URLs, owner-only cancel/de
     assert.match(contracts, /kp_contract_list_all/);
     assert.match(contracts, /CONTRACT_BUCKET/);
 });
+
+test('cancelled contract: human status name, no send / sign controls in the UI, server refuses', async () => {
+    const { CONTRACT_STATUS, contractErrorText } = await import('../src/lib/contracts.js');
+    assert.equal(CONTRACT_STATUS.cancelled, 'Анульовано');
+    assert.match(contractErrorText({ message: 'CONTRACT_CANCELLED' }), /анульовано/);
+    const view = read('src/views/contracts.js');
+    assert.match(view, /const mail = writable && c\.file_path && c\.status !== 'cancelled'/);
+    // Підпис, КЕП, скан і зміна показуються лише для чернетки (locked = status !== 'draft').
+    assert.match(view, /const locked = c\.status !== 'draft';/);
+    assert.equal((view.match(/writable && !locked/g) || []).length >= 5, true);
+    const sql = read('../../supabase/migrations/20261106090000_kp_contract_cancelled_guards.sql');
+    assert.match(sql, /^-- Apply manually after review\./);
+    assert.match(sql, /kp_contract_email_context[\s\S]*?v_c\.status = 'cancelled'[\s\S]*?CONTRACT_CANCELLED/);
+    assert.match(sql, /kp_mail_reserve[\s\S]*?c\.status = 'cancelled'[\s\S]*?CONTRACT_CANCELLED/);
+    // Підписання вже відмовляє для не-чернетки в самій базі.
+    const base = read('../../supabase/migrations/20261102090000_kp_contracts.sql');
+    assert.equal((base.match(/status <> 'draft'/g) || []).length >= 5, true);
+});
+
+test('other files: orphan cleanup on the client, author may delete an unrecorded own file, file first then record', () => {
+    const view = read('src/views/docs-other.js');
+    assert.match(view, /if \(error\) \{[\s\S]*?storage\.from\(OTHER_BUCKET\)\.remove\(\[path\]\)[\s\S]*?return clear\(status, notice\(otherErrorText\(error\)\)\);/);
+    assert.ok(view.indexOf(".remove([r.file_path])") > 0 && view.indexOf(".remove([r.file_path])") < view.indexOf("rpc('kp_other_delete'"), 'file is removed before the record');
+    const sql = read('../../supabase/migrations/20261105091000_kp_other_docs.sql');
+    assert.match(sql, /owner_id = auth\.uid\(\)::text AND NOT EXISTS \(SELECT 1 FROM public\.kp_other_docs AS d WHERE d\.file_path = storage\.objects\.name\)/);
+    assert.match(sql, /OTHER_FILE_STILL_THERE/);
+    assert.match(sql, /kp_other_delete[\s\S]*?FROM storage\.objects AS o WHERE o\.bucket_id = 'kp-other-docs' AND o\.name = v_path[\s\S]*?DELETE FROM public\.kp_other_docs WHERE id = p_id/);
+});
+
+test('kp-other-docs storage policies use the same organisation function everywhere', () => {
+    const sql = read('../../supabase/migrations/20261105091000_kp_other_docs.sql');
+    const policies = sql.slice(sql.indexOf('CREATE POLICY kp_other_docs_storage_select'), sql.indexOf('-- RPC'));
+    assert.equal((policies.match(/public\.kp_org_id\(\)::text/g) || []).length, 3);
+    assert.doesNotMatch(policies, /current_org_id/);
+});

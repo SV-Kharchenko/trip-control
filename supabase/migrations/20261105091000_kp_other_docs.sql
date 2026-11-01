@@ -2,7 +2,7 @@
 -- Вкладка «Документи» → «Інше»: довільні файли (довіреності, страховки, скани) з необов'язковою прив'язкою до клієнта, авто,
 -- водія чи заявки. Таблиця kp_other_docs (читають усі ролі організації; пише лише RPC), приватний бакет kp-other-docs
 -- (10 МБ; PDF, JPG, PNG, Word, Excel), RLS storage за org_id у шляху: читають owner / logist / director, пишуть
--- kp_can_write(), видаляє лише власник. Анулювання — власник, з причиною; файл при цьому лишається.
+-- kp_can_write(); видаляє власник, а автор — лише власний файл, на який ще немає запису (осиротілий після невдалого збереження). Анулювання — власник, з причиною; файл при цьому лишається.
 --
 -- РУЧНИЙ ВІДКАТ (видаляє всі «Інші» документи; файли бакета спершу видаліть через Storage API, не SQL):
 --   DROP POLICY IF EXISTS kp_other_docs_storage_select ON storage.objects;  (так само _insert, _delete)
@@ -81,7 +81,7 @@ CREATE POLICY kp_other_docs_storage_insert ON storage.objects
   WITH CHECK (
     bucket_id = 'kp-other-docs'
     AND name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/file-[0-9a-f-]{36}\.(pdf|jpg|png|doc|docx|xls|xlsx)$'
-    AND split_part(name, '/', 1) = public.current_org_id()::text
+    AND split_part(name, '/', 1) = public.kp_org_id()::text
     AND public.kp_can_write()
   );
 
@@ -91,9 +91,12 @@ CREATE POLICY kp_other_docs_storage_delete ON storage.objects
   USING (
     bucket_id = 'kp-other-docs'
     AND name ~ '/file-[0-9a-f-]{36}\.(pdf|jpg|png|doc|docx|xls|xlsx)$'
-    AND split_part(name, '/', 1) = public.current_org_id()::text
+    AND split_part(name, '/', 1) = public.kp_org_id()::text
     AND public.kp_can_write()
-    AND public.kp_role() = 'owner'
+    AND (
+      public.kp_role() = 'owner'
+      OR (owner_id = auth.uid()::text AND NOT EXISTS (SELECT 1 FROM public.kp_other_docs AS d WHERE d.file_path = storage.objects.name))
+    )
   );
 
 -- ---------------------------------------------------------------------------
@@ -254,7 +257,9 @@ BEGIN
 END;
 $$;
 
--- Видалення запису — лише власник; повертає шлях файлу, який клієнт тут же видаляє через Storage API (політика delete — лише власник).
+-- Видалення запису — лише власник, і лише після файлу: клієнт спершу видаляє файл через Storage API (політика delete), потім викликає
+-- цю функцію. Поки файл ще в бакеті, запис не видаляється (OTHER_FILE_STILL_THERE) — сиріт не лишається. Якщо файл уже видалено,
+-- а запис ще є (збій між кроками), повторний виклик його прибирає. Повертає шлях видаленого файлу.
 CREATE OR REPLACE FUNCTION public.kp_other_delete(p_id uuid)
 RETURNS text
 LANGUAGE plpgsql
@@ -265,10 +270,14 @@ DECLARE
   v_org uuid := public.kp_docs_org('owner');
   v_path text;
 BEGIN
-  DELETE FROM public.kp_other_docs WHERE id = p_id AND org_id = v_org RETURNING file_path INTO v_path;
+  SELECT file_path INTO v_path FROM public.kp_other_docs WHERE id = p_id AND org_id = v_org FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'OTHER_NOT_FOUND' USING ERRCODE = 'P0001';
   END IF;
+  IF EXISTS (SELECT 1 FROM storage.objects AS o WHERE o.bucket_id = 'kp-other-docs' AND o.name = v_path) THEN
+    RAISE EXCEPTION 'OTHER_FILE_STILL_THERE' USING ERRCODE = 'P0001';
+  END IF;
+  DELETE FROM public.kp_other_docs WHERE id = p_id;
   RETURN v_path;
 END;
 $$;

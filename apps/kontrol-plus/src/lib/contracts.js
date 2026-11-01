@@ -5,7 +5,7 @@ export const CONTRACT_BUCKET = 'kp-contracts';
 export const MAX_SCAN_BYTES = 10 * 1024 * 1024;
 export const MAX_SIG_BYTES = 1024 * 1024;
 export const SIGNED_URL_SECONDS = 600;
-export const CONTRACT_STATUS = { draft: 'чернетка', signed: 'підписано', sent: 'надіслано' };
+export const CONTRACT_STATUS = { draft: 'чернетка', signed: 'підписано', sent: 'надіслано', cancelled: 'Анульовано' };
 const SCAN_TYPES = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png' };
 
 export function extOf(name) {
@@ -54,6 +54,7 @@ export function attachmentNames(c) {
 export function contractErrorText(error) {
     const text = String((error && (error.message || error.error)) || error || '');
     if (/MEMBER_PERMISSION_DENIED/.test(text)) return 'Немає права на цю дію (потрібні «Договори» або «Підпис і печатка»). Зверніться до директора.';
+    if (/CONTRACT_CANCELLED/.test(text)) return 'Договір анульовано — надсилати його не можна.';
     if (/CONTRACT_LOCKED/.test(text)) return 'Договір уже підписано — змінити його не можна.';
     if (/CONTRACT_FILE_MISSING/.test(text)) return 'Спершу завантажте скан договору.';
     if (/CONTRACT_FILE_TOO_BIG/.test(text)) return 'Файл більший за 10 МБ.';

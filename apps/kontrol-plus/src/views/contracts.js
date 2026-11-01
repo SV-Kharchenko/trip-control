@@ -140,7 +140,7 @@ export function renderContracts(app, client) {
         const sign = h('button', { type: 'button', class: 'btn' }, 'Підписати печаткою');
         sign.onclick = () => stampSign(c, sign);
         const kepBox = kepPanel(c);
-        const mail = writable && c.file_path
+        const mail = writable && c.file_path && c.status !== 'cancelled'
             ? emailControl(app, { contract: { id: c.id, label: contractLabel(c), files: attachmentNames(c) }, to: client.email || '', clientName: client.name, orgName: (app.context && app.context.org_name) || '', onSent: load, label: 'Надіслати контрагенту' })
             : null;
         const links = [
