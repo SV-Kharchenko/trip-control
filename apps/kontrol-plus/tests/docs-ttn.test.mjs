@@ -1,6 +1,7 @@
 // Етап 4b: Excel (власний OOXML + fflate), захист від formula injection, ТТН (обовʼязкові поля, маса, PDF), «Авто й водії».
 // Усі дані — вигадані.
 import { test } from 'node:test';
+import { cspLines } from './helpers/csp.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -481,8 +482,7 @@ test('package.json: fflate is a dependency (exact version, MIT, no dependencies 
 });
 
 test('vercel.json: the CSP line equals main (4b adds no domains)', { skip: !mainRef && 'no origin/main' }, () => {
-    const csps = (c) => c.headers.flatMap((b) => b.headers.filter((x) => x.key === 'Content-Security-Policy').map((x) => b.source + ' => ' + x.value));
-    assert.deepEqual(csps(JSON.parse(read('vercel.json'))), csps(JSON.parse(git('show', mainRef + ':apps/kontrol-plus/vercel.json'))));
+    assert.deepEqual(cspLines(JSON.parse(read('vercel.json'))), cspLines(JSON.parse(git('show', mainRef + ':apps/kontrol-plus/vercel.json'))));
 });
 
 test('sample waybill: no sample scans in the repository (only invented mock data in tests)', () => {

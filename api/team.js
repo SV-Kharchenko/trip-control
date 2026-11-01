@@ -105,6 +105,8 @@ export function siteUrl(req) {
     return req ? requestOrigin(req, fallback) : fallback;
 }
 
+// Origin береться з запиту (Origin / x-forwarded-host / Host) через allowlist. У GET-списку «Команди» немає заголовка Origin,
+// тож за проксі app → сайт домен береться з x-forwarded-host, інакше це домен сайту (SITE_URL / trip-control.com).
 export function inviteUrl(invite, req) {
     return `${siteUrl(req)}/?team_invite=${encodeURIComponent(signedInviteToken(invite))}`;
 }

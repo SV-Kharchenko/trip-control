@@ -1,5 +1,5 @@
 // Скріншоти 1920×1080 для Microsoft Store: Огляд / Розрахунки / Клієнти / Документи.
-// Playwright + власний Chromium (не системний Chrome). Потрібен вхід: див. public/screenshots/README.md.
+// Playwright + власний Chromium (не системний Chrome). Потрібен вхід: див. store-screenshots/README.md. PNG лежать поза public/, щоб не потрапити в dist і коміт.
 //   node scripts/store-screenshots.mjs --login                    # один раз: вхід вручну, зберігає сесію
 //   node scripts/store-screenshots.mjs [--base https://app.trip-control.com]
 import fs from 'node:fs';
@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT_DIR = path.join(APP_DIR, 'public', 'screenshots');
+const OUT_DIR = path.join(APP_DIR, 'store-screenshots');
 const STATE = process.env.KP_STORAGE_STATE || path.join(APP_DIR, '.store-session.json');
 const args = process.argv.slice(2);
 const arg = (name, fallback) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] ? args[i + 1] : fallback; };

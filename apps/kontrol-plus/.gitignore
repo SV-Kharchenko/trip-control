@@ -5,3 +5,5 @@ dist/
 .vercel
 .site/
 .store-session.json
+store-screenshots/*.png
+store-*.png

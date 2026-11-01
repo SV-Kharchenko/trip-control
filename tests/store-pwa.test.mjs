@@ -47,7 +47,7 @@ test('/support: static page with mailto, links to legal pages, no forms; rewrite
 
 test('store screenshots: Playwright script and README are present, no fake PNGs claimed', () => {
     assert.ok(existsSync(root + 'apps/kontrol-plus/scripts/store-screenshots.mjs'));
-    assert.ok(existsSync(root + 'apps/kontrol-plus/public/screenshots/README.md'));
+    assert.ok(existsSync(root + 'apps/kontrol-plus/store-screenshots/README.md'));
     const script = read('apps/kontrol-plus/scripts/store-screenshots.mjs');
     assert.match(script, /1920/);
     assert.match(script, /1080/);
