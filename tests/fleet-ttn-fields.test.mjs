@@ -107,6 +107,9 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
         t.skip('index.html changes already in main');
         return;
     }
+    // Заміна контактного email (gmail → support@trip-control.com) не стосується картки авто.
+    const changedLines = diff.split('\n').filter((l) => /^[+-](?![+-])/.test(l));
+    if (changedLines.every((l) => /tripcontrol\.com@gmail\.com|support@trip-control\.com/.test(l))) return;
     const lines = html.split('\n');
     const lineOf = (needle) => lines.findIndex((l) => l.includes(needle)) + 1;
     const fleetCode = [lineOf('    let fleetVehicles = [];'), lineOf('    let fleetVehicles = [];') + 4];
