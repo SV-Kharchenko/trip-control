@@ -24,7 +24,7 @@ test('п.1: акт — «Створено» / «Підписано» / «Ану�
 });
 
 test('п.1: міграція підпису акта — окрема таблиця, RPC лише для власника, без прямого доступу', () => {
-    const sql = readRoot('supabase/migrations/20261028100000_kp_act_signatures.sql');
+    const sql = readRoot('supabase/migrations/20261028095418_kp_act_signatures.sql');
     assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.kp_document_signatures/);
     assert.match(sql, /ENABLE ROW LEVEL SECURITY;/);
     assert.match(sql, /v_org uuid := public\.kp_docs_org\('owner'\)/);
@@ -170,7 +170,7 @@ test('п.6: ІПН / РНОКПП — рівно 10 цифр, паспорт і 
 });
 
 test('п.6: міграція деталей водія — окрема таблиця з RLS, читання своєю організацією, запис лише власником, ТТН без нових полів', () => {
-    const sql = readRoot('supabase/migrations/20261028100100_kp_driver_details.sql');
+    const sql = readRoot('supabase/migrations/20261028095424_kp_driver_details.sql');
     assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.kp_driver_details/);
     assert.match(sql, /ENABLE ROW LEVEL SECURITY;/);
     assert.match(sql, /CREATE POLICY kp_driver_details_select ON public\.kp_driver_details\s+FOR SELECT TO authenticated\s+USING \(org_id = public\.current_org_id\(\)\);/);
@@ -237,7 +237,7 @@ test('E: вкладка «Причепи» працює з fleet_trailers, «Д�
     assert.match(form, /rpc\('kp_trailers_list'\)/);
     assert.match(form, /id: 't-trailer'/);
     assert.match(form, /function applyTrailer\(t\)/);
-    const sql = readRoot('supabase/migrations/20261028110000_kp_fleet_trailers.sql');
+    const sql = readRoot('supabase/migrations/20261028095429_kp_fleet_trailers.sql');
     assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.fleet_trailers/);
     assert.match(sql, /ADD COLUMN IF NOT EXISTS default_trailer_id/);
     assert.match(sql, /Відкат/);

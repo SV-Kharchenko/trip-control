@@ -69,8 +69,8 @@ test('п.9: поля повернення редагуються до закри
     assert.deepEqual(closePayload({ return_at: '', return_odometer: '100400', return_fuel_left: '' }), { return_at: null, return_odometer: '100400', return_fuel_left: null });
 });
 
-test('міграція 20261030091000: kp_calc_is_accepted з перевіркою організації, відкат прибирає її, поля повернення зберігаються до закриття', () => {
-    const sql = readRoot('supabase/migrations/20261030091000_kp_trip_sheet_followups.sql');
+test('міграція 20261028140901: kp_calc_is_accepted з перевіркою організації, відкат прибирає її, поля повернення зберігаються до закриття', () => {
+    const sql = readRoot('supabase/migrations/20261028140901_kp_trip_sheet_followups.sql');
     const fn = sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.kp_calc_is_accepted'), sql.indexOf('$$;', sql.indexOf('CREATE OR REPLACE FUNCTION public.kp_calc_is_accepted')));
     assert.ok(fn.includes('c.org_id = public.current_org_id() OR public.is_service_role()'));
     assert.ok(sql.includes('--   DROP FUNCTION IF EXISTS public.kp_calc_is_accepted(uuid);'), 'блок відкату прибирає kp_calc_is_accepted');
@@ -80,5 +80,5 @@ test('міграція 20261030091000: kp_calc_is_accepted з перевірко
     assert.ok(sql.includes("'name', nullif(left(btrim(coalesce(v_inp ->> 'cargoName', '')), 500), '')"));
     assert.ok(sql.includes("'approved_variant', v_calc.approved_variant"));
     // Старі міграції не редагуються.
-    assert.ok(readRoot('supabase/migrations/20261029100000_kp_trip_sheets.sql').includes('SELECT EXISTS (SELECT 1 FROM public.calculations AS c WHERE c.id = p_calculation AND c.status IN (\'accepted\', \'done\'));'));
+    assert.ok(readRoot('supabase/migrations/20261028110121_kp_trip_sheets.sql').includes('SELECT EXISTS (SELECT 1 FROM public.calculations AS c WHERE c.id = p_calculation AND c.status IN (\'accepted\', \'done\'));'));
 });

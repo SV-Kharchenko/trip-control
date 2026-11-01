@@ -30,7 +30,7 @@ SELECT ok(has_table_privilege('authenticated', 'public.fleet_vehicles', 'SELECT'
   'fleet_vehicles: the site grants are unchanged (authenticated CRUD under RLS, anon nothing)');
 SELECT ok((SELECT tgenabled = 'O' FROM pg_trigger WHERE tgname = 'trg_fleet_vehicles_guard')
   AND (SELECT string_agg(tgname, ',' ORDER BY tgname) FROM pg_trigger WHERE tgrelid = 'public.fleet_vehicles'::regclass AND NOT tgisinternal) = 'trg_fleet_vehicles_guard,trg_fleet_vehicles_guard_driver,trg_fleet_vehicles_member_guard,trg_fleet_vehicles_trailer_sync',
-  'fleet_vehicles: the guard trigger (still enabled), the driver-org, the trailer mirror (20261028110000) and the member-permission (20261031090000) triggers only');
+  'fleet_vehicles: the guard trigger (still enabled), the driver-org, the trailer mirror (20261028095429) and the member-permission (20261028155128) triggers only');
 
 -- T: control_plus (owner e001, logist e002, директор e009, менеджер з ремонтів e005); U: control_plus (owner e008);
 -- V: тариф «Компанія» (owner e007).
@@ -73,7 +73,7 @@ VALUES ('92000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-0000000
         'Рейс іншого клієнта', '{"origin":"м. Біла Церква","destination":"м. Умань"}'::jsonb, '{}'::jsonb, 'accepted', DATE '2026-10-21'),
        ('92000000-0000-0000-0000-000000000021', '90000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-00000000e008',
         'Чужий рейс', '{"origin":"A","destination":"B"}'::jsonb, '{}'::jsonb, 'accepted', DATE '2026-10-20');
--- Тригер погодження ставить draft на INSERT; ТТН з рейсу вимагає прийнятої заявки (20261029100000) — приймаємо як сервіс.
+-- Тригер погодження ставить draft на INSERT; ТТН з рейсу вимагає прийнятої заявки (20261028110121) — приймаємо як сервіс.
 ALTER TABLE public.calculations DISABLE TRIGGER trg_calculations_enforce_approval;
 UPDATE public.calculations SET status = 'accepted' WHERE id IN ('92000000-0000-0000-0000-000000000001', '92000000-0000-0000-0000-000000000002', '92000000-0000-0000-0000-000000000021');
 ALTER TABLE public.calculations ENABLE TRIGGER trg_calculations_enforce_approval;

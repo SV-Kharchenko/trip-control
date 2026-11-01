@@ -4,7 +4,7 @@
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtDate, kyivDate, monthRange, daysBetween } from '../lib/format.js';
 import {
-    DOC_KIND_LABELS, PAY_STATUS_LABELS, docStatusKey, docStatusLabel, docsAccess, docErrorText, docNumberText, fmtAmount, isMissingFeature,
+    DOC_KIND_LABELS, docStatusKey, docStatusLabel, docsAccess, docErrorText, docNumberText, fmtAmount, isMissingFeature,
 } from '../lib/docs.js';
 import { ttnErrorText } from '../lib/ttn.js';
 import { tsErrorText } from '../lib/trip-sheet.js';
@@ -18,6 +18,9 @@ import { renderTripSheetForm } from './docs-ts-form.js';
 import { renderTripSheetCard } from './docs-ts-card.js';
 import { requestPicker } from './docs-request-picker.js';
 import { TAB_DOC_KIND, filterRows, rememberDocsList } from '../lib/docs-requests.js';
+import { statusOptions } from '../lib/docs-tabs.js';
+import { renderContractsTab } from './docs-contracts.js';
+import { renderOtherDocs } from './docs-other.js';
 
 export function docsTabs() {
     return [
@@ -33,10 +36,6 @@ export function docsTabs() {
 
 // Кожна вкладка показує свій вид документів: ТТН, акти, рахунки, подорожні листи (вкладка «Усі» — усі разом).
 const TAB_KIND = TAB_DOC_KIND;
-const EMPTY_TABS = {
-    contracts: ['Договорів ще немає', 'Договір із клієнтом з’явиться тут і підтягне реквізити компанії.'],
-    other: ['Тут будуть інші файли', 'Довіреності, страхові поліси, сканкопії — усе, що не потрапляє в інші вкладки.'],
-};
 
 // Документ за id і видом: рахунок / акт — kp_doc_get, ТТН — kp_ttn_get, подорожній лист — kp_trip_sheet_get.
 async function fetchDoc(app, id, kind) {
@@ -153,16 +152,6 @@ export function cancelControl(app, doc, onDone) {
     return box;
 }
 
-function createButtons(clientId) {
-    const tail = clientId ? '/' + clientId : '';
-    return [
-        h('a', { class: 'btn btn-primary', href: '#/docs/new/invoice' + tail }, 'Створити рахунок'),
-        h('a', { class: 'btn btn-primary', href: '#/docs/new/act' + tail }, 'Створити акт'),
-        h('a', { class: 'btn btn-primary', href: '#/docs/new/ttn' + tail }, 'Створити ТТН'),
-        h('a', { class: 'btn btn-primary', href: '#/docs/new/trip_sheet' }, 'Створити подорожній лист'),
-    ];
-}
-
 // ТТН у рядку загального списку (поля як у kp_doc_list; оплат і боргу немає).
 export function ttnListRow(r) {
     return {
@@ -190,25 +179,19 @@ export function ttnStatusFilter(status) {
     return { include: false, value: null };
 }
 
-// Кнопка створення за вкладкою «Документів»: на кожній вкладці — лише свій вид (рахунок, акт, ТТН, подорожній лист), на решті їх немає.
+// Кнопка створення за вкладкою «Документів»: на кожній вкладці — лише свій вид (рахунок, акт, ТТН, подорожній лист), на решті її немає.
+// Створення договорів і файлів «Іншого» живе у власних вкладках (docs-contracts.js, docs-other.js).
+const CREATE_BUTTONS = {
+    invoices: ['#/docs/new/invoice', 'Створити рахунок'],
+    acts: ['#/docs/new/act', 'Створити акт'],
+    ttn: ['#/docs/new/ttn', 'Створити ТТН'],
+    trip_sheets: ['#/docs/new/trip_sheet', 'Створити подорожній лист'],
+};
 export function createButtonsFor(tab) {
-    const all = createButtons();
-    const index = { invoices: 0, acts: 1, ttn: 2, trip_sheets: 3 }[tab];
-    return index === undefined ? [] : [all[index]];
+    const entry = CREATE_BUTTONS[tab];
+    return entry ? [h('a', { class: 'btn btn-primary', href: entry[0] }, entry[1])] : [];
 }
 
-export { createButtons };
-
-const STATUS_FILTERS = [
-    { value: '', label: 'Усі статуси' },
-    { value: 'unpaid', label: 'Неоплачені' },
-    { value: 'issued', label: PAY_STATUS_LABELS.issued },
-    { value: 'closed', label: 'Закрито (подорожній лист)' },
-    { value: 'partial', label: PAY_STATUS_LABELS.partial },
-    { value: 'paid', label: PAY_STATUS_LABELS.paid },
-    { value: 'overdue', label: PAY_STATUS_LABELS.overdue },
-    { value: 'cancelled', label: PAY_STATUS_LABELS.cancelled },
-];
 
 // Підсумки списку окремо за валютами (лише активні рахунки).
 export function listTotals(rows) {
@@ -236,7 +219,7 @@ function renderDocList(app, access, presetKind = '', tab = '') {
     kind.value = presetKind;
     const number = h('input', { type: 'search', placeholder: '№', 'aria-label': 'Номер документа', size: 8 });
     const vehicle = h('input', { type: 'search', placeholder: 'Авто / водій', 'aria-label': 'Авто або водій', size: 12 });
-    const status = h('select', { 'aria-label': 'Статус' }, STATUS_FILTERS.map((s) => h('option', { value: s.value }, s.label)));
+    const status = h('select', { 'aria-label': 'Статус' }, statusOptions(tab || 'all').map(([value, label]) => h('option', { value }, label)));
     const client = h('select', { 'aria-label': 'Клієнт' }, h('option', { value: '' }, 'Усі клієнти'));
     const list = h('div', { class: 'list' }, spinner());
 
@@ -335,7 +318,8 @@ export function renderDocs(app, route) {
     else if (sub === 'doc') body = renderDocCard(app, access, route.id);
     else if (sub === 'ttn') body = renderTtnCard(app, access, route.id);
     else if (sub === 'trip_sheet') body = renderTripSheetCard(app, access, route.id);
-    else if (EMPTY_TABS[route.tab]) body = h('div', { class: 'card' }, h('div', { class: 'empty' }, h('b', null, EMPTY_TABS[route.tab][0]), h('p', { class: 'muted' }, EMPTY_TABS[route.tab][1])));
+    else if (route.tab === 'contracts') body = renderContractsTab(app, access);
+    else if (route.tab === 'other') body = renderOtherDocs(app, access);
     else body = renderDocList(app, access, TAB_KIND[route.tab] || '', route.tab || '');
     return h('section', { class: 'page kpr-page kpd-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'Документи')),

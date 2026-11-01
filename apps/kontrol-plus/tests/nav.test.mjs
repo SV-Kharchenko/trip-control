@@ -107,7 +107,7 @@ test('документи: підвкладки Усі · Договори · Т�
     const labels = [...docs.slice(docs.indexOf('export function docsTabs()'), docs.indexOf('const TAB_KIND')).matchAll(/label: '([^']+)'/g)].map((m) => m[1]);
     assert.deepEqual(labels, ['Усі', 'Договори', 'ТТН', 'Акти', 'Рахунки', 'Подорожні листи', 'Інше']);
     assert.equal(/renderDebts|renderRequisites|renderFleet/.test(docs), false);
-    assert.match(docs, /Договорів ще немає/);
+    assert.match(read('src/views/docs-contracts.js'), /Договорів ще немає/);
     assert.match(docs, /TAB_KIND = TAB_DOC_KIND/);
 });
 

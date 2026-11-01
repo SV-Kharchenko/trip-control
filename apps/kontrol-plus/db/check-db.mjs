@@ -71,7 +71,7 @@ CREATE SCHEMA storage;
 CREATE TABLE storage.buckets (id text PRIMARY KEY, name text NOT NULL, owner uuid, public boolean DEFAULT false,
   file_size_limit bigint, allowed_mime_types text[], created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now());
 CREATE TABLE storage.objects (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), bucket_id text REFERENCES storage.buckets (id),
-  name text NOT NULL, owner uuid, metadata jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(),
+  name text NOT NULL, owner uuid, owner_id text, metadata jsonb, created_at timestamptz DEFAULT now(), updated_at timestamptz DEFAULT now(),
   UNIQUE (bucket_id, name));
 ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
@@ -106,10 +106,10 @@ await db.exec(docsSql);
 check(DOCS > MAINT && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(docsSql)
     && !docsSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
 'documents: ' + DOCS + ' (after ' + MAINT + ') applied three times (idempotent), manual-apply header, no CREATE EXTENSION');
-const bucket = await one(`SELECT public, file_size_limit, allowed_mime_types::text AS mimes, (SELECT count(*)::int FROM storage.buckets WHERE id <> 'kp-contracts') AS n FROM storage.buckets WHERE id = 'kp-doc-assets'`);
+const bucket = await one(`SELECT public, file_size_limit, allowed_mime_types::text AS mimes, (SELECT count(*)::int FROM storage.buckets WHERE id NOT IN ('kp-contracts', 'kp-other-docs')) AS n FROM storage.buckets WHERE id = 'kp-doc-assets'`);
 check(bucket && bucket.public === false && Number(bucket.file_size_limit) === 524288 && bucket.mimes === '{image/png,image/jpeg}' && bucket.n === 1,
     'documents: private bucket kp-doc-assets (512 KB, PNG / JPEG) created once', JSON.stringify(bucket));
-const storagePolicies = (await db.query(`SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND policyname NOT LIKE 'kp_contracts_%' ORDER BY 1`)).rows.map((r) => r.policyname);
+const storagePolicies = (await db.query(`SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND policyname NOT LIKE 'kp_contracts_%' AND policyname NOT LIKE 'kp_other_docs_%' ORDER BY 1`)).rows.map((r) => r.policyname);
 check(storagePolicies.join(',') === 'kp_doc_assets_delete,kp_doc_assets_insert,kp_doc_assets_select,kp_doc_assets_update',
     'documents: exactly four own storage.objects policies', storagePolicies.join(','));
 // Нумерація: рядок лічильника блокується до кінця транзакції (INSERT … ON CONFLICT DO UPDATE … RETURNING) — у PGlite
@@ -731,8 +731,8 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
 
 // Пакет 28.10: деталі водія (персональні дані) і підпис акта. Усі дані вигадані.
 {
-    const detailsSql = fs.readFileSync(new URL('20261028100100_kp_driver_details.sql', DIR), 'utf8');
-    const signSql = fs.readFileSync(new URL('20261028100000_kp_act_signatures.sql', DIR), 'utf8');
+    const detailsSql = fs.readFileSync(new URL('20261028095424_kp_driver_details.sql', DIR), 'utf8');
+    const signSql = fs.readFileSync(new URL('20261028095418_kp_act_signatures.sql', DIR), 'utf8');
     await db.exec(detailsSql);
     await db.exec(signSql);
     check(true, 'batch: both migrations re-applied (idempotent)');
@@ -801,7 +801,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
 
 // Пакет 28.10 (правка E): причепи — окрема таблиця fleet_trailers. Усі дані вигадані.
 {
-    const trailersSql = fs.readFileSync(new URL('20261028110000_kp_fleet_trailers.sql', DIR), 'utf8');
+    const trailersSql = fs.readFileSync(new URL('20261028095429_kp_fleet_trailers.sql', DIR), 'utf8');
     const T1 = '20000000-0000-4000-8000-0000000000e1', T2 = '20000000-0000-4000-8000-0000000000e2', T3 = '20000000-0000-4000-8000-0000000000e3';
     // «Старі» дані: тягачі з причепом у колонках trailer_* без зв'язку (тригер дзеркала вимкнено, як було до міграції).
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
@@ -905,22 +905,22 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
         'trailers rollback: the header block removes the helper functions too');
     const keep = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n;
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
-    // Подорожній лист (20261029100000) посилається на fleet_trailers: відкат причепів — після відкату листів.
+    // Подорожній лист (20261028110121) посилається на fleet_trailers: відкат причепів — після відкату листів.
     await db.exec('DROP TABLE IF EXISTS public.kp_doc_trip_sheet');
     await db.exec(rollback);
     const gone = await one(`SELECT (SELECT count(*)::int FROM pg_proc WHERE proname IN ('kp_plate_norm', 'fleet_trailers_guard', 'fleet_vehicles_trailer_sync', 'fleet_trailers_after', 'kp_trailers_list', 'kp_trailer_save')) AS fns, to_regclass('public.fleet_trailers') AS tbl, (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'fleet_vehicles' AND column_name = 'default_trailer_id') AS col`);
     check(gone.fns === 0 && gone.tbl === null && gone.col === 0, 'trailers rollback: table, column, triggers and functions are gone', JSON.stringify(gone));
     check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
     await db.exec(trailersSql);
-    await db.exec(fs.readFileSync(new URL('20261029100000_kp_trip_sheets.sql', DIR), 'utf8'));
-    await db.exec(fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8'));
+    await db.exec(fs.readFileSync(new URL('20261028110121_kp_trip_sheets.sql', DIR), 'utf8'));
+    await db.exec(fs.readFileSync(new URL('20261028140901_kp_trip_sheet_followups.sql', DIR), 'utf8'));
     const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
     check(back >= 3, 'trailers rollback: re-applying the migration rebuilds fleet_trailers from the kept columns', String(back));
 }
 
-// Подорожній лист (kp_doc_trip_sheet, 20261029100000). Усі дані вигадані.
+// Подорожній лист (kp_doc_trip_sheet, 20261028110121). Усі дані вигадані.
 {
-    const tsSql = fs.readFileSync(new URL('20261029100000_kp_trip_sheets.sql', DIR), 'utf8');
+    const tsSql = fs.readFileSync(new URL('20261028110121_kp_trip_sheets.sql', DIR), 'utf8');
     await db.exec(tsSql);
     check(true, 'trip sheet: migration re-applied (idempotent)');
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
@@ -1005,9 +1005,9 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check(lst.ok && lst.rows.map((r) => r.status + ':' + r.n).join() === 'cancelled:1,closed:1,issued:1', 'trip sheet: the list shows all statuses', lst.message);
     check((await user(DIR1)(`SELECT count(*)::int AS n FROM public.kp_trip_sheet_list('2026-10-01', '2026-10-31', 'closed')`)).rows[0].n === 1, 'trip sheet: the status filter works');
 
-    // Доробки 20261030091000: поля повернення зберігаються до закриття, норма без пробігу з вантажем, kp_calc_is_accepted по організації.
+    // Доробки 20261028140901: поля повернення зберігаються до закриття, норма без пробігу з вантажем, kp_calc_is_accepted по організації.
     {
-        const followSql = fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8');
+        const followSql = fs.readFileSync(new URL('20261028140901_kp_trip_sheet_followups.sql', DIR), 'utf8');
         await db.exec(followSql);
         check(true, 'trip sheet follow-ups: migration re-applied (idempotent)');
         const retId = (await create(OA)).rows[0].id;
@@ -1092,8 +1092,8 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const rbFrom = tl.findIndex((l) => l === '--   BEGIN;');
     const rbTo = tl.findIndex((l) => l === '--   COMMIT;');
     const rollback = tl.slice(rbFrom, rbTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
-    // Спершу блок «Повний відкат» з доробок 20261030091000, потім відкат із шапки 20261029100000.
-    const followText = fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8');
+    // Спершу блок «Повний відкат» з доробок 20261028140901, потім відкат із шапки 20261028110121.
+    const followText = fs.readFileSync(new URL('20261028140901_kp_trip_sheet_followups.sql', DIR), 'utf8');
     const fl = followText.split(String.fromCharCode(10));
     const frFrom = fl.findIndex((l) => l === '--   BEGIN;');
     const frTo = fl.findIndex((l) => l === '--   COMMIT;');
@@ -1142,9 +1142,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     // Подача — один раз на авто заявки (computeTrip у зрізі: podachaDist × carsCount, carsCount = 1).
     check(basis.podachaKm === (Number(body.podachaDist) || 0) * body.vehicles.length, `trip km: feed = podachaDist × vehicles (${name}): ${basis.podachaKm}`);
 }
-// Погоджений варіант маршруту (20261030090000): пише лише сервіс, клієнт ні вставити, ні змінити не може.
+// Погоджений варіант маршруту (20261028140854): пише лише сервіс, клієнт ні вставити, ні змінити не може.
 {
-    const variantSql = fs.readFileSync(new URL('20261030090000_calc_approved_variant.sql', DIR), 'utf8');
+    const variantSql = fs.readFileSync(new URL('20261028140854_calc_approved_variant.sql', DIR), 'utf8');
     await db.exec(variantSql);
     check(true, 'approved variant: migration re-applied (idempotent)');
     const forged = await user(OA)(`INSERT INTO public.calculations (user_id, org_id, name, inputs, results, approved_variant)
@@ -1164,9 +1164,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(recalc.ok && Number(recalc.rows[0].distance_km) === 884 && Number(recalc.rows[0].profit) === 4400, 'approved variant: km and profit follow the approved variant', recalc.message || JSON.stringify(recalc.rows));
     await service(`DELETE FROM public.calculations WHERE id = $1`, [variantCalc]);
 }
-// Кабінет директора (20261031090000): права учасників на сервері і сповіщення директору.
+// Кабінет директора (20261028155128): права учасників на сервері і сповіщення директору.
 {
-    const cabinetSql = fs.readFileSync(new URL('20261031090000_director_cabinet.sql', DIR), 'utf8');
+    const cabinetSql = fs.readFileSync(new URL('20261028155128_director_cabinet.sql', DIR), 'utf8');
     // Попередні блоки перевиконували 4a / 4b: наша міграція йде останньою, як і на проді (двічі — ідемпотентність).
     await db.exec(cabinetSql);
     await db.exec(cabinetSql);
@@ -1333,9 +1333,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     const marked = await service(`UPDATE public.org_notifications SET read_at = now(), read_by = $1 WHERE kind = 'approval_pending' RETURNING read_at`, [OA]);
     check(marked.ok && marked.rows[0].read_at, 'director cabinet: the service marks a notification as read', marked.message);
 }
-// Відправка документів на пошту (20261101090000): контекст перевірок, журнал, сповіщення директору.
+// Відправка документів на пошту (20261030080530): контекст перевірок, журнал, сповіщення директору.
 {
-    const emailSql = fs.readFileSync(new URL('20261101090000_kp_doc_email.sql', DIR), 'utf8');
+    const emailSql = fs.readFileSync(new URL('20261030080530_kp_doc_email.sql', DIR), 'utf8');
     await db.exec(emailSql);
     await db.exec(emailSql);
     check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(emailSql) && /РУЧНИЙ ВІДКАТ/.test(emailSql),
@@ -1444,9 +1444,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(!memberClient.ok && memberClient.code === '42501', 'doc email limit: kp_is_org_member is not callable from the client', memberClient.message);
     await setActs(true);
 }
-// Договори (20261102090000): права «Договори» / «Підпис і печатка», приватний бакет, RLS storage за org_id у шляху, підписання, пошта.
+// Договори (20261030081043): права «Договори» / «Підпис і печатка», приватний бакет, RLS storage за org_id у шляху, підписання, пошта.
 {
-    const contractsSql = fs.readFileSync(new URL('20261102090000_kp_contracts.sql', DIR), 'utf8');
+    const contractsSql = fs.readFileSync(new URL('20261030081043_kp_contracts.sql', DIR), 'utf8');
     await db.exec(contractsSql);
     await db.exec(contractsSql);
     check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(contractsSql) && /РУЧНИЙ ВІДКАТ/.test(contractsSql),
@@ -1628,9 +1628,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(denied(scanCtxNoRight), 'contracts: scan context needs the "contracts" right', scanCtxNoRight.message);
     await perms({ sign: true, contracts: true });
 }
-// Документи з заявки (20261104090000): список прийнятих заявок, документи заявки, рядки лише з прийнятої заявки своєї організації.
+// Документи з заявки (20261030140232): список прийнятих заявок, документи заявки, рядки лише з прийнятої заявки своєї організації.
 {
-    const reqSql = fs.readFileSync(new URL('20261104090000_kp_docs_from_requests.sql', DIR), 'utf8');
+    const reqSql = fs.readFileSync(new URL('20261030140232_kp_docs_from_requests.sql', DIR), 'utf8');
     await db.exec(reqSql);
     await db.exec(reqSql);
     check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(reqSql) && /РУЧНИЙ ВІДКАТ/.test(reqSql),
@@ -1677,6 +1677,26 @@ for (const [index, [name, extra]] of planCases.entries()) {
         const anon = await as('anon', null, `SELECT 1 FROM public.${fn.split('(')[0]}(${fn.includes('text') ? 'NULL' : '$1'})`, fn.includes('text') ? [] : [RAC]);
         check(!anon.ok, 'requests: ' + fn + ' is not callable by anon', anon.message);
     }
+}
+// «Документи»: реєстр договорів і вкладка «Інше» (20261105090000 / 20261105091000): повторне застосування, pgTAP kp_docs_polish.sql.
+{
+    for (const name of ['20261105090000_kp_contracts_register.sql', '20261105091000_kp_other_docs.sql', '20261106090000_kp_contract_cancelled_guards.sql']) {
+        const sql = fs.readFileSync(new URL(name, DIR), 'utf8');
+        await db.exec(sql);
+        await db.exec(sql);
+        check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(sql) && /РУЧНИЙ ВІДКАТ/.test(sql),
+            'docs polish: ' + name + ' re-applied (idempotent), manual-apply header and manual rollback');
+    }
+    const pTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_docs_polish.sql', import.meta.url), 'utf8')
+        .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+    const pPlanned = Number((pTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+    const pBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+    await db.exec(pTapSql);
+    const pTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(pBefore);
+    for (const row of pTap) check(row.ok, 'pgTAP kp_docs_polish.sql: ' + row.label);
+    check(pTap.length === pPlanned, `pgTAP kp_docs_polish.sql: ran ${pTap.length} of plan(${pPlanned})`);
+    const bucket = await one(`SELECT public, file_size_limit FROM storage.buckets WHERE id = 'kp-other-docs'`);
+    check(bucket && bucket.public === false && Number(bucket.file_size_limit) === 10485760, 'docs polish: kp-other-docs is private, 10 MB');
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 

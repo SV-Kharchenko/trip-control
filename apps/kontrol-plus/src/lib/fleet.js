@@ -70,7 +70,7 @@ export function validateVehicleTtn(input) {
 const DRIVER_LICENSE = /^[0-9A-ZА-ЯҐЄІЇ]{1,30}$/;
 
 // Персональні дані водія (картка водія): телефон, паспорт, ІПН / РНОКПП (рівно 10 цифр), адреса. У ТТН не потрапляють.
-// Ті самі правила, що в CHECK-обмеженнях і kp_driver_details_save (міграція 20261028100100).
+// Ті самі правила, що в CHECK-обмеженнях і kp_driver_details_save (міграція 20261028095424).
 export function validateDriverDetails(input) {
     const errors = {};
     const src = input || {};

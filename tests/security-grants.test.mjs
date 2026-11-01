@@ -65,6 +65,17 @@ test('earlier migrations are not edited by this change', () => {
         ['supabase/migrations/20261025120000_kp_documents.sql', 'supabase/migrations/20261026072759_kp_documents.sql'],
         ['supabase/migrations/20261026120000_kp_docs_ttn.sql', 'supabase/migrations/20261026130623_kp_docs_ttn.sql'],
         ['supabase/migrations/20261027120000_calc_approvals.sql', 'supabase/migrations/20261027140559_calc_approvals.sql'],
+        ['supabase/migrations/20261028100000_kp_act_signatures.sql', 'supabase/migrations/20261028095418_kp_act_signatures.sql'],
+        ['supabase/migrations/20261028100100_kp_driver_details.sql', 'supabase/migrations/20261028095424_kp_driver_details.sql'],
+        ['supabase/migrations/20261028110000_kp_fleet_trailers.sql', 'supabase/migrations/20261028095429_kp_fleet_trailers.sql'],
+        ['supabase/migrations/20261030090000_calc_approved_variant.sql', 'supabase/migrations/20261028140854_calc_approved_variant.sql'],
+        ['supabase/migrations/20261030091000_kp_trip_sheet_followups.sql', 'supabase/migrations/20261028140901_kp_trip_sheet_followups.sql'],
+        ['supabase/migrations/20261031090000_director_cabinet.sql', 'supabase/migrations/20261028155128_director_cabinet.sql'],
+        ['supabase/migrations/20261101090000_kp_doc_email.sql', 'supabase/migrations/20261030080530_kp_doc_email.sql'],
+        ['supabase/migrations/20261102090000_kp_contracts.sql', 'supabase/migrations/20261030081043_kp_contracts.sql'],
+        ['supabase/migrations/20261103090000_kp_mail_org_name.sql', 'supabase/migrations/20261030094515_kp_mail_org_name.sql'],
+        ['supabase/migrations/20261029100000_kp_trip_sheets.sql', 'supabase/migrations/20261028110121_kp_trip_sheets.sql'],
+        ['supabase/migrations/20261104090000_kp_docs_from_requests.sql', 'supabase/migrations/20261030140232_kp_docs_from_requests.sql'],
     ];
     const sameBlob = (from, to) => {
         try {
