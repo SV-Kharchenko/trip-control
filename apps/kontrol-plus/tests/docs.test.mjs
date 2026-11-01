@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { cspLines } from './helpers/csp.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -317,14 +318,13 @@ const STRICT_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; fon
     + "manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 test('vercel.json: CSP unchanged (same strings as main); no blob: in the strict img-src, no new domains', () => {
     const cfg = JSON.parse(read('vercel.json'));
-    const csps = (c) => c.headers.flatMap((b) => b.headers.filter((x) => x.key === 'Content-Security-Policy').map((x) => b.source + ' => ' + x.value));
-    const now = csps(cfg);
+    const now = cspLines(cfg);
     assert.equal(now.length, 2);
     assert.ok(now.some((line) => line.endsWith(' => ' + STRICT_CSP)), 'strict CSP as before');
     let main = null;
     try {
         main = JSON.parse(execFileSync('git', ['show', 'origin/main:apps/kontrol-plus/vercel.json'], { cwd: new URL('.', APP), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
     } catch { /* без origin/main — лише константа */ }
-    if (main) assert.deepEqual(now, csps(main), 'CSP headers equal origin/main');
+    if (main) assert.deepEqual(now, cspLines(main), 'CSP headers equal origin/main');
     assert.doesNotMatch(STRICT_CSP, /blob:|unsafe-inline|unsafe-eval|bank\.gov\.ua/);
 });

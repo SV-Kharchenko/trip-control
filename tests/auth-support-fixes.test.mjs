@@ -131,7 +131,7 @@ test('5: the Telegram signup alert is sent by the server, once, and never blocks
 test('6: help opens a support modal instead of mailto', () => {
     const modal = sliceBetween(html, '<div id="tc-help-modal"', '<div id="tc-toast"');
     assert.match(modal, /role="dialog" aria-modal="true"/);
-    assert.match(modal, /href="mailto:tripcontrol\.com@gmail\.com"/);
+    assert.match(modal, /href="mailto:support@trip-control.com"/);
     assert.match(modal, /href="tel:\+380966888252"/);
     assert.match(modal, /Viber · Telegram · WhatsApp/);
     assert.match(modal, /href="viber:\/\/chat\?number=%2B380966888252"/);
@@ -139,7 +139,7 @@ test('6: help opens a support modal instead of mailto', () => {
     assert.match(modal, /href="https:\/\/wa\.me\/380966888252"/);
     assert.match(modal, /onclick="if \(event\.target === this\) closeHelpModal\(\)"/);
     assert.match(modal, /class="tc-modal-close" aria-label="Закрити" onclick="closeHelpModal\(\)">✕</);
-    assert.equal(html.includes('support@trip-control.com'), false);
+    assert.equal(html.includes('tripcontrol.com@gmail.com'), false);
     const keys = sliceBetween(html, 'function closeHelpModal()', 'function openCabinetTab(');
     assert.match(keys, /event\.key === 'Escape'/);
     assert.match(html, /@media \(max-width: 480px\) \{\n\s+\.tc-modal \{ align-items: flex-end;/);
@@ -243,7 +243,7 @@ test('11: admins set one status per user and a blocked user is stopped everywher
     assert.match(crm, /Блок org/);
     assert.equal(html.includes('adminSetApproved'), false);
 
-    assert.match(html, /function accountBlockedHtml\(\)[\s\S]*?Акаунт заблоковано, зверніться в підтримку\.[\s\S]*?tripcontrol\.com@gmail\.com[\s\S]*?\+380966888252/);
+    assert.match(html, /function accountBlockedHtml\(\)[\s\S]*?Акаунт заблоковано, зверніться в підтримку\.[\s\S]*?support@trip-control.com[\s\S]*?\+380966888252/);
     assert.match(html, /errInfo\.code === 'USER_BLOCKED'\) \{\n\s+showAccountBlocked\(\);/);
     assert.match(html, /if \(authUserBlocked\(session\.user\)\) \{\n\s+showAccountBlocked\(\);/);
     assert.match(html, /if \(error && isBannedAuthError\(error\)\) \{\n\s+authMsg\.innerHTML = accountBlockedHtml\(\);/);

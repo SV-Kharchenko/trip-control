@@ -5,6 +5,7 @@ import { buildInviteEmail, joinedMessage, sendInviteEmail } from '../lib/invite-
 import { sendTelegram, statusKeyboard } from '../lib/signup-notify.js';
 import { cleanRejectReason, planDelete, planTransition } from '../lib/approvals.js';
 import { recalculateRequest } from './calculate.js';
+import { requestOrigin } from '../lib/request-origin.js';
 
 // Logist seats only. The owner is a fourth person and does not consume one.
 const MAX_TEAM_SEATS = 3;
@@ -95,17 +96,19 @@ export function validEmail(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(value || '').trim());
 }
 
-export function siteUrl() {
+export function siteUrl(req) {
     const configured = String(process.env.SITE_URL || 'https://trip-control.com').trim();
+    let fallback = 'https://trip-control.com';
     try {
-        return new URL(configured).origin;
-    } catch {
-        return 'https://trip-control.com';
-    }
+        fallback = new URL(configured).origin;
+    } catch { /* default */ }
+    return req ? requestOrigin(req, fallback) : fallback;
 }
 
-export function inviteUrl(invite) {
-    return `${siteUrl()}/?team_invite=${encodeURIComponent(signedInviteToken(invite))}`;
+// Origin береться з запиту (Origin / x-forwarded-host / Host) через allowlist. У GET-списку «Команди» немає заголовка Origin,
+// тож за проксі app → сайт домен береться з x-forwarded-host, інакше це домен сайту (SITE_URL / trip-control.com).
+export function inviteUrl(invite, req) {
+    return `${siteUrl(req)}/?team_invite=${encodeURIComponent(signedInviteToken(invite))}`;
 }
 
 export function canInviteRole(actorRole, invitedRole) {
@@ -375,7 +378,7 @@ export function createTeamService(deps) {
                 return {
                     ...invite,
                     status,
-                    invite_url: status === 'accepted' ? '' : inviteUrl(invite)
+                    invite_url: status === 'accepted' ? '' : inviteUrl(invite, actor.req)
                 };
             });
         }
@@ -519,7 +522,7 @@ export function createTeamService(deps) {
             actor.profile.organizations.work_mode = 'team';
         }
 
-        const url = inviteUrl(invite);
+        const url = inviteUrl(invite, actor.req);
         const delivery = await deliverInvite(invite, url, actor);
 
         await audit(actor.user.id, orgId, 'invite_member', 'org_invites', invite.id, {
@@ -920,7 +923,7 @@ export function createTeamService(deps) {
             throw new HttpError(409, 'INVITE_CHANGED', 'Запрошення вже прийнято або відкликано.');
         }
 
-        const url = inviteUrl(invite);
+        const url = inviteUrl(invite, actor.req);
         const delivery = await deliverInvite(invite, url, actor);
         await audit(actor.user.id, actor.profile.org_id, 'resend_invite', 'org_invites', invite.id, {
             delivery,
@@ -1303,6 +1306,7 @@ export function createTeamHandler(deps) {
             const actor = await service.requireUser(req, {
                 allowDisabled: req.method === 'POST' && INVITEE_ACTIONS.has(action)
             });
+            actor.req = req;
 
             if (req.method === 'GET') {
                 return res.status(200).json(await service.listTeam(actor));

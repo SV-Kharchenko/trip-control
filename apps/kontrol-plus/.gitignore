@@ -4,3 +4,6 @@ dist/
 .env.*
 .vercel
 .site/
+.store-session.json
+store-screenshots/*.png
+store-*.png

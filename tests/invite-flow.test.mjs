@@ -174,8 +174,8 @@ function world() {
     const env = { ...ENV };
     const clock = { now: NOW };
     const handler = team.createTeamHandler({ supabase: fakeSupabase(state, calls), fetch, env, now: () => clock.now, mailTimeoutMs: 30 });
-    async function call(method, body, session) {
-        const req = { method, body, headers: session ? { authorization: 'Bearer ' + session } : {} };
+    async function call(method, body, session, extraHeaders = {}) {
+        const req = { method, body, headers: { ...(session ? { authorization: 'Bearer ' + session } : {}), ...extraHeaders } };
         let status = 0;
         let json = null;
         const res = { status(code) { status = code; return this; }, json(payload) { json = payload; return this; } };
@@ -657,4 +657,18 @@ test('accept_org_invite on Postgres: empty company removed, company with data ke
     assert.match(run.stdout, /PASS seat trigger: live invites still hold seats/);
     assert.match(run.stdout, /PASS declined invite: INVITE_DECLINED/);
     assert.match(run.stdout, /PASS fourth logist: MEMBER_LIMIT/);
+});
+
+test('invite link uses the app origin when asked from app.trip-control.com; foreign Host falls back to SITE_URL/prod', async () => {
+    const w = world();
+    const fromApp = await w.call('POST', { action: 'invite', email: 'app-invitee@example.com' }, 'owner', { origin: 'https://app.trip-control.com' });
+    assert.equal(fromApp.status, 200, JSON.stringify(fromApp.json));
+    assert.match(fromApp.json.invite_url, /^https:\/\/app\.trip-control\.com\/\?team_invite=v2\./);
+    assert.ok(w.mails().at(-1).body.html.includes('https://app.trip-control.com/?team_invite='));
+    const spoofed = await w.call('POST', { action: 'invite', email: 'spoof@example.com' }, 'owner', { host: 'evil.example.com' });
+    assert.equal(spoofed.status, 200, JSON.stringify(spoofed.json));
+    assert.match(spoofed.json.invite_url, /^https:\/\/trip-control\.com\/\?team_invite=v2\./);
+    const list = await w.call('GET', undefined, 'owner', { 'x-forwarded-host': 'app.trip-control.com' });
+    assert.ok(list.json.invites.length > 0);
+    assert.ok(list.json.invites.every((invite) => invite.invite_url.startsWith('https://app.trip-control.com/?team_invite=')));
 });

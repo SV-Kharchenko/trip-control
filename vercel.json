@@ -7,7 +7,8 @@
   "rewrites": [
     { "source": "/offer", "destination": "/legal/offer.html" },
     { "source": "/privacy", "destination": "/legal/privacy.html" },
-    { "source": "/payment-refund", "destination": "/legal/payment-refund.html" }
+    { "source": "/payment-refund", "destination": "/legal/payment-refund.html" },
+    { "source": "/support", "destination": "/legal/support.html" }
   ],
   "crons": [
     {

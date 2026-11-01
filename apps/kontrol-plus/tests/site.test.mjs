@@ -91,7 +91,7 @@ const cfg = JSON.parse(read('vercel.json'));
 const headersFor = (pathname, key) => cfg.headers
     .filter((block) => sourceRegex(block.source).test(pathname))
     .flatMap((block) => block.headers.filter((h) => h.key === key).map((h) => h.value));
-const SITE_PAGES = ['/', '/index.html', '/offer', '/privacy', '/payment-refund', '/legal/offer.html', '/legal/privacy.html'];
+const SITE_PAGES = ['/', '/index.html', '/offer', '/privacy', '/payment-refund', '/support', '/legal/offer.html', '/legal/privacy.html'];
 const APP_FILES = ['/sw.js', '/offline.html', '/manifest.webmanifest', '/kp-entry.js', '/kp-assets/site-bridge-x.js', '/assets/landing.js', '/icons/icon-192.png'];
 
 test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrites match the site', () => {

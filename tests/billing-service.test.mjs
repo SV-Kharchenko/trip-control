@@ -19,7 +19,7 @@ function world(envExtra = {}, netOptions = {}) {
         await handler(request(method, route, options), res);
         return res;
     }
-    const pay = (body, token = 'owner') => call('POST', 'create-invoice', { token, body });
+    const pay = (body, token = 'owner', headers) => call('POST', 'create-invoice', { token, body, headers });
     const consent = { consent: true, legal_version: LEGAL_VERSION };
     async function monoHook(payload, signWith = key) {
         const raw = JSON.stringify(payload);
@@ -463,4 +463,43 @@ test('mono webhook: unknown invoiceId → fallback by reference for a payment wi
     assert.equal(q.provider_invoice_id, 'inv_1');
     assert.equal(q.status, 'pending');
     assert.equal(v.store.db.events.length, 0);
+});
+
+test('returnUrl follows the request origin from the allowlist; foreign Host falls back to PUBLIC_BASE_URL', async () => {
+    const cases = [
+        [{ origin: 'https://app.trip-control.com' }, 'https://app.trip-control.com'],
+        [{ 'x-forwarded-host': 'app.trip-control.com' }, 'https://app.trip-control.com'],
+        [{ host: 'www.trip-control.com' }, 'https://www.trip-control.com'],
+        [{ host: 'evil.example.com' }, 'https://trip-control.com'],
+        [{ origin: 'https://trip-control.com.evil.example' }, 'https://trip-control.com'],
+        [{ host: 'my-preview.vercel.app' }, 'https://trip-control.com'],
+        [{ host: 'localhost:3000' }, 'https://trip-control.com'],
+        [{}, 'https://trip-control.com']
+    ];
+    for (const [headers, origin] of cases) {
+        const w = world();
+        const mono = await w.pay(Object.assign({ plan: 'year', provider: 'mono' }, w.consent), 'owner', headers);
+        assert.equal(mono.statusCode, 200, JSON.stringify(mono.body));
+        const sent = JSON.parse(w.net.calls.find((c) => c.url.endsWith('/invoice/create')).body);
+        const pid = w.store.db.payments[0].id;
+        assert.equal(sent.redirectUrl, origin + '/api/billing/return?pid=' + pid, JSON.stringify(headers));
+        // Вебхук лишається на PUBLIC_BASE_URL.
+        assert.equal(sent.webHookUrl, 'https://trip-control.com/api/billing/mono-webhook');
+    }
+    const w = world({ PUBLIC_BASE_URL: 'https://www.trip-control.com' });
+    await w.pay(Object.assign({ plan: 'year', provider: 'mono' }, w.consent), 'owner', { host: 'evil.example.com' });
+    const sent = JSON.parse(w.net.calls.find((c) => c.url.endsWith('/invoice/create')).body);
+    assert.match(sent.redirectUrl, /^https:\/\/www\.trip-control\.com\/api\/billing\/return/);
+});
+
+test('WayForPay returnUrl follows app origin, serviceUrl stays on PUBLIC_BASE_URL', async () => {
+    const w = world();
+    const res = await w.pay(Object.assign({ plan: 'month', provider: 'wayforpay' }, w.consent), 'owner', { origin: 'https://app.trip-control.com' });
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    const url = String(res.body.url || '');
+    assert.ok(url.length > 0);
+    const call = w.net.calls.find((c) => c.url.includes('wayforpay.com'));
+    const form = new URLSearchParams(String(call.body));
+    assert.equal(form.get('returnUrl'), 'https://app.trip-control.com/api/billing/return?pid=' + w.store.db.payments[0].id);
+    assert.equal(form.get('serviceUrl'), 'https://trip-control.com/api/billing/wayforpay-webhook');
 });

@@ -55,12 +55,13 @@ test('three legal pages: full page around <article class="legal-doc">, canonical
     }
 });
 
-test('vercel.json: three rewrites to legal/*.html, headers and CSP untouched', () => {
+test('vercel.json: rewrites to legal/*.html, headers and CSP untouched', () => {
     const config = JSON.parse(read('vercel.json'));
     assert.deepEqual(config.rewrites, [
         { source: '/offer', destination: '/legal/offer.html' },
         { source: '/privacy', destination: '/legal/privacy.html' },
-        { source: '/payment-refund', destination: '/legal/payment-refund.html' }
+        { source: '/payment-refund', destination: '/legal/payment-refund.html' },
+        { source: '/support', destination: '/legal/support.html' }
     ]);
     const csp = config.headers[0].headers.find((h) => h.key === 'Content-Security-Policy').value;
     assert.match(csp, /^default-src 'self'; script-src 'self' 'unsafe-inline'/);
@@ -128,7 +129,7 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(read('404.html'), /<html lang="uk" data-theme="dark">/);
     assert.match(reference, /Оплата карткою через plata by mono та WayForPay · Apple Pay \/ Google Pay/);
     assert.equal(reference.includes('monobank'), false);
-    assert.match(reference, /ФОП Харченко Святослав Вікторович · <a href="mailto:tripcontrol\.com@gmail\.com">tripcontrol\.com@gmail\.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
+    assert.match(reference, /ФОП Харченко Святослав Вікторович · <a href="mailto:support@trip-control.com">support@trip-control.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
     // Landing, auth screen, menu, bottom of the app, bottom of the cabinet.
     assert.equal(footersOf(html).length, 5);
     const landingFooters = footersOf(sliceBetween(html, '<div id="landing-screen" hidden>', '<div id="auth-screen">'));
