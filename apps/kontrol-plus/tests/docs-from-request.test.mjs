@@ -119,7 +119,7 @@ test('route from the request: the variant picked by the director wins over the l
 });
 
 test('server: the migration lists accepted requests, links documents to requests and refuses non-accepted ones', () => {
-    const sql = read('../../supabase/migrations/20261104090000_kp_docs_from_requests.sql');
+    const sql = read('../../supabase/migrations/20261030140232_kp_docs_from_requests.sql');
     assert.match(sql, /^-- Apply manually after review\. This file is not applied to production by the agent\./);
     assert.match(sql, /РУЧНИЙ ВІДКАТ/);
     assert.match(sql, /c\.status IN \('accepted', 'done'\)/);

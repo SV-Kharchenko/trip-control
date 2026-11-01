@@ -80,5 +80,5 @@ test('міграція 20261030091000: kp_calc_is_accepted з перевірко
     assert.ok(sql.includes("'name', nullif(left(btrim(coalesce(v_inp ->> 'cargoName', '')), 500), '')"));
     assert.ok(sql.includes("'approved_variant', v_calc.approved_variant"));
     // Старі міграції не редагуються.
-    assert.ok(readRoot('supabase/migrations/20261029100000_kp_trip_sheets.sql').includes('SELECT EXISTS (SELECT 1 FROM public.calculations AS c WHERE c.id = p_calculation AND c.status IN (\'accepted\', \'done\'));'));
+    assert.ok(readRoot('supabase/migrations/20261028110121_kp_trip_sheets.sql').includes('SELECT EXISTS (SELECT 1 FROM public.calculations AS c WHERE c.id = p_calculation AND c.status IN (\'accepted\', \'done\'));'));
 });

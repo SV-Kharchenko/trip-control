@@ -106,10 +106,10 @@ await db.exec(docsSql);
 check(DOCS > MAINT && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(docsSql)
     && !docsSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
 'documents: ' + DOCS + ' (after ' + MAINT + ') applied three times (idempotent), manual-apply header, no CREATE EXTENSION');
-const bucket = await one(`SELECT public, file_size_limit, allowed_mime_types::text AS mimes, (SELECT count(*)::int FROM storage.buckets WHERE id <> 'kp-contracts') AS n FROM storage.buckets WHERE id = 'kp-doc-assets'`);
+const bucket = await one(`SELECT public, file_size_limit, allowed_mime_types::text AS mimes, (SELECT count(*)::int FROM storage.buckets WHERE id NOT IN ('kp-contracts', 'kp-other-docs')) AS n FROM storage.buckets WHERE id = 'kp-doc-assets'`);
 check(bucket && bucket.public === false && Number(bucket.file_size_limit) === 524288 && bucket.mimes === '{image/png,image/jpeg}' && bucket.n === 1,
     'documents: private bucket kp-doc-assets (512 KB, PNG / JPEG) created once', JSON.stringify(bucket));
-const storagePolicies = (await db.query(`SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND policyname NOT LIKE 'kp_contracts_%' ORDER BY 1`)).rows.map((r) => r.policyname);
+const storagePolicies = (await db.query(`SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND policyname NOT LIKE 'kp_contracts_%' AND policyname NOT LIKE 'kp_other_docs_%' ORDER BY 1`)).rows.map((r) => r.policyname);
 check(storagePolicies.join(',') === 'kp_doc_assets_delete,kp_doc_assets_insert,kp_doc_assets_select,kp_doc_assets_update',
     'documents: exactly four own storage.objects policies', storagePolicies.join(','));
 // Нумерація: рядок лічильника блокується до кінця транзакції (INSERT … ON CONFLICT DO UPDATE … RETURNING) — у PGlite
@@ -905,22 +905,22 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
         'trailers rollback: the header block removes the helper functions too');
     const keep = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n;
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
-    // Подорожній лист (20261029100000) посилається на fleet_trailers: відкат причепів — після відкату листів.
+    // Подорожній лист (20261028110121) посилається на fleet_trailers: відкат причепів — після відкату листів.
     await db.exec('DROP TABLE IF EXISTS public.kp_doc_trip_sheet');
     await db.exec(rollback);
     const gone = await one(`SELECT (SELECT count(*)::int FROM pg_proc WHERE proname IN ('kp_plate_norm', 'fleet_trailers_guard', 'fleet_vehicles_trailer_sync', 'fleet_trailers_after', 'kp_trailers_list', 'kp_trailer_save')) AS fns, to_regclass('public.fleet_trailers') AS tbl, (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'fleet_vehicles' AND column_name = 'default_trailer_id') AS col`);
     check(gone.fns === 0 && gone.tbl === null && gone.col === 0, 'trailers rollback: table, column, triggers and functions are gone', JSON.stringify(gone));
     check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
     await db.exec(trailersSql);
-    await db.exec(fs.readFileSync(new URL('20261029100000_kp_trip_sheets.sql', DIR), 'utf8'));
+    await db.exec(fs.readFileSync(new URL('20261028110121_kp_trip_sheets.sql', DIR), 'utf8'));
     await db.exec(fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8'));
     const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
     check(back >= 3, 'trailers rollback: re-applying the migration rebuilds fleet_trailers from the kept columns', String(back));
 }
 
-// Подорожній лист (kp_doc_trip_sheet, 20261029100000). Усі дані вигадані.
+// Подорожній лист (kp_doc_trip_sheet, 20261028110121). Усі дані вигадані.
 {
-    const tsSql = fs.readFileSync(new URL('20261029100000_kp_trip_sheets.sql', DIR), 'utf8');
+    const tsSql = fs.readFileSync(new URL('20261028110121_kp_trip_sheets.sql', DIR), 'utf8');
     await db.exec(tsSql);
     check(true, 'trip sheet: migration re-applied (idempotent)');
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
@@ -1092,7 +1092,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const rbFrom = tl.findIndex((l) => l === '--   BEGIN;');
     const rbTo = tl.findIndex((l) => l === '--   COMMIT;');
     const rollback = tl.slice(rbFrom, rbTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
-    // Спершу блок «Повний відкат» з доробок 20261030091000, потім відкат із шапки 20261029100000.
+    // Спершу блок «Повний відкат» з доробок 20261030091000, потім відкат із шапки 20261028110121.
     const followText = fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8');
     const fl = followText.split(String.fromCharCode(10));
     const frFrom = fl.findIndex((l) => l === '--   BEGIN;');
@@ -1628,9 +1628,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(denied(scanCtxNoRight), 'contracts: scan context needs the "contracts" right', scanCtxNoRight.message);
     await perms({ sign: true, contracts: true });
 }
-// Документи з заявки (20261104090000): список прийнятих заявок, документи заявки, рядки лише з прийнятої заявки своєї організації.
+// Документи з заявки (20261030140232): список прийнятих заявок, документи заявки, рядки лише з прийнятої заявки своєї організації.
 {
-    const reqSql = fs.readFileSync(new URL('20261104090000_kp_docs_from_requests.sql', DIR), 'utf8');
+    const reqSql = fs.readFileSync(new URL('20261030140232_kp_docs_from_requests.sql', DIR), 'utf8');
     await db.exec(reqSql);
     await db.exec(reqSql);
     check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(reqSql) && /РУЧНИЙ ВІДКАТ/.test(reqSql),
@@ -1677,6 +1677,26 @@ for (const [index, [name, extra]] of planCases.entries()) {
         const anon = await as('anon', null, `SELECT 1 FROM public.${fn.split('(')[0]}(${fn.includes('text') ? 'NULL' : '$1'})`, fn.includes('text') ? [] : [RAC]);
         check(!anon.ok, 'requests: ' + fn + ' is not callable by anon', anon.message);
     }
+}
+// «Документи»: реєстр договорів і вкладка «Інше» (20261105090000 / 20261105091000): повторне застосування, pgTAP kp_docs_polish.sql.
+{
+    for (const name of ['20261105090000_kp_contracts_register.sql', '20261105091000_kp_other_docs.sql']) {
+        const sql = fs.readFileSync(new URL(name, DIR), 'utf8');
+        await db.exec(sql);
+        await db.exec(sql);
+        check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(sql) && /РУЧНИЙ ВІДКАТ/.test(sql),
+            'docs polish: ' + name + ' re-applied (idempotent), manual-apply header and manual rollback');
+    }
+    const pTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_docs_polish.sql', import.meta.url), 'utf8')
+        .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+    const pPlanned = Number((pTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+    const pBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+    await db.exec(pTapSql);
+    const pTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(pBefore);
+    for (const row of pTap) check(row.ok, 'pgTAP kp_docs_polish.sql: ' + row.label);
+    check(pTap.length === pPlanned, `pgTAP kp_docs_polish.sql: ran ${pTap.length} of plan(${pPlanned})`);
+    const bucket = await one(`SELECT public, file_size_limit FROM storage.buckets WHERE id = 'kp-other-docs'`);
+    check(bucket && bucket.public === false && Number(bucket.file_size_limit) === 10485760, 'docs polish: kp-other-docs is private, 10 MB');
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
