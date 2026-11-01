@@ -138,7 +138,7 @@ test('cancelled contract: human status name, no send / sign controls in the UI, 
     assert.match(sql, /kp_contract_email_context[\s\S]*?v_c\.status = 'cancelled'[\s\S]*?CONTRACT_CANCELLED/);
     assert.match(sql, /kp_mail_reserve[\s\S]*?c\.status = 'cancelled'[\s\S]*?CONTRACT_CANCELLED/);
     // Підписання вже відмовляє для не-чернетки в самій базі.
-    const base = read('../../supabase/migrations/20261102090000_kp_contracts.sql');
+    const base = read('../../supabase/migrations/20261030081043_kp_contracts.sql');
     assert.equal((base.match(/status <> 'draft'/g) || []).length >= 5, true);
 });
 

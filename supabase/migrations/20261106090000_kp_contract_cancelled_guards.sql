@@ -2,10 +2,10 @@
 -- Анульований договір (kp_contracts.status = 'cancelled', 20261105090000) не можна надіслати контрагенту: перевірка в
 -- kp_contract_email_context (контекст листа) і в kp_mail_reserve (резервування відправки службовою роллю).
 -- Підписання й завантаження скану вже відмовляють (CONTRACT_LOCKED: вони дозволені лише для чернетки).
--- Лише CREATE OR REPLACE двох функцій; тіла — з 20261103090000 (email_context) і 20261102090000 (mail_reserve) плюс одна перевірка.
+-- Лише CREATE OR REPLACE двох функцій; тіла — з 20261030094515 (email_context) і 20261030081043 (mail_reserve) плюс одна перевірка.
 --
--- РУЧНИЙ ВІДКАТ: повторно застосувати визначення kp_contract_email_context з 20261103090000_kp_mail_org_name.sql
--- і kp_mail_reserve з 20261102090000_kp_contracts.sql.
+-- РУЧНИЙ ВІДКАТ: повторно застосувати визначення kp_contract_email_context з 20261030094515_kp_mail_org_name.sql
+-- і kp_mail_reserve з 20261030081043_kp_contracts.sql.
 
 CREATE OR REPLACE FUNCTION public.kp_contract_email_context(p_id uuid)
 RETURNS jsonb

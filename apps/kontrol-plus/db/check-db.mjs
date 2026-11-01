@@ -731,8 +731,8 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
 
 // Пакет 28.10: деталі водія (персональні дані) і підпис акта. Усі дані вигадані.
 {
-    const detailsSql = fs.readFileSync(new URL('20261028100100_kp_driver_details.sql', DIR), 'utf8');
-    const signSql = fs.readFileSync(new URL('20261028100000_kp_act_signatures.sql', DIR), 'utf8');
+    const detailsSql = fs.readFileSync(new URL('20261028095424_kp_driver_details.sql', DIR), 'utf8');
+    const signSql = fs.readFileSync(new URL('20261028095418_kp_act_signatures.sql', DIR), 'utf8');
     await db.exec(detailsSql);
     await db.exec(signSql);
     check(true, 'batch: both migrations re-applied (idempotent)');
@@ -801,7 +801,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
 
 // Пакет 28.10 (правка E): причепи — окрема таблиця fleet_trailers. Усі дані вигадані.
 {
-    const trailersSql = fs.readFileSync(new URL('20261028110000_kp_fleet_trailers.sql', DIR), 'utf8');
+    const trailersSql = fs.readFileSync(new URL('20261028095429_kp_fleet_trailers.sql', DIR), 'utf8');
     const T1 = '20000000-0000-4000-8000-0000000000e1', T2 = '20000000-0000-4000-8000-0000000000e2', T3 = '20000000-0000-4000-8000-0000000000e3';
     // «Старі» дані: тягачі з причепом у колонках trailer_* без зв'язку (тригер дзеркала вимкнено, як було до міграції).
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
@@ -913,7 +913,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
     await db.exec(trailersSql);
     await db.exec(fs.readFileSync(new URL('20261028110121_kp_trip_sheets.sql', DIR), 'utf8'));
-    await db.exec(fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8'));
+    await db.exec(fs.readFileSync(new URL('20261028140901_kp_trip_sheet_followups.sql', DIR), 'utf8'));
     const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
     check(back >= 3, 'trailers rollback: re-applying the migration rebuilds fleet_trailers from the kept columns', String(back));
 }
@@ -1005,9 +1005,9 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check(lst.ok && lst.rows.map((r) => r.status + ':' + r.n).join() === 'cancelled:1,closed:1,issued:1', 'trip sheet: the list shows all statuses', lst.message);
     check((await user(DIR1)(`SELECT count(*)::int AS n FROM public.kp_trip_sheet_list('2026-10-01', '2026-10-31', 'closed')`)).rows[0].n === 1, 'trip sheet: the status filter works');
 
-    // Доробки 20261030091000: поля повернення зберігаються до закриття, норма без пробігу з вантажем, kp_calc_is_accepted по організації.
+    // Доробки 20261028140901: поля повернення зберігаються до закриття, норма без пробігу з вантажем, kp_calc_is_accepted по організації.
     {
-        const followSql = fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8');
+        const followSql = fs.readFileSync(new URL('20261028140901_kp_trip_sheet_followups.sql', DIR), 'utf8');
         await db.exec(followSql);
         check(true, 'trip sheet follow-ups: migration re-applied (idempotent)');
         const retId = (await create(OA)).rows[0].id;
@@ -1092,8 +1092,8 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const rbFrom = tl.findIndex((l) => l === '--   BEGIN;');
     const rbTo = tl.findIndex((l) => l === '--   COMMIT;');
     const rollback = tl.slice(rbFrom, rbTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
-    // Спершу блок «Повний відкат» з доробок 20261030091000, потім відкат із шапки 20261028110121.
-    const followText = fs.readFileSync(new URL('20261030091000_kp_trip_sheet_followups.sql', DIR), 'utf8');
+    // Спершу блок «Повний відкат» з доробок 20261028140901, потім відкат із шапки 20261028110121.
+    const followText = fs.readFileSync(new URL('20261028140901_kp_trip_sheet_followups.sql', DIR), 'utf8');
     const fl = followText.split(String.fromCharCode(10));
     const frFrom = fl.findIndex((l) => l === '--   BEGIN;');
     const frTo = fl.findIndex((l) => l === '--   COMMIT;');
@@ -1142,9 +1142,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     // Подача — один раз на авто заявки (computeTrip у зрізі: podachaDist × carsCount, carsCount = 1).
     check(basis.podachaKm === (Number(body.podachaDist) || 0) * body.vehicles.length, `trip km: feed = podachaDist × vehicles (${name}): ${basis.podachaKm}`);
 }
-// Погоджений варіант маршруту (20261030090000): пише лише сервіс, клієнт ні вставити, ні змінити не може.
+// Погоджений варіант маршруту (20261028140854): пише лише сервіс, клієнт ні вставити, ні змінити не може.
 {
-    const variantSql = fs.readFileSync(new URL('20261030090000_calc_approved_variant.sql', DIR), 'utf8');
+    const variantSql = fs.readFileSync(new URL('20261028140854_calc_approved_variant.sql', DIR), 'utf8');
     await db.exec(variantSql);
     check(true, 'approved variant: migration re-applied (idempotent)');
     const forged = await user(OA)(`INSERT INTO public.calculations (user_id, org_id, name, inputs, results, approved_variant)
@@ -1164,9 +1164,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(recalc.ok && Number(recalc.rows[0].distance_km) === 884 && Number(recalc.rows[0].profit) === 4400, 'approved variant: km and profit follow the approved variant', recalc.message || JSON.stringify(recalc.rows));
     await service(`DELETE FROM public.calculations WHERE id = $1`, [variantCalc]);
 }
-// Кабінет директора (20261031090000): права учасників на сервері і сповіщення директору.
+// Кабінет директора (20261028155128): права учасників на сервері і сповіщення директору.
 {
-    const cabinetSql = fs.readFileSync(new URL('20261031090000_director_cabinet.sql', DIR), 'utf8');
+    const cabinetSql = fs.readFileSync(new URL('20261028155128_director_cabinet.sql', DIR), 'utf8');
     // Попередні блоки перевиконували 4a / 4b: наша міграція йде останньою, як і на проді (двічі — ідемпотентність).
     await db.exec(cabinetSql);
     await db.exec(cabinetSql);
@@ -1333,9 +1333,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     const marked = await service(`UPDATE public.org_notifications SET read_at = now(), read_by = $1 WHERE kind = 'approval_pending' RETURNING read_at`, [OA]);
     check(marked.ok && marked.rows[0].read_at, 'director cabinet: the service marks a notification as read', marked.message);
 }
-// Відправка документів на пошту (20261101090000): контекст перевірок, журнал, сповіщення директору.
+// Відправка документів на пошту (20261030080530): контекст перевірок, журнал, сповіщення директору.
 {
-    const emailSql = fs.readFileSync(new URL('20261101090000_kp_doc_email.sql', DIR), 'utf8');
+    const emailSql = fs.readFileSync(new URL('20261030080530_kp_doc_email.sql', DIR), 'utf8');
     await db.exec(emailSql);
     await db.exec(emailSql);
     check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(emailSql) && /РУЧНИЙ ВІДКАТ/.test(emailSql),
@@ -1444,9 +1444,9 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(!memberClient.ok && memberClient.code === '42501', 'doc email limit: kp_is_org_member is not callable from the client', memberClient.message);
     await setActs(true);
 }
-// Договори (20261102090000): права «Договори» / «Підпис і печатка», приватний бакет, RLS storage за org_id у шляху, підписання, пошта.
+// Договори (20261030081043): права «Договори» / «Підпис і печатка», приватний бакет, RLS storage за org_id у шляху, підписання, пошта.
 {
-    const contractsSql = fs.readFileSync(new URL('20261102090000_kp_contracts.sql', DIR), 'utf8');
+    const contractsSql = fs.readFileSync(new URL('20261030081043_kp_contracts.sql', DIR), 'utf8');
     await db.exec(contractsSql);
     await db.exec(contractsSql);
     check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(contractsSql) && /РУЧНИЙ ВІДКАТ/.test(contractsSql),

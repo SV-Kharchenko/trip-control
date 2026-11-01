@@ -319,7 +319,7 @@ test('client rules: scan PDF / JPG / PNG up to 10 MB, .p7s only, paths match the
     assert.match(sigProblem({ name: 'd.sig', size: 900 }), /\.p7s/);
     const path = contractPath(ORG, CID, 'scan', 'jpeg', '11111111-1111-4111-8111-111111111111');
     assert.equal(path, ORG + '/' + CID + '/scan-11111111-1111-4111-8111-111111111111.jpg');
-    const policy = fs.readFileSync(new URL('../../../supabase/migrations/20261102090000_kp_contracts.sql', import.meta.url), 'utf8');
+    const policy = fs.readFileSync(new URL('../../../supabase/migrations/20261030081043_kp_contracts.sql', import.meta.url), 'utf8');
     assert.ok(policy.includes('scan-[0-9a-f-]{36}\\.(pdf|jpg|png)'));
     assert.equal(extOf('a.b.P7S'), 'p7s');
     assert.deepEqual(attachmentNames({ number: 'Д 15/2', file_path: 'x/scan-1.pdf', sig_path: 'x/sig-1.p7s' }), ['dogovir__15_2.pdf', 'dogovir__15_2.pdf.p7s']);
@@ -341,7 +341,7 @@ test('contracts UI: private signed URLs only, no public URL, content-sized butto
 });
 
 test('migration: the bucket is forced private with limits on conflict, no octet-stream; file types are checked by the server', () => {
-    const sql = fs.readFileSync(new URL('../../../supabase/migrations/20261102090000_kp_contracts.sql', import.meta.url), 'utf8');
+    const sql = fs.readFileSync(new URL('../../../supabase/migrations/20261030081043_kp_contracts.sql', import.meta.url), 'utf8');
     assert.match(sql, /ON CONFLICT \(id\) DO UPDATE\s+SET public = false, file_size_limit = 10485760/);
     assert.equal(/octet-stream/.test(sql.replace(/--.*$/gm, '')), false, 'application/octet-stream is not allowed');
     assert.match(sql, /allowed_mime_types = ARRAY\['application\/pdf', 'image\/jpeg', 'image\/png', 'application\/pkcs7-signature'\]/);
