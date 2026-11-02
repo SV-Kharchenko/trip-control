@@ -71,6 +71,9 @@ export function signedInviteTokenIsValid(token, invite, secret) {
     return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+const CALC_JSON_MAX = 200 * 1024;
+const CALC_VEHICLES_MAX = 20;
+const CALC_SNAPSHOT_MAX = 8 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Invite id from a signed v2 link, or null. The signature is checked against the row later.
@@ -1154,6 +1157,31 @@ export function createTeamService(deps) {
         const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
         const name = String(body.name == null ? '' : body.name).trim().slice(0, 500);
         if (!name || !isObj(body.inputs) || !isObj(body.results)) throw new HttpError(400, 'BAD_CALC', 'Некоректні дані заявки.');
+        // 1. Уся валідація — до першого запису.
+        if (JSON.stringify(body.inputs).length > CALC_JSON_MAX || JSON.stringify(body.results).length > CALC_JSON_MAX) {
+            throw new HttpError(413, 'CALC_TOO_LARGE', 'Заявка завелика.');
+        }
+        const vehicles = Array.isArray(body.inputs.vehicles) ? body.inputs.vehicles : [];
+        if (vehicles.length > CALC_VEHICLES_MAX) throw new HttpError(400, 'CALC_TOO_MANY_VEHICLES', 'У заявці забагато авто.');
+        const rows = vehicles
+            .filter((v) => v && UUID_RE.test(String(v.id || '')) && Number(v.tonnage) > 0)
+            .map((v) => ({ calc_id: calc.id, vehicle_id: v.id, tonnage: Number(v.tonnage), snapshot: isObj(v.snapshot) ? v.snapshot : {} }));
+        if (rows.some((r) => JSON.stringify(r.snapshot).length > CALC_SNAPSHOT_MAX)) {
+            throw new HttpError(413, 'CALC_TOO_LARGE', 'Дані авто в заявці завеликі.');
+        }
+        // calc_vehicles_guard пропускає service role, тож належність авто організації перевіряємо тут.
+        const carIds = [...new Set(rows.map((r) => r.vehicle_id))];
+        if (carIds.length) {
+            const { data: own, error: ownError } = await supabase
+                .from('fleet_vehicles')
+                .select('id')
+                .eq('org_id', actor.profile.org_id)
+                .in('id', carIds);
+            if (ownError) throw ownError;
+            const have = new Set((own || []).map((r) => r.id));
+            if (carIds.some((id) => !have.has(id))) throw new HttpError(403, 'CALC_VEHICLE_FORBIDDEN', 'Авто не належить вашій компанії.');
+        }
+        // 2. Заявка.
         const { data, error } = await supabase
             .from('calculations')
             .update({ name, inputs: body.inputs, results: body.results })
@@ -1164,21 +1192,19 @@ export function createTeamService(deps) {
             .maybeSingle();
         if (error) throw error;
         if (!data) throw new HttpError(409, 'STATUS_CHANGED', 'Статус заявки вже змінився. Оновіть сторінку.');
-        const vehicles = Array.isArray(body.inputs.vehicles) ? body.inputs.vehicles : [];
-        const rows = vehicles
-            .filter((v) => v && UUID_RE.test(String(v.id || '')) && Number(v.tonnage) > 0)
-            .map((v) => ({ calc_id: calc.id, vehicle_id: v.id, tonnage: Number(v.tonnage), snapshot: isObj(v.snapshot) ? v.snapshot : {} }));
+        // 3. Авто: таблиці може не бути до міграції (42P01 / PGRST205), будь-яка інша помилка — 500.
         let vehiclesSaved = true;
-        try {
-            const del = await supabase.from('calc_vehicles').delete().eq('calc_id', calc.id);
-            if (del && del.error) throw del.error;
-            if (rows.length) {
-                const ins = await supabase.from('calc_vehicles').insert(rows);
-                if (ins && ins.error) throw ins.error;
-            }
-        } catch (e) {
-            // До міграції calc_vehicles таблиці може не бути: заявка збережена, прив'язка авто — ні.
-            vehiclesSaved = false;
+        const missing = (e) => /42P01|PGRST205/.test(String((e && (e.code || e.message)) || ''));
+        const vehicleFail = (e) => {
+            if (missing(e)) { vehiclesSaved = false; return; }
+            console.error('team api: calc_update vehicles:', e);
+            throw new HttpError(500, 'CALC_VEHICLES_FAILED', 'Заявку збережено, але авто до неї не прив’язались. Спробуйте ще раз.');
+        };
+        const del = await supabase.from('calc_vehicles').delete().eq('calc_id', calc.id);
+        if (del && del.error) vehicleFail(del.error);
+        else if (rows.length) {
+            const ins = await supabase.from('calc_vehicles').insert(rows);
+            if (ins && ins.error) vehicleFail(ins.error);
         }
         await audit(actor.user.id, actor.profile.org_id, 'calc_updated', 'calculations', calc.id, { status: calc.status });
         return { ok: true, id: calc.id, status: data.status, vehiclesSaved };
