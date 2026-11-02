@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Контроль+ — CRM для перевізників · Trip Control</title>
+  <meta name="description" content="Контроль+ — CRM для перевізників: заявки, ТТН, акти й рахунки, подорожні листи, ремонти й ТО, автопарк, команда логістів, GPS. 250 у.е. разово + 100 у.е./міс підтримка.">
+  <link rel="canonical" href="https://trip-control.com/kontrol-plus">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="uk_UA">
+  <meta property="og:site_name" content="TRIP-CONTROL">
+  <meta property="og:title" content="Контроль+ — CRM для перевізників">
+  <meta property="og:description" content="Заявки, ТТН, акти й рахунки, подорожні листи, ремонти й ТО, автопарк, команда логістів, GPS. Один тариф для всіх.">
+  <meta property="og:url" content="https://trip-control.com/kontrol-plus">
+  <meta property="og:image" content="https://trip-control.com/assets/brand/og-1200x630.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Контроль+ — CRM для перевізників">
+  <meta name="twitter:description" content="Заявки, ТТН, акти й рахунки, подорожні листи, ремонти й ТО, автопарк, команда логістів, GPS.">
+  <meta name="twitter:image" content="https://trip-control.com/assets/brand/og-1200x630.png">
+  <meta name="theme-color" content="#F4EFE4">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script>
+    /* Тема як у застосунку: tc_theme (light|dark, за замовчуванням light). */
+    (function () {
+      var t = 'light';
+      try { t = localStorage.getItem('tc_theme') || 'light'; } catch (e) {}
+      if (t === 'control') t = 'dark';
+      if (t !== 'dark') t = 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta && t === 'dark') meta.setAttribute('content', '#0E1117');
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-20b">
+  <style>
+    /* Токени з index.html: [data-theme="light"] / [data-theme="dark"]. */
+    [data-theme="light"] {
+      --bg: #F4EFE4; --surface: #FFFDF8; --text: #0D2A28; --muted: #5A6B66;
+      --border: #D9D1BD; --border-soft: #E3DCCB; --accent: #0D2A29; --on-accent: #FFFDF8; --gold: #B08A4C; --teal: #1A6B65;
+      --danger: #B3261E;
+      color-scheme: light;
+    }
+    [data-theme="dark"] {
+      --bg: #0E1117; --surface: #161B24; --text: #E8EAF0; --muted: #8B93A3;
+      --border: #2E3646; --border-soft: #262D3A; --accent: #7C9CFF; --on-accent: #0E1117; --gold: #E0B25A; --teal: #4FD1C5;
+      --danger: #FF8A80;
+      color-scheme: dark;
+    }
+    :root { --font-ui: 'Manrope', sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); line-height: 1.6; -webkit-text-size-adjust: 100%; }
+    a { color: var(--teal); }
+    .kp-wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+    .kp-head { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border-soft); }
+    .kp-head .kp-wrap { display: flex; align-items: center; gap: 10px 18px; min-height: 56px; flex-wrap: wrap; padding-top: 6px; padding-bottom: 6px; }
+    .kp-brand { font-weight: 800; letter-spacing: .04em; color: var(--text); text-decoration: none; font-size: 15px; }
+    .kp-nav { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-left: auto; align-items: center; font-size: 14px; font-weight: 600; }
+    .kp-nav a { color: var(--muted); text-decoration: none; }
+    .kp-nav a:hover, .kp-nav a[aria-current] { color: var(--text); }
+    .kp-theme { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn { display: inline-block; padding: 12px 22px; border-radius: 10px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+    .btn:hover { opacity: .9; }
+    .btn[disabled] { opacity: .6; cursor: default; }
+    .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .kp-hero { padding: 56px 16px 40px; }
+    .kp-eyebrow { color: var(--gold); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 10px; }
+    .kp-hero h1 { font-size: clamp(1.9rem, 5vw, 3rem); line-height: 1.15; margin: 0 0 16px; font-weight: 800; max-width: 760px; }
+    .kp-hero p.lead { font-size: 1.1rem; color: var(--muted); max-width: 680px; margin: 0 0 24px; }
+    .kp-cta { display: flex; flex-wrap: wrap; gap: 10px; }
+    section.kp-block { padding: 36px 0; }
+    .kp-block h2 { font-size: clamp(1.4rem, 3.4vw, 1.9rem); line-height: 1.25; margin: 0 0 8px; font-weight: 800; }
+    .kp-sub { color: var(--muted); margin: 0 0 22px; max-width: 680px; }
+    .kp-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+    .kp-card { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px; padding: 16px 18px; }
+    .kp-card h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 700; }
+    .kp-card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+    .kp-price { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .kp-price .kp-card { padding: 22px; }
+    .kp-amount { font-size: 2.2rem; font-weight: 800; line-height: 1.1; margin: 4px 0 6px; font-family: var(--font-mono); }
+    .kp-amount small { font-size: 1rem; font-weight: 600; color: var(--muted); font-family: var(--font-ui); }
+    .kp-list { margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 14.5px; }
+    .kp-list li { margin: 0 0 6px; }
+    .kp-note { margin: 14px 0 0; color: var(--muted); font-size: 14px; }
+    .kp-faq details { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 12px; padding: 4px 16px; margin: 0 0 10px; }
+    .kp-faq summary { cursor: pointer; font-weight: 700; padding: 12px 0; }
+    .kp-faq details p { margin: 0 0 14px; color: var(--muted); }
+    .kp-form { background: var(--surface); border: 1px solid var(--border-soft); border-radius: 14px; padding: 22px; max-width: 640px; }
+    .kp-field { margin: 0 0 14px; }
+    .kp-field label { display: block; font-weight: 600; font-size: 14px; margin: 0 0 4px; }
+    .kp-field input[type=text], .kp-field input[type=tel], .kp-field input[type=email], .kp-field input[type=number], .kp-field textarea {
+      width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; font-size: 16px;
+    }
+    .kp-field textarea { min-height: 96px; resize: vertical; }
+    .kp-field input:focus, .kp-field textarea:focus { outline: 2px solid var(--teal); outline-offset: 1px; }
+    .kp-row { display: grid; gap: 0 14px; grid-template-columns: 1fr 1fr; }
+    .kp-err { color: var(--danger); font-size: 13px; margin: 4px 0 0; }
+    .kp-err:empty { display: none; }
+    .kp-field label.kp-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; font-weight: 500; }
+    .kp-consent input { margin-top: 4px; flex: none; width: 18px; height: 18px; }
+    .kp-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+    .kp-status { margin: 12px 0 0; font-weight: 600; }
+    .kp-status:empty { display: none; }
+    .kp-status.is-error { color: var(--danger); }
+    .kp-thanks { text-align: center; padding: 18px 4px; }
+    .kp-thanks h3 { margin: 0 0 6px; font-size: 1.3rem; }
+    .kp-foot { padding: 24px 16px 40px; }
+    @media (max-width: 600px) {
+      .kp-hero { padding: 32px 16px 24px; }
+      .kp-row { grid-template-columns: 1fr; }
+      .kp-form { padding: 16px; }
+      .kp-nav { margin-left: 0; width: 100%; gap: 4px 14px; }
+      .kp-nav .kp-hide-sm { display: none; }
+    }
+  </style>
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+<header class="kp-head">
+  <div class="kp-wrap">
+    <a class="kp-brand" href="/">TRIP-CONTROL</a>
+    <nav class="kp-nav" aria-label="Меню">
+      <a href="/">Калькулятор</a>
+      <a href="/kontrol-plus" aria-current="page">Контроль+ для компаній</a>
+      <a class="kp-hide-sm" href="#price">Ціна</a>
+      <a class="kp-hide-sm" href="#faq">FAQ</a>
+      <a href="#demo">Замовити демо</a>
+      <button type="button" class="kp-theme" id="kp-theme" aria-label="Перемкнути тему">Тема</button>
+    </nav>
+  </div>
+</header>
+<main>
+  <div class="kp-wrap kp-hero">
+    <p class="kp-eyebrow">Контроль+ для компаній</p>
+    <h1>CRM для перевізників: від заявки до акта в одному місці</h1>
+    <p class="lead">Заявки, ТТН, акти й рахунки, подорожні листи, ремонти й ТО, автопарк, команда логістів і GPS. Налаштуємо в кольорах і з логотипом вашої компанії.</p>
+    <div class="kp-cta">
+      <a class="btn" href="#demo">Замовити демо</a>
+      <a class="btn btn-ghost" href="#price">Ціна</a>
+    </div>
+  </div>
+
+  <section class="kp-block" id="features"><div class="kp-wrap">
+    <h2>Можливості</h2>
+    <p class="kp-sub">Усе, що логіст і директор роблять щодня, без таблиць і месенджерів.</p>
+    <div class="kp-grid">
+      <div class="kp-card"><h3>Заявки</h3><p>Заявки клієнтів з розрахунком рейсу й маржі, статуси та історія в одному списку.</p></div>
+      <div class="kp-card"><h3>ТТН</h3><p>Товарно-транспортні накладні з даних заявки: маси, вантаж, водій і транспорт підставляються самі.</p></div>
+      <div class="kp-card"><h3>Акти й рахунки</h3><p>Документи з підписом і печаткою компанії, надсилання клієнту листом.</p></div>
+      <div class="kp-card"><h3>Подорожні листи</h3><p>З дозаправками, нормами палива й підсумками рейсу; друк у PDF і Excel.</p></div>
+      <div class="kp-card"><h3>Ремонти й ТО</h3><p>Графік обслуговування, ремонти й склад запчастин по кожній машині.</p></div>
+      <div class="kp-card"><h3>Автопарк</h3><p>Тягачі, причепи й водії з даними для документів і нормами витрати.</p></div>
+      <div class="kp-card"><h3>Команда логістів</h3><p>Ролі та права: хто підписує, хто бачить клієнтів і договори.</p></div>
+      <div class="kp-card"><h3>GPS</h3><p>Підключення GPS-моніторингу для фактичних рейсів і пробігу.</p></div>
+    </div>
+  </div></section>
+
+  <section class="kp-block" id="price"><div class="kp-wrap">
+    <h2>Ціна</h2>
+    <p class="kp-sub">Один тариф для всіх: без рівнів, лімітів і прихованих платежів.</p>
+    <div class="kp-price">
+      <div class="kp-card">
+        <h3>Встановлення</h3>
+        <div class="kp-amount">250 <small>у.е. разово</small></div>
+        <ul class="kp-list"><li>Встановлення й підключення</li><li>Налаштування в кольорах і з логотипом компанії</li></ul>
+      </div>
+      <div class="kp-card">
+        <h3>Підтримка</h3>
+        <div class="kp-amount">100 <small>у.е./міс</small></div>
+        <ul class="kp-list"><li>Підтримка й оновлення</li><li>Усі можливості Контроль+</li></ul>
+      </div>
+    </div>
+    <p class="kp-note">Оплата за договором і рахунком на ФОП, без онлайн-оплати карткою.</p>
+  </div></section>
+
+  <section class="kp-block" id="custom"><div class="kp-wrap">
+    <h2>Доопрацювання під вас</h2>
+    <p class="kp-sub">Потрібна додаткова функція, власна форма документа чи інтеграція? Оцінимо й зробимо під вашу компанію. Додаткові функції оцінюються й оплачуються окремо від тарифу.</p>
+    <a class="btn btn-ghost" href="#demo">Обговорити на демо</a>
+  </div></section>
+
+  <section class="kp-block kp-faq" id="faq"><div class="kp-wrap">
+    <h2>Питання й відповіді</h2>
+    <details><summary>Як відбувається оплата?</summary><p>За договором і рахунком на ФОП: 250 у.е. разово за встановлення й налаштування та 100 у.е. на місяць за підтримку. Онлайн-оплати карткою для Контроль+ немає.</p></details>
+    <details><summary>Що з моїми даними?</summary><p>Дані вашої компанії належать вам і доступні лише вашій команді. Ми не продаємо й не передаємо їх третім особам, окрім постачальників інфраструктури, описаних у <a href="/privacy">політиці конфіденційності</a>.</p></details>
+    <details><summary>Що буде, якщо не оплатити підтримку?</summary><p>Після пільгового періоду CRM переходить у режим лише для читання: ви бачите й вивантажуєте свої документи та дані, але не створюєте нових. Дані не видаляються; після оплати робота відновлюється.</p></details>
+  </div></section>
+
+  <section class="kp-block" id="demo"><div class="kp-wrap">
+    <h2>Замовити демо</h2>
+    <p class="kp-sub">Залиште контакти, ми зв’яжемося, покажемо Контроль+ і відповімо на питання.</p>
+    <div class="kp-form" id="kp-form-box">
+      <form id="kp-form" novalidate>
+        <div class="kp-row">
+          <div class="kp-field"><label for="kp-name">Ім’я *</label><input type="text" id="kp-name" name="name" maxlength="120" autocomplete="name" required><p class="kp-err" data-err="name"></p></div>
+          <div class="kp-field"><label for="kp-company">Компанія *</label><input type="text" id="kp-company" name="company" maxlength="160" autocomplete="organization" required><p class="kp-err" data-err="company"></p></div>
+        </div>
+        <div class="kp-row">
+          <div class="kp-field"><label for="kp-phone">Телефон *</label><input type="tel" id="kp-phone" name="phone" maxlength="40" autocomplete="tel" placeholder="+380…" required><p class="kp-err" data-err="phone"></p></div>
+          <div class="kp-field"><label for="kp-email">Email</label><input type="email" id="kp-email" name="email" maxlength="160" autocomplete="email"><p class="kp-err" data-err="email"></p></div>
+        </div>
+        <div class="kp-field"><label for="kp-vehicles">Кількість машин</label><input type="number" id="kp-vehicles" name="vehicles" min="1" max="100000" step="1" inputmode="numeric"><p class="kp-err" data-err="vehicles"></p></div>
+        <div class="kp-field"><label for="kp-comment">Коментар</label><textarea id="kp-comment" name="comment" maxlength="2000"></textarea></div>
+        <div class="kp-trap" aria-hidden="true"><label for="kp-website">Не заповнюйте це поле</label><input type="text" id="kp-website" name="website" tabindex="-1" autocomplete="off"></div>
+        <div class="kp-field">
+          <label class="kp-consent" for="kp-consent"><input type="checkbox" id="kp-consent" name="consent"><span>Погоджуюсь з <a href="/privacy" target="_blank" rel="noopener">політикою конфіденційності</a> *</span></label>
+          <p class="kp-err" data-err="consent"></p>
+        </div>
+        <button type="submit" class="btn" id="kp-submit">Замовити демо</button>
+        <p class="kp-status" id="kp-status" role="status" aria-live="polite"></p>
+      </form>
+      <div class="kp-thanks" id="kp-thanks" hidden>
+        <h3>Дякуємо, зв’яжемося протягом робочого дня</h3>
+        <p class="kp-sub" style="margin:0 auto">Якщо питання термінове — support@trip-control.com.</p>
+      </div>
+    </div>
+  </div></section>
+</main>
+<div class="kp-wrap kp-foot">
+  <footer class="tc-legal-footer">
+      <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+          <a href="/kontrol-plus">Контроль+ для компаній</a>
+          <a href="/offer">Публічна оферта</a>
+          <a href="/privacy">Політика конфіденційності</a>
+          <a href="/payment-refund">Оплата та повернення</a>
+      </nav>
+      <p class="tc-legal-footer__seller">ФОП Харченко С.В. · <a href="mailto:support@trip-control.com">support@trip-control.com</a> · <a href="tel:+380730888252">+380730888252</a> · <a href="/offer#requisites">Реквізити</a></p>
+  </footer>
+</div>
+<script>
+(function () {
+  var root = document.documentElement;
+  var themeBtn = document.getElementById('kp-theme');
+  function label() { themeBtn.textContent = root.getAttribute('data-theme') === 'dark' ? 'Light' : 'Dark'; }
+  label();
+  themeBtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', next === 'dark' ? '#0E1117' : '#F4EFE4');
+    try { localStorage.setItem('tc_theme', next); } catch (e) {}
+    label();
+  });
+
+  var form = document.getElementById('kp-form');
+  var statusEl = document.getElementById('kp-status');
+  var submit = document.getElementById('kp-submit');
+  function setErrors(errors) {
+    form.querySelectorAll('[data-err]').forEach(function (el) { el.textContent = (errors && errors[el.getAttribute('data-err')]) || ''; });
+  }
+  function localErrors(d) {
+    var e = {};
+    if (!d.name) e.name = 'Вкажіть ім’я.';
+    if (!d.company) e.company = 'Вкажіть компанію.';
+    var digits = d.phone.replace(/\D/g, '');
+    if (!d.phone || digits.length < 9 || digits.length > 15) e.phone = 'Вкажіть коректний телефон.';
+    if (d.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) e.email = 'Некоректний email.';
+    if (d.vehicles && !/^\d+$/.test(d.vehicles)) e.vehicles = 'Кількість машин — ціле число.';
+    if (!d.consent) e.consent = 'Потрібна згода з політикою конфіденційності.';
+    return e;
+  }
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = form.elements;
+    var data = {
+      name: f.name.value.trim(), company: f.company.value.trim(), phone: f.phone.value.trim(), email: f.email.value.trim(),
+      vehicles: f.vehicles.value.trim(), comment: f.comment.value.trim(), website: f.website.value, consent: f.consent.checked
+    };
+    var errors = localErrors(data);
+    setErrors(errors);
+    statusEl.textContent = ''; statusEl.className = 'kp-status';
+    if (Object.keys(errors).length) { statusEl.textContent = 'Перевірте виділені поля.'; statusEl.className = 'kp-status is-error'; return; }
+    submit.disabled = true;
+    fetch('/api/kp-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (b) { return { ok: r.ok, status: r.status, body: b }; }); })
+      .then(function (res) {
+        if (res.ok) {
+          form.hidden = true;
+          document.getElementById('kp-thanks').hidden = false;
+          return;
+        }
+        if (res.body && res.body.errors) setErrors(res.body.errors);
+        statusEl.textContent = res.status === 429 ? 'Забагато спроб. Спробуйте за хвилину.' : (res.body && res.body.error) || 'Не вдалося надіслати. Спробуйте ще раз.';
+        statusEl.className = 'kp-status is-error';
+        submit.disabled = false;
+      })
+      .catch(function () {
+        statusEl.textContent = 'Немає звʼязку. Спробуйте ще раз або напишіть на support@trip-control.com.';
+        statusEl.className = 'kp-status is-error';
+        submit.disabled = false;
+      });
+  });
+})();
+</script>
+</body>
+</html>
