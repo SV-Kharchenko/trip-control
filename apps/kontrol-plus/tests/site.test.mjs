@@ -55,7 +55,7 @@ test('injection only inserts Контроль+ blocks; stripping them gives the 
     assert.match(head, /<script src="\/kp-entry\.js"><\/script>/);
     const tail = out.slice(out.lastIndexOf('<script'));
     assert.match(tail, /^<script type="module" src="\/kp-assets\/site-bridge-x\.js"><\/script>\n<!--kp:end-->\n<\/body>/);
-    assert.match(out, /<html lang="uk">/);
+    assert.match(out, /<html lang="uk" data-app="kp">/);
     assert.throws(() => injectSite('<html><head></head><body></body></html>', { js: '/x.js' }), /site\.webmanifest/);
     assert.throws(() => injectSite(SITE_MANIFEST + '</head></head></body>', { js: '/x.js' }), /<\/head>/);
 });
