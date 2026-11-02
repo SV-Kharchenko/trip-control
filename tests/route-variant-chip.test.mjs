@@ -23,7 +23,7 @@ const prop = (body, name) => (new RegExp('(?:^|[;\\s])' + name + ':\\s*(#[0-9A-F
 test('обраний чіп: колір тексту і його заливка (-webkit-text-fill-color) задані явно, контраст ≥ 4,5:1 у Light / Dark / Night', () => {
     const base = rule('body.layout-studio .tc-map-alts .tc-map-alt.active,');
     const light = rule('body.layout-studio[data-theme="light"] .tc-map-alts .tc-map-alt.active,');
-    const themes = { 'Dark / Night / Amber': base, Light: light };
+    const themes = { 'Dark': base, Light: light };
     for (const [name, body] of Object.entries(themes)) {
         const bg = prop(body, 'background');
         const fg = prop(body, 'color');

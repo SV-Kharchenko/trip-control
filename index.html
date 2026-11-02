@@ -35,7 +35,7 @@
     <script src="/assets/cost-hints.js?v=2026-10-20" defer></script>
     <script src="/assets/landing.js?v=2026-10-20" defer></script>
 <style>
-        :root, [data-theme="night"] {
+        :root {
             --bg-color: #0b111b; --card-bg: rgba(16,22,34,0.82); --border-color: rgba(125,211,252,0.18);
             --text-main: #e8edf5; --text-muted: #8b9bb4; --accent: #38bdf8;
             --accent-hover: #0ea5e9; --success: #34d399; --warning: #fbbf24;
@@ -48,16 +48,6 @@
             --font-ui: 'Manrope', sans-serif;
             --font-display: 'Manrope', sans-serif;
             --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-        }
-        [data-theme="amber"] {
-            --bg-color: #0c0e12; --card-bg: rgba(20,24,31,0.88); --border-color: #2a3140;
-            --text-main: #e8edf5; --text-muted: #8b93a7; --accent: #f59e0b;
-            --accent-hover: #d97706; --success: #34d399; --warning: #fbbf24;
-            --danger: #f87171; --input-bg: #0a0c10; --steel: #7dd3fc;
-            --amber: #f59e0b; --panel: rgba(20,24,31,0.88); --glass: blur(12px);
-            --kpi-glow: rgba(245,158,11,0.28);
-            --surface: #14181F; --positive: #34D399;
-            --rc-fg: #E8EDF5; --rc-muted: #A9B3C4; --rc-up: #34D399; --rc-down: #FF8A8A; --rc-be: #FBBF24;
         }
         [data-theme="light"] {
             --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE;
@@ -522,6 +512,8 @@
             display: none; flex-direction: column; gap: 6px; max-height: calc(100% - 20px); overflow: auto;
         }
         .tc-map-alts.visible { display: flex; }
+        /* Лише для Контроль+ (на <html> стоїть data-app="kp", його виставляє збірка apps/kontrol-plus): на сайті ховається. */
+        html:not([data-app="kp"]) .kp-only { display: none !important; }
         .tc-map-alt {
             text-align: left; cursor: pointer; border-radius: 10px; padding: 8px 10px;
             border: 1px solid var(--border-color);
@@ -2686,7 +2678,7 @@
         body.layout-studio:not([data-theme="light"]) .tc-map-alt.active { background: #7C9CFF; color: #0B0E14; border-color: #7C9CFF; }
         /* Чіп варіанта маршруту (карта калькулятора й екран погодження директором). Причина «темний текст на темному»: теми студії
            задають -webkit-text-fill-color для всіх .tc-map-alt, і він перебивав color вибраного чіпа. Тут колір і заливка тексту задані явно.
-           Вибраний: Light — темно-зелений #0D2A29 + #F4EFE5 (≈13:1); Dark / Night / Amber — #7C9CFF + #0B0E14 (≈7,7:1); рамка 2px, жирний текст. */
+           Вибраний: Light — темно-зелений #0D2A29 + #F4EFE5 (≈13:1); Dark — #7C9CFF + #0B0E14 (≈7,7:1); рамка 2px, жирний текст. */
         body.layout-studio .tc-map-alts .tc-map-alt {
             width: max-content; max-width: 100%; align-self: flex-start;
             white-space: normal; overflow-wrap: anywhere; text-align: left; line-height: 1.25;
@@ -7854,12 +7846,15 @@
     });
     // ---------- Особистий кабінет: вкладки, редіректи старих адрес, сповіщення директору ----------
     function openCabinetTab(id) {
+        if (!isKP() && (id === 'requisites' || id === 'stats')) id = 'company'; // на сайті цих вкладок немає
         openCabinet();
         switchCabTab(id);
         syncCompanyNav(true);
     }
     // Старі адреси сторінок, що переїхали в кабінет: #/company (Реквізити компанії), #/team, #/stats, #/docs/requisites і ?cab=…
     // Нова адреса — #/cabinet/<вкладка>. Працює і на сайті, і в Контроль+ (де ці hash раніше були окремими розділами).
+    // Контроль+ ставить на <html> data-app="kp" ще при збірці (scripts/site-html.mjs); на сайті атрибута немає.
+    function isKP() { return document.documentElement.dataset.app === 'kp'; }
     const CABINET_REDIRECTS = {
         '#/company': 'requisites', '#/docs/requisites': 'requisites', '#/team': 'team', '#/stats': 'stats',
         '#/notifications': 'notifications', '#/cabinet': 'company'
@@ -7868,9 +7863,12 @@
     function cabinetTabFromLocation() {
         const raw = String(location.hash || '').split('?')[0].replace(/\/+$/, '');
         const direct = /^#\/cabinet\/([a-z]+)$/.exec(raw);
-        if (direct) return CABINET_TAB_IDS.indexOf(direct[1]) >= 0 ? direct[1] : 'company';
-        if (Object.prototype.hasOwnProperty.call(CABINET_REDIRECTS, raw)) return CABINET_REDIRECTS[raw];
-        return null;
+        let tab = null;
+        if (direct) tab = CABINET_TAB_IDS.indexOf(direct[1]) >= 0 ? direct[1] : 'company';
+        else if (Object.prototype.hasOwnProperty.call(CABINET_REDIRECTS, raw)) tab = CABINET_REDIRECTS[raw];
+        // На сайті немає вкладок «Реквізити» і «Статистика» (вони лише в Контроль+): такі адреси ведуть на «Профіль».
+        if (tab && !isKP() && (tab === 'requisites' || tab === 'stats')) tab = 'company';
+        return tab;
     }
     function openCabinetFromLocation() {
         if (!currentUserId) return false;
@@ -7928,6 +7926,7 @@
         }
     };
     function noteHref(note) {
+        if (!isKP()) return ''; // документи, договори й ТТН відкриваються лише в Контроль+
         if (note.ref_kind === 'document') return '#/docs/' + note.ref_id;
         if (note.ref_kind === 'contract') return note.meta && note.meta.client_id ? '#/clients/' + note.meta.client_id : '';
         if (note.ref_kind === 'ttn') return '#/docs/ttn/' + note.ref_id;
@@ -11270,12 +11269,13 @@
         const isOwner = currentOrgRole === 'owner';
         const tabs = [
             { id: 'company', title: 'Профіль' },
-            { id: 'requisites', title: 'Реквізити' },
             { id: 'costs', title: 'Витратна частина' }
         ];
+        if (isKP()) tabs.splice(1, 0, { id: 'requisites', title: 'Реквізити' });
         if (isOwner) tabs.push({ id: 'notifications', title: 'Сповіщення', badge: 'cab-tab-unread' });
         if (isOwner && currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
-        if (isOwner) tabs.push({ id: 'stats', title: 'Статистика' }, { id: 'docs', title: 'Автопарк' });
+        if (isOwner && isKP()) tabs.push({ id: 'stats', title: 'Статистика' });
+        if (isOwner) tabs.push({ id: 'docs', title: 'Автопарк' });
         let html = '<div class="cab-tabs" role="tablist">' + tabs.map((t, i) =>
             '<button type="button" class="cab-tab' + (i === 0 ? ' active' : '') + '" role="tab" aria-selected="' + (i === 0 ? 'true' : 'false') + '" data-tab="' + t.id + '" onclick="switchCabTab(\'' + t.id + '\')">' +
             esc(t.title) + (t.badge ? '<span class="tc-menu-badge tc-tab-badge" id="' + t.badge + '" hidden>0</span>' : '') + '</button>'
@@ -11337,16 +11337,16 @@
             '<pre id="weekly-report-preview" hidden></pre>' +
             '</div></div>';
 
-        html += '<div class="cab-panel" data-panel="requisites"><div class="cab-card"><div class="cab-card-head"><h3>Реквізити</h3>' +
+        if (isKP()) html += '<div class="cab-panel" data-panel="requisites"><div class="cab-card"><div class="cab-card-head"><h3>Реквізити</h3>' +
             '<span class="cab-muted">' + (isOwner ? 'Компанія, підпис і печатка для актів, рахунків і ТТН' : 'Лише перегляд — змінює директор') + '</span></div>' +
             '<div id="cab-req-slot" class="cab-slot"><p class="cab-note">Реквізити компанії, підпис і печатка для актів і ТТН доступні в Контроль+.</p></div></div></div>';
         html += costsPanelHtml(esc);
         if (isOwner) {
-            html += '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
-                '<div id="cab-stats-slot" class="cab-slot"><p class="cab-note">Статистика за період доступна в Контроль+.</p></div></div></div>' +
+            html += (isKP() ? '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
+                '<div id="cab-stats-slot" class="cab-slot"><p class="cab-note">Статистика за період доступна в Контроль+.</p></div></div></div>' : '') +
                 '<div class="cab-panel" data-panel="notifications"><div class="cab-card">' +
                 '<div class="cab-card-head"><h3>Сповіщення</h3><button type="button" class="btn" id="cab-notes-all" onclick="markAllNotesRead()">Позначити все прочитаним</button></div>' +
-                '<p class="cab-note">Заявки, що чекають погодження, і кожне використання підпису та печатки логістом.</p>' +
+                '<p class="cab-note">Заявки, що чекають погодження' + (isKP() ? ', і кожне використання підпису та печатки логістом' : '') + '.</p>' +
                 '<div class="tc-notes-list" id="cab-notes-list"><div class="cab-muted">Завантаження…</div></div></div></div>';
         }
         if (isOwner) html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
@@ -12187,7 +12187,7 @@
                 : '';
             const perms = canManage && member.org_role === 'logist' && member.permissions
                 ? '<div class="tc-member-perms" role="group" aria-label="Права ' + teamEsc(member.email) + '">' +
-                    MEMBER_PERMISSION_LABELS.map(function (item) {
+                    MEMBER_PERMISSION_LABELS.filter(function (item) { return isKP() || item[0] === 'fleet'; }).map(function (item) {
                         return '<label><input type="checkbox"' + (member.permissions[item[0]] ? ' checked' : '') + (disabled ? ' disabled' : '') +
                             ' onchange="setMemberPermission(\'' + teamEsc(member.id) + '\', \'' + item[0] + '\', this)"> ' + teamEsc(item[1]) + '</label>';
                     }).join('') + '</div>'
@@ -14777,6 +14777,7 @@
     // Створюють власник і логіст; кнопки відкривають форму Контроль+ вже заповненою даними заявки.
     function calcDocButtons(row) {
         const status = historyFields(row).status;
+        if (!isKP()) return ''; // ТТН, акти, рахунки й подорожні листи — лише в Контроль+; на сайті kp_ttn_list не викликається
         if ((status !== 'accepted' && status !== 'done') || (currentOrgRole !== 'owner' && currentOrgRole !== 'logist')) return '';
         const id = escHtml(row.id);
         return '<button type="button" class="is-doc" onclick="openCalcDoc(\'ttn\', \'' + id + '\')">Створити ТТН</button>'

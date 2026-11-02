@@ -44,7 +44,7 @@ test('manifest is ready for install and PWABuilder', () => {
     // Сторінка застосунку — копія index.html сайту з маніфестом Контроль+ замість /site.webmanifest.
     const html = injectSite(fs.readFileSync(new URL('../../index.html', APP), 'utf8'), { js: '/kp-assets/x.js' });
     assert.match(html, /<link rel="manifest" href="\/manifest.webmanifest">/);
-    assert.match(html, /<html lang="uk">/);
+    assert.match(html, /<html lang="uk" data-app="kp">/);
 });
 
 function loadSw() {

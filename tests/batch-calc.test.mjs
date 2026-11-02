@@ -30,7 +30,8 @@ const lum = (rgb) => {
 const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 const mix = (a, b, pa) => a.map((v, i) => Math.round(v * pa + b[i] * (1 - pa)));
 const token = (block, name) => (block.match(new RegExp(name + ':\\s*(#[0-9A-Fa-f]{6})')) || [])[1];
-const theme = (name) => { const s = html.indexOf('[data-theme="' + name + '"] {'); return html.slice(s, html.indexOf('}', s)); };
+// Базові токени тепер у :root (колишня тема night лишилась лише як назва базового блоку).
+const theme = (name) => { const s = html.indexOf(name === 'night' ? '        :root {' : '[data-theme="' + name + '"] {'); return html.slice(s, html.indexOf('}', s)); };
 
 // Токени картки результату, як їх бачить браузер: тема × режим («Детально» ставить картку на світло-зелений фон).
 const declMap = (text) => Object.fromEntries([...text.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
@@ -65,8 +66,8 @@ function resultCard(themeName, mode) {
     return { bg, ink };
 }
 
-test('п.13 / D: тексти картки результату (KPI, Беззбитковість) — контраст ≥ 4.5:1 у light, dark, night, amber, в обох режимах картки', () => {
-    for (const themeName of ['light', 'dark', 'night', 'amber']) {
+test('п.13 / D: тексти картки результату (KPI, Беззбитковість) — контраст ≥ 4.5:1 у light, dark, в обох режимах картки', () => {
+    for (const themeName of ['light', 'dark']) {
         for (const mode of ['normal', 'detail']) {
             const { bg, ink } = resultCard(themeName, mode);
             for (const [name, rgb] of Object.entries(ink)) {

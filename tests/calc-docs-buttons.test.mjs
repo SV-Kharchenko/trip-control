@@ -18,7 +18,7 @@ function fnSource(name) {
 test('історія заявок: «Створити ТТН» і «Створити подорожній лист» лише для прийнятих заявок і лише власнику / логісту', async () => {
     const { default: vm } = await import('node:vm');
     const make = (role) => {
-        const ctx = vm.createContext({ currentOrgRole: role, escHtml: (s) => String(s), historyFields: (row) => ({ status: row.status }) });
+        const ctx = vm.createContext({ isKP: () => true, currentOrgRole: role, escHtml: (s) => String(s), historyFields: (row) => ({ status: row.status }) });
         vm.runInContext(fnSource('calcDocButtons'), ctx);
         return (row) => vm.runInContext('calcDocButtons(' + JSON.stringify(row) + ')', ctx);
     };
