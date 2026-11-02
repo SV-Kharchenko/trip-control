@@ -7216,6 +7216,7 @@
     }
     // «Очистити»: скидає введене в заявці (назва, адреси, числа, вибір авто); норми компанії лишаються.
     function clearCalcForm() {
+        currentCalcId = null;
         clearVehicleNormChoice();
         ['route-name', 'dist', 'podacha-dist', 'volume', 'rate'].forEach(function (id) {
             const el = opById(id);
@@ -13472,9 +13473,20 @@
         return 'Демо-режим: можна зберегти до ' + DEMO_MAX_SAVED + ' розрахунків. Видаліть один зі збережених або отримайте повний доступ.';
     }
 
+    // Одна заявка — один запис: id чернетки / відхиленої, яку зараз відкрито або щойно збережено. Повторне «Зберегти» і «Відправити»
+    // оновлюють її (calc_update), а не додають новий рядок. Скидається при новому розрахунку й очищенні форми.
+    let currentCalcId = null;
+    function editableCurrentRow() {
+        if (!currentCalcId) return null;
+        const row = savedCalculations.find(function (item) { return item.id === currentCalcId; });
+        const status = row ? (row.status || 'draft') : '';
+        return row && (status === 'draft' || status === 'rejected') ? row : null;
+    }
     async function saveCalculation() {
         if (!lastCalcData || !lastCalcData.routeName) return;
-        if (isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
+        const editRow = editableCurrentRow();
+        if (!editRow) currentCalcId = null;
+        if (!editRow && isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
             showToast(demoSaveLimitText(), 4200);
             return;
         }
@@ -13493,7 +13505,20 @@
         if (cargoEl && cargoEl.value.trim()) inputs.cargoName = cargoEl.value.trim().slice(0, 500);
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
-        try {
+        if (editRow) {
+            try {
+                const done = uiPreview ? {} : await teamApi('POST', { action: 'calc_update', id: editRow.id, name: snapshot.routeName, inputs: inputs, results: snapshot });
+                const keep = { id: editRow.id, userId: editRow.userId, status: editRow.status || 'draft', createdAt: editRow.createdAt, rejectReason: editRow.rejectReason };
+                const at = savedCalculations.indexOf(editRow);
+                savedCalculations[at] = Object.assign({}, snapshot, keep, { inputs: inputs });
+                renderSavedTable();
+                showToast(done && done.vehiclesSaved === false ? 'Розрахунок оновлено, авто до нього не прив’язались.' : 'Розрахунок оновлено', 2200);
+                savedId = editRow.id;
+            } catch (e) {
+                showToast(approvalErrorText(e), 4200, 'error');
+                return;
+            }
+        } else try {
             const { data, error } = await supabaseClient
                 .from('calculations')
                 .insert({
@@ -13516,6 +13541,7 @@
             renderSavedTable();
             showToast(linkNote || 'Розрахунок збережено', linkNote ? 4200 : 2200);
             savedId = data.id;
+            currentCalcId = data.id;
         } catch (e) {
             const message = dbErrorText(e);
             if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) showToast(demoSaveLimitText(), 4200);
@@ -13565,6 +13591,7 @@
         const code = String((e && e.code) || '');
         if (code === 'OWNER_ONLY') return 'Погоджувати чи відхиляти заявки може лише директор.';
         if (code === 'ACCEPTED_LOCKED') return 'Прийняту заявку видалити не можна.';
+        if (code === 'NOT_EDITABLE') return 'Заявка вже на погодженні або прийнята — її не можна змінити. Створіть новий розрахунок.';
         if (code === 'BAD_VARIANT') return 'Такого варіанта маршруту в заявці немає. Оновіть сторінку.';
         return String((e && e.message) || 'Не вдалося виконати дію із заявкою.');
     }
@@ -15362,6 +15389,8 @@
     function openSaved(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
         if (!row) return;
+        const rowStatus = row.status || 'draft';
+        const mine = row.userId === currentUserId || currentOrgRole === 'owner';
         setStudioView('calc');
         window.scrollTo(0, 0);
         const inputs = Object.assign({}, row.inputs || {});
@@ -15374,6 +15403,7 @@
         if (!inputs.destination && row.routeTo) inputs.destination = row.routeTo;
         if (!inputs.clientName && row.clientName) inputs.clientName = row.clientName;
         applyTripInputs(inputs, row.routeName || row.name);
+        currentCalcId = mine && (rowStatus === 'draft' || rowStatus === 'rejected') ? row.id : null;
     }
     async function setTripStatus(id, status) {
         const row = savedCalculations.find(function (item) { return item.id === id; });

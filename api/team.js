@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 import { buildInviteEmail, joinedMessage, sendInviteEmail } from '../lib/invite-mail.js';
 import { sendTelegram, statusKeyboard } from '../lib/signup-notify.js';
-import { cleanRejectReason, planDelete, planTransition } from '../lib/approvals.js';
+import { cleanRejectReason, planDelete, planTransition, planUpdate } from '../lib/approvals.js';
 import { recalculateRequest } from './calculate.js';
 import { requestOrigin } from '../lib/request-origin.js';
 
@@ -1145,6 +1145,45 @@ export function createTeamService(deps) {
         return { ok: true, id: calc.id };
     }
 
+    // Оновлення чернетки / відхиленої заявки на тому ж id (клієнт може лише міняти status, тому вміст пише сервер).
+    // calc_vehicles перезаписуються з inputs.vehicles; id, org_id, user_id і статус не змінюються.
+    async function updateCalc(actor, body) {
+        const calc = await loadCalculation(actor, body.id);
+        const plan = planUpdate(approvalContext(actor, calc), calc.status);
+        if (!plan.ok) throw denyFrom(plan);
+        const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+        const name = String(body.name == null ? '' : body.name).trim().slice(0, 500);
+        if (!name || !isObj(body.inputs) || !isObj(body.results)) throw new HttpError(400, 'BAD_CALC', 'Некоректні дані заявки.');
+        const { data, error } = await supabase
+            .from('calculations')
+            .update({ name, inputs: body.inputs, results: body.results })
+            .eq('id', calc.id)
+            .eq('org_id', actor.profile.org_id)
+            .eq('status', calc.status)
+            .select('id, status')
+            .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new HttpError(409, 'STATUS_CHANGED', 'Статус заявки вже змінився. Оновіть сторінку.');
+        const vehicles = Array.isArray(body.inputs.vehicles) ? body.inputs.vehicles : [];
+        const rows = vehicles
+            .filter((v) => v && UUID_RE.test(String(v.id || '')) && Number(v.tonnage) > 0)
+            .map((v) => ({ calc_id: calc.id, vehicle_id: v.id, tonnage: Number(v.tonnage), snapshot: isObj(v.snapshot) ? v.snapshot : {} }));
+        let vehiclesSaved = true;
+        try {
+            const del = await supabase.from('calc_vehicles').delete().eq('calc_id', calc.id);
+            if (del && del.error) throw del.error;
+            if (rows.length) {
+                const ins = await supabase.from('calc_vehicles').insert(rows);
+                if (ins && ins.error) throw ins.error;
+            }
+        } catch (e) {
+            // До міграції calc_vehicles таблиці може не бути: заявка збережена, прив'язка авто — ні.
+            vehiclesSaved = false;
+        }
+        await audit(actor.user.id, actor.profile.org_id, 'calc_updated', 'calculations', calc.id, { status: calc.status });
+        return { ok: true, id: calc.id, status: data.status, vehiclesSaved };
+    }
+
     async function loadPermissionRows(orgId) {
         const { data, error } = await supabase
             .from('org_member_permissions')
@@ -1272,6 +1311,7 @@ export function createTeamService(deps) {
         decideCalc,
         completeCalc,
         deleteCalc,
+        updateCalc,
         listTeam,
         inviteMember,
         inviteInfo,
@@ -1333,6 +1373,7 @@ export function createTeamHandler(deps) {
             else if (action === 'calc_submit') result = await service.submitCalc(actor, body);
             else if (action === 'calc_decide') result = await service.decideCalc(actor, body);
             else if (action === 'calc_complete') result = await service.completeCalc(actor, body);
+            else if (action === 'calc_update') result = await service.updateCalc(actor, body);
             else if (action === 'calc_delete') result = await service.deleteCalc(actor, body);
             else throw new HttpError(400, 'UNKNOWN_ACTION', 'Невідома дія.');
 
