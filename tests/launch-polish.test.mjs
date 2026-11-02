@@ -29,6 +29,11 @@ test('аналітика: один same-origin скрипт Vercel Web Analytics
     const privacy = read('legal/privacy.html');
     assert.match(privacy, /<strong>Знеособлена аналітика\.<\/strong> Для підрахунку відвідувань сайту ми використовуємо Vercel Web Analytics\. Вона працює без cookies/);
     assert.match(privacy, /не зберігає IP-адресу/);
+    // Старе твердження «аналітика не підключена» прибрано, суперечностей щодо аналітики й cookies немає.
+    assert.equal(/не підключено жодних аналітичних/.test(privacy), false);
+    assert.equal(/Vercel Analytics|Google Analytics/.test(privacy), false);
+    assert.equal((privacy.match(/Vercel Web Analytics/g) || []).length, 2, 'у таблиці постачальників і в абзаці про аналітику');
+    assert.match(privacy, /Ми не використовуємо рекламних чи аналітичних cookies\. Аналітичні cookies не встановлюються: лічильник відвідувань працює без cookies/);
 });
 
 test('реквізити ФОП у підвалі кожної публічної сторінки (значення з оферти)', () => {
@@ -36,14 +41,17 @@ test('реквізити ФОП у підвалі кожної публічно�
     for (const value of ['ФОП Харченко Святослав Вікторович', 'РНОКПП: 3184920472', '19700, Черкаська обл., м. Золотоноша, вул. Січова, буд. 25, кв. 75', 'support@trip-control.com', '+380730888252']) {
         assert.ok(offer.includes(value), 'в оферті: ' + value);
     }
+    assert.match(offer, /<h2 id="requisites">15\. Реквізити Виконавця<\/h2>/, 'якір для посилання з підвалу');
+    assert.ok(offer.includes('РНОКПП: 3184920472') && offer.includes('Золотоноша'), 'повні реквізити лишаються в оферті');
     for (const file of PAGES) {
         const footers = [...read(file).matchAll(/<footer class="tc-legal-footer">[\s\S]*?<\/footer>/g)].map((m) => m[0]);
         assert.ok(footers.length >= 1, file);
         for (const footer of footers) {
-            for (const value of ['ФОП Харченко Святослав Вікторович', 'РНОКПП 3184920472', '19700, Черкаська обл., м. Золотоноша, вул. Січова, буд. 25, кв. 75',
-                'mailto:support@trip-control.com', 'tel:+380730888252']) {
+            for (const value of ['ФОП Харченко С.В.', 'mailto:support@trip-control.com', 'tel:+380730888252', '<a href="/offer#requisites">Реквізити</a>']) {
                 assert.ok(footer.includes(value), file + ': ' + value);
             }
+            // РНОКПП і адреса — лише в тілі оферти (розділ 15), не в підвалі.
+            for (const value of ['3184920472', 'Золотоноша', 'Січова']) assert.equal(footer.includes(value), false, file + ': ' + value + ' не в підвалі');
             assert.equal(/TODO/.test(footer), false, file);
         }
     }

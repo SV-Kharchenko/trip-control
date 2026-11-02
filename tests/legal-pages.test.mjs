@@ -131,7 +131,7 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(read('404.html'), /<html lang="uk" data-theme="dark">/);
     assert.match(reference, /Оплата карткою через plata by mono та WayForPay · Apple Pay \/ Google Pay/);
     assert.equal(reference.includes('monobank'), false);
-    assert.match(reference, /ФОП Харченко Святослав Вікторович · РНОКПП 3184920472 · 19700, Черкаська обл\., м\. Золотоноша, вул\. Січова, буд\. 25, кв\. 75 · <a href="mailto:support@trip-control.com">support@trip-control.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
+    assert.match(reference, /ФОП Харченко С\.В\. · <a href="mailto:support@trip-control.com">support@trip-control.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a> · <a href="\/offer#requisites">Реквізити<\/a>/);
     // Landing, auth screen, menu, bottom of the app, bottom of the cabinet.
     assert.equal(footersOf(html).length, 5);
     const landingFooters = footersOf(sliceBetween(html, '<div id="landing-screen" hidden>', '<div id="auth-screen">'));
