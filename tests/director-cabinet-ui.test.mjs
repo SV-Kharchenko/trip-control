@@ -32,6 +32,7 @@ function buildFor({ role, mode }) {
         'const OPT_ON_OFF = [["on","Увімкнено"],["off","Вимкнено"]];',
         html.slice(html.indexOf('const CAB_SECTIONS = ['), html.indexOf('const LEGACY_SETTINGS_KEYS')),
         'const SETTINGS_MAP = {}; CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));',
+        'const STARTER_SETTINGS = ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1] + ';',
         html.slice(html.indexOf('const COST_GROUPS = ['), html.indexOf('const COST_SHOW_IF')),
         fnSource('costFieldHtml'), fnSource('costsPanelHtml'), 'function updateCabVisibility() {} function refreshCabOverheadSum() {}',
     ].join(String.fromCharCode(10)), context);

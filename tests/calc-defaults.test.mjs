@@ -35,8 +35,10 @@ const PROD_SETTINGS = {
 };
 
 // Усі приховані поля калькулятора + мінімальний DOM; функції беремо прямо з index.html.
-function setup({ settings = {}, role = 'owner' } = {}) {
+function setup({ settings = {}, role = 'owner', rpcError = null } = {}) {
     const els = {};
+    const rpcCalls = [];
+    const supabaseClient = { rpc: async (name, args) => { rpcCalls.push({ name, args }); return { error: rpcError }; } };
     const el = (id, value = '') => (els[id] = els[id] || {
         id, value, handlers: {}, style: {}, hidden: false, disabled: false, dataset: {}, textContent: '', innerText: '',
         classList: { toggle() {} }, addEventListener(n, f) { this.handlers[n] = f; }, querySelector() { return null; },
@@ -44,19 +46,21 @@ function setup({ settings = {}, role = 'owner' } = {}) {
     const context = vm.createContext({
         document: { getElementById: (id) => els[id] || null, querySelector: () => null },
         companySettings: settings, currentOrgRole: role, companyTax: '', refreshCabWarning() {}, bindCardOverrides() {},
-        cardSourced: {}, cardPrev: {}, console,
+        cardSourced: {}, cardPrev: {}, console, currentOrgId: 'org-1', isDemo: false, rpcCalls, supabaseClient,
     });
     vm.runInContext([
         'const OPT_ON_OFF = [["on","Увімкнено"],["off","Вимкнено"]];',
         cabSections(),
         'const SETTINGS_MAP = {}; CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));',
         'const STARTER_SETTINGS = ' + literal('STARTER_SETTINGS') + ';',
-        ...['calcSettingOk', 'calcValueFor', 'hasCompanyCosts', 'applyCalcDefaults'].map(fnSource),
+        "const PRICE_KEYS = ['fuelPrice', 'adbluePrice']; const LAST_PRICE_KEY = " + literal('LAST_PRICE_KEY') + ';',
+        'const priceTouched = {}; let priceMemoryBound = false;',
+        ...['calcSettingOk', 'priceValueOk', 'calcValueFor', 'hasCompanyCosts', 'bindPriceMemory', 'async function saveLastPrice(key)', 'applyCalcDefaults'].map(fnSource),
     ].join('\n'), context);
     const ids = JSON.parse(vm.runInContext('JSON.stringify(Object.fromEntries(Object.entries(SETTINGS_MAP).map(([k, f]) => [k, f.id])))', context));
     Object.values(ids).forEach((id) => el(id));
     for (const id of ['calc-type', 'driver-km-box', 'driver-pct-box', 'field-adblue-consumption', 'field-adblue-price', 'tc-costs-edit']) el(id);
-    return { context, el, ids };
+    return { context, el, ids, rpcCalls };
 }
 const value = (s, key) => s.el(s.ids[key]).value;
 
@@ -67,7 +71,7 @@ test('calcValueFor: empty company → built-in; company values win; invalid valu
     assert.equal(vm.runInContext('calcValueFor("amort")', fresh.context), undefined, 'overheads stay empty without company data');
     assert.equal(vm.runInContext('hasCompanyCosts()', fresh.context), false);
     const company = setup({ settings: PROD_SETTINGS });
-    assert.equal(vm.runInContext('calcValueFor("fuelPrice")', company.context), 58);
+    assert.equal(vm.runInContext('calcValueFor("fuelPrice")', company.context), 58, 'the old fuelPrice setting is still honoured when there is no last price');
     assert.equal(vm.runInContext('calcValueFor("amort")', company.context), 120000);
     assert.equal(vm.runInContext('calcValueFor("adblueEnable")', company.context), 'off');
     assert.equal(vm.runInContext('calcValueFor("driverPayMode")', company.context), 'pct');
@@ -324,9 +328,14 @@ test('structure: block 4 left the calculator for a compact line; the tab is in t
     const panel = html.slice(html.indexOf('const COST_GROUPS = ['), html.indexOf('function updateCabVisibility()'));
     for (const title of ['Водій', 'ТО і шини', 'Накладні', 'Пальне']) assert.ok(panel.includes("title: '" + title + "'"), title);
     for (const key of ['driverPayMode', 'driverRateLoad', 'driverRateEmpty', 'perDiem', 'toCost', 'toPeriod', 'tireCost', 'tireCount', 'tireMileage',
-        'totalFleet', 'amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin', 'fuelLoad', 'fuelEmpty', 'adblueEnable', 'adblueConsumption', 'adbluePrice']) {
+        'totalFleet', 'amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin', 'fuelLoad', 'fuelEmpty', 'adblueEnable', 'adblueConsumption']) {
         assert.ok(panel.includes("['" + key + "'"), key);
     }
+    // Ціни дизпалива й AdBlue вводяться лише в калькуляторі.
+    assert.equal(panel.includes("['fuelPrice'"), false);
+    assert.equal(panel.includes("['adbluePrice'"), false);
+    assert.equal((panel.match(/Порожньо = вбудоване значення\./g) || []).length, 2, 'driver and TO / tires');
+    assert.match(panel, /Річні суми на весь парк\. Порожньо = 0 у розрахунку\./);
     assert.match(panel, /Разом накладних на рік/);
     assert.match(panel, /Річні суми на весь парк\. Порожньо = 0 у розрахунку\./);
     assert.match(html, /\{ id: 'costs', title: 'Витратна частина' \}/);
@@ -348,4 +357,120 @@ test('the empty-cost warning leads the owner to the costs tab (the logist gets t
     assert.match(fnSource('focusCalcWarningField'), /if \(target\.cabinet\) \{ openCabinetTab\('costs'\); return; \}/);
     assert.match(fnSource('renderCostWarnings'), /target\.cabinet \? 'Заповнити у витратній частині' : 'Заповнити в калькуляторі'/);
     assert.match(fnSource('renderCostWarnings'), /!target\.cabinet \|\| currentOrgRole === 'owner'/);
+});
+
+// ---- Остання ціна дизпалива й AdBlue: на компанію, не в localStorage ----
+test('last price: the company last price → the built-in; one company never sees another one\'s price', () => {
+    const a = setup({ settings: { lastFuelPrice: 63.2, lastAdbluePrice: 21 } });
+    const b = setup({ settings: { lastFuelPrice: 55 } });
+    const c = setup({ settings: {} });
+    vm.runInContext('applyCalcDefaults()', a.context);
+    vm.runInContext('applyCalcDefaults()', b.context);
+    vm.runInContext('applyCalcDefaults()', c.context);
+    assert.equal(value(a, 'fuelPrice'), 63.2);
+    assert.equal(value(a, 'adbluePrice'), 21);
+    assert.equal(value(b, 'fuelPrice'), 55);
+    assert.equal(value(b, 'adbluePrice'), 18, 'B has no AdBlue price: the built-in, not A\'s');
+    assert.equal(value(c, 'fuelPrice'), 95, 'an empty company: the built-in');
+    assert.equal(value(c, 'adbluePrice'), 18);
+    // Недопустимі значення ігноруються (0, від’ємні, ≥ 1000, не число).
+    const bad = setup({ settings: { lastFuelPrice: 0, lastAdbluePrice: 1000 } });
+    assert.equal(vm.runInContext('calcValueFor("fuelPrice")', bad.context), 95);
+    assert.equal(vm.runInContext('calcValueFor("adbluePrice")', bad.context), 18);
+    assert.equal(vm.runInContext('calcValueFor("fuelPrice", { lastFuelPrice: "63" })', bad.context), 95);
+    // Найновіша ціна компанії перемагає старе значення з налаштувань.
+    assert.equal(vm.runInContext('calcValueFor("fuelPrice", { fuelPrice: 58, lastFuelPrice: 60.5 })', bad.context), 60.5);
+    assert.equal(html.includes('tc_calc_last'), false);
+    assert.equal(/localStorage[^;\n]*(lastFuelPrice|lastAdbluePrice)/.test(html), false, 'the last price is not kept in localStorage');
+});
+
+test('last price: a manual edit is saved through the RPC, the logist can do it, and only the price is sent', async () => {
+    for (const role of ['owner', 'logist']) {
+        const s = setup({ settings: PROD_SETTINGS, role });
+        vm.runInContext('applyCalcDefaults()', s.context);
+        s.el('fuel-price').value = '61.236';
+        s.el('fuel-price').handlers.change();
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.deepEqual(JSON.parse(JSON.stringify(s.rpcCalls)), [{ name: 'kp_set_last_fuel_prices', args: { p_fuel: 61.24, p_adblue: null } }], role);
+        assert.equal(vm.runInContext('companySettings.lastFuelPrice', s.context), 61.24);
+        assert.equal(vm.runInContext('companySettings.amort', s.context), 120000, 'the costs are not touched');
+        s.el('adblue-price').value = '19.5';
+        s.el('adblue-price').handlers.change();
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.deepEqual(JSON.parse(JSON.stringify(s.rpcCalls[1])), { name: 'kp_set_last_fuel_prices', args: { p_fuel: null, p_adblue: 19.5 } });
+        // Те саме значення вдруге не пишемо; сміття не пишемо.
+        s.el('adblue-price').handlers.change();
+        s.el('fuel-price').value = '-3';
+        s.el('fuel-price').handlers.change();
+        s.el('fuel-price').value = '1000';
+        s.el('fuel-price').handlers.change();
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.equal(s.rpcCalls.length, 2);
+    }
+    // Демо і перегляд (директор) нічого не пишуть.
+    const demo = setup({ settings: {} });
+    vm.runInContext('isDemo = true; applyCalcDefaults()', demo.context);
+    demo.el('fuel-price').value = '70';
+    demo.el('fuel-price').handlers.change();
+    const viewer = setup({ settings: {}, role: 'director' });
+    vm.runInContext('applyCalcDefaults()', viewer.context);
+    viewer.el('fuel-price').value = '70';
+    viewer.el('fuel-price').handlers.change();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(demo.rpcCalls.length + viewer.rpcCalls.length, 0);
+    // Помилка бази: ціна діє в рейсі, у пам’ять компанії не потрапляє.
+    const failing = setup({ settings: {}, rpcError: { message: 'x' } });
+    vm.runInContext('applyCalcDefaults()', failing.context);
+    failing.el('fuel-price').value = '64';
+    failing.el('fuel-price').handlers.change();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(vm.runInContext('companySettings.lastFuelPrice', failing.context), undefined);
+    assert.equal(failing.el('fuel-price').value, '64');
+});
+
+test('last price: a price typed in the current trip is not overwritten by applyCalcDefaults / the costs refresh; a new calculation takes the last price', () => {
+    const s = setup({ settings: { lastFuelPrice: 60, lastAdbluePrice: 20, amort: 100000 } });
+    vm.runInContext('applyCalcDefaults()', s.context);
+    assert.equal(value(s, 'fuelPrice'), 60, 'a new calculation: the last company price');
+    s.el('fuel-price').value = '66';
+    s.el('fuel-price').handlers.input();
+    vm.runInContext('companySettings = Object.assign({}, companySettings, { lastFuelPrice: 61, amort: 150000 }); applyCalcDefaults()', s.context);
+    assert.equal(value(s, 'fuelPrice'), '66', 'the typed price survives applyCalcDefaults');
+    assert.equal(value(s, 'amort'), 150000, 'the costs are refreshed');
+    assert.equal(value(s, 'adbluePrice'), 20, 'the untouched price follows the company');
+    // Після збереження вкладки витрат ціни не чіпаємо взагалі (вони можуть бути з відкритої заявки).
+    s.el('adblue-price').value = '17';
+    vm.runInContext('companySettings = Object.assign({}, companySettings, { lastAdbluePrice: 25, amort: 160000 }); applyCalcDefaults(true)', s.context);
+    assert.equal(value(s, 'adbluePrice'), '17');
+    assert.equal(value(s, 'amort'), 160000);
+    assert.match(html.slice(html.indexOf('function refreshCalcFromCompany()'), html.indexOf('function saveCosts()')), /applyCalcDefaults\(true\)/);
+});
+
+test('the costs tab: built-in values as placeholders for driver and TO / tires; no price fields', () => {
+    const markup = html.slice(html.indexOf('function costFieldHtml('), html.indexOf('function updateCabVisibility()'));
+    assert.match(markup, /placeholder=/);
+    assert.match(markup, /builtin && STARTER_SETTINGS\[f\.key\] !== undefined/);
+    const groups = html.slice(html.indexOf('const COST_GROUPS = ['), html.indexOf('const COST_SHOW_IF'));
+    assert.match(groups, /title: 'Водій', builtin: true, note: 'Порожньо = вбудоване значення\.'/);
+    assert.match(groups, /title: 'ТО і шини', builtin: true, note: 'Порожньо = вбудоване значення\.'/);
+    assert.equal(/title: 'Накладні', builtin/.test(groups), false, 'overheads keep «Порожньо = 0»');
+    assert.equal(/title: 'Пальне', builtin/.test(groups), false);
+});
+
+test('saving the costs keeps the last prices the logists wrote in the meantime', async () => {
+    const t = cabinetSetup({ settings: { ...PROD_SETTINGS, lastFuelPrice: 50 } });
+    t.context.supabaseClient.from = (table) => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: { lastFuelPrice: 62.5, lastAdbluePrice: 19 } } }) }) }),
+        update: () => ({ eq: async () => ({}) }),
+        upsert: async (row) => { t.saved.push('upsert:' + table + ':' + JSON.stringify(row.settings || row)); return {}; },
+    });
+    vm.runInContext('fillCostsTab()', t.context);
+    t.cab['cab-amort'].value = '150000';
+    await vm.runInContext('saveCabinet("costs")', t.context);
+    const upsert = t.saved.find((x) => x.startsWith('upsert:company_settings:'));
+    const next = JSON.parse(upsert.slice('upsert:company_settings:'.length));
+    assert.equal(next.amort, 150000);
+    assert.equal(next.lastFuelPrice, 62.5, 'the fresher price from the database is kept');
+    assert.equal(next.lastAdbluePrice, 19);
+    assert.equal(next.fuelLoad, 36.5);
 });

@@ -1718,6 +1718,22 @@ for (const [index, [name, extra]] of planCases.entries()) {
     for (const row of fTap) check(row.ok, 'pgTAP kp_trip_sheet_full.sql: ' + row.label);
     check(fTap.length === fPlanned, `pgTAP kp_trip_sheet_full.sql: ran ${fTap.length} of plan(${fPlanned})`);
 }
+// Остання ціна дизпалива й AdBlue (20261108090000): повторне застосування, pgTAP kp_last_fuel_prices.sql.
+{
+    const lpSql = fs.readFileSync(new URL('20261108090000_kp_last_fuel_prices.sql', DIR), 'utf8');
+    await db.exec(lpSql);
+    await db.exec(lpSql);
+    check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(lpSql) && /РУЧНИЙ ВІДКАТ/.test(lpSql),
+        'last fuel prices: migration re-applied (idempotent), manual-apply header and manual rollback');
+    const lTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_last_fuel_prices.sql', import.meta.url), 'utf8')
+        .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+    const lPlanned = Number((lTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+    const lBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+    await db.exec(lTapSql);
+    const lTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(lBefore);
+    for (const row of lTap) check(row.ok, 'pgTAP kp_last_fuel_prices.sql: ' + row.label);
+    check(lTap.length === lPlanned, `pgTAP kp_last_fuel_prices.sql: ran ${lTap.length} of plan(${lPlanned})`);
+}
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
 if (failed) {

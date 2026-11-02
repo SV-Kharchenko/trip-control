@@ -242,7 +242,8 @@ test('migration 20261107090000: additive and idempotent, RLS through kp_org_id()
     assert.doesNotMatch(sql, /^\s*(DROP TABLE|TRUNCATE)\b/im);
     // Старі міграції не змінено цією зміною (перевіряє security-grants; тут — лише що файл новий і останній).
     const names = fs.readdirSync(new URL('../../supabase/migrations/', APP)).sort();
-    assert.equal(names.at(-1), '20261107090000_kp_trip_sheet_full.sql');
+    assert.ok(names.includes('20261107090000_kp_trip_sheet_full.sql'));
+    assert.ok(names.indexOf('20261107090000_kp_trip_sheet_full.sql') > names.indexOf('20261106090000_kp_contract_cancelled_guards.sql'), 'after the previous migration');
 });
 
 test('UI: buttons by content size (no stretched buttons without .btn-block), no innerHTML, mobile cards for the stage table', () => {
