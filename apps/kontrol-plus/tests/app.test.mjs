@@ -129,7 +129,7 @@ test('no innerHTML with data in the CRM tabs', () => {
 test('root .vercelignore hides repo internals from trip-control.com but keeps the site', () => {
     const lines = fs.readFileSync(new URL('../../.vercelignore', APP), 'utf8').split('\n')
         .map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
-    assert.deepEqual(lines.sort(), ['/SECURITY-FIX-PLAN.md', '/apps/', '/docs/', '/scripts/', '/supabase/', '/tests/']);
+    assert.deepEqual(lines.sort(), ['*.md', '/SECURITY-FIX-PLAN.md', '/apps/', '/design/', '/docs/', '/scripts/', '/supabase/', '/tests/']);
     const site = ['api', 'lib', 'assets', 'legal', 'index.html', '404.html', 'offline.html', 'sw.js', 'site.webmanifest',
         'favicon.ico', 'favicon-32.png', 'apple-touch-icon.png', 'robots.txt', 'sitemap.xml', 'package.json', 'vercel.json'];
     for (const path of site) {

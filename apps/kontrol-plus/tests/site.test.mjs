@@ -147,7 +147,7 @@ test('vercel.json: site CSP only on site pages, strict CSP everywhere else, one 
         const csp = headersFor(pathname, 'Content-Security-Policy')[0];
         for (const need of ["script-src 'self' 'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com',
             'https://maps.googleapis.com', 'https://maps.gstatic.com', 'https://fonts.googleapis.com', 'https://fonts.gstatic.com',
-            'https://bank.gov.ua', 'https://script.google.com', 'https://script.googleusercontent.com', 'wss://*.supabase.co',
+            'https://bank.gov.ua', 'wss://*.supabase.co',
             "connect-src 'self' https://*.supabase.co", "frame-ancestors 'none'", "object-src 'none'"]) {
             assert.ok(csp.includes(need), `${pathname}: ${need}`);
         }

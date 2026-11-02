@@ -40,7 +40,9 @@ test('three legal pages: full page around <article class="legal-doc">, canonical
         assert.match(page, /<link rel="icon" href="\/favicon\.ico" sizes="any">/);
         assert.match(page, /family=Manrope:wght@400;500;600;700;800&family=JetBrains\+Mono/);
         assert.match(page, /<a class="legal-back" href="\/">← Trip Control<\/a>/);
-        assert.equal(/<script[^>]+src=/i.test(page), false, file + ': external script');
+        // Єдиний дозволений скрипт — власна знеособлена аналітика Vercel (same-origin, без cookies).
+        const scripts = [...page.matchAll(/<script[^>]+src=["']([^"']+)["']/gi)].map((m) => m[1]);
+        assert.deepEqual(scripts, ['/_vercel/insights/script.js'], file + ': external script');
         // The document text may name processors (e.g. Supabase); the page code around it must not load them.
         const shell = page.replace(/<article class="legal-doc"[\s\S]*<\/article>/, '');
         assert.equal(/supabase|googletagmanager|gtag\(|analytics/i.test(shell), false, file + ': analytics / Supabase');
@@ -129,7 +131,7 @@ test('one footer component with the three links, payments and seller on every pa
     assert.match(read('404.html'), /<html lang="uk" data-theme="dark">/);
     assert.match(reference, /Оплата карткою через plata by mono та WayForPay · Apple Pay \/ Google Pay/);
     assert.equal(reference.includes('monobank'), false);
-    assert.match(reference, /ФОП Харченко Святослав Вікторович · <a href="mailto:support@trip-control.com">support@trip-control.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
+    assert.match(reference, /ФОП Харченко Святослав Вікторович · РНОКПП 3184920472 · 19700, Черкаська обл\., м\. Золотоноша, вул\. Січова, буд\. 25, кв\. 75 · <a href="mailto:support@trip-control.com">support@trip-control.com<\/a> · <a href="tel:\+380730888252">\+380730888252<\/a>/);
     // Landing, auth screen, menu, bottom of the app, bottom of the cabinet.
     assert.equal(footersOf(html).length, 5);
     const landingFooters = footersOf(sliceBetween(html, '<div id="landing-screen" hidden>', '<div id="auth-screen">'));

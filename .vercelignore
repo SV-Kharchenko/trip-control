@@ -6,3 +6,6 @@
 /tests/
 /scripts/
 /SECURITY-FIX-PLAN.md
+/design/
+# Внутрішні markdown-файли (README, плани, нотатки) на сайті не потрібні.
+*.md
