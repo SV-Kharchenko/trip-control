@@ -7,6 +7,7 @@ import { contractText, partyLines, rateLine, totalWords, totalsRows } from './pd
 import { normalizeCargoLine } from './ttn.js';
 import { TS_FORM_NO, TS_FORM_REF, tsHeading, tsSections } from './trip-sheet.js';
 import { STAGE_COLUMNS, tsBackSections, tsFrontMarks, tsStageRows, tsTotals } from './trip-sheet-stages.js';
+import { REFUEL_COLUMNS, tsRefuelRows } from './trip-sheet-refuels.js';
 import {
     APPENDIX_REF, CARGO_COLUMNS, FOOTNOTES, FORM_NO, cancelledLine, cargoCells, cargoTotals, frontFields, operationRows, ttnHeading,
 } from './ttn-text.js';
@@ -217,6 +218,20 @@ export function tripSheetSheet(doc) {
     b.row(STAGE_COLUMNS.map(([t]) => ({ v: t, s: 'head' })), { height: 42 });
     const blankRows = stageRows.length ? [] : Array.from({ length: 5 }, (_, i) => [String(i + 1), '', '', '', '', '', '', '', '', '']);
     for (const r of [...stageRows, ...blankRows]) b.row(r.map((v, i) => ({ v, s: i >= 7 ? 'cell' : 'wrap' })), { height: 30 });
+    b.blank();
+    // Дозаправки в дорозі: окрема таблиця перед підсумками (колонки на тій самій сітці з 10 стовпців, без обрізання).
+    b.line('Дозаправки в дорозі', 'bold');
+    const refuelRows = tsRefuelRows(doc);
+    // 8 колонок таблиці на 10 стовпців аркуша: «Місце / АЗС» займає 3, решта по одному.
+    const refuelSpan = [[0, 0], [1, 1], [2, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9]];
+    const refuelCells = (values, style) => {
+        const out = [];
+        values.forEach((v, i) => { const [a, z] = refuelSpan[i]; out.push({ v, s: style(i) }); for (let k = a + 1; k <= z; k += 1) out.push(null); });
+        return out;
+    };
+    b.row(refuelCells(REFUEL_COLUMNS.map(([t]) => t), () => 'head'), { span: refuelSpan.filter(([a, z]) => z > a), height: 30 });
+    const blankRefuels = refuelRows.length ? [] : Array.from({ length: 2 }, (_, i) => [String(i + 1), '', '', '', '', '', '', '']);
+    for (const r of [...refuelRows, ...blankRefuels]) b.row(refuelCells(r, (i) => (i >= 3 && i <= 5 ? 'cell' : 'wrap')), { span: refuelSpan.filter(([a, z]) => z > a), height: 24 });
     b.blank();
     const back = tsBackSections(doc, tsTotals(doc));
     for (const section of [base[4], back[0], back[1]]) kv(section);

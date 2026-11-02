@@ -2,6 +2,7 @@
 // після рейсу, перевірка закриття. Чиста логіка без DOM; формули збігаються з базою (kp_trip_sheet_stages.tkm,
 // kp_trip_sheet_close): т·км = км × т, округлення до 0,1; норма пального — за сумою км з вантажем з етапів, а без етапів — за планом із завдання.
 import { NORM_NEEDS_LOADED_KM, calcTripSheet, fmtDateTime, localToIso, isoToLocal, toNum } from './trip-sheet.js';
+import { refuelsTotal } from './trip-sheet-refuels.js';
 
 export const MAX_STAGES = 50;
 const hasValue = (v) => v !== null && v !== undefined && String(v).trim() !== '';
@@ -109,21 +110,37 @@ export function stageTotals(list) {
     return { loaded_km: hasKm ? round1(km) : null, tkm: hasTkm ? round1(tkm) : null, trips };
 }
 
+// Км з вантажем не може бути більше за пробіг за одометрами: попередження (не блок). Джерело км — етапи або план із завдання.
+export function loadedKmWarning(loadedKm, distance, fromStages) {
+    const loaded = toNum(loadedKm);
+    if (loaded === null || Number.isNaN(loaded) || distance === null || distance === undefined || !(loaded > distance)) return '';
+    return 'Км з вантажем (' + num(loaded) + ') більше за загальний пробіг за одометрами (' + num(distance) + '). '
+        + (fromStages ? 'Перевірте км в етапах або одометр.' : 'Це план із завдання — внесіть фактичні км в етапах або перевірте одометр.');
+}
+
 // Підсумки листа. Джерело правди — сервер:
 //  * закритий лист: пробіг, норма, факт і різниця — збережені distance_km / fuel_norm / fuel_actual / fuel_diff (нічого не перераховуємо);
 //  * збережений лист (doc.totals з kp_trip_sheet_get): км з вантажем, т·км і їздки — з doc.totals;
 //  * лише для «Видано» і лише як прев'ю у формі (передано stages / returnOdometer / returnFuelLeft) — перерахунок тут:
 //    норма за сумою км з вантажем з етапів (як kp_trip_sheet_close), а без етапів — за планом із завдання.
-export function tsTotals(doc, { stages, returnOdometer, returnFuelLeft } = {}) {
-    const preview = stages !== undefined || returnOdometer !== undefined || returnFuelLeft !== undefined;
+export function tsTotals(doc, { stages, refuels, returnOdometer, returnFuelLeft } = {}) {
+    const preview = stages !== undefined || refuels !== undefined || returnOdometer !== undefined || returnFuelLeft !== undefined;
     const server = doc.totals || null;
     const fromStages = stageTotals(stages || (doc.stages || []).map(stageFromDoc));
     const st = !preview && server ? { loaded_km: server.loaded_km ?? null, tkm: server.tkm ?? null, trips: server.trips || 0 } : fromStages;
+    // Дозаправки: у прев'ю — зі списку редактора, інакше з сервера (totals.refuel_l) або з рядків листа.
+    const refuelL = refuels !== undefined ? refuelsTotal(refuels)
+        : server && server.refuel_l !== undefined && server.refuel_l !== null ? Number(server.refuel_l)
+            : refuelsTotal((doc.refuels || []).map((r) => ({ liters: r.liters })));
+    const taskKm = (doc.task || {}).loaded_km;
+    const usesStages = st.loaded_km !== null && st.loaded_km > 0;
+    const loadedForCheck = usesStages ? st.loaded_km : taskKm;
     if (!preview && doc.status === 'closed') {
         const stored = (key) => (doc[key] === undefined ? null : doc[key]);
         return {
-            distance_km: stored('distance_km'), loaded_km: st.loaded_km, tkm: st.tkm, trips: st.trips,
+            distance_km: stored('distance_km'), loaded_km: st.loaded_km, tkm: st.tkm, trips: st.trips, refuel_l: refuelL,
             fuel_norm: stored('fuel_norm'), fuel_actual: stored('fuel_actual'), fuel_diff: stored('fuel_diff'),
+            loaded_warning: loadedKmWarning(loadedForCheck, stored('distance_km'), usesStages),
         };
     }
     const task = doc.task || {};
@@ -132,13 +149,14 @@ export function tsTotals(doc, { stages, returnOdometer, returnFuelLeft } = {}) {
     const left = returnFuelLeft !== undefined ? returnFuelLeft : doc.return_fuel_left;
     const calc = calcTripSheet({
         depart_odometer: doc.depart_odometer, depart_fuel_left: doc.depart_fuel_left, fuel_issued: doc.fuel_issued,
-        return_odometer: odo, return_fuel_left: left,
+        return_odometer: odo, return_fuel_left: left, fuel_refueled: refuelL,
         loaded_km: st.loaded_km !== null && st.loaded_km > 0 ? st.loaded_km : task.loaded_km, fuel_load: veh.fuel_load, fuel_empty: veh.fuel_empty,
     });
     const distance = calc.distance_km !== null ? calc.distance_km : (server && server.distance_km !== undefined ? server.distance_km : null);
     return {
-        distance_km: distance, loaded_km: st.loaded_km, tkm: st.tkm, trips: st.trips,
+        distance_km: distance, loaded_km: st.loaded_km, tkm: st.tkm, trips: st.trips, refuel_l: refuelL,
         fuel_norm: calc.fuel_norm, fuel_actual: calc.fuel_actual, fuel_diff: calc.fuel_diff,
+        loaded_warning: loadedKmWarning(loadedForCheck, distance, usesStages),
     };
 }
 
@@ -151,9 +169,11 @@ export function totalsRows(t) {
         ['Кількість їздок', t.trips ? String(t.trips) : DASH],
         ['Пальне за нормою, л', t.fuel_norm === null || t.fuel_norm === undefined
             ? (t.distance_km !== null && t.distance_km !== undefined ? DASH + ' (' + NORM_NEEDS_LOADED_KM.toLowerCase() + ')' : DASH) : num(t.fuel_norm)],
+        ['Дозаправки, л', num(t.refuel_l === undefined || t.refuel_l === null ? 0 : t.refuel_l)],
         ['Пальне фактично, л', num(t.fuel_actual)],
         ['Різниця, л', t.fuel_diff === null || t.fuel_diff === undefined ? DASH
             : `${signed(t.fuel_diff)} (${t.fuel_diff > 0 ? 'перевитрата' : t.fuel_diff < 0 ? 'економія' : 'за нормою'})`],
+        ...(t.loaded_warning ? [['Увага', t.loaded_warning]] : []),
     ];
 }
 

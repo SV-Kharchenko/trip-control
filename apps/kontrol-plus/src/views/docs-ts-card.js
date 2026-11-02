@@ -8,9 +8,12 @@ import { NORM_NEEDS_LOADED_KM, calcTripSheet, closePayload, fmtDateTime, isoToLo
 import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
 import { docsBackHash } from '../lib/docs-requests.js';
 import {
-    STAGE_COLUMNS, closeProblems, marksFromDoc, marksPayload, stageFromDoc, stagesPayload, tsBackSections, tsFrontMarks, tsStageRows, tsTotals, validateStages,
+    STAGE_COLUMNS, closeProblems, loadedKmWarning, marksFromDoc, marksPayload, stageFromDoc, stageTotals, stagesPayload, tsBackSections, tsFrontMarks, tsStageRows,
+    tsTotals, validateStages,
 } from '../lib/trip-sheet-stages.js';
+import { REFUEL_COLUMNS, refuelFromDoc, refuelsPayload, refuelsTotal, tsRefuelRows, validateRefuels } from '../lib/trip-sheet-refuels.js';
 import { marksEditor, stagesEditor } from './docs-ts-stages.js';
+import { refuelsEditor } from './docs-ts-refuels.js';
 
 const fmt1 = (n) => (n === null || n === undefined ? '—' : String(n).replace('.', ','));
 
@@ -49,21 +52,27 @@ export function renderTripSheetCard(app, access, id) {
         const veh = doc.vehicle || {};
         const current = () => calcTripSheet({
             depart_odometer: doc.depart_odometer, depart_fuel_left: doc.depart_fuel_left, fuel_issued: doc.fuel_issued,
-            return_odometer: odo.value, return_fuel_left: left.value, loaded_km: task.loaded_km, fuel_load: veh.fuel_load, fuel_empty: veh.fuel_empty,
+            return_odometer: odo.value, return_fuel_left: left.value, fuel_refueled: ctx.refuelL ? ctx.refuelL() : 0,
+            loaded_km: ctx.loadedKm ? ctx.loadedKm() : task.loaded_km, fuel_load: veh.fuel_load, fuel_empty: veh.fuel_empty,
         });
         const redraw = () => {
             const r = current();
             if (r.distance_km === null) return clear(preview, h('span', { class: 'muted small' }, 'Внесіть спідометр і залишок пального — покажемо пробіг і витрату.'));
-            const noLoaded = r.fuel_norm === null && !String(task.loaded_km ?? '').trim();
+            const loadedKm = ctx.loadedKm ? ctx.loadedKm() : task.loaded_km;
+            const noLoaded = r.fuel_norm === null && !String(loadedKm ?? '').trim();
+            const kmWarn = loadedKmWarning(loadedKm, r.distance_km, Boolean(ctx.loadedFromStages && ctx.loadedFromStages()));
             clear(preview,
                 h('span', null, 'Норми: ', h('b', null, fmt1(veh.fuel_load) + ' / ' + fmt1(veh.fuel_empty) + ' л/100 км'), ' (з вантажем / порожній)'),
                 h('span', null, 'Пробіг: ', h('b', null, fmt1(r.distance_km) + ' км')),
-                h('span', null, 'Факт: ', h('b', null, fmt1(r.fuel_actual) + ' л')),
+                h('span', null, 'Дозаправки: ', h('b', null, fmt1(ctx.refuelL ? ctx.refuelL() : 0) + ' л')),
+                h('span', null, 'Факт: ', h('b', null, fmt1(r.fuel_actual) + ' л'), h('span', { class: 'muted small' }, ' = виїзд + видано + дозаправки − залишок')),
                 h('span', { title: noLoaded ? NORM_NEEDS_LOADED_KM : null }, 'За нормою: ', h('b', null, r.fuel_norm === null ? '—' : fmt1(r.fuel_norm) + ' л'),
                     noLoaded ? h('small', { class: 'muted' }, ' ' + NORM_NEEDS_LOADED_KM) : null),
                 h('span', null, 'Різниця: ', h('b', null, r.fuel_diff === null ? '—' : (r.fuel_diff > 0 ? '+' : '') + fmt1(r.fuel_diff) + ' л')),
+                kmWarn ? h('span', { class: 'hint hint-warn', role: 'status' }, kmWarn + ' (попередження, закрити можна)') : null,
                 Object.values(r.errors).length ? h('span', { class: 'hint hint-error' }, Object.values(r.errors)[0]) : null);
         };
+        ctx.redraw = redraw;
         const sync = () => { redraw(); ctx.onInput(odo.value, left.value); };
         odo.addEventListener('input', sync);
         left.addEventListener('input', sync);
@@ -126,6 +135,12 @@ export function renderTripSheetCard(app, access, id) {
                         h('thead', null, h('tr', null, STAGE_COLUMNS.map(([t]) => h('th', null, t)))),
                         h('tbody', null, rows.map((row) => h('tr', null, row.map((cell, i) => h('td', { 'data-label': STAGE_COLUMNS[i][0], class: i >= 7 ? 'mono' : '' }, cell)))))))
                     : h('p', { class: 'muted' }, 'Етапів не внесено.')),
+            h('div', { class: 'card kpc-view' }, h('h3', { class: 'kpc-section' }, 'Дозаправки в дорозі'),
+                (doc.refuels || []).length
+                    ? h('div', { class: 'table-wrap kpr-cards kpts-table' }, h('table', { class: 'table' },
+                        h('thead', null, h('tr', null, REFUEL_COLUMNS.map(([t]) => h('th', null, t)))),
+                        h('tbody', null, tsRefuelRows(doc).map((row) => h('tr', null, row.map((cell, i) => h('td', { 'data-label': REFUEL_COLUMNS[i][0], class: i >= 3 && i <= 5 ? 'mono' : '' }, cell)))))))
+                    : h('p', { class: 'muted' }, 'Дозаправок у дорозі не було.')),
             tsBackSections(doc, totals).map(sectionCard));
     }
 
@@ -134,33 +149,47 @@ export function renderTripSheetCard(app, access, id) {
         const marks = marksFromDoc(doc);
         const totalsBox = h('div', { class: 'card kpc-view', id: 'ts-totals' });
         let editor = null;
+        let refEditor = null;
+        const closeCtx = {};
         let ret = { odo: doc.return_odometer, left: doc.return_fuel_left };
         const refresh = () => {
-            const t = tsTotals(doc, { stages: editor.get(), returnOdometer: ret.odo, returnFuelLeft: ret.left });
+            const t = tsTotals(doc, { stages: editor.get(), refuels: refEditor.get(), returnOdometer: ret.odo, returnFuelLeft: ret.left });
             clear(totalsBox, h('h3', { class: 'kpc-section' }, 'Підсумки'),
                 h('dl', { class: 'kpt-dl' }, tsBackSections(doc, t)[1].rows.map(([label, value]) => h('div', { class: 'kv' }, h('dt', null, label), h('dd', null, value)))));
         };
-        editor = stagesEditor((doc.stages || []).map(stageFromDoc), refresh);
+        refEditor = refuelsEditor((doc.refuels || []).map(refuelFromDoc), () => { refresh(); if (closeCtx.redraw) closeCtx.redraw(); });
+        editor = stagesEditor((doc.stages || []).map(stageFromDoc), () => { refresh(); if (closeCtx.redraw) closeCtx.redraw(); });
         const message = h('div', { 'aria-live': 'polite' });
         // Зберігає відмітки й етапи; повертає { ok, node } — node з помилкою для показу.
         const saveExtra = async () => {
             const bad = validateStages(editor.get());
             if (Object.keys(bad).length) return { ok: false, node: notice('Перевірте етапи: числа не менше 0, вибуття не раніше прибуття.') };
+            if (Object.keys(validateRefuels(refEditor.get())).length) return { ok: false, node: notice('Перевірте дозаправки: літри обов’язкові й більші за 0, ціна не менше 0.') };
             const { error } = await app.supabase.rpc('kp_trip_sheet_extra_save', { p_id: doc.id, p_data: { ...marksPayload(marks), stages: stagesPayload(editor.get()) } });
-            return error ? { ok: false, node: notice(tsErrorText(error)) } : { ok: true };
+            if (error) return { ok: false, node: notice(tsErrorText(error)) };
+            const refuelSave = await app.supabase.rpc('kp_trip_sheet_refuels_save', { p_id: doc.id, p_rows: refuelsPayload(refEditor.get()) });
+            return refuelSave.error ? { ok: false, node: notice(tsErrorText(refuelSave.error)) } : { ok: true };
         };
         const save = h('button', { type: 'button', class: 'btn btn-primary', id: 'ts-extra-save', onclick: async () => {
             clear(message);
             const res = await saveExtra();
             if (!res.ok) return clear(message, res.node);
-            toast('Відмітки й етапи збережено');
+            toast('Відмітки, етапи й дозаправки збережено');
             return load();
-        } }, 'Зберегти відмітки й етапи');
-        const close = access.canWrite ? closeForm(doc, { saveExtra, onInput: (odo, left) => { ret = { odo, left }; refresh(); } }) : null;
+        } }, 'Зберегти відмітки, етапи й дозаправки');
+        Object.assign(closeCtx, {
+            saveExtra, onInput: (odo, left) => { ret = { odo, left }; refresh(); },
+            refuelL: () => refuelsTotal(refEditor.get()),
+            // Км з вантажем для норми: сума з етапів, якщо вони внесені (як у kp_trip_sheet_close), інакше план із завдання.
+            loadedKm: () => { const st = stageTotals(editor.get()); return st.loaded_km !== null && st.loaded_km > 0 ? st.loaded_km : (doc.task || {}).loaded_km; },
+            loadedFromStages: () => { const st = stageTotals(editor.get()); return st.loaded_km !== null && st.loaded_km > 0; },
+        });
+        const close = access.canWrite ? closeForm(doc, closeCtx) : null;
         refresh();
         return h('div', null,
             h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Відмітки (допуск до рейсу, механік, диспетчер)'), marksEditor(marks, () => {})),
             h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Зворотний бік: етапи'), editor.node),
+            h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Дозаправки в дорозі'), refEditor.node),
             h('div', { class: 'actions kpc-actions' }, save), message,
             close, totalsBox);
     }

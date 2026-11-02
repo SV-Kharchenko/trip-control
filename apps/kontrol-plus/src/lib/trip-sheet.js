@@ -27,6 +27,8 @@ export const TS_FIELD_LABELS = {
     'stages.arrive_load_at': 'Етап: прибуття на завантаження', 'stages.depart_load_at': 'Етап: вибуття із завантаження',
     'stages.arrive_unload_at': 'Етап: прибуття на розвантаження', 'stages.depart_unload_at': 'Етап: вибуття з розвантаження',
     'stages.loaded_km': 'Етап: км з вантажем', 'stages.tonnage': 'Етап: тонни',
+    'refuels.liters': 'Дозаправка: літри', 'refuels.price_per_l': 'Дозаправка: ціна за л', 'refuels.refuel_at': 'Дозаправка: дата й час',
+    'refuels.place': 'Дозаправка: місце / АЗС', 'refuels.pay_method': 'Дозаправка: спосіб оплати', 'refuels.receipt_no': 'Дозаправка: № чека',
     medical_at: 'Медогляд: дата й час', tech_at: 'Механік: дата й час', medical_post_at: 'Медогляд після рейсу: дата й час', mech_return_at: 'Механік при поверненні: дата й час',
     return_at: 'Повернення: дата і час', return_odometer: 'Повернення: спідометр, км', return_fuel_left: 'Повернення: залишок пального, л',
 };
@@ -62,7 +64,7 @@ export function fuelNorm(distance, loadedKm, fuelLoad, fuelEmpty) {
     return round1(loaded * (hasLoad ? load : 0) / 100 + emptyKm * (hasEmpty ? empty : 0) / 100);
 }
 
-// Пробіг = спідометр повернення − виїзду; фактична витрата = залишок виїзду + видано − залишок повернення; різниця = факт − норма
+// Пробіг = спідометр повернення − виїзду; фактична витрата = залишок виїзду + видано + дозаправки − залишок повернення; різниця = факт − норма
 // (плюс — перевитрата, мінус — економія). Невалідні вхідні дані → errors.
 export function calcTripSheet(input) {
     const i = input || {};
@@ -72,6 +74,8 @@ export function calcTripSheet(input) {
     const left0 = toNum(i.depart_fuel_left);
     const left1 = toNum(i.return_fuel_left);
     const issued = toNum(i.fuel_issued) ?? 0;
+    // Дозаправки в дорозі (сума літрів); без них — 0, як і раніше.
+    const refueled = toNum(i.fuel_refueled) ?? 0;
     if (odo0 === null || Number.isNaN(odo0)) errors.depart_odometer = 'Вкажіть спідометр при виїзді';
     if (odo1 === null || Number.isNaN(odo1)) errors.return_odometer = 'Вкажіть спідометр при поверненні';
     else if (odo0 !== null && !Number.isNaN(odo0) && odo1 < odo0) errors.return_odometer = 'Не менше, ніж при виїзді';
@@ -79,8 +83,8 @@ export function calcTripSheet(input) {
     if (left1 === null || Number.isNaN(left1)) errors.return_fuel_left = 'Вкажіть залишок при поверненні';
     if (Object.keys(errors).length) return { distance_km: null, fuel_actual: null, fuel_norm: null, fuel_diff: null, errors };
     const distance = Math.round(odo1 - odo0);
-    const actual = round1(left0 + issued - left1);
-    if (actual < 0) errors.return_fuel_left = 'Залишок більший, ніж було пального';
+    const actual = round1(left0 + issued + (Number.isNaN(refueled) ? 0 : refueled) - left1);
+    if (actual < 0) errors.return_fuel_left = 'Залишок більший, ніж було пального (з видачею і дозаправками)';
     const norm = fuelNorm(distance, i.loaded_km, i.fuel_load, i.fuel_empty);
     return { distance_km: distance, fuel_actual: actual, fuel_norm: norm, fuel_diff: norm === null ? null : round1(actual - norm), errors };
 }
@@ -158,6 +162,12 @@ export function tsFromPrefill(pre, today) {
             fuel_load: p.vehicle.fuel_load !== undefined && p.vehicle.fuel_load !== null ? String(p.vehicle.fuel_load) : '',
             fuel_empty: p.vehicle.fuel_empty !== undefined && p.vehicle.fuel_empty !== null ? String(p.vehicle.fuel_empty) : '',
         });
+    }
+    // Норми для листа без картки авто: сервер підставляє норми заявки / «Витратної частини» компанії (p.norms).
+    if (p.norms) {
+        for (const key of ['fuel_load', 'fuel_empty']) {
+            if (!d.vehicle[key] && p.norms[key] !== undefined && p.norms[key] !== null) d.vehicle[key] = String(p.norms[key]);
+        }
     }
     if (p.trailer) {
         d.trailer_id = p.trailer_id || '';
@@ -299,7 +309,7 @@ const TS_ERRORS = [
     [/TS_CLOSED_IMMUTABLE/, 'Закритий лист не змінюється й не анулюється.'],
     [/TS_ODOMETER_DECREASE/, 'Спідометр при поверненні не може бути меншим, ніж при виїзді.'],
     [/TS_RETURN_BEFORE_DEPART/, 'Повернення не може бути раніше виїзду.'],
-    [/TS_FUEL_NEGATIVE/, 'Залишок пального при поверненні більший, ніж було з видачею.'],
+    [/TS_FUEL_NEGATIVE/, 'Залишок пального при поверненні більший, ніж було з видачею і дозаправками.'],
     [/TS_BAD_DATA/, 'Некоректні дані листа.'],
     [/DOC_IMMUTABLE/, 'Виданий лист не змінюється.'],
     [/DOC_NUMBER_TAKEN/, 'Такий номер уже використано.'],
