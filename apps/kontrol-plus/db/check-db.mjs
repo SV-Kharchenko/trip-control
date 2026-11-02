@@ -906,6 +906,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const keep = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n;
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
     // Подорожній лист (20261028110121) посилається на fleet_trailers: відкат причепів — після відкату листів.
+    await db.exec('DROP TABLE IF EXISTS public.kp_trip_sheet_refuels');
     await db.exec('DROP TABLE IF EXISTS public.kp_trip_sheet_stages');
     await db.exec('DROP TABLE IF EXISTS public.kp_doc_trip_sheet');
     await db.exec(rollback);
@@ -1100,7 +1101,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const frTo = fl.findIndex((l) => l === '--   COMMIT;');
     const followRollback = fl.slice(frFrom, frTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
     // Спершу відкат 20261107090000 (етапи залежать від таблиці листа): таблиця етапів і нові функції.
-    await db.exec(`DROP TABLE IF EXISTS public.kp_trip_sheet_stages; DROP FUNCTION IF EXISTS public.kp_trip_sheet_stages_guard(); DROP FUNCTION IF EXISTS public.kp_trip_sheet_extra_save(uuid, jsonb);
+    await db.exec(`DROP TABLE IF EXISTS public.kp_trip_sheet_refuels; DROP FUNCTION IF EXISTS public.kp_trip_sheet_refuels_guard(); DROP FUNCTION IF EXISTS public.kp_trip_sheet_refuels_save(uuid, jsonb); DROP TABLE IF EXISTS public.kp_trip_sheet_stages; DROP FUNCTION IF EXISTS public.kp_trip_sheet_stages_guard(); DROP FUNCTION IF EXISTS public.kp_trip_sheet_extra_save(uuid, jsonb);
         DROP FUNCTION IF EXISTS public.kp_ts_text(text, integer, text); DROP FUNCTION IF EXISTS public.kp_ts_time(text, text)`);
     await db.exec(followRollback);
     await db.exec(rollback);
@@ -1733,6 +1734,22 @@ for (const [index, [name, extra]] of planCases.entries()) {
     const lTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(lBefore);
     for (const row of lTap) check(row.ok, 'pgTAP kp_last_fuel_prices.sql: ' + row.label);
     check(lTap.length === lPlanned, `pgTAP kp_last_fuel_prices.sql: ran ${lTap.length} of plan(${lPlanned})`);
+}
+// Подорожній лист: дозаправки в дорозі (20261109090000): повторне застосування, pgTAP kp_trip_sheet_refuels.sql.
+{
+    const rfSql = fs.readFileSync(new URL('20261109090000_kp_trip_sheet_refuels.sql', DIR), 'utf8');
+    await db.exec(rfSql);
+    await db.exec(rfSql);
+    check(/^-- Apply manually after review. This file is not applied to production by the agent./.test(rfSql) && /РУЧНИЙ ВІДКАТ/.test(rfSql),
+        'trip sheet refuels: migration re-applied (idempotent), manual-apply header and manual rollback');
+    const rTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_trip_sheet_refuels.sql', import.meta.url), 'utf8')
+        .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+    const rPlanned = Number((rTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+    const rBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+    await db.exec(rTapSql);
+    const rTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(rBefore);
+    for (const row of rTap) check(row.ok, 'pgTAP kp_trip_sheet_refuels.sql: ' + row.label);
+    check(rTap.length === rPlanned, `pgTAP kp_trip_sheet_refuels.sql: ran ${rTap.length} of plan(${rPlanned})`);
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 

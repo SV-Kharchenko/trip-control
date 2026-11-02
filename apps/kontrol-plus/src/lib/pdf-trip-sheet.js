@@ -9,6 +9,7 @@ import { docNumberText } from './docs.js';
 import { loadFonts, wrapText } from './pdf-docs.js';
 import { TS_FORM_NO, TS_FORM_REF, tsHeading, tsSections } from './trip-sheet.js';
 import { STAGE_COLUMNS, tsBackSections, tsFrontMarks, tsStageRows, tsTotals } from './trip-sheet-stages.js';
+import { REFUEL_COLUMNS, tsRefuelRows } from './trip-sheet-refuels.js';
 
 export { loadFonts };
 
@@ -160,22 +161,21 @@ function continuation(L) {
     L.y -= 14;
 }
 
-function drawStageTable(L, doc) {
-    const rows = tsStageRows(doc);
-    const total = STAGE_COLUMNS.reduce((sum, [, w]) => sum + w, 0);
-    const widths = STAGE_COLUMNS.map(([, w]) => (w / total) * L.width);
+function drawTable(L, { title, columns, rows, blankRows }) {
+    const total = columns.reduce((sum, [, w]) => sum + w, 0);
+    const widths = columns.map(([, w]) => (w / total) * L.width);
     const xs = widths.reduce((acc, w, i) => { acc.push(i ? acc[i - 1] + widths[i - 1] : MARGIN); return acc; }, []);
     const FONT = 7.5;
     const header = () => {
-        const lines = STAGE_COLUMNS.map(([t], i) => L.lines(t, FONT, widths[i] - 6, true));
+        const lines = columns.map(([t], i) => L.lines(t, FONT, widths[i] - 6, true));
         const h = Math.max(...lines.map((l) => l.length)) * 9.5 + 6;
         const top = L.y;
         L.box(MARGIN, top, L.width, h, HEAD_BG);
         lines.forEach((ls, i) => ls.forEach((line, k) => { L.y = top - 9 - k * 9.5; L.text(line, xs[i] + 3, FONT, { bold: true }); }));
         L.y = top - h;
     };
-    const body = rows.length ? rows : Array.from({ length: 5 }, (_, i) => [String(i + 1), '', '', '', '', '', '', '', '', '']);
-    L.text('ЕТАПИ РЕЙСУ', MARGIN, 8.5, { bold: true });
+    const body = rows.length ? rows : Array.from({ length: blankRows }, (_, i) => [String(i + 1), ...columns.slice(1).map(() => '')]);
+    L.text(title, MARGIN, 8.5, { bold: true });
     L.y -= 6;
     header();
     for (const row of body) {
@@ -199,7 +199,17 @@ function drawBack(L, doc, sections) {
     L.newPage(PAGE_BACK);
     L.text('Зворотний бік', MARGIN, 8, { color: MUTED });
     L.y -= 14;
-    drawStageTable(L, doc);
+    drawTable(L, { title: 'ЕТАПИ РЕЙСУ', columns: STAGE_COLUMNS, rows: tsStageRows(doc), blankRows: 5 });
+    // Дозаправки в дорозі — перед підсумками: літри входять у факт пального. Порожній бланк (2 рядки) — для заповнення вручну.
+    const refuelRows = tsRefuelRows(doc);
+    if (!refuelRows.length && doc.status === 'closed') {
+        // Закритий лист без дозаправок: одним рядком, щоб не займати місце; незакритий друкується з порожніми рядками для ручного заповнення.
+        L.text('ДОЗАПРАВКИ В ДОРОЗІ: не було', MARGIN, 8.5, { bold: true });
+        L.y -= 16;
+    } else {
+        L.ensure(70);
+        drawTable(L, { title: 'ДОЗАПРАВКИ В ДОРОЗІ', columns: REFUEL_COLUMNS, rows: refuelRows, blankRows: 2 });
+    }
     // Нижче таблиці — дві колонки: повернення і відмітки після рейсу | підсумки (розрахунок і підсумки — один блок).
     const back = tsBackSections(doc, tsTotals(doc));
     const left = [sections[4], back[0]];

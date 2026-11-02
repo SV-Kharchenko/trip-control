@@ -59,7 +59,7 @@ test('totals: sum of km, sum of t·km, trips; blank rows do not count; old docs 
     assert.equal(old.loaded_km, null);
     assert.equal(old.distance_km, 600);
     assert.deepEqual(totalsRows(old).map((r) => r[0]), [
-        'Загальний пробіг (за одометрами), км', 'Пробіг із вантажем, км', 'Сума т·км', 'Кількість їздок', 'Пальне за нормою, л', 'Пальне фактично, л', 'Різниця, л']);
+        'Загальний пробіг (за одометрами), км', 'Пробіг із вантажем, км', 'Сума т·км', 'Кількість їздок', 'Пальне за нормою, л', 'Дозаправки, л', 'Пальне фактично, л', 'Різниця, л']);
 });
 
 test('totals: mileage from the odometers, fuel norm by the stage km when stages exist (as the database does), else by the task plan', () => {
