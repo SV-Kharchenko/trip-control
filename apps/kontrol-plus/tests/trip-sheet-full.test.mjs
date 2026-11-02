@@ -182,7 +182,7 @@ test('PDF: exactly two pages, both A4 landscape, with stages, marks and totals; 
     const src = read('src/lib/pdf-trip-sheet.js');
     assert.match(src, /plaque: false/, 'the header block is drawn without a section plaque');
     assert.doesNotMatch(src, /ШАПКА/);
-    assert.match(src, /const PAGE = [841.89, 595.28];/);
+    assert.ok(src.includes('const PAGE = [841.89, 595.28];'));
     // порожній зворотний бік (без етапів) теж друкується на двох аркушах — з порожніми рядками для ручного заповнення
     assert.equal((await buildTripSheetPdf(base(), { fonts })).info.pages, 2);
     // довгі значення у лицьовому боці (кілька колонок) не виштовхують його на другу сторінку
