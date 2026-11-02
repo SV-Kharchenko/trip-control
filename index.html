@@ -13482,9 +13482,12 @@
     // Підпис заявки (звідки, куди, назва) на момент відкриття / збереження: інший маршрут поверх відкритої заявки — це нова заявка.
     let currentCalcSig = '';
     function calcSignature(inputs, routeName) {
-        const norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/s+/g, ' ').trim(); };
+        const norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim(); };
         const i = inputs || {};
-        return [i.origin || i.routeFrom, i.destination || i.routeTo, routeName].map(norm).join('|');
+        const from = norm(i.origin || i.routeFrom);
+        const to = norm(i.destination || i.routeTo);
+        // Назва маршруту — підпис лише для старих заявок без адрес; інакше перейменування не робить заявку новою.
+        return from || to ? from + '|' + to : '||' + norm(routeName);
     }
     // Підпис того, що зараз у формі (так само рахується при збереженні, тож відкрита заявка без змін збігається).
     function formCalcSignature() {

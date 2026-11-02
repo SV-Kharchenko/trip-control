@@ -420,3 +420,54 @@ test('calc_update: помилка видалення / вставки авто �
         assert.equal(res.payload.vehiclesSaved, false);
     }
 });
+
+// ---- Підпис = «звідки | куди»; назва лише для заявок без адрес ----
+test('підпис: відкрив чернетку → змінив лише назву → Зберегти / Відправити = calc_update того ж id, без insert', async () => {
+    for (const send of [false, true]) {
+        const c = clientContext({ rows: [ROW_A] });
+        run(c, "openSaved('draft-1')");
+        c.form.route = 'Нова назва';
+        await run(c, send ? 'sendCurrentForApproval()' : 'saveCalculation()');
+        assert.equal(c.log.inserts.length, 0, String(send));
+        const updates = c.log.teamCalls.filter((b) => b.action === 'calc_update');
+        assert.deepEqual(updates.map((b) => [b.id, b.name]), [['draft-1', 'Нова назва']]);
+        if (send) assert.deepEqual(c.log.teamCalls.map((b) => [b.action, b.id]), [['calc_update', 'draft-1'], ['calc_submit', 'draft-1']]);
+        assert.equal(c.savedCalculations.length, 1);
+    }
+});
+
+test('підпис: змінив «куди» → insert, стара чернетка без змін', async () => {
+    const c = clientContext({ rows: [ROW_A] });
+    run(c, "openSaved('draft-1')");
+    const before = JSON.stringify(c.savedCalculations[0]);
+    c.form.destination = 'Львів';
+    await run(c, 'saveCalculation()');
+    assert.equal(c.log.inserts.length, 1);
+    assert.equal(c.log.teamCalls.length, 0);
+    assert.equal(JSON.stringify(c.savedCalculations.find((r) => r.id === 'draft-1')), before);
+});
+
+test('підпис: різниця лише в регістрі й пробілах → той самий запис; регекс схлопує пробіли, а не літеру «s»', async () => {
+    const c = clientContext({ rows: [ROW_A] });
+    run(c, "openSaved('draft-1')");
+    c.form.origin = '  КИЇВ  ';
+    c.form.destination = 'оДеСа';
+    await run(c, 'saveCalculation()');
+    assert.equal(c.log.inserts.length, 0);
+    assert.deepEqual(c.log.teamCalls.map((b) => b.action), ['calc_update']);
+    assert.equal(run(c, "calcSignature({ origin: 'Rostov  on   Don', destination: 'Sumy' })"), 'rostov on don|sumy');
+    assert.equal(run(c, "calcSignature({ origin: 'A  B', destination: 'C' }, 'x') === calcSignature({ origin: 'a b', destination: 'c' }, 'y')"), true);
+});
+
+test('підпис: адрес нема (стара заявка) → враховується назва: інша назва = новий запис, та сама = оновлення', async () => {
+    const old = { id: 'draft-1', routeName: 'Стара', inputs: {} };
+    const c = clientContext({ rows: [old] });
+    c.form.origin = ''; c.form.destination = ''; c.form.route = 'Стара';
+    run(c, "openSaved('draft-1')");
+    await run(c, 'saveCalculation()');
+    assert.deepEqual(c.log.teamCalls.map((b) => b.action), ['calc_update'], 'та сама назва');
+    c.form.route = 'Інша';
+    await run(c, 'saveCalculation()');
+    assert.equal(c.log.inserts.length, 1, 'інша назва без адрес — новий запис');
+    assert.equal(c.savedCalculations.find((r) => r.id === 'draft-1').routeName, 'Стара');
+});
