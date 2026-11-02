@@ -36,7 +36,10 @@ test('cabinet groups the same setting keys under new labels', () => {
         assert.match(sections, new RegExp('key: \'' + key + '\''));
     });
     // «Значення за замовчуванням» (вкладки «Витратна частина» і «Пальне») прибрано з кабінету.
-    assert.doesNotMatch(html, /Витратна частина|data-panel="costs"|data-panel="fuel"/);
+    // Вкладка «Витратна частина» повернулася в кабінет (водій, ТО і шини, накладні, пальне); окремої вкладки «Пальне» немає.
+    assert.match(html, /{ id: 'costs', title: 'Витратна частина' }/);
+    assert.match(html, /data-panel="costs"/);
+    assert.doesNotMatch(html, /data-panel="fuel"/);
     assert.match(html, /data-panel="docs"/);
     assert.match(html, />Автопарк</);
     assert.match(html, /class="btn cab-cancel"/);

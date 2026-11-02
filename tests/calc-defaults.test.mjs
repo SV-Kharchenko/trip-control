@@ -1,193 +1,351 @@
+// «Витратна частина» компанії (особистий кабінет) → калькулятор. Пріоритет значень: картка вибраного авто (пальне, AdBlue) →
+// company_settings.settings (вкладка «Витратна частина») → вбудоване. tc_calc_last більше не використовується.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
+process.env.SUPABASE_URL = 'https://example.supabase.co';
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+const { calculateTrip } = await import('../api/calculate.js');
+const S0 = JSON.parse(fs.readFileSync(new URL('./fixtures/s0-fop.json', import.meta.url), 'utf8'));
+
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 function fnSource(name) {
-    const start = html.indexOf('function ' + name + '(');
+    const start = html.indexOf(/^(async )?function /.test(name) ? name : 'function ' + name + '(');
     assert.ok(start > 0, name);
+    const from = html.lastIndexOf('\n', start) + 1;
     let depth = 0;
     for (let i = html.indexOf('{', start); i < html.length; i++) {
         if (html[i] === '{') depth += 1;
-        if (html[i] === '}' && --depth === 0) return html.slice(start, i + 1);
+        if (html[i] === '}' && --depth === 0) return html.slice(from, i + 1);
     }
     throw new Error(name);
 }
 const literal = (name) => html.match(new RegExp('const ' + name + ' = (\\{[\\s\\S]*?\\});'))[1];
+const literal2 = (name) => { const head = 'const ' + name + ' = '; const a = html.indexOf(head); return html.slice(a + head.length, html.indexOf('];', a) + 1); };
+const cabSections = () => html.slice(html.indexOf('const CAB_SECTIONS = ['), html.indexOf('const LEGACY_SETTINGS_KEYS'));
 
-function setup({ userId = 'u1', stored, fleetActive = false } = {}) {
-    const store = new Map();
-    if (stored) store.set('tc_calc_last:' + userId, JSON.stringify(stored));
+// Значення, збережені в проді (company_settings.settings): ті самі ключі, що й завжди.
+const PROD_SETTINGS = {
+    totalFleet: 4, amort: 120000, admin: 60000, otherOperating: 30000, otherExpenses: 10000, repair: 50000, fin: 20000,
+    fuelLoad: 36.5, fuelEmpty: 29, fuelPrice: 58, adblueEnable: 'off', adblueConsumption: 2.6, adbluePrice: 20,
+    driverPayMode: 'pct', driverRateLoad: 4.5, driverRateEmpty: 2.5, driverPctVal: 14, perDiem: 700,
+    toCost: 20000, toPeriod: 45000, tireCost: 17000, tireCount: 12, tireMileage: 140000, doc_warn_days: 45, fact_alert_pct: 12,
+};
+
+// Усі приховані поля калькулятора + мінімальний DOM; функції беремо прямо з index.html.
+function setup({ settings = {}, role = 'owner' } = {}) {
     const els = {};
-    const el = (id, value = '') => (els[id] = els[id] || { id, value, handlers: {}, addEventListener(n, f) { this.handlers[n] = f; } });
+    const el = (id, value = '') => (els[id] = els[id] || {
+        id, value, handlers: {}, style: {}, hidden: false, disabled: false, dataset: {}, textContent: '', innerText: '',
+        classList: { toggle() {} }, addEventListener(n, f) { this.handlers[n] = f; }, querySelector() { return null; },
+    });
     const context = vm.createContext({
-        currentUserId: userId,
-        localStorage: { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) },
-        document: { getElementById: (id) => els[id] || null },
-        fleetChoiceActive: () => fleetActive,
-        SETTINGS_MAP: {}, STARTER_SETTINGS: null,
+        document: { getElementById: (id) => els[id] || null, querySelector: () => null },
+        companySettings: settings, currentOrgRole: role, companyTax: '', refreshCabWarning() {}, bindCardOverrides() {},
+        cardSourced: {}, cardPrev: {}, console,
     });
     vm.runInContext([
-        'const OPT = [["on","Увімкнено"],["off","Вимкнено"]];',
-        'STARTER_SETTINGS = ' + literal('STARTER_SETTINGS') + ';',
-        "SETTINGS_MAP.fuelPrice = { id: 'fuel-price' }; SETTINGS_MAP.fuelLoad = { id: 'fuel-load' };",
-        'SETTINGS_MAP.adblueEnable = { id: \'adblue-enable\', select: OPT }; SETTINGS_MAP.amort = { id: \'overhead-amort\' };',
-        literal('STARTER_SETTINGS') ? '' : '',
-        "const CALC_LAST_KEY = 'tc_calc_last';",
-        "const CALC_VEHICLE_KEYS = ['fuelLoad', 'fuelEmpty', 'adblueEnable', 'adblueConsumption'];",
-        ...['calcLastStorageKey', 'readCalcLast', 'calcLastValueOk', 'calcValueFor', 'saveCalcLast'].map(fnSource),
+        'const OPT_ON_OFF = [["on","Увімкнено"],["off","Вимкнено"]];',
+        cabSections(),
+        'const SETTINGS_MAP = {}; CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));',
+        'const STARTER_SETTINGS = ' + literal('STARTER_SETTINGS') + ';',
+        ...['calcSettingOk', 'calcValueFor', 'hasCompanyCosts', 'applyCalcDefaults'].map(fnSource),
     ].join('\n'), context);
-    return { context, store, el };
+    const ids = JSON.parse(vm.runInContext('JSON.stringify(Object.fromEntries(Object.entries(SETTINGS_MAP).map(([k, f]) => [k, f.id])))', context));
+    Object.values(ids).forEach((id) => el(id));
+    for (const id of ['calc-type', 'driver-km-box', 'driver-pct-box', 'field-adblue-consumption', 'field-adblue-price', 'tc-costs-edit']) el(id);
+    return { context, el, ids };
 }
+const value = (s, key) => s.el(s.ids[key]).value;
 
-test('п.8: калькулятор без «Значень за замовчуванням»: останні значення → вбудовані; без автопарку не ламається', () => {
-    // Новий користувач: нічого не збережено → вбудовані.
+test('calcValueFor: empty company → built-in; company values win; invalid values are ignored', () => {
     const fresh = setup();
-    assert.equal(vm.runInContext('calcValueFor("fuelPrice", readCalcLast())', fresh.context), 95);
-    assert.equal(vm.runInContext('calcValueFor("adblueEnable", readCalcLast())', fresh.context), 'on');
-    assert.equal(vm.runInContext('calcValueFor("amort", readCalcLast())', fresh.context), undefined, 'накладні лишаються порожніми');
-    // Збережені останні значення мають пріоритет; зіпсовані — ігноруються.
-    const used = setup({ stored: { fuelPrice: 61.5, adblueEnable: 'off', fuelLoad: -3 } });
-    assert.equal(vm.runInContext('calcValueFor("fuelPrice", readCalcLast())', used.context), 61.5);
-    assert.equal(vm.runInContext('calcValueFor("adblueEnable", readCalcLast())', used.context), 'off');
-    assert.equal(vm.runInContext('calcValueFor("fuelLoad", readCalcLast())', used.context), 38, 'від’ємне → вбудоване');
-    // Сміття в сховищі не ламає.
-    const broken = setup();
-    broken.store.set('tc_calc_last:u1', '{not json');
-    assert.equal(vm.runInContext('calcValueFor("fuelPrice", readCalcLast())', broken.context), 95);
-    // Без користувача — просто вбудовані.
-    const anon = setup({ userId: null });
-    assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(readCalcLast())', anon.context)), {});
+    assert.equal(vm.runInContext('calcValueFor("fuelPrice")', fresh.context), 95);
+    assert.equal(vm.runInContext('calcValueFor("adblueEnable")', fresh.context), 'on');
+    assert.equal(vm.runInContext('calcValueFor("amort")', fresh.context), undefined, 'overheads stay empty without company data');
+    assert.equal(vm.runInContext('hasCompanyCosts()', fresh.context), false);
+    const company = setup({ settings: PROD_SETTINGS });
+    assert.equal(vm.runInContext('calcValueFor("fuelPrice")', company.context), 58);
+    assert.equal(vm.runInContext('calcValueFor("amort")', company.context), 120000);
+    assert.equal(vm.runInContext('calcValueFor("adblueEnable")', company.context), 'off');
+    assert.equal(vm.runInContext('calcValueFor("driverPayMode")', company.context), 'pct');
+    assert.equal(vm.runInContext('hasCompanyCosts()', company.context), true);
+    const broken = setup({ settings: { fuelLoad: -3, fuelEmpty: 'abc', adblueEnable: 'maybe', fuelPrice: null } });
+    assert.equal(vm.runInContext('calcValueFor("fuelLoad")', broken.context), 38, 'negative → built-in');
+    assert.equal(vm.runInContext('calcValueFor("fuelEmpty")', broken.context), 32);
+    assert.equal(vm.runInContext('calcValueFor("adblueEnable")', broken.context), 'on');
+    assert.equal(vm.runInContext('hasCompanyCosts()', broken.context), false);
+    // Лише службові ключі (doc_warn_days тощо) — це ще не «витратна частина».
+    assert.equal(vm.runInContext('hasCompanyCosts({ doc_warn_days: 30 })', fresh.context), false);
 });
 
-test('п.8: введене користувачем запам’ятовується, значення вибраного авто — ні', () => {
-    const free = setup();
-    free.el('fuel-price').value = '63.2';
-    free.el('fuel-load').value = '40';
-    vm.runInContext('saveCalcLast("fuelPrice"); saveCalcLast("fuelLoad");', free.context);
-    assert.deepEqual(JSON.parse(free.store.get('tc_calc_last:u1')), { fuelPrice: 63.2, fuelLoad: 40 });
-    free.el('fuel-price').value = '';
-    vm.runInContext('saveCalcLast("fuelPrice")', free.context);
-    assert.deepEqual(JSON.parse(free.store.get('tc_calc_last:u1')), { fuelLoad: 40 }, 'порожнє поле прибирає останнє');
-    const withCar = setup({ fleetActive: true });
-    withCar.el('fuel-load').value = '33';
-    withCar.el('fuel-price').value = '70';
-    vm.runInContext('saveCalcLast("fuelLoad"); saveCalcLast("fuelPrice");', withCar.context);
-    assert.deepEqual(JSON.parse(withCar.store.get('tc_calc_last:u1')), { fuelPrice: 70 }, 'норма авто не стає «останньою» користувача');
+test('applyCalcDefaults: the company values fill the calculator fields; no tc_calc_last', () => {
+    const s = setup({ settings: PROD_SETTINGS });
+    vm.runInContext('applyCalcDefaults()', s.context);
+    for (const [key, v] of Object.entries(PROD_SETTINGS)) if (s.ids[key]) assert.equal(String(value(s, key)), String(v), key);
+    assert.equal(s.el('driver-km-box').style.display, 'none', 'pct mode hides the km rates');
+    assert.equal(s.el('driver-pct-box').style.display, 'block');
+    assert.equal(html.includes('tc_calc_last'), false, 'localStorage tc_calc_last is gone');
+    assert.equal(/readCalcLast|saveCalcLast|bindCalcLast/.test(html), false);
+    // Порожня компанія → вбудований шаблон, накладні порожні.
+    const empty = setup();
+    vm.runInContext('applyCalcDefaults()', empty.context);
+    assert.equal(value(empty, 'fuelLoad'), 38);
+    assert.equal(value(empty, 'driverRateLoad'), 4.03);
+    assert.equal(value(empty, 'amort'), '');
+    // Логіст бачить ті самі значення, але без посилання «Змінити».
+    const logist = setup({ settings: PROD_SETTINGS, role: 'logist' });
+    vm.runInContext('applyCalcDefaults()', logist.context);
+    assert.equal(logist.el('tc-costs-edit').hidden, true);
+    assert.equal(value(logist, 'amort'), 120000);
+    const owner = setup({ settings: PROD_SETTINGS });
+    vm.runInContext('applyCalcDefaults()', owner.context);
+    assert.equal(owner.el('tc-costs-edit').hidden, false);
 });
 
-test('п.8: «Значення за замовчуванням» прибрано з меню й кабінету, а калькулятор не читає company_settings', () => {
-    assert.equal(html.includes('Значення за замовчуванням'), false);
-    assert.equal(html.includes("menuGo('defaults')"), false);
-    assert.equal(/data-panel="(costs|fuel)"/.test(html), false);
-    assert.match(fnSource('applyCalcDefaults'), /calcValueFor\(key, last\)/);
-    assert.equal(/companySettings\[/.test(fnSource('applyCalcDefaults')), false);
-    assert.match(fnSource('ensureStarterTemplate'), /readCalcLast\(\)/);
-    assert.equal(/company_settings/.test(fnSource('ensureStarterTemplate')), false, 'стартовий шаблон більше не пишеться в БД');
-    // Дані компанії в БД не чіпаємо: збереження кабінету копіює наявні settings.
-    assert.match(fnSource('saveCabinet'), /const next = Object\.assign\(\{\}, companySettings\);/);
+test('company overheads and driver rates reach the calculation (not 0)', () => {
+    const s = setup({ settings: PROD_SETTINGS });
+    vm.runInContext('applyCalcDefaults()', s.context);
+    // Те, що калькулятор шле на сервер: поля форми за ключами SETTINGS_MAP.
+    const payload = { ...S0 };
+    for (const key of Object.keys(s.ids)) payload[key] = value(s, key);
+    payload.driverPayMode = 'km';
+    const withCompany = calculateTrip(payload);
+    const without = calculateTrip({ ...S0, amort: '', admin: '', otherOperating: '', otherExpenses: '', repair: '', fin: '' });
+    const row = (r, needle) => r.detailedRows.find((item) => item.name.indexOf(needle) !== -1).val;
+    assert.ok(row(withCompany, 'Накладні до EBITDA') > 0, 'overheads from the company are counted');
+    assert.equal(row(without, 'Накладні до EBITDA'), 0);
+    assert.deepEqual(withCompany.warnings, [], 'no empty-overhead warnings when the company filled them');
+    assert.ok(withCompany.netProfit < without.netProfit);
+    const lowRate = calculateTrip({ ...payload, driverRateLoad: '1', driverRateEmpty: '1' });
+    assert.notEqual(lowRate.netProfit, withCompany.netProfit, 'driver rate from the company changes the result');
+    assert.equal(String(payload.perDiem), '700');
+    assert.equal(String(payload.totalFleet), '4');
 });
 
-// ---- Три рівні пріоритету: картка авто → останнє введене користувачем → вбудоване ----
-function cardSetup({ stored, vehicles = [], active = true } = {}) {
-    const s = setup({ stored, fleetActive: active });
-    const ids = { fuelLoad: 'fuel-load', fuelEmpty: 'fuel-empty', adblueEnable: 'adblue-enable', adblueConsumption: 'adblue-consumption' };
-    Object.values(ids).forEach((id) => s.el(id));
-    s.el('fuel-load').value = '38'; // вбудоване / останнє значення, яке вже підставила applyCalcDefaults
-    s.el('fuel-empty').value = '32';
-    s.el('adblue-enable').value = 'on';
-    s.el('adblue-consumption').value = '2.85';
+// ---- Пальне: картка авто → середня компанії → вбудоване ----
+function cardSetup({ settings = {}, vehicles = [], active = true } = {}) {
+    const s = setup({ settings });
+    vm.runInContext('applyCalcDefaults()', s.context);
     s.context.chosenFleetVehicles = () => vehicles;
     s.context.fleetChoiceActive = () => active && vehicles.length > 0;
-    s.context.vehicleNormNumber = (value, min, max) => {
-        if (value === null || value === undefined || value === '') return null;
-        const n = Number(value);
+    s.context.vehicleNormNumber = (v, min, max) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = Number(v);
         return Number.isFinite(n) && n >= min && n <= max ? n : null;
     };
-    s.context.document.getElementById = (id) => (id === 'field-adblue-consumption' || id === 'field-adblue-price' ? { classList: { toggle() {} } } : s.el(id));
+    const base = s.context.document.getElementById;
+    s.context.document.getElementById = (id) => (id === 'field-adblue-consumption' || id === 'field-adblue-price' ? { classList: { toggle() {} } } : base(id));
     vm.runInContext([
-        "const CARD_NORM_FIELDS = " + literal2('CARD_NORM_FIELDS') + ';',
-        'let cardSig = ""; let cardSyncing = false; const cardSourced = {}; const cardPrev = {}; const cardOverrides = {};',
+        'const CARD_NORM_FIELDS = ' + literal2('CARD_NORM_FIELDS') + ';',
+        'let cardSig = ""; let cardSyncing = false; const cardOverrides = {};',
         ...['cardNormOf', 'cardCommonNorm', 'syncCardNormsToForm', 'markCardOverride', 'stripCardOverrides'].map(fnSource),
     ].join('\n'), s.context);
     return s;
 }
-const literal2 = (name) => { const head = 'const ' + name + ' = '; const a = html.indexOf(head); return html.slice(a + head.length, html.indexOf('];', a) + 1); };
 const car = (id, extra) => ({ id, fuel_load: null, fuel_empty: null, adblue_on: null, adblue_consumption: null, ...extra });
 
-test('п.2 рівень 1: поле з картки авто підставляється в калькулятор і має пріоритет над останнім / вбудованим', () => {
-    const vehicles = [car('a', { fuel_load: 31, fuel_empty: 26, adblue_on: true, adblue_consumption: 3 })];
-    const s = cardSetup({ stored: { fuelLoad: 40 }, vehicles });
+test('fuel: a vehicle with a consumption → by the vehicle card', () => {
+    const s = cardSetup({ settings: PROD_SETTINGS, vehicles: [car('a', { fuel_load: 31, fuel_empty: 26, adblue_on: true, adblue_consumption: 3 })] });
+    assert.equal(value(s, 'fuelLoad'), 36.5, 'before the choice: the company average');
     vm.runInContext('syncCardNormsToForm()', s.context);
-    assert.equal(s.el('fuel-load').value, 31, 'картка > останнє значення (40) > вбудоване (38)');
-    assert.equal(s.el('fuel-empty').value, 26);
-    assert.equal(s.el('adblue-consumption').value, 3);
-    // Картка нічого не пише в localStorage: підстановка програмна.
-    assert.equal(s.store.has('tc_calc_last:u1'), true);
-    assert.deepEqual(JSON.parse(s.store.get('tc_calc_last:u1')), { fuelLoad: 40 });
+    assert.equal(value(s, 'fuelLoad'), 31);
+    assert.equal(value(s, 'fuelEmpty'), 26);
+    assert.equal(value(s, 'adblueConsumption'), 3);
+    assert.equal(value(s, 'adblueEnable'), 'on');
 });
 
-test('п.2 рівень 2 і 3: поле, якого в картці немає, лишається останнім введеним, а за його відсутності вбудованим', () => {
-    const vehicles = [car('a', { fuel_load: 31 })];
-    const s = cardSetup({ vehicles });
-    s.el('fuel-empty').value = '29.5'; // останнє введене користувачем
+test('fuel: a vehicle without a consumption (or no vehicle) → the company average', () => {
+    const s = cardSetup({ settings: PROD_SETTINGS, vehicles: [car('a', { fuel_load: null, fuel_empty: null })] });
     vm.runInContext('syncCardNormsToForm()', s.context);
-    assert.equal(s.el('fuel-load').value, 31);
-    assert.equal(s.el('fuel-empty').value, '29.5', 'у картці порожньо — ручне значення не чіпаємо');
-    assert.equal(s.el('adblue-consumption').value, '2.85', 'вбудоване значення лишається, якщо ні картки, ні останнього');
-    const fresh = setup();
-    assert.equal(vm.runInContext('calcValueFor("fuelEmpty", readCalcLast())', fresh.context), 32, 'без останнього — вбудоване');
+    assert.equal(value(s, 'fuelLoad'), 36.5);
+    assert.equal(value(s, 'fuelEmpty'), 29);
+    const partial = cardSetup({ settings: PROD_SETTINGS, vehicles: [car('a', { fuel_load: 31 })] });
+    vm.runInContext('syncCardNormsToForm()', partial.context);
+    assert.equal(value(partial, 'fuelLoad'), 31);
+    assert.equal(value(partial, 'fuelEmpty'), 29, 'what the card does not have comes from the company');
+    const none = cardSetup({ settings: PROD_SETTINGS, vehicles: [] });
+    vm.runInContext('syncCardNormsToForm()', none.context);
+    assert.equal(value(none, 'fuelLoad'), 36.5);
 });
 
-test('п.2: при зміні авто поля з картки перепідставляються, а повернення без картки відновлює попереднє значення', () => {
+test('fuel: empty company → the built-in values (and the card still wins)', () => {
+    const s = cardSetup({ settings: {}, vehicles: [car('a', { fuel_load: 31 })] });
+    assert.equal(value(s, 'fuelLoad'), 38);
+    assert.equal(value(s, 'fuelEmpty'), 32);
+    vm.runInContext('syncCardNormsToForm()', s.context);
+    assert.equal(value(s, 'fuelLoad'), 31);
+    assert.equal(value(s, 'fuelEmpty'), 32, 'built-in when neither the card nor the company has it');
+});
+
+test('fuel: switching vehicles and clearing the choice returns to the company value; manual edits stay for this trip only', () => {
     const a = car('a', { fuel_load: 31 });
     const b = car('b', { fuel_load: 35 });
-    const s = cardSetup({ vehicles: [a] });
-    s.el('fuel-load').value = '40'; // що було в полі до підстановки
+    const s = cardSetup({ settings: PROD_SETTINGS, vehicles: [a] });
     vm.runInContext('syncCardNormsToForm()', s.context);
-    assert.equal(s.el('fuel-load').value, 31);
+    assert.equal(value(s, 'fuelLoad'), 31);
     s.context.chosenFleetVehicles = () => [b];
     vm.runInContext('syncCardNormsToForm()', s.context);
-    assert.equal(s.el('fuel-load').value, 35, 'інше авто — інше значення з картки');
+    assert.equal(value(s, 'fuelLoad'), 35);
     s.context.chosenFleetVehicles = () => [a, b];
     vm.runInContext('syncCardNormsToForm()', s.context);
-    assert.equal(s.el('fuel-load').value, '40', 'у авто різні значення — лишається ручне / останнє');
+    assert.equal(value(s, 'fuelLoad'), 36.5, 'different norms → the company average');
+    // Компанію змінили, поки авто вибране: після повернення до «без авто» діє нове середнє.
+    s.context.chosenFleetVehicles = () => [a];
+    vm.runInContext('syncCardNormsToForm()', s.context);
+    vm.runInContext('companySettings = Object.assign({}, companySettings, { fuelLoad: 40 }); applyCalcDefaults();', s.context);
+    assert.equal(value(s, 'fuelLoad'), 31, 'the card is not overwritten by the company');
     s.context.fleetChoiceActive = () => false;
     s.context.chosenFleetVehicles = () => [];
     vm.runInContext('syncCardNormsToForm()', s.context);
-    assert.equal(s.el('fuel-load').value, '40');
-});
-
-test('п.2: ручна правка поля з картки діє лише на цей рейс (розрахунок бере форму), нова вибірка авто її скидає', () => {
-    const vehicles = [car('a', { fuel_load: 31, adblue_on: true, adblue_consumption: 3 })];
-    const s = cardSetup({ vehicles });
-    vm.runInContext('syncCardNormsToForm()', s.context);
+    assert.equal(value(s, 'fuelLoad'), '40');
+    // Ручна правка поля з картки не береться з картки.
+    const t = cardSetup({ vehicles: [car('a', { fuel_load: 31, adblue_on: true, adblue_consumption: 3 })] });
+    vm.runInContext('syncCardNormsToForm()', t.context);
     const resolved = { fuelLoad: 31, fuelEmpty: 26, useAdblue: true, adblueConsumption: 3 };
-    const clean = (o) => JSON.parse(vm.runInContext('JSON.stringify(stripCardOverrides(' + JSON.stringify(o) + '))', s.context));
-    assert.deepEqual(clean(resolved), resolved, 'без правок картка діє як є');
-    s.el('fuel-load').value = '36';
-    vm.runInContext('markCardOverride("fuelLoad")', s.context);
-    assert.deepEqual(clean(resolved), { fuelEmpty: 26, useAdblue: true, adblueConsumption: 3 }, 'виправлене поле не береться з картки');
-    vm.runInContext('markCardOverride("adblueEnable")', s.context);
-    assert.deepEqual(clean(resolved), { fuelEmpty: 26 });
-    // Інше авто: правки скинуті, поле знову з картки.
-    s.context.chosenFleetVehicles = () => [car('b', { fuel_load: 33 })];
-    vm.runInContext('syncCardNormsToForm()', s.context);
-    assert.equal(s.el('fuel-load').value, 33);
+    const clean = (o) => JSON.parse(vm.runInContext('JSON.stringify(stripCardOverrides(' + JSON.stringify(o) + '))', t.context));
     assert.deepEqual(clean(resolved), resolved);
-    // Поле, якого в картці немає, не позначається як «з картки»: правка не створює перекриття.
-    vm.runInContext('markCardOverride("fuelEmpty")', s.context);
-    assert.deepEqual(clean(resolved), resolved);
+    vm.runInContext('markCardOverride("fuelLoad")', t.context);
+    assert.deepEqual(clean(resolved), { fuelEmpty: 26, useAdblue: true, adblueConsumption: 3 });
 });
 
-test('п.2: ставки водія, ТО, шини, накладні й склад парку знову видимі, ручні значення не пишуться в картку авто', () => {
-    const build = html.slice(html.indexOf('function buildOnePage()'), html.indexOf('function updateOnePage('));
-    for (const id of ['driver-rate-load', 'driver-rate-empty', 'driver-pct-val', 'per-diem', 'to-cost', 'to-period', 'tire-cost', 'tire-count',
-        'tire-mileage', 'total-fleet', 'overhead-amort', 'overhead-admin', 'overhead-other-op', 'overhead-other', 'overhead-repair', 'overhead-fin', 'adblue-price']) {
-        assert.ok(build.includes("opMoveField('" + id + "'"), id);
+// ---- Вкладка кабінету ----
+function cabinetSetup({ role = 'owner', settings = PROD_SETTINGS } = {}) {
+    const saved = [];
+    const s = setup({ settings, role });
+    const cab = {};
+    const cabEl = (id) => (cab[id] = cab[id] || { id, value: '', disabled: false, hidden: false, style: {}, textContent: '', innerText: '', dataset: {}, querySelector: () => null });
+    const msg = cabEl('cab-costs-message');
+    const panel = { dataset: {} };
+    const context = s.context;
+    for (const key of Object.keys(s.ids)) cabEl('cab-' + key);
+    ['cab-name', 'cab-tax', 'cab-costs-save', 'cab-save-btn', 'cab-message', 'cab-overhead-sum'].forEach(cabEl);
+    cab['cab-name'].value = 'ТОВ Тест';
+    cab['cab-tax'].value = 'фоп';
+    context.document.getElementById = (id) => cab[id] || null;
+    context.document.querySelector = (sel) => (sel.includes('data-panel="costs"') ? panel : null);
+    context.currentOrgId = 'org-1';
+    context.companyName = 'ТОВ Тест';
+    context.COMPANY_PROFILE_FIELDS = [];
+    context.LEGACY_SETTINGS_KEYS = ['normWeight', 'daysPerTrip', 'washCost', 'washFreq'];
+    context.notifySaved = () => saved.push('ok');
+    context.notifySaveError = () => saved.push('error');
+    context.calculate = () => saved.push('calculate');
+    context.refreshCalcFromCompany = () => saved.push('refresh');
+    context.Intl = Intl;
+    context.supabaseClient = {
+        from: (table) => ({
+            update: () => ({ eq: async () => { saved.push('update:' + table); return {}; } }),
+            upsert: async (row) => { saved.push('upsert:' + table + ':' + JSON.stringify(row.settings || row)); return {}; },
+        }),
+    };
+    vm.runInContext([
+        'const COST_SHOW_IF = {' + html.slice(html.indexOf('const COST_SHOW_IF = {') + 'const COST_SHOW_IF = {'.length, html.indexOf('};', html.indexOf('const COST_SHOW_IF = {')) + 1),
+        ...['updateCabVisibility', 'refreshCabOverheadSum', 'fillCostsTab', 'collectCostSettings', 'async function saveCabinet(scope)'].map(fnSource),
+    ].join('\n'), context);
+    return { ...s, cab, msg, panel, saved };
+}
+
+test('the costs tab shows the old production values (same keys, no migration)', () => {
+    const t = cabinetSetup();
+    vm.runInContext('fillCostsTab()', t.context);
+    for (const [key, v] of Object.entries(PROD_SETTINGS)) {
+        if (!t.cab['cab-' + key]) continue;
+        assert.equal(String(t.cab['cab-' + key].value), String(v), key);
     }
-    assert.match(build, /opAccRow\('costs', '4', 'Витрати і накладні'/);
-    assert.match(html, /\.tc-costs-rows \.form-row > label[\s\S]{0,80}flex: 0 0 190px/, 'компактний рядок: підпис зліва, поле вузьке');
-    assert.equal(/from\('fleet_vehicles'\)\s*\.(update|upsert)\([^)]*(driverRate|toCost|tire|overhead)/.test(html), false);
+    assert.equal(t.cab['cab-driverPayMode'].value, 'pct');
+    assert.equal(t.panel.dataset.filled, '1');
+    assert.equal(t.cab['cab-amort'].disabled, false, 'the owner edits');
+    // Порожні ключі лишаються порожніми, а не підставляються вбудованими.
+    const sparse = cabinetSetup({ settings: { fuelLoad: 40 } });
+    vm.runInContext('fillCostsTab()', sparse.context);
+    assert.equal(sparse.cab['cab-fuelLoad'].value, '40');
+    assert.equal(sparse.cab['cab-amort'].value, '');
+    assert.equal(sparse.cab['cab-fuelEmpty'].value, '');
+});
+
+test('the logist sees the tab read-only and cannot save the costs', async () => {
+    const t = cabinetSetup({ role: 'logist' });
+    vm.runInContext('fillCostsTab()', t.context);
+    assert.equal(t.cab['cab-amort'].disabled, true);
+    assert.equal(t.cab['cab-costs-save'].hidden, true);
+    assert.match(t.msg.textContent, /Лише перегляд/);
+    await vm.runInContext('saveCabinet("costs")', t.context);
+    assert.deepEqual(t.saved.filter((x) => x !== 'error'), [], 'nothing is written: no upsert, no update');
+    assert.match(t.msg.textContent, /Логіст може переглядати норми, але змінює їх власник/);
+    await vm.runInContext('saveCabinet()', t.context);
+    assert.equal(t.saved.some((x) => x.startsWith('upsert') || x.startsWith('update')), false);
+});
+
+test('the owner saves only company_settings; other keys are kept; empty fields drop their key', async () => {
+    const t = cabinetSetup();
+    vm.runInContext('fillCostsTab()', t.context);
+    t.cab['cab-amort'].value = '150000';
+    t.cab['cab-perDiem'].value = '';
+    t.cab['cab-driverPayMode'].value = 'km';
+    await vm.runInContext('saveCabinet("costs")', t.context);
+    const upsert = t.saved.find((x) => x.startsWith('upsert:company_settings:'));
+    assert.ok(upsert, 'company_settings is written');
+    const next = JSON.parse(upsert.slice('upsert:company_settings:'.length));
+    assert.equal(next.amort, 150000);
+    assert.equal('perDiem' in next, false, 'an empty field removes the key (empty = 0)');
+    assert.equal(next.driverPayMode, 'km');
+    assert.equal(next.doc_warn_days, 45, 'unrelated keys are not wiped');
+    assert.equal(next.fact_alert_pct, 12);
+    assert.equal(next.fuelLoad, 36.5);
+    assert.equal(t.saved.some((x) => x.startsWith('update:organizations') || x.startsWith('upsert:org_company_profiles')), false, 'the profile and the name are not touched');
+    assert.ok(t.saved.includes('refresh') && t.saved.includes('ok'));
+});
+
+test('the Profile save keeps the settings as they were unless the costs tab was filled', async () => {
+    const t = cabinetSetup();
+    await vm.runInContext('saveCabinet()', t.context);
+    const upsert = t.saved.find((x) => x.startsWith('upsert:company_settings:'));
+    const next = JSON.parse(upsert.slice('upsert:company_settings:'.length));
+    assert.deepEqual(next, PROD_SETTINGS, 'the settings are copied as they were');
+});
+
+// ---- Структура index.html ----
+test('structure: block 4 left the calculator for a compact line; the tab is in the cabinet; the old restrictions are lifted', () => {
+    const build = html.slice(html.indexOf('function buildOnePage()'), html.indexOf('function updateOnePage('));
+    assert.equal(/opAccRow\('costs'/.test(build), false, 'no «Витрати і накладні» row');
+    assert.equal(build.includes('Витрати і накладні'), false);
+    assert.match(build, /costsText\.textContent = 'Витрати: з витратної частини компанії';/);
+    assert.match(build, /costsEdit\.textContent = 'Змінити';/);
+    assert.match(build, /openCabinetTab\('costs'\)/);
+    assert.match(build, /costsEdit\.hidden = currentOrgRole !== 'owner'/);
+    for (const id of ['driver-rate-load', 'driver-rate-empty', 'driver-pct-val', 'per-diem', 'to-cost', 'to-period', 'tire-cost', 'tire-count',
+        'tire-mileage', 'total-fleet', 'overhead-amort', 'overhead-admin', 'overhead-other-op', 'overhead-other', 'overhead-repair', 'overhead-fin']) {
+        assert.equal(build.includes("opMoveField('" + id + "'"), false, id + ' is no longer in the calculator');
+        assert.match(html, new RegExp('<input type="number" id="' + id + '"'), id + ' stays as the hidden source of the calculation');
+    }
+    const panel = html.slice(html.indexOf('const COST_GROUPS = ['), html.indexOf('function updateCabVisibility()'));
+    for (const title of ['Водій', 'ТО і шини', 'Накладні', 'Пальне']) assert.ok(panel.includes("title: '" + title + "'"), title);
+    for (const key of ['driverPayMode', 'driverRateLoad', 'driverRateEmpty', 'perDiem', 'toCost', 'toPeriod', 'tireCost', 'tireCount', 'tireMileage',
+        'totalFleet', 'amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin', 'fuelLoad', 'fuelEmpty', 'adblueEnable', 'adblueConsumption', 'adbluePrice']) {
+        assert.ok(panel.includes("['" + key + "'"), key);
+    }
+    assert.match(panel, /Разом накладних на рік/);
+    assert.match(panel, /Річні суми на весь парк\. Порожньо = 0 у розрахунку\./);
+    assert.match(html, /\{ id: 'costs', title: 'Витратна частина' \}/);
+    assert.equal(/data-panel="fuel"/.test(html), false);
+    // Кнопки за розміром вмісту, на всю ширину — лише з .btn-block.
+    assert.equal(/cab-costs-actions[^}]*width:\s*100%/.test(html), false);
+    assert.match(html, /id="cab-costs-save" onclick="saveCosts\(\)"/);
+    assert.equal(/id="cab-costs-save"[^>]*btn-block/.test(html), false);
+    // Калькулятор читає company_settings через calcValueFor; стартовий шаблон не пишеться в БД.
+    assert.match(fnSource('applyCalcDefaults'), /calcValueFor\(key\)/);
+    assert.match(fnSource('ensureStarterTemplate'), /hasCompanyCosts\(\)/);
+    assert.equal(/company_settings/.test(fnSource('ensureStarterTemplate')), false);
+    assert.match(fnSource('async function saveCabinet(scope)'), /const next = Object\.assign\(\{\}, companySettings\);/);
+    assert.match(fnSource('async function saveCabinet(scope)'), /if \(currentOrgRole === 'logist'\) \{/);
+});
+
+test('the empty-cost warning leads the owner to the costs tab (the logist gets the text without a button)', () => {
+    assert.match(fnSource('calcWarningField'), /closest\('#main-sync-fields'\)\) return \{ input: input, step: 0, cabinet: true \}/);
+    assert.match(fnSource('focusCalcWarningField'), /if \(target\.cabinet\) \{ openCabinetTab\('costs'\); return; \}/);
+    assert.match(fnSource('renderCostWarnings'), /target\.cabinet \? 'Заповнити у витратній частині' : 'Заповнити в калькуляторі'/);
+    assert.match(fnSource('renderCostWarnings'), /!target\.cabinet \|\| currentOrgRole === 'owner'/);
 });
