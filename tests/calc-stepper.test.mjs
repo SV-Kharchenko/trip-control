@@ -101,7 +101,7 @@ test('one recent-routes disclosure, hidden client field, compact empty result', 
     assert.equal(recent.includes('Останні маршрути'), false);
     assert.equal(saved.includes('Останні маршрути'), false);
     assert.equal((html.match(/id="tc-recent-toggle"/g) || []).length, 1);
-    const save = sliceBetween(html, 'async function saveCalculation()', 'async function removeSaved(');
+    const save = sliceBetween(html, 'async function saveCalculation(opts)', 'async function removeSaved(');
     assert.match(save, /if \(keptClient\) inputs\.clientName = keptClient/);
     assert.match(save, /else if \(!inputs\.clientName\) delete inputs\.clientName/);
     const payload = sliceBetween(html, 'function readTripPayload()', 'function renderVehicleBreakdown(');

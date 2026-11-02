@@ -4229,6 +4229,7 @@
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar { margin-top: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #tc-det-side > .actions-bar .btn { width: 100%; min-width: 0; justify-content: center; white-space: normal; }
         #tc-result-actions > .btn-locked { grid-column: 1 / -1; }
+        #tc-result-actions > .tc-editing-note { grid-column: 1 / -1; font-size: 0.8rem; color: var(--text-muted); }
         body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-right > .tc-costs-visual {
             grid-column: 1 / -1 !important; grid-row: 3 !important; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--tc-gap); align-items: stretch;
         }
@@ -5877,7 +5878,9 @@
     <div class="actions-bar" id="tc-result-actions" aria-label="Дії з розрахунком">
         <button class="btn btn-gold" type="button" id="tc-send-approval" onclick="sendCurrentForApproval()" hidden>Відправити на погодження</button>
         <button class="btn btn-gold" type="button" id="tc-accept-own" onclick="acceptCurrentRequest()" hidden>Прийняти заявку</button>
+        <span id="tc-editing-note" class="tc-editing-note" hidden></span>
         <button class="btn btn-success" onclick="saveCalculation()">💾 Зберегти розрахунок</button>
+        <button class="btn" type="button" id="tc-save-new" onclick="saveCalculation({ forceNew: true })" hidden>Зберегти як нову</button>
         <button class="btn full-only" onclick="window.print()">📄 Експорт у PDF</button>
         <button class="btn full-only" onclick="exportExcel()">📊 Експорт у Excel</button>
         <button class="btn btn-warning full-only" onclick="shareOffer()">📱 Надіслати у Viber</button>
@@ -7216,6 +7219,7 @@
     }
     // «Очистити»: скидає введене в заявці (назва, адреси, числа, вибір авто); норми компанії лишаються.
     function clearCalcForm() {
+        setCurrentCalc(null);
         clearVehicleNormChoice();
         ['route-name', 'dist', 'podacha-dist', 'volume', 'rate'].forEach(function (id) {
             const el = opById(id);
@@ -13472,12 +13476,45 @@
         return 'Демо-режим: можна зберегти до ' + DEMO_MAX_SAVED + ' розрахунків. Видаліть один зі збережених або отримайте повний доступ.';
     }
 
-    async function saveCalculation() {
-        if (!lastCalcData || !lastCalcData.routeName) return;
-        if (isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
-            showToast(demoSaveLimitText(), 4200);
-            return;
+    // Одна заявка — один запис: id чернетки / відхиленої, яку зараз відкрито або щойно збережено. Повторне «Зберегти» і «Відправити»
+    // оновлюють її (calc_update), а не додають новий рядок. Скидається при новому розрахунку й очищенні форми.
+    let currentCalcId = null;
+    // Підпис заявки (звідки, куди, назва) на момент відкриття / збереження: інший маршрут поверх відкритої заявки — це нова заявка.
+    let currentCalcSig = '';
+    function calcSignature(inputs, routeName) {
+        const norm = function (v) { return String(v == null ? '' : v).toLowerCase().replace(/\s+/g, ' ').trim(); };
+        const i = inputs || {};
+        const from = norm(i.origin || i.routeFrom);
+        const to = norm(i.destination || i.routeTo);
+        // Назва маршруту — підпис лише для старих заявок без адрес; інакше перейменування не робить заявку новою.
+        return from || to ? from + '|' + to : '||' + norm(routeName);
+    }
+    // Підпис того, що зараз у формі (так само рахується при збереженні, тож відкрита заявка без змін збігається).
+    function formCalcSignature() {
+        const route = document.getElementById('route-name');
+        return calcSignature(tripPlaces(), (route && route.value) || 'Заявка');
+    }
+    function setCurrentCalc(id, sig, name) {
+        currentCalcId = id || null;
+        currentCalcSig = id ? (sig || '') : '';
+        const note = document.getElementById('tc-editing-note');
+        const fresh = document.getElementById('tc-save-new');
+        if (note) {
+            note.hidden = !id;
+            note.textContent = id ? 'Редагується заявка: ' + (name || '') : '';
         }
+        if (fresh) fresh.hidden = !id;
+    }
+    function editableCurrentRow() {
+        if (!currentCalcId) return null;
+        const row = savedCalculations.find(function (item) { return item.id === currentCalcId; });
+        const status = row ? (row.status || 'draft') : '';
+        return row && (status === 'draft' || status === 'rejected') ? row : null;
+    }
+    // opts.forceNew — «Зберегти як нову»: завжди новий запис, навіть якщо відкрито чернетку.
+    async function saveCalculation(opts) {
+        if (!lastCalcData || !lastCalcData.routeName) return;
+        let editRow = editableCurrentRow();
         if (!currentOrgId) { showToast('Не вдалося визначити компанію. Оновіть сторінку.', 3600); return; }
         const snapshot = Object.assign({}, lastCalcData);
         const keptClient = clientNameValue();
@@ -13493,7 +13530,27 @@
         if (cargoEl && cargoEl.value.trim()) inputs.cargoName = cargoEl.value.trim().slice(0, 500);
         if (keptClient) inputs.clientName = keptClient;
         else if (!inputs.clientName) delete inputs.clientName;
-        try {
+        const signature = calcSignature(inputs, snapshot.routeName);
+        if (editRow && ((opts && opts.forceNew === true) || signature !== currentCalcSig)) editRow = null;
+        if (!editRow) setCurrentCalc(null);
+        if (!editRow && isDemo && savedCalculations.length >= DEMO_MAX_SAVED) {
+            showToast(demoSaveLimitText(), 4200);
+            return;
+        }
+        if (editRow) {
+            try {
+                const done = uiPreview ? {} : await teamApi('POST', { action: 'calc_update', id: editRow.id, name: snapshot.routeName, inputs: inputs, results: snapshot });
+                const keep = { id: editRow.id, userId: editRow.userId, status: editRow.status || 'draft', createdAt: editRow.createdAt, rejectReason: editRow.rejectReason };
+                const at = savedCalculations.indexOf(editRow);
+                savedCalculations[at] = Object.assign({}, snapshot, keep, { inputs: inputs });
+                renderSavedTable();
+                showToast(done && done.vehiclesSaved === false ? 'Розрахунок оновлено, авто до нього не прив’язались.' : 'Розрахунок оновлено', 2200);
+                savedId = editRow.id;
+            } catch (e) {
+                showToast(approvalErrorText(e), 4200, 'error');
+                return;
+            }
+        } else try {
             const { data, error } = await supabaseClient
                 .from('calculations')
                 .insert({
@@ -13516,6 +13573,7 @@
             renderSavedTable();
             showToast(linkNote || 'Розрахунок збережено', linkNote ? 4200 : 2200);
             savedId = data.id;
+            setCurrentCalc(data.id, signature, snapshot.routeName);
         } catch (e) {
             const message = dbErrorText(e);
             if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) showToast(demoSaveLimitText(), 4200);
@@ -13565,6 +13623,7 @@
         const code = String((e && e.code) || '');
         if (code === 'OWNER_ONLY') return 'Погоджувати чи відхиляти заявки може лише директор.';
         if (code === 'ACCEPTED_LOCKED') return 'Прийняту заявку видалити не можна.';
+        if (code === 'NOT_EDITABLE') return 'Заявка вже на погодженні або прийнята — її не можна змінити. Створіть новий розрахунок.';
         if (code === 'BAD_VARIANT') return 'Такого варіанта маршруту в заявці немає. Оновіть сторінку.';
         return String((e && e.message) || 'Не вдалося виконати дію із заявкою.');
     }
@@ -15300,6 +15359,8 @@
         }
     }
     function applyTripInputs(payload, routeName) {
+        // Будь-яке завантаження розрахунку (шаблон, заявка) відв'язує форму від відкритої заявки; openSaved прив'язує знову.
+        setCurrentCalc(null);
         const data = payload || {};
         TRIP_FIELD_MAP.forEach(function (pair) {
             const el = document.getElementById(pair[1]);
@@ -15362,6 +15423,8 @@
     function openSaved(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
         if (!row) return;
+        const rowStatus = row.status || 'draft';
+        const mine = row.userId === currentUserId || currentOrgRole === 'owner';
         setStudioView('calc');
         window.scrollTo(0, 0);
         const inputs = Object.assign({}, row.inputs || {});
@@ -15374,6 +15437,7 @@
         if (!inputs.destination && row.routeTo) inputs.destination = row.routeTo;
         if (!inputs.clientName && row.clientName) inputs.clientName = row.clientName;
         applyTripInputs(inputs, row.routeName || row.name);
+        if (mine && (rowStatus === 'draft' || rowStatus === 'rejected')) setCurrentCalc(row.id, formCalcSignature(), row.routeName || row.name);
     }
     async function setTripStatus(id, status) {
         const row = savedCalculations.find(function (item) { return item.id === id; });

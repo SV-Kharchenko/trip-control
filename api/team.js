@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 import { buildInviteEmail, joinedMessage, sendInviteEmail } from '../lib/invite-mail.js';
 import { sendTelegram, statusKeyboard } from '../lib/signup-notify.js';
-import { cleanRejectReason, planDelete, planTransition } from '../lib/approvals.js';
+import { cleanRejectReason, planDelete, planTransition, planUpdate } from '../lib/approvals.js';
 import { recalculateRequest } from './calculate.js';
 import { requestOrigin } from '../lib/request-origin.js';
 
@@ -71,6 +71,9 @@ export function signedInviteTokenIsValid(token, invite, secret) {
     return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+const CALC_JSON_MAX = 200 * 1024;
+const CALC_VEHICLES_MAX = 20;
+const CALC_SNAPSHOT_MAX = 8 * 1024;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Invite id from a signed v2 link, or null. The signature is checked against the row later.
@@ -1145,6 +1148,68 @@ export function createTeamService(deps) {
         return { ok: true, id: calc.id };
     }
 
+    // Оновлення чернетки / відхиленої заявки на тому ж id (клієнт може лише міняти status, тому вміст пише сервер).
+    // calc_vehicles перезаписуються з inputs.vehicles; id, org_id, user_id і статус не змінюються.
+    async function updateCalc(actor, body) {
+        const calc = await loadCalculation(actor, body.id);
+        const plan = planUpdate(approvalContext(actor, calc), calc.status);
+        if (!plan.ok) throw denyFrom(plan);
+        const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+        const name = String(body.name == null ? '' : body.name).trim().slice(0, 500);
+        if (!name || !isObj(body.inputs) || !isObj(body.results)) throw new HttpError(400, 'BAD_CALC', 'Некоректні дані заявки.');
+        // 1. Уся валідація — до першого запису.
+        if (JSON.stringify(body.inputs).length > CALC_JSON_MAX || JSON.stringify(body.results).length > CALC_JSON_MAX) {
+            throw new HttpError(413, 'CALC_TOO_LARGE', 'Заявка завелика.');
+        }
+        const vehicles = Array.isArray(body.inputs.vehicles) ? body.inputs.vehicles : [];
+        if (vehicles.length > CALC_VEHICLES_MAX) throw new HttpError(400, 'CALC_TOO_MANY_VEHICLES', 'У заявці забагато авто.');
+        const rows = vehicles
+            .filter((v) => v && UUID_RE.test(String(v.id || '')) && Number(v.tonnage) > 0)
+            .map((v) => ({ calc_id: calc.id, vehicle_id: v.id, tonnage: Number(v.tonnage), snapshot: isObj(v.snapshot) ? v.snapshot : {} }));
+        if (rows.some((r) => JSON.stringify(r.snapshot).length > CALC_SNAPSHOT_MAX)) {
+            throw new HttpError(413, 'CALC_TOO_LARGE', 'Дані авто в заявці завеликі.');
+        }
+        // calc_vehicles_guard пропускає service role, тож належність авто організації перевіряємо тут.
+        const carIds = [...new Set(rows.map((r) => r.vehicle_id))];
+        if (carIds.length) {
+            const { data: own, error: ownError } = await supabase
+                .from('fleet_vehicles')
+                .select('id')
+                .eq('org_id', actor.profile.org_id)
+                .in('id', carIds);
+            if (ownError) throw ownError;
+            const have = new Set((own || []).map((r) => r.id));
+            if (carIds.some((id) => !have.has(id))) throw new HttpError(403, 'CALC_VEHICLE_FORBIDDEN', 'Авто не належить вашій компанії.');
+        }
+        // 2. Заявка.
+        const { data, error } = await supabase
+            .from('calculations')
+            .update({ name, inputs: body.inputs, results: body.results })
+            .eq('id', calc.id)
+            .eq('org_id', actor.profile.org_id)
+            .eq('status', calc.status)
+            .select('id, status')
+            .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new HttpError(409, 'STATUS_CHANGED', 'Статус заявки вже змінився. Оновіть сторінку.');
+        // 3. Авто: таблиці може не бути до міграції (42P01 / PGRST205), будь-яка інша помилка — 500.
+        let vehiclesSaved = true;
+        const missing = (e) => /42P01|PGRST205/.test(String((e && (e.code || e.message)) || ''));
+        const vehicleFail = (e) => {
+            if (missing(e)) { vehiclesSaved = false; return; }
+            console.error('team api: calc_update vehicles:', e);
+            throw new HttpError(500, 'CALC_VEHICLES_FAILED', 'Заявку збережено, але авто до неї не прив’язались. Спробуйте ще раз.');
+        };
+        const del = await supabase.from('calc_vehicles').delete().eq('calc_id', calc.id);
+        if (del && del.error) vehicleFail(del.error);
+        else if (rows.length) {
+            const ins = await supabase.from('calc_vehicles').insert(rows);
+            if (ins && ins.error) vehicleFail(ins.error);
+        }
+        await audit(actor.user.id, actor.profile.org_id, 'calc_updated', 'calculations', calc.id, { status: calc.status });
+        return { ok: true, id: calc.id, status: data.status, vehiclesSaved };
+    }
+
     async function loadPermissionRows(orgId) {
         const { data, error } = await supabase
             .from('org_member_permissions')
@@ -1272,6 +1337,7 @@ export function createTeamService(deps) {
         decideCalc,
         completeCalc,
         deleteCalc,
+        updateCalc,
         listTeam,
         inviteMember,
         inviteInfo,
@@ -1333,6 +1399,7 @@ export function createTeamHandler(deps) {
             else if (action === 'calc_submit') result = await service.submitCalc(actor, body);
             else if (action === 'calc_decide') result = await service.decideCalc(actor, body);
             else if (action === 'calc_complete') result = await service.completeCalc(actor, body);
+            else if (action === 'calc_update') result = await service.updateCalc(actor, body);
             else if (action === 'calc_delete') result = await service.deleteCalc(actor, body);
             else throw new HttpError(400, 'UNKNOWN_ACTION', 'Невідома дія.');
 
