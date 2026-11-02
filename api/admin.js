@@ -1,3 +1,4 @@
+import { enforceRateLimit } from '../lib/rate-limit.js';
 import { createClient } from '@supabase/supabase-js';
 import { userAccessStatus, userIsBlocked } from '../lib/account-block.js';
 import { setUserStatus, UserStatusError, writeAudit } from '../lib/user-status.js';
@@ -73,6 +74,7 @@ function audit(actor, action, entity, entityId, orgId, detail) {
 }
 
 export default async function handler(req, res) {
+    if (!(await enforceRateLimit(req, res, 'admin'))) return;
     const admin = await requireAdmin(req, res);
     if (!admin) return;
 

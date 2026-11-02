@@ -239,17 +239,26 @@ function cabinetSetup({ role = 'owner', settings = PROD_SETTINGS } = {}) {
     context.calculate = () => saved.push('calculate');
     context.refreshCalcFromCompany = () => saved.push('refresh');
     context.Intl = Intl;
+    // «База»: kp_company_settings_merge зливає патч з актуальним значенням (як jsonb ||); прямого запису company_settings немає.
+    const db = { settings: JSON.parse(JSON.stringify(settings)) };
     context.supabaseClient = {
         from: (table) => ({
             update: () => ({ eq: async () => { saved.push('update:' + table); return {}; } }),
             upsert: async (row) => { saved.push('upsert:' + table + ':' + JSON.stringify(row.settings || row)); return {}; },
         }),
+        rpc: async (name, args) => {
+            if (name !== 'kp_company_settings_merge') return { data: null, error: { message: 'unexpected rpc ' + name } };
+            saved.push('rpc:merge:' + JSON.stringify(args));
+            const kept = Object.fromEntries(Object.entries(db.settings).filter(([k]) => !args.p_remove.includes(k)));
+            db.settings = Object.assign(kept, args.p_set);
+            return { data: db.settings, error: null };
+        },
     };
     vm.runInContext([
         'const COST_SHOW_IF = {' + html.slice(html.indexOf('const COST_SHOW_IF = {') + 'const COST_SHOW_IF = {'.length, html.indexOf('};', html.indexOf('const COST_SHOW_IF = {')) + 1),
-        ...['updateCabVisibility', 'refreshCabOverheadSum', 'fillCostsTab', 'collectCostSettings', 'async function saveCabinet(scope)'].map(fnSource),
+        ...['updateCabVisibility', 'refreshCabOverheadSum', 'fillCostsTab', 'collectCostSettings', 'settingsPatch', 'async function mergeCompanySettings(set, remove)', 'async function saveCabinet(scope)'].map(fnSource),
     ].join('\n'), context);
-    return { ...s, cab, msg, panel, saved };
+    return { ...s, cab, msg, panel, saved, db };
 }
 
 test('the costs tab shows the old production values (same keys, no migration)', () => {
@@ -280,7 +289,7 @@ test('the logist sees the tab read-only and cannot save the costs', async () => 
     assert.deepEqual(t.saved.filter((x) => x !== 'error'), [], 'nothing is written: no upsert, no update');
     assert.match(t.msg.textContent, /Логіст може переглядати норми, але змінює їх власник/);
     await vm.runInContext('saveCabinet()', t.context);
-    assert.equal(t.saved.some((x) => x.startsWith('upsert') || x.startsWith('update')), false);
+    assert.equal(t.saved.some((x) => x.startsWith('upsert') || x.startsWith('update') || x.startsWith('rpc')), false);
 });
 
 test('the owner saves only company_settings; other keys are kept; empty fields drop their key', async () => {
@@ -289,10 +298,17 @@ test('the owner saves only company_settings; other keys are kept; empty fields d
     t.cab['cab-amort'].value = '150000';
     t.cab['cab-perDiem'].value = '';
     t.cab['cab-driverPayMode'].value = 'km';
+    t.db.settings.lastFuelPrice = 70; // цю ціну тим часом записав логіст в іншій вкладці
     await vm.runInContext('saveCabinet("costs")', t.context);
-    const upsert = t.saved.find((x) => x.startsWith('upsert:company_settings:'));
-    assert.ok(upsert, 'company_settings is written');
-    const next = JSON.parse(upsert.slice('upsert:company_settings:'.length));
+    const call = t.saved.find((x) => x.startsWith('rpc:merge:'));
+    assert.ok(call, 'company_settings is saved through the server merge');
+    const patch = JSON.parse(call.slice('rpc:merge:'.length));
+    assert.deepEqual(Object.keys(patch.p_set).sort(), ['amort', 'driverPayMode'], 'only the changed keys are sent');
+    assert.deepEqual(patch.p_remove, ['perDiem']);
+    assert.equal(t.saved.some((x) => x.startsWith('upsert:company_settings')), false, 'no whole-object overwrite');
+    const next = t.db.settings;
+    assert.equal(next.lastFuelPrice, 70, 'a key written meanwhile by someone else survives');
+    assert.equal(vm.runInContext('companySettings.lastFuelPrice', t.context), 70, 'the page takes the merged object from the server');
     assert.equal(next.amort, 150000);
     assert.equal('perDiem' in next, false, 'an empty field removes the key (empty = 0)');
     assert.equal(next.driverPayMode, 'km');
@@ -306,9 +322,9 @@ test('the owner saves only company_settings; other keys are kept; empty fields d
 test('the Profile save keeps the settings as they were unless the costs tab was filled', async () => {
     const t = cabinetSetup();
     await vm.runInContext('saveCabinet()', t.context);
-    const upsert = t.saved.find((x) => x.startsWith('upsert:company_settings:'));
-    const next = JSON.parse(upsert.slice('upsert:company_settings:'.length));
-    assert.deepEqual(next, PROD_SETTINGS, 'the settings are copied as they were');
+    assert.equal(t.saved.some((x) => x.startsWith('rpc:merge:') || x.startsWith('upsert:company_settings')), false, 'nothing changed: nothing is sent');
+    assert.deepEqual(JSON.parse(JSON.stringify(t.db.settings)), PROD_SETTINGS, 'the settings are as they were');
+    assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(companySettings)', t.context)), PROD_SETTINGS);
 });
 
 // ---- Структура index.html ----
@@ -457,20 +473,28 @@ test('the costs tab: built-in values as placeholders for driver and TO / tires; 
     assert.equal(/title: 'Пальне', builtin/.test(groups), false);
 });
 
-test('saving the costs keeps the last prices the logists wrote in the meantime', async () => {
+test('saving the costs keeps the last prices the logists wrote in the meantime (server merge, not a whole overwrite)', async () => {
     const t = cabinetSetup({ settings: { ...PROD_SETTINGS, lastFuelPrice: 50 } });
-    t.context.supabaseClient.from = (table) => ({
-        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { settings: { lastFuelPrice: 62.5, lastAdbluePrice: 19 } } }) }) }),
-        update: () => ({ eq: async () => ({}) }),
-        upsert: async (row) => { t.saved.push('upsert:' + table + ':' + JSON.stringify(row.settings || row)); return {}; },
-    });
     vm.runInContext('fillCostsTab()', t.context);
     t.cab['cab-amort'].value = '150000';
+    // Поки сторінка була відкрита, логіст записав нові ціни, а інша вкладка — ще один ключ.
+    Object.assign(t.db.settings, { lastFuelPrice: 62.5, lastAdbluePrice: 19, other_tab: 'x' });
     await vm.runInContext('saveCabinet("costs")', t.context);
-    const upsert = t.saved.find((x) => x.startsWith('upsert:company_settings:'));
-    const next = JSON.parse(upsert.slice('upsert:company_settings:'.length));
+    const patch = JSON.parse(t.saved.find((x) => x.startsWith('rpc:merge:')).slice('rpc:merge:'.length));
+    assert.deepEqual(patch.p_set, { amort: 150000 });
+    assert.equal(t.saved.some((x) => x.startsWith('upsert:company_settings')), false);
+    const next = t.db.settings;
     assert.equal(next.amort, 150000);
     assert.equal(next.lastFuelPrice, 62.5, 'the fresher price from the database is kept');
     assert.equal(next.lastAdbluePrice, 19);
+    assert.equal(next.other_tab, 'x');
     assert.equal(next.fuelLoad, 36.5);
+});
+
+test('the other settings writers (warning days, fact alert %) also use the merge', () => {
+    assert.equal(html.includes("from('company_settings').upsert"), false, 'no whole-object upsert of company_settings is left');
+    assert.equal(html.includes("from('company_settings')\n                .upsert"), false);
+    assert.ok(html.includes('mergeCompanySettings({ doc_warn_days: Math.round(n) }, [])'));
+    assert.ok(html.includes('mergeCompanySettings({ fact_alert_pct: n }, [])'));
+    assert.ok(html.includes("rpc('kp_company_settings_merge', { p_set: set, p_remove: remove || [] })"));
 });

@@ -11913,12 +11913,8 @@
         renderFleetDocs();
         if (!currentOrgId || currentOrgRole !== 'owner' || uiPreview) return;
         try {
-            const { error } = await supabaseClient.from('company_settings').upsert({
-                org_id: currentOrgId,
-                settings: companySettings,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'org_id' });
-            if (error) throw error;
+            const merged = await mergeCompanySettings({ doc_warn_days: Math.round(n) }, []);
+            if (merged) companySettings = merged;
             showToast('Поріг попередження збережено');
         } catch (e) {
             showToast('Поріг не збережено.');
@@ -12652,6 +12648,21 @@
 
     // scope 'costs' — кнопка «Зберегти» вкладки «Витратна частина»: пишемо лише company_settings (профіль і назву не чіпаємо).
     // Інакше (вкладка «Профіль») settings зберігаються як є, плюс витратна частина, якщо вона відкрита й заповнена з бази.
+    // Зміни company_settings.settings: різниця «було → стало» (лише змінені ключі + ключі до видалення). Сервер зливає її з актуальним
+    // значенням у базі (kp_company_settings_merge, jsonb ||), тож паралельні зміни інших ключів не затираються.
+    function settingsPatch(before, after) {
+        const old = before || {};
+        const set = {};
+        const remove = [];
+        Object.keys(after).forEach(function (k) { if (JSON.stringify(after[k]) !== JSON.stringify(old[k])) set[k] = after[k]; });
+        Object.keys(old).forEach(function (k) { if (!(k in after)) remove.push(k); });
+        return { set: set, remove: remove };
+    }
+    async function mergeCompanySettings(set, remove) {
+        const { data, error } = await supabaseClient.rpc('kp_company_settings_merge', { p_set: set, p_remove: remove || [] });
+        if (error) throw error;
+        return data && typeof data === 'object' ? data : null;
+    }
     async function saveCabinet(scope) {
         const costsOnly = scope === 'costs';
         const msg = document.getElementById(costsOnly ? 'cab-costs-message' : 'cab-message');
@@ -12689,14 +12700,9 @@
                 const r1 = await supabaseClient.from('organizations').update({ name, default_tax_mode: tax }).eq('id', currentOrgId);
                 if (r1 && r1.error) throw r1.error;
             }
-            // Останні ціни могли оновити логісти, поки сторінка була відкрита: беремо свіжі, щоб збереження їх не затерло.
-            try {
-                const { data: fresh } = await supabaseClient.from('company_settings').select('settings').eq('org_id', currentOrgId).maybeSingle();
-                if (fresh && fresh.settings) ['lastFuelPrice', 'lastAdbluePrice'].forEach(k => { if (fresh.settings[k] !== undefined) next[k] = fresh.settings[k]; });
-            } catch (e) { /* лишаємо те, що відомо на сторінці */ }
-            const r2 = await supabaseClient.from('company_settings')
-                .upsert({ org_id: currentOrgId, settings: next, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
-            if (r2 && r2.error) throw r2.error;
+            // Серверний merge: у базу йдуть лише змінені ключі (і ті, що прибрали); ціни, які тим часом записали інші, і всі інші ключі лишаються.
+            const patch = settingsPatch(companySettings, next);
+            const merged = patch.remove.length || Object.keys(patch.set).length ? await mergeCompanySettings(patch.set, patch.remove) : null;
             if (currentOrgRole === 'owner' && !costsOnly) {
                 const r3 = await supabaseClient.from('org_company_profiles')
                     .upsert(profileRow, { onConflict: 'org_id' });
@@ -12705,7 +12711,7 @@
                 companyTax = tax;
                 companyProfile = profileRow;
             }
-            companySettings = next;
+            companySettings = merged || next;
             if (companyTax) document.getElementById('calc-type').value = companyTax;
             refreshCalcFromCompany();
             setMsg('✅ Збережено.');
@@ -15205,12 +15211,8 @@
             return;
         }
         try {
-            const { error } = await supabaseClient.from('company_settings').upsert({
-                org_id: currentOrgId,
-                settings: companySettings,
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'org_id' });
-            if (error) throw error;
+            const merged = await mergeCompanySettings({ fact_alert_pct: n }, []);
+            if (merged) companySettings = merged;
             showToast('Збережено');
         } catch (e) {
             showToast('Поріг не збережено.', 3600);

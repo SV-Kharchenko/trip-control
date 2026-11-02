@@ -176,7 +176,12 @@ test('mono webhook: older modifiedDate after a newer one is ignored; amount/ccy 
     assert.equal(m.store.db.subs[ORG], undefined);
     assert.equal(m.store.db.payments[0].status, 'pending');
     assert.equal(m.store.db.events.length, 2, 'events still recorded');
-    assert.deepEqual(m.net.telegrams(), []);
+    // Перший платіж із розбіжною сумою не зараховується, але адмін дізнається (раз на статус), а не лишається в невіданні.
+    const alerts = m.net.telegrams();
+    assert.equal(alerts.length, 1, 'one alert for the repeated mismatch');
+    assert.match(alerts[0], /Оплату не зараховано/);
+    assert.match(alerts[0], /сума або валюта не збігаються/);
+    assert.doesNotMatch(alerts[0], /Автосписання/);
 });
 
 test('mono webhook: invalid signature → 401, nothing written; reversed → recorded, alert, paid period taken back once', async () => {

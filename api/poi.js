@@ -1,3 +1,4 @@
+import { enforceRateLimit } from '../lib/rate-limit.js';
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
@@ -789,6 +790,7 @@ export async function handleGeo(req, res, options = {}) {
 }
 
 export default async function handler(req, res) {
+    if (!(await enforceRateLimit(req, res, 'poi'))) return;
     if (geoRequestMode(req)) {
         return handleGeo(req, res);
     }

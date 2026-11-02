@@ -1,3 +1,4 @@
+import { enforceRateLimit } from '../lib/rate-limit.js';
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 import { isDemoAccess, loadPaidUntil } from '../lib/billing/access.js';
@@ -991,6 +992,7 @@ export function missingRequiredFields(body) {
 }
 
 export default async function handler(req, res) {
+    if (!(await enforceRateLimit(req, res, 'calculate'))) return;
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }

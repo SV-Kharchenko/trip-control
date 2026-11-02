@@ -8,7 +8,7 @@ import { NORM_NEEDS_LOADED_KM, calcTripSheet, closePayload, fmtDateTime, isoToLo
 import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
 import { docsBackHash } from '../lib/docs-requests.js';
 import {
-    STAGE_COLUMNS, closeProblems, loadedKmWarning, marksFromDoc, marksPayload, stageFromDoc, stageTotals, stagesPayload, tsBackSections, tsFrontMarks, tsStageRows,
+    STAGE_COLUMNS, closeProblems, loadedKmWarning, marksFromDoc, marksPayload, pretripLocked, stageFromDoc, stageTotals, stagesPayload, tsBackSections, tsFrontMarks, tsStageRows,
     tsTotals, validateStages,
 } from '../lib/trip-sheet-stages.js';
 import { REFUEL_COLUMNS, refuelFromDoc, refuelsPayload, refuelsTotal, tsRefuelRows, validateRefuels } from '../lib/trip-sheet-refuels.js';
@@ -165,7 +165,7 @@ export function renderTripSheetCard(app, access, id) {
             const bad = validateStages(editor.get());
             if (Object.keys(bad).length) return { ok: false, node: notice('Перевірте етапи: числа не менше 0, вибуття не раніше прибуття.') };
             if (Object.keys(validateRefuels(refEditor.get())).length) return { ok: false, node: notice('Перевірте дозаправки: літри обов’язкові й більші за 0, ціна не менше 0.') };
-            const { error } = await app.supabase.rpc('kp_trip_sheet_extra_save', { p_id: doc.id, p_data: { ...marksPayload(marks), stages: stagesPayload(editor.get()) } });
+            const { error } = await app.supabase.rpc('kp_trip_sheet_extra_save', { p_id: doc.id, p_data: { ...marksPayload(marks, { locked: pretripLocked(doc) }), stages: stagesPayload(editor.get()) } });
             if (error) return { ok: false, node: notice(tsErrorText(error)) };
             const refuelSave = await app.supabase.rpc('kp_trip_sheet_refuels_save', { p_id: doc.id, p_rows: refuelsPayload(refEditor.get()) });
             return refuelSave.error ? { ok: false, node: notice(tsErrorText(refuelSave.error)) } : { ok: true };
@@ -187,7 +187,7 @@ export function renderTripSheetCard(app, access, id) {
         const close = access.canWrite ? closeForm(doc, closeCtx) : null;
         refresh();
         return h('div', null,
-            h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Відмітки (допуск до рейсу, механік, диспетчер)'), marksEditor(marks, () => {})),
+            h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Відмітки (допуск до рейсу, механік, диспетчер)'), marksEditor(marks, () => {}, { locked: pretripLocked(doc) })),
             h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Зворотний бік: етапи'), editor.node),
             h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Дозаправки в дорозі'), refEditor.node),
             h('div', { class: 'actions kpc-actions' }, save), message,
