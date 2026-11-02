@@ -6,6 +6,7 @@ import { DOC_TITLES, dateWords, docNumberText } from './docs.js';
 import { contractText, partyLines, rateLine, totalWords, totalsRows } from './pdf-docs-text.js';
 import { normalizeCargoLine } from './ttn.js';
 import { TS_FORM_NO, TS_FORM_REF, tsHeading, tsSections } from './trip-sheet.js';
+import { STAGE_COLUMNS, tsBackSections, tsFrontMarks, tsStageRows, tsTotals } from './trip-sheet-stages.js';
 import {
     APPENDIX_REF, CARGO_COLUMNS, FOOTNOTES, FORM_NO, cancelledLine, cargoCells, cargoTotals, frontFields, operationRows, ttnHeading,
 } from './ttn-text.js';
@@ -190,22 +191,38 @@ export function ttnSheet(doc) {
     return { name: `ТТН ${docNumberText(doc)}`, columns: [5, 30, 13, 10, 12, 9, 9, 11, 12, 12, 14, 10], rows: b.rows, merges: b.merges, landscape: true };
 }
 
-// Подорожній лист: ті самі розділи й порядок, що в картці та PDF (tsSections); персональних даних водія немає.
+// Подорожній лист: ті самі розділи й порядок, що в картці та PDF; персональних даних водія немає. Два друковані аркуші в одному файлі:
+// лицьовий бік (шапка … допуск до рейсу) і зворотний (таблиця етапів, повернення, після рейсу, розрахунок, підсумки) — розрив сторінки між ними.
 export function tripSheetSheet(doc) {
-    const W = 4;
+    const W = 10;
     const b = sheetBuilder(W);
-    b.row([{ v: TS_FORM_REF, s: 'small' }, null, null, { v: TS_FORM_NO, s: 'bold' }], { span: [[0, 2]] });
+    const base = tsSections(doc);
+    const kv = (section) => {
+        b.line(section.title, 'bold');
+        for (const [label, value] of section.rows) {
+            b.row([{ v: label, s: 'label' }, null, null, null, { v: String(value), s: 'wrap' }, null, null, null, null, null],
+                { span: [[0, 3], [4, 9]], height: String(value).length > 80 ? 30 : undefined });
+        }
+        b.blank();
+    };
+    b.row([{ v: TS_FORM_REF, s: 'small' }, null, null, null, null, null, null, null, { v: TS_FORM_NO, s: 'bold' }, null], { span: [[0, 7], [8, 9]] });
     cancelledRow(b, doc);
     b.line(tsHeading(doc), 'title', 22);
     b.blank();
-    for (const section of tsSections(doc)) {
-        b.line(section.title, 'bold');
-        for (const [label, value] of section.rows) {
-            b.row([{ v: label, s: 'label' }, null, { v: String(value), s: 'wrap' }, null], { span: [[0, 1], [2, 3]], height: String(value).length > 70 ? 30 : undefined });
-        }
-        b.blank();
-    }
-    return { name: `Подорожній лист ${docNumberText(doc)}`, columns: [26, 22, 26, 26], rows: b.rows, merges: b.merges, landscape: false };
+    for (const section of [...base.slice(0, 4), tsFrontMarks(doc)]) kv(section);
+    const breakAfter = b.rows.length;
+    b.line('Зворотний бік', 'bold');
+    b.blank();
+    const stageRows = tsStageRows(doc);
+    b.row(STAGE_COLUMNS.map(([t]) => ({ v: t, s: 'head' })), { height: 42 });
+    const blankRows = stageRows.length ? [] : Array.from({ length: 5 }, (_, i) => [String(i + 1), '', '', '', '', '', '', '', '', '']);
+    for (const r of [...stageRows, ...blankRows]) b.row(r.map((v, i) => ({ v, s: i >= 7 ? 'cell' : 'wrap' })), { height: 30 });
+    b.blank();
+    const back = tsBackSections(doc, tsTotals(doc));
+    for (const section of [base[4], back[0], base[5], back[1]]) kv(section);
+    return {
+        name: `Подорожній лист ${docNumberText(doc)}`, columns: [4, 22, 12, 22, 22, 26, 26, 11, 8, 11], rows: b.rows, merges: b.merges, landscape: true, breaks: [breakAfter],
+    };
 }
 
 export function docSheet(doc) {

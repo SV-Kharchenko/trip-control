@@ -20,8 +20,14 @@ export const TS_FIELD_LABELS = {
     'task.cargo': 'Вантаж', 'task.tonnage': 'Маса вантажу, т', 'task.loaded_km': 'Пробіг із вантажем, км',
     'depart.at': 'Виїзд: дата і час', 'depart.odometer': 'Виїзд: спідометр, км', 'depart.fuel_left': 'Виїзд: залишок пального, л',
     'depart.fuel_issued': 'Видано пального, л', 'depart.fuel_kind': 'Марка пального',
+    dispatcher: 'Диспетчер: ПІБ', 'medical.ok': 'Допущений до рейсу',
     'medical.by': 'Передрейсовий медогляд: хто', 'medical.at': 'Передрейсовий медогляд: коли',
     'tech.by': 'Технічний огляд: хто', 'tech.at': 'Технічний огляд: коли', 'tech.ok': 'Технічно справний',
+    'stages.customer': 'Етап: замовник', 'stages.ttn_no': 'Етап: № ТТН', 'stages.load_point': 'Етап: пункт завантаження', 'stages.unload_point': 'Етап: пункт розвантаження',
+    'stages.arrive_load_at': 'Етап: прибуття на завантаження', 'stages.depart_load_at': 'Етап: вибуття із завантаження',
+    'stages.arrive_unload_at': 'Етап: прибуття на розвантаження', 'stages.depart_unload_at': 'Етап: вибуття з розвантаження',
+    'stages.loaded_km': 'Етап: км з вантажем', 'stages.tonnage': 'Етап: тонни',
+    medical_at: 'Медогляд: дата й час', tech_at: 'Механік: дата й час', medical_post_at: 'Медогляд після рейсу: дата й час', mech_return_at: 'Механік при поверненні: дата й час',
     return_at: 'Повернення: дата і час', return_odometer: 'Повернення: спідометр, км', return_fuel_left: 'Повернення: залишок пального, л',
 };
 
@@ -113,7 +119,7 @@ export function emptyTripSheet(today) {
         vehicle: { make_model: '', reg_number: '', garage_no: '', trailer_make_model: '', trailer_reg_number: '', fuel_load: '', fuel_empty: '' },
         task: { customer: '', route_from: '', feed_point: '', via: '', route_to: '', cargo: '', tonnage: '', loaded_km: '', planned_km: '' },
         depart: { at: '', odometer: '', fuel_left: '', fuel_issued: '', fuel_kind: 'ДП' },
-        medical: { by: '', at: '' }, tech: { by: '', at: '', ok: true },
+        medical: { by: '', at: '', ok: false }, tech: { by: '', at: '', ok: true }, dispatcher: '',
     };
 }
 
@@ -272,8 +278,6 @@ export function tsSections(doc) {
             ['Залишок пального, л', n1(doc.depart_fuel_left)],
             ['Видано пального, л', n1(doc.fuel_issued)],
             ['Марка пального', v(doc.fuel_kind)],
-            ['Передрейсовий медогляд', hasValue(doc.medical_by) || doc.medical_at ? `${v(doc.medical_by)}, ${fmtDateTime(doc.medical_at)}` : DASH],
-            ['Технічний огляд', hasValue(doc.tech_by) || doc.tech_at ? `${v(doc.tech_by)}, ${fmtDateTime(doc.tech_at)}${doc.tech_ok ? ' — технічно справний' : ''}` : DASH],
         ] },
         { title: 'Повернення', rows: closed ? [
             ['Дата і час повернення', fmtDateTime(doc.return_at)],

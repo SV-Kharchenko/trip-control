@@ -64,7 +64,7 @@ test('п.9: поля повернення редагуються до закри
     assert.ok(card.includes("rpc('kp_trip_sheet_return_save', { p_id: doc.id, p_data: values() })"));
     assert.ok(card.includes("rpc('kp_trip_sheet_close', { p_id: doc.id, p_data: values() })"));
     assert.ok(card.includes('value: saved(doc.return_odometer)') && card.includes('value: saved(doc.return_fuel_left)'), 'збережені значення підставляються');
-    assert.ok(card.includes('issued && access.canWrite ? closeForm(doc) : null'), 'форма лише для виданого листа');
+    assert.ok(card.includes('const editable = issued && access.canWrite;') && card.includes('access.canWrite ? closeForm(doc, '), 'форма лише для виданого листа');
     assert.ok(card.includes("'Зберегти повернення'"));
     assert.deepEqual(closePayload({ return_at: '', return_odometer: '100400', return_fuel_left: '' }), { return_at: null, return_odometer: '100400', return_fuel_left: null });
 });

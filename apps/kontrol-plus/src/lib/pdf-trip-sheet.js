@@ -8,10 +8,13 @@ import { fmtDate } from './format.js';
 import { docNumberText } from './docs.js';
 import { loadFonts, wrapText } from './pdf-docs.js';
 import { TS_FORM_NO, TS_FORM_REF, tsHeading, tsSections } from './trip-sheet.js';
+import { STAGE_COLUMNS, tsBackSections, tsFrontMarks, tsStageRows, tsTotals } from './trip-sheet-stages.js';
 
 export { loadFonts };
 
 const PAGE = [595.28, 841.89];
+// Зворотний бік — A4 альбомна: таблиця етапів із 10 колонок не обрізається.
+const PAGE_BACK = [841.89, 595.28];
 const MARGIN = 36;
 const BOTTOM = 40;
 const WIDTH = PAGE[0] - MARGIN * 2;
@@ -26,17 +29,20 @@ const plain = (text) => String(text == null ? '' : text).replace(/[  ]/g, ' ');
 function createLayout(pdf, fonts, pages) {
     let page = null;
     let y = 0;
+    let pageSize = PAGE;
     const L = {
         get page() { return page; },
         get y() { return y; },
         set y(value) { y = value; },
-        newPage() {
-            page = pdf.addPage(PAGE);
+        newPage(size = PAGE) {
+            page = pdf.addPage(size);
             pages.push(page);
-            y = PAGE[1] - MARGIN;
+            pageSize = size;
+            y = size[1] - MARGIN;
         },
+        get width() { return pageSize[0] - MARGIN * 2; },
         ensure(h) {
-            if (y - h < BOTTOM) { L.newPage(); return true; }
+            if (y - h < BOTTOM) { L.newPage(pageSize); return true; }
             return false;
         },
         text(str, x, size, { bold = false, color = INK, align = 'left', width = 0 } = {}) {
@@ -60,25 +66,40 @@ function createLayout(pdf, fonts, pages) {
     return L;
 }
 
-function drawSection(L, section) {
-    L.ensure(40);
+// Висота розділу (для вирівнювання колонок): заголовок + рядки з урахуванням переносу.
+function sectionHeight(L, section, width = WIDTH, compact = false) {
+    const labelW = Math.min(LABEL_W, width * 0.48);
+    const [fs, ls, pad] = compact ? [8, 10, 3] : [9, 11.5, 6];
+    let total = 16 + 8;
+    for (const [label, value] of section.rows) {
+        const valueLines = L.lines(value, fs, width - labelW - 14);
+        const labelLines = L.lines(label, fs - 0.5, labelW - 10, true);
+        total += Math.max(valueLines.length, labelLines.length) * ls + pad;
+    }
+    return total;
+}
+
+function drawSection(L, section, x = MARGIN, width = WIDTH, { breakPages = true, compact = false } = {}) {
+    const labelW = Math.min(LABEL_W, width * 0.48);
+    const [fs, ls, pad] = compact ? [8, 10, 3] : [9, 11.5, 6];
+    if (breakPages) L.ensure(40);
     const top = L.y;
-    L.box(MARGIN, top, WIDTH, 16, HEAD_BG);
+    L.box(x, top, width, 16, HEAD_BG);
     L.y = top - 11.5;
-    L.text(section.title.toUpperCase(), MARGIN + 6, 8.5, { bold: true });
+    L.text(section.title.toUpperCase(), x + 6, 8.5, { bold: true });
     L.y = top - 16;
     for (const [label, value] of section.rows) {
-        const valueLines = L.lines(value, 9, WIDTH - LABEL_W - 14);
-        const labelLines = L.lines(label, 8.5, LABEL_W - 10, true);
-        const h = Math.max(valueLines.length, labelLines.length) * 11.5 + 6;
-        L.ensure(h);
+        const valueLines = L.lines(value, fs, width - labelW - 14);
+        const labelLines = L.lines(label, fs - 0.5, labelW - 10, true);
+        const h = Math.max(valueLines.length, labelLines.length) * ls + pad;
+        if (breakPages) L.ensure(h);
         const rowTop = L.y;
-        labelLines.forEach((line, i) => { L.y = rowTop - 10 - i * 11.5; L.text(line, MARGIN + 6, 8.5, { bold: true }); });
-        valueLines.forEach((line, i) => { L.y = rowTop - 10 - i * 11.5; L.text(line, MARGIN + LABEL_W + 6, 9); });
+        labelLines.forEach((line, i) => { L.y = rowTop - fs - 1 - i * ls; L.text(line, x + 6, fs - 0.5, { bold: true }); });
+        valueLines.forEach((line, i) => { L.y = rowTop - fs - 1 - i * ls; L.text(line, x + labelW + 6, fs); });
         L.y = rowTop - h;
-        L.hline(MARGIN, MARGIN + WIDTH, L.y);
+        L.hline(x, x + width, L.y);
     }
-    L.y -= 10;
+    L.y -= compact ? 8 : 10;
 }
 
 function signatures(L, titles) {
@@ -86,7 +107,7 @@ function signatures(L, titles) {
     for (const title of titles) {
         L.y -= 20;
         L.text(title, MARGIN, 9);
-        L.hline(MARGIN + 230, MARGIN + WIDTH - 90, L.y - 2);
+        L.hline(MARGIN + 230, MARGIN + L.width - 90, L.y - 2);
         L.y -= 0;
         L.text('(підпис)', MARGIN + 230, 6.5, { color: MUTED });
     }
@@ -104,36 +125,94 @@ function drawFront(L, doc, sections) {
     L.y -= 8;
     L.text(`від ${fmtDate(doc.doc_date)}`, MARGIN, 10, { align: 'center', width: WIDTH });
     L.y -= 16;
-    for (const section of sections.slice(0, 4)) drawSection(L, section);
+    for (const section of [...sections.slice(0, 4), tsFrontMarks(doc)]) drawSection(L, section, MARGIN, WIDTH, { compact: true });
     signatures(L, ['Водія до рейсу допущено за станом здоров’я (медогляд)', 'Автомобіль технічно справний, випуск на лінію дозволено (механік)',
         'Автомобіль прийняв водій', 'Диспетчер, що видав лист']);
 }
 
-function drawBack(L, sections) {
-    L.newPage();
-    L.text('Зворотний бік', MARGIN, 8, { color: MUTED });
-    L.y -= 16;
-    for (const section of sections.slice(4)) drawSection(L, section);
-    L.ensure(120);
-    const top = L.y;
-    L.box(MARGIN, top, WIDTH, 16, HEAD_BG);
-    L.y = top - 11.5;
-    L.text('ОСОБЛИВІ ВІДМІТКИ', MARGIN + 6, 8.5, { bold: true });
-    L.y = top - 16;
-    for (let i = 0; i < 5; i += 1) { L.y -= 18; L.hline(MARGIN, MARGIN + WIDTH, L.y); }
+// Таблиця етапів: колонки пропорційні STAGE_COLUMNS, заголовок і рядки з переносом, без обрізання; заголовок повторюється на новій сторінці.
+function drawStageTable(L, doc) {
+    const rows = tsStageRows(doc);
+    const total = STAGE_COLUMNS.reduce((sum, [, w]) => sum + w, 0);
+    const widths = STAGE_COLUMNS.map(([, w]) => (w / total) * L.width);
+    const xs = widths.reduce((acc, w, i) => { acc.push(i ? acc[i - 1] + widths[i - 1] : MARGIN); return acc; }, []);
+    const FONT = 7.5;
+    const header = () => {
+        const lines = STAGE_COLUMNS.map(([t], i) => L.lines(t, FONT, widths[i] - 6, true));
+        const h = Math.max(...lines.map((l) => l.length)) * 9.5 + 6;
+        const top = L.y;
+        L.box(MARGIN, top, L.width, h, HEAD_BG);
+        lines.forEach((ls, i) => ls.forEach((line, k) => { L.y = top - 9 - k * 9.5; L.text(line, xs[i] + 3, FONT, { bold: true }); }));
+        L.y = top - h;
+    };
+    const body = rows.length ? rows : Array.from({ length: 5 }, (_, i) => [String(i + 1), '', '', '', '', '', '', '', '', '']);
+    L.text('ЕТАПИ РЕЙСУ', MARGIN, 8.5, { bold: true });
+    L.y -= 6;
+    header();
+    for (const row of body) {
+        const cells = row.map((cell, i) => L.lines(cell, FONT, widths[i] - 6));
+        const h = Math.max(...cells.map((c) => c.length), 1) * 9.5 + 8;
+        if (L.y - h < BOTTOM + 150) {
+            L.newPage(PAGE_BACK);
+            header();
+        }
+        const rowTop = L.y;
+        cells.forEach((ls, i) => ls.forEach((line, k) => { L.y = rowTop - 9 - k * 9.5; L.text(line, xs[i] + 3, FONT); }));
+        L.y = rowTop - h;
+        L.hline(MARGIN, MARGIN + L.width, L.y);
+        xs.forEach((x) => L.page.drawLine({ start: { x, y: rowTop }, end: { x, y: L.y }, thickness: 0.5, color: LINE }));
+        L.page.drawLine({ start: { x: MARGIN + L.width, y: rowTop }, end: { x: MARGIN + L.width, y: L.y }, thickness: 0.5, color: LINE });
+    }
     L.y -= 12;
-    signatures(L, ['Водій (автомобіль здав, лист закрито)', 'Механік (стан автомобіля при поверненні)', 'Диспетчер (лист прийнято)']);
+}
+
+function drawBack(L, doc, sections) {
+    L.newPage(PAGE_BACK);
+    L.text('Зворотний бік', MARGIN, 8, { color: MUTED });
+    L.y -= 14;
+    drawStageTable(L, doc);
+    // Нижче таблиці — дві колонки: повернення, після рейсу | розрахунок, підсумки.
+    const back = tsBackSections(doc, tsTotals(doc));
+    const left = [sections[4], back[0], sections[5]];
+    const right = [back[1]];
+    const colW = (L.width - 14) / 2;
+    const need = Math.max(left.reduce((n, sct) => n + sectionHeight(L, sct, colW, true), 0), right.reduce((n, sct) => n + sectionHeight(L, sct, colW, true), 0));
+    L.ensure(need + 56);
+    const startY = L.y;
+    left.forEach((sct) => drawSection(L, sct, MARGIN, colW, { breakPages: false, compact: true }));
+    const endLeft = L.y;
+    L.y = startY;
+    right.forEach((sct) => drawSection(L, sct, MARGIN + colW + 14, colW, { breakPages: false, compact: true }));
+    L.y = Math.min(endLeft, L.y);
+    L.ensure(46);
+    signaturesRow(L, ['Водій (автомобіль здав, лист закрито)', 'Механік (стан автомобіля при поверненні)', 'Диспетчер (лист прийняв)']);
+}
+
+// Підписи в один рядок (зворотний бік): лінія й підпис під нею.
+function signaturesRow(L, titles) {
+    const colW = L.width / titles.length;
+    L.y -= 22;
+    titles.forEach((title, i) => {
+        const x = MARGIN + i * colW;
+        L.hline(x + 4, x + colW - 14, L.y);
+        const lines = L.lines(title + ' — підпис', 7, colW - 24);
+        const top = L.y;
+        lines.forEach((line, k) => { L.y = top - 9 - k * 8.5; L.text(line, x + 4, 7, { color: MUTED }); });
+        L.y = top;
+    });
+    L.y -= 20;
 }
 
 function drawWatermark(pages, font) {
     const text = 'АНУЛЬОВАНО';
     const size = 80;
     for (const page of pages) {
+        const [pw, ph] = [page.getWidth(), page.getHeight()];
         const width = font.widthOfTextAtSize(text, size);
         const rad = (45 * Math.PI) / 180;
         page.drawText(text, {
-            x: PAGE[0] / 2 - (width / 2) * Math.cos(rad) + (size / 3) * Math.sin(rad),
-            y: PAGE[1] / 2 - (width / 2) * Math.sin(rad) - (size / 3) * Math.cos(rad),
+            x: pw / 2 - (width / 2) * Math.cos(rad) + (size / 3) * Math.sin(rad),
+            y: ph / 2 - (width / 2) * Math.sin(rad) - (size / 3) * Math.cos(rad),
             size, font, color: rgb(0.78, 0.16, 0.14), opacity: 0.22, rotate: degrees(45),
         });
     }
@@ -156,7 +235,7 @@ export async function buildTripSheetPdf(doc, { fonts } = {}) {
     const L = createLayout(pdf, { regular, bold }, pages);
     const sections = tsSections(doc);
     drawFront(L, doc, sections);
-    drawBack(L, sections);
+    drawBack(L, doc, sections);
     pages.forEach((page, i) => {
         const label = `Подорожній лист № ${docNumberText(doc)} від ${fmtDate(doc.doc_date)} · ${i === 0 ? 'лицьовий бік' : 'зворотний бік'}`
             + (pages.length > 2 ? ` · сторінка ${i + 1} з ${pages.length}` : '');

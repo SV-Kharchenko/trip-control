@@ -65,7 +65,7 @@ test('форма: позначка «змінено» й повернення з
 
 test('картка: закриття лише для видано + права запису, розрахунок наперед, ТТН цього рейсу', () => {
     const card = read('src/views/docs-ts-card.js');
-    assert.match(card, /issued && access\.canWrite \? closeForm\(doc\)/);
+    assert.ok(card.includes('const editable = issued && access.canWrite;') && card.includes('access.canWrite ? closeForm(doc, '));
     assert.match(card, /rpc\('kp_trip_sheet_close'/);
     assert.match(card, /calcTripSheet\(/);
     assert.match(card, /access\.isOwner && issued/);

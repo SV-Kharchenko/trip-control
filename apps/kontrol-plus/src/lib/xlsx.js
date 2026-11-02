@@ -154,7 +154,7 @@ function stylesXml() {
 }
 
 // sheet: { name, columns: [ширина у символах], rows: [ [комірки] | { cells, height } ], merges: ['A1:F1'],
-//          landscape: bool, header / footer: текст колонтитула (необовʼязково) }.
+//          landscape: bool, breaks: [номер рядка, після якого нова друкована сторінка], header / footer: текст колонтитула (необовʼязково) }.
 export function buildXlsx(sheet) {
     const name = safeSheetName(sheet.name);
     const strings = [];
@@ -206,6 +206,9 @@ export function buildXlsx(sheet) {
         + '<pageMargins left="0.5" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>'
         + `<pageSetup paperSize="9" orientation="${sheet.landscape ? 'landscape' : 'portrait'}" fitToWidth="1" fitToHeight="0"/>`
         + headerFooter
+        + (Array.isArray(sheet.breaks) && sheet.breaks.length
+            ? `<rowBreaks count="${sheet.breaks.length}" manualBreakCount="${sheet.breaks.length}">${sheet.breaks.map((r) => `<brk id="${r}" max="16383" man="1"/>`).join('')}</rowBreaks>`
+            : '')
         + '</worksheet>';
     const sharedXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
         + `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strings.length}" uniqueCount="${strings.length}">`

@@ -697,3 +697,17 @@ body.kp-nav-on #main-app { min-width: 0; }
 #kp-crm .kpd-link-client select { width: 100%; max-width: 100%; min-width: 0; }
 #kp-crm .kpd-link-client .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #kp-crm .kpd-page .kpd-link-client .actions > .btn:not(.btn-block) { justify-self: start; flex: 0 0 auto; width: auto; min-width: 0; }
+/* Подорожній лист, зворотний бік: редактор етапів (таблиця; на телефоні — картки через .kpr-cards) і відмітки. */
+#kp-crm .kpts-table input { width: 100%; min-width: 0; }
+#kp-crm .kpts-table td.kpts-no { font-weight: 700; }
+#kp-crm .kpts-pair { display: flex; flex-direction: column; gap: 4px; }
+#kp-crm .kpts-pair label { display: flex; align-items: center; gap: 6px; }
+#kp-crm .kpts-sub { flex: 0 0 62px; font-size: 11px; color: var(--muted); }
+#kp-crm .kpts-rowctl { flex-wrap: wrap; gap: 4px; }
+#kp-crm .kpts-mark { flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+#kp-crm .kpts-check { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+#kp-crm .kpts-check input { width: auto; flex: 0 0 auto; }
+@media (min-width: 768px) {
+    #kp-crm .kpts-table .table { table-layout: fixed; }
+    #kp-crm .kpts-table th, #kp-crm .kpts-table td { vertical-align: top; }
+}

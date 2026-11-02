@@ -7,6 +7,10 @@ import { docNumberText } from '../lib/docs.js';
 import { NORM_NEEDS_LOADED_KM, calcTripSheet, closePayload, fmtDateTime, isoToLocal, tsErrorText, tsHeading, tsSections } from '../lib/trip-sheet.js';
 import { showError, statusBadge, pdfButton, excelButton, cancelControl } from './docs.js';
 import { docsBackHash } from '../lib/docs-requests.js';
+import {
+    STAGE_COLUMNS, closeProblems, marksFromDoc, marksPayload, stageFromDoc, stagesPayload, tsBackSections, tsFrontMarks, tsStageRows, tsTotals, validateStages,
+} from '../lib/trip-sheet-stages.js';
+import { marksEditor, stagesEditor } from './docs-ts-stages.js';
 
 const fmt1 = (n) => (n === null || n === undefined ? '—' : String(n).replace('.', ','));
 
@@ -34,7 +38,7 @@ export function renderTripSheetCard(app, access, id) {
                 statusBadge(t.status === 'cancelled' ? 'cancelled' : 'issued')))));
     }
 
-    function closeForm(doc) {
+    function closeForm(doc, ctx) {
         const saved = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
         const at = h('input', { type: 'datetime-local', id: 'ts-return-at', value: isoToLocal(doc.return_at || new Date().toISOString()), 'aria-label': 'Дата і час повернення' });
         const odo = h('input', { type: 'text', id: 'ts-return-odo', inputmode: 'numeric', value: saved(doc.return_odometer), 'aria-label': 'Спідометр при поверненні' });
@@ -60,13 +64,16 @@ export function renderTripSheetCard(app, access, id) {
                 h('span', null, 'Різниця: ', h('b', null, r.fuel_diff === null ? '—' : (r.fuel_diff > 0 ? '+' : '') + fmt1(r.fuel_diff) + ' л')),
                 Object.values(r.errors).length ? h('span', { class: 'hint hint-error' }, Object.values(r.errors)[0]) : null);
         };
-        odo.addEventListener('input', redraw);
-        left.addEventListener('input', redraw);
+        const sync = () => { redraw(); ctx.onInput(odo.value, left.value); };
+        odo.addEventListener('input', sync);
+        left.addEventListener('input', sync);
         const row = (label, control, cls) => h('div', { class: 'field kpc-row' }, h('label', null, label), h('span', { class: 'kpc-box ' + cls }, control));
         const values = () => closePayload({ return_at: at.value, return_odometer: odo.value, return_fuel_left: left.value });
         // Зберегти повернення без закриття: поля редагуються, доки лист «Видано». Порожнє поле очищає збережене значення.
         const saveDraft = async () => {
             clear(message);
+            const saved1 = await ctx.saveExtra();
+            if (!saved1.ok) return clear(message, saved1.node);
             const { error } = await app.supabase.rpc('kp_trip_sheet_return_save', { p_id: doc.id, p_data: values() });
             if (error) return clear(message, notice(tsErrorText(error)));
             toast('Дані повернення збережено');
@@ -75,13 +82,19 @@ export function renderTripSheetCard(app, access, id) {
         const run = async () => {
             clear(message);
             const r = current();
+            // Те саме, що перевіряє сервер: без дати/часу й одометра повернення лист не закривається.
+            const need = closeProblems({ return_at: at.value, return_odometer: odo.value, return_fuel_left: left.value }, doc);
+            if (Object.keys(need).length) return clear(message, notice(Object.values(need)[0]));
             if (Object.keys(r.errors).length) return clear(message, notice(Object.values(r.errors)[0]));
+            const saved2 = await ctx.saveExtra();
+            if (!saved2.ok) return clear(message, saved2.node);
             const { error } = await app.supabase.rpc('kp_trip_sheet_close', { p_id: doc.id, p_data: values() });
             if (error) return clear(message, notice(tsErrorText(error)));
             toast('Лист закрито');
             load();
         };
         redraw();
+        ctx.onInput(odo.value, left.value);
         return h('div', { class: 'card kpc', id: 'ts-close' },
             h('h3', { class: 'kpc-section' }, 'Повернення (змінюється до закриття листа)'),
             row('Дата і час повернення', at, 'kpc-w-m'), row('Спідометр, км', odo, 'kpc-w-s'), row('Залишок пального, л', left, 'kpc-w-s'),
@@ -91,8 +104,70 @@ export function renderTripSheetCard(app, access, id) {
                 confirmButton('Закрити лист', 'Після закриття лист не змінюється. Закрити?', run, 'btn btn-primary')));
     }
 
+    const sectionCard = (section) => h('div', { class: 'card kpc-view' },
+        h('h3', { class: 'kpc-section' }, section.title),
+        h('dl', { class: 'kpt-dl' }, section.rows.map(([label, value]) => h('div', { class: 'kv' }, h('dt', null, label), h('dd', null, value)))));
+
+    // Лицьовий бік (шапка … виїзд, допуск до рейсу) і повернення з розрахунком; у режимі редагування відмітки й підсумки — в блоках нижче.
+    function viewSections(doc, editable) {
+        const base = tsSections(doc);
+        const out = [...base.slice(0, 4), ...(editable ? [] : [tsFrontMarks(doc)]), ...base.slice(4)];
+        return out.map(sectionCard);
+    }
+
+    // Таблиця етапів + відмітки після рейсу + підсумки для читання (закритий / анульований лист або режим перегляду).
+    function stageView(doc) {
+        const rows = tsStageRows(doc);
+        const totals = tsTotals(doc);
+        return h('div', null,
+            h('div', { class: 'card kpc-view' }, h('h3', { class: 'kpc-section' }, 'Зворотний бік: етапи'),
+                rows.length
+                    ? h('div', { class: 'table-wrap kpr-cards kpts-table' }, h('table', { class: 'table' },
+                        h('thead', null, h('tr', null, STAGE_COLUMNS.map(([t]) => h('th', null, t)))),
+                        h('tbody', null, rows.map((row) => h('tr', null, row.map((cell, i) => h('td', { 'data-label': STAGE_COLUMNS[i][0], class: i >= 7 ? 'mono' : '' }, cell)))))))
+                    : h('p', { class: 'muted' }, 'Етапів не внесено.')),
+            tsBackSections(doc, totals).map(sectionCard));
+    }
+
+    // Редактор відміток і етапів + форма закриття + живі підсумки (лист «Видано»).
+    function editBlocks(doc) {
+        const marks = marksFromDoc(doc);
+        const totalsBox = h('div', { class: 'card kpc-view', id: 'ts-totals' });
+        let editor = null;
+        let ret = { odo: doc.return_odometer, left: doc.return_fuel_left };
+        const refresh = () => {
+            const t = tsTotals(doc, { stages: editor.get(), returnOdometer: ret.odo, returnFuelLeft: ret.left });
+            clear(totalsBox, h('h3', { class: 'kpc-section' }, 'Підсумки'),
+                h('dl', { class: 'kpt-dl' }, tsBackSections(doc, t)[1].rows.map(([label, value]) => h('div', { class: 'kv' }, h('dt', null, label), h('dd', null, value)))));
+        };
+        editor = stagesEditor((doc.stages || []).map(stageFromDoc), refresh);
+        const message = h('div', { 'aria-live': 'polite' });
+        // Зберігає відмітки й етапи; повертає { ok, node } — node з помилкою для показу.
+        const saveExtra = async () => {
+            const bad = validateStages(editor.get());
+            if (Object.keys(bad).length) return { ok: false, node: notice('Перевірте етапи: числа не менше 0, вибуття не раніше прибуття.') };
+            const { error } = await app.supabase.rpc('kp_trip_sheet_extra_save', { p_id: doc.id, p_data: { ...marksPayload(marks), stages: stagesPayload(editor.get()) } });
+            return error ? { ok: false, node: notice(tsErrorText(error)) } : { ok: true };
+        };
+        const save = h('button', { type: 'button', class: 'btn btn-primary', id: 'ts-extra-save', onclick: async () => {
+            clear(message);
+            const res = await saveExtra();
+            if (!res.ok) return clear(message, res.node);
+            toast('Відмітки й етапи збережено');
+            return load();
+        } }, 'Зберегти відмітки й етапи');
+        const close = access.canWrite ? closeForm(doc, { saveExtra, onInput: (odo, left) => { ret = { odo, left }; refresh(); } }) : null;
+        refresh();
+        return h('div', null,
+            h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Відмітки (допуск до рейсу, механік, диспетчер)'), marksEditor(marks, () => {})),
+            h('div', { class: 'card kpc' }, h('h3', { class: 'kpc-section' }, 'Зворотний бік: етапи'), editor.node),
+            h('div', { class: 'actions kpc-actions' }, save), message,
+            close, totalsBox);
+    }
+
     function draw(doc) {
         const issued = doc.status === 'issued';
+        const editable = issued && access.canWrite;
         clear(box,
             h('a', { class: 'back', href: docsBackHash('trip_sheet') }, '← До документів'),
             h('div', { class: 'page-head' },
@@ -105,10 +180,8 @@ export function renderTripSheetCard(app, access, id) {
                     excelButton(app, doc.id, 'trip_sheet', 'Excel', 'btn'))),
             doc.status === 'cancelled' ? notice('Анульовано ' + fmtDate(doc.cancelled_at) + (doc.cancelled_by_email ? ' (' + doc.cancelled_by_email + ')' : '')
                 + ': ' + (doc.cancelled_reason || '—') + '. Номер не використовується повторно.', 'error') : null,
-            tsSections(doc).map((section) => h('div', { class: 'card kpc-view' },
-                h('h3', { class: 'kpc-section' }, section.title),
-                h('dl', { class: 'kpt-dl' }, section.rows.map(([label, value]) => h('div', { class: 'kv' }, h('dt', null, label), h('dd', null, value)))))),
-            issued && access.canWrite ? closeForm(doc) : null,
+            ...viewSections(doc, editable),
+            editable ? editBlocks(doc) : stageView(doc),
             h('div', { id: 'ts-related' }),
             access.isOwner && issued ? h('div', { class: 'card kpd-danger' }, h('h3', null, 'Анулювання'),
                 h('p', { class: 'small muted' }, 'Лист не видаляється: він лишається в списку з позначкою «Анульовано», номер не повторюється. Закритий лист анулювати не можна.'),

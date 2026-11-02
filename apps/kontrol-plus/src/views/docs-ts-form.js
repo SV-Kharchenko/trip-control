@@ -14,6 +14,7 @@ import { showError } from './docs.js';
 import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
 import { linkClientPanel } from './docs-link-client.js';
 import { withApprovedVariant, docsBackHash } from '../lib/docs-requests.js';
+import { dispatcherName, firstStage } from '../lib/trip-sheet-stages.js';
 
 // Поля форми: [шлях, ширина, атрибути]. Порядок — як у розділах картки: Шапка, ТЗ і водій, Завдання, Виїзд, Відмітки.
 const SECTIONS = [
@@ -36,6 +37,7 @@ const SECTIONS = [
     ['Відмітки (лише факт і час)', [
         ['medical.by', 'l', { maxlength: 200 }], ['medical.at', 'm', { type: 'datetime-local' }],
         ['tech.by', 'l', { maxlength: 200 }], ['tech.at', 'm', { type: 'datetime-local' }],
+        ['dispatcher', 'l', { maxlength: 200 }],
     ]],
 ];
 const ALL_PATHS = SECTIONS.flatMap(([, fields]) => fields.map(([p]) => p));
@@ -71,6 +73,7 @@ export function renderTripSheetForm(app, access, route) {
 
 function build(app, route, pre, today, vehicles, trailers, drivers, access) {
     let d = pre ? tsFromPrefill(pre, today) : emptyTripSheet(today);
+    d.dispatcher = dispatcherName(app.user);
     let snap = pre ? prefillSnapshot(d, ALL_PATHS) : null;
     let tried = false;
     const fields = {};
@@ -156,12 +159,23 @@ function build(app, route, pre, today, vehicles, trailers, drivers, access) {
         return h('div', { class: 'kpts-pick' }, row('Авто', vehicleSel), row('Причіп', trailerSel), row('Водій', driverSel));
     }
 
+    // Галочки допуску: «допущений до рейсу» (медогляд) і «автомобіль справний, виїзд дозволено» (механік).
+    function okChecks() {
+        const check = (path, text) => {
+            const input = h('input', { type: 'checkbox', id: 'ts-' + path.replace(/./g, '-'), checked: Boolean(getPath(d, path)) });
+            input.addEventListener('change', () => setPath(d, path, input.checked));
+            return h('div', { class: 'field kpc-row' }, h('label', { class: 'kpts-check', for: input.id }, input, ' ', text));
+        };
+        return [check('medical.ok', 'Допущений до рейсу (медогляд)'), check('tech.ok', 'Автомобіль справний, виїзд дозволено (механік)')];
+    }
+
     function drawBody() {
         for (const key of Object.keys(fields)) delete fields[key];
         clear(body, SECTIONS.map(([title, list], i) => h('div', { class: 'kpts-section' },
             h('h2', { class: 'form-section' }, title),
             i === 1 ? pickBlock() : null,
-            list.map(([path, width, attrs]) => field(path, width, attrs)))));
+            list.map(([path, width, attrs]) => field(path, width, attrs)),
+            i === SECTIONS.length - 1 ? okChecks() : null)));
         paint();
     }
 
@@ -192,7 +206,11 @@ function build(app, route, pre, today, vehicles, trailers, drivers, access) {
                 if (bad && fields[bad.field]) fields[bad.field].input.focus();
                 return;
             }
-            toast('Подорожній лист видано');
+            // Відмітки, яких немає в kp_trip_sheet_create (допуск, диспетчер), і перший етап із заявки — окремим викликом.
+            const extra = { medical_ok: Boolean(d.medical.ok), dispatcher_name: (d.dispatcher || '').trim() || null };
+            if (pre && pre.route) extra.stages = [firstStage(d)];
+            const saved = await app.supabase.rpc('kp_trip_sheet_extra_save', { p_id: data, p_data: extra });
+            toast(saved.error ? 'Лист видано, але відмітки не збережено: ' + tsErrorText(saved.error) : 'Подорожній лист видано');
             app.go('#/docs/trip_sheet/' + data);
         },
     },
