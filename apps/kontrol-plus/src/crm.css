@@ -386,7 +386,7 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 #kp-crm .kpt-doc-soon dd { color: var(--warn); font-weight: 600; }
 @media (max-width: 767px) {
     #kp-crm .kpt-party .kpd-grid, #kp-crm .kpt-line-main { grid-template-columns: 1fr 1fr; }
-    #kp-crm .kpt-line-main > .kpt-cargo { grid-column: 1 / -1; }
+    #kp-crm .kpt-line-main > .kp-hint-cell:first-child { grid-column: 1 / -1; }
     #kp-crm .kpt-op { grid-template-columns: 1fr 1fr 1fr; }
     #kp-crm .kpt-op > b { grid-column: 1 / -1; }
     #kp-crm .kpt-dl .kv { grid-template-columns: 1fr; gap: 2px; }
@@ -711,3 +711,17 @@ body.kp-nav-on #main-app { min-width: 0; }
     #kp-crm .kpts-table .table { table-layout: fixed; }
     #kp-crm .kpts-table th, #kp-crm .kpts-table td { vertical-align: top; }
 }
+
+/* Підказки «?» (src/lib/field-hint.js): кнопка за розміром контенту, поповер абсолютний і не зсуває розмітку. */
+#kp-crm .kp-label-row { display: flex; align-items: center; gap: 6px; }
+#kp-crm .kp-hint { position: relative; display: inline-flex; flex: 0 0 auto; }
+#kp-crm .kp-hint-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 20px; height: 20px; padding: 0 5px; border: 1px solid var(--border-soft); border-radius: 999px; background: var(--bg); color: var(--text-muted); font: inherit; font-size: 0.72rem; line-height: 1; cursor: pointer; }
+#kp-crm .kp-hint-btn:hover, #kp-crm .kp-hint-btn[aria-expanded="true"] { color: var(--text); border-color: var(--text-muted); }
+#kp-crm .kp-hint-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: max-content; max-width: min(18rem, calc(100vw - 16px)); padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--surface, var(--bg)); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); color: var(--text); font-size: 0.8rem; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; }
+#kp-crm .kp-hint-pop[hidden] { display: none; }
+#kp-crm .kp-hint-pop.kp-hint-up { top: auto; bottom: calc(100% + 6px); }
+#kp-crm .kp-hint-cell { position: relative; display: block; min-width: 0; }
+#kp-crm .kp-hint-cell > input { width: 100%; padding-right: 26px; }
+#kp-crm .kp-hint-cell > .kp-hint { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); }
+#kp-crm .kp-hint-cell > .kp-hint .kp-hint-pop { top: calc(100% + 10px); }
+#kp-crm .kpt-line-extra .kp-hint-cell { display: inline-block; }

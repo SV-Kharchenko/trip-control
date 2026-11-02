@@ -7,8 +7,10 @@ import { fmtDate, kyivDate } from '../lib/format.js';
 import { callKpApi } from '../lib/gps-client.js';
 import {
     TTN_FIELD_LABELS, TTN_MAX_LINES, TTN_REQUIRED, TTN_TRAILER_REQUIRED, createTtn, emptyLine, linesGross, massWarning, totalMass,
-    ttnErrorField, ttnErrorText, ttnFromPrefill, ttnPayload, validateTtn,
+    ttnErrorField, ttnErrorText, ttnFromPrefill, ttnPayload, trainMasses, validateTtn,
 } from '../lib/ttn.js';
+import { fieldHint, withHint } from '../lib/field-hint.js';
+import { ttnHint } from '../lib/ttn-hints.js';
 import { changedPaths, prefillSnapshot } from '../lib/trip-sheet.js';
 import { showError } from './docs.js';
 import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
@@ -122,10 +124,29 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
         const total = totalMass(d.tare_t, d.cargo_gross_t);
         const warn = massWarning(d.tare_t, d.cargo_gross_t, d.max_mass_t);
         const sum = linesGross(d.lines);
+        const masses = currentMasses();
         clear(massBox,
-            h('span', null, 'Загальна маса з вантажем: ', h('b', null, total === null ? '—' : fmtT(total) + ' т'), h('span', { class: 'muted small' }, ' = тара + брутто')),
+            h('span', null, 'Загальна маса з вантажем: ', h('b', null, total === null ? '—' : fmtT(total) + ' т'), h('span', { class: 'muted small' }, ' = тара + брутто '), fieldHint('Загальна маса', ttnHint('total_mass'))),
+            masses.warning ? h('span', { class: 'hint hint-warn', role: 'status' }, 'Тара і макс. маса: лише авто — ' + masses.warning) : null,
             sum !== null ? h('span', { class: 'muted small' }, 'Сума брутто в рядках: ' + fmtT(sum) + ' т') : null,
             warn ? h('span', { class: 'hint hint-warn', role: 'status' }, warn + ' (попередження, створити можна)') : null);
+    }
+
+    // Маса автопоїзда: картка авто (kp_vehicles_list) + картка причепа (за номером), якщо причіп вибрано. Без картки авто нічого не чіпаємо.
+    function vehicleCard() { return vehicles.find((v) => v.id === d.vehicle_id) || null; }
+    function currentMasses() {
+        const plate = String(d.vehicle.trailer_reg_number || '').trim().toLowerCase();
+        const trailerCard = plate ? trailers.find((t) => String(t.plate).toLowerCase() === plate) || null : null;
+        const hasTrailer = Boolean(plate || String(d.vehicle.trailer_make_model || '').trim());
+        return trainMasses(vehicleCard(), trailerCard, hasTrailer);
+    }
+    // Тара й макс. маса = авто + причіп; ↺ («змінено») повертає саме цю суму.
+    function applyMasses() {
+        if (!vehicleCard()) return;
+        const m = currentMasses();
+        d.tare_t = m.tare ?? '';
+        d.max_mass_t = m.max ?? '';
+        snap = Object.assign(snap || {}, { tare_t: String(d.tare_t), max_mass_t: String(d.max_mass_t) });
     }
 
     // Поле, привʼязане до шляху в d.
@@ -148,7 +169,10 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
             onclick: () => { if (!snap) return; setPath(d, path, snap[path]); input.value = snap[path]; paint(); },
         }, '↺');
         const mark = h('span', { class: 'kpts-changed', hidden: true }, 'змінено ', reset);
-        const wrap = h('div', { class: 'field' + (opts.wide ? ' kpr-wide' : ''), 'data-path': path }, h('label', { for: id }, label || TTN_FIELD_LABELS[path] || path, req), input, mark, hint);
+        const text = label || TTN_FIELD_LABELS[path] || path;
+        const tip = ttnHint(opts.hintKey || path);
+        const labelEl = h('label', { for: id }, text, req);
+        const wrap = h('div', { class: 'field' + (opts.wide ? ' kpr-wide' : ''), 'data-path': path }, tip ? h('div', { class: 'kp-label-row' }, labelEl, fieldHint(text, tip)) : labelEl, input, mark, hint);
         fields[path] = { input, hint, wrap, req, mark, baseHint: opts.hint || '' };
         return wrap;
     }
@@ -200,8 +224,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
             trailer_make_model: v.trailer_make_model || '', trailer_type: v.trailer_type || '', trailer_reg_number: v.trailer_plate || '',
             length_m: v.length_m ?? '', width_m: v.width_m ?? '', height_m: v.height_m ?? '',
         });
-        d.tare_t = v.tare_t ?? '';
-        d.max_mass_t = v.max_mass_t ?? '';
+        applyMasses();
         const drv = drivers.find((x) => x.id === v.default_driver_id);
         if (drv) d.driver = { id: drv.id, full_name: drv.full_name, license_no: drv.license_no || '' };
     }
@@ -211,6 +234,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
         Object.assign(d.vehicle, {
             trailer_make_model: t ? t.make_model || '' : '', trailer_type: t ? t.type || '' : '', trailer_reg_number: t ? t.plate || '' : '',
         });
+        applyMasses();
     }
 
     function transportSection() {
@@ -243,14 +267,14 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
         return [
             h('h2', { class: 'form-section' }, 'Транспорт і водій'),
             h('div', { class: 'kpd-grid' },
-                h('div', { class: 'field' }, h('label', { for: 't-vehicle' }, 'Авто'), vehicleSel, h('div', { class: 'hint' }, 'Поля ТЗ редагуються в «Авто й водії» або тут лише для цієї ТТН.')),
-                h('div', { class: 'field' }, h('label', { for: 't-driver' }, 'Водій'), driverSel),
+                h('div', { class: 'field' }, h('div', { class: 'kp-label-row' }, h('label', { for: 't-vehicle' }, 'Авто'), fieldHint('Авто', ttnHint('vehicle_pick'))), vehicleSel, h('div', { class: 'hint' }, 'Поля ТЗ редагуються в «Авто й водії» або тут лише для цієї ТТН.')),
+                h('div', { class: 'field' }, h('div', { class: 'kp-label-row' }, h('label', { for: 't-driver' }, 'Водій'), fieldHint('Водій', ttnHint('driver_pick'))), driverSel),
                 field('vehicle.make_model', null, { maxlength: 100, placeholder: 'напр. DAF XF 480' }),
                 field('vehicle.type', null, { maxlength: 100, placeholder: 'напр. тягач сідловий' }),
                 field('vehicle.reg_number', null, { maxlength: 20, class: 'mono', placeholder: 'напр. AA0000AA' }),
                 field('driver.full_name', null, { maxlength: 200 }),
                 field('driver.license_no', null, { maxlength: 30, class: 'mono' }),
-                h('div', { class: 'field' }, h('label', { for: 't-trailer' }, 'Причіп'), trailerSel),
+                h('div', { class: 'field' }, h('div', { class: 'kp-label-row' }, h('label', { for: 't-trailer' }, 'Причіп'), fieldHint('Причіп', ttnHint('trailer_pick'))), trailerSel),
                 field('vehicle.trailer_make_model', 'Причіп / напівпричіп: марка, модель', { maxlength: 100 }),
                 field('vehicle.trailer_type', 'Причіп: тип', { maxlength: 100, placeholder: 'напр. напівпричіп-зерновоз' }),
                 field('vehicle.trailer_reg_number', 'Причіп: реєстраційний номер', { maxlength: 20, class: 'mono' }),
@@ -270,7 +294,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
                 if (key === 'gross_t') touched.lineGross = true;
                 paint();
             });
-            return input;
+            return withHint(input, attrs['aria-label'].replace(/, рядок d+$/, ''), ttnHint('line.' + (key === 'cargo_name' ? 'cargo_name' : key)));
         };
         const check = (key, label) => {
             const input = h('input', { type: 'checkbox', checked: Boolean(line[key]) });
@@ -279,12 +303,12 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
                 if (key === 'owner_price' && input.checked) line.price = '';
                 drawBody();
             });
-            return h('label', { class: 'check' }, input, ' ', label);
+            return h('label', { class: 'check' }, input, ' ', label, fieldHint(label, ttnHint('line.' + key)));
         };
         const n = index + 1;
         return h('div', { class: 'kpt-line', 'data-line': String(index) },
             h('div', { class: 'kpt-line-main' },
-                bind('cargo_name', { maxlength: 500, 'aria-label': 'Найменування вантажу, рядок ' + n, placeholder: 'Найменування вантажу / № контейнера', class: 'kpt-cargo' }),
+                bind('cargo_name', { maxlength: 500, 'aria-label': 'Найменування вантажу, рядок ' + n, placeholder: 'Найменування вантажу / № контейнера' }),
                 bind('unit', { maxlength: 20, 'aria-label': 'Одиниця вимірювання (т, кг, шт), рядок ' + n, placeholder: 'од.: т, кг, шт', title: 'Назва одиниці вимірювання: т, кг, шт. Кількість вписуйте в «місць» і «брутто, т»' }),
                 bind('places', { inputmode: 'numeric', 'aria-label': 'Кількість місць, рядок ' + n, placeholder: 'місць' }),
                 line.owner_price ? h('span', { class: 'muted small' }, 'ОЦВТ') : bind('price', { inputmode: 'decimal', 'aria-label': 'Ціна без ПДВ, рядок ' + n, placeholder: 'ціна' }),
@@ -313,8 +337,8 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
             h('div', { class: 'kpd-grid' },
                 numField('cargo_net_t', null, { onInput: (value) => { if (!touched.gross) { d.cargo_gross_t = value; syncInput('cargo_gross_t'); } syncLineGross(); } }),
                 numField('cargo_gross_t', null, { onInput: () => { touched.gross = true; syncLineGross(); }, hint: 'Для насипу / наливу — дорівнює нетто' }),
-                numField('tare_t', null, { hint: 'З картки авто; можна виправити для цієї ТТН' }),
-                numField('max_mass_t', null, { hint: 'Лише для попередження' }),
+                numField('tare_t', null, { hint: currentMasses().tareHint || 'З картки авто й причепа; можна виправити для цієї ТТН' }),
+                numField('max_mass_t', null, { hint: currentMasses().maxHint || 'Лише для попередження' }),
                 field('places_count', 'Кількість місць (усього)', { inputmode: 'numeric', placeholder: '0' }, { hint: 'Друкується словами' }),
                 field('accompanying_docs', null, { maxlength: 500 }),
                 numField('total_amount', 'Усього відпущено на суму, грн (з ПДВ)', { placeholder: '0,00', hint: 'Порожньо — «ОЦВТ», якщо ціна власника, або прочерк' }),
@@ -344,7 +368,8 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
             const bind = (key, attrs) => {
                 const input = h('input', Object.assign({ type: 'text', autocomplete: 'off', value: o[key] ?? '' }, attrs));
                 input.addEventListener('input', () => { o[key] = input.value; });
-                return input;
+                const hintKey = { gross_t: 'op_gross', tare_t: 'op_tare', net_t: 'op_net', arrival: 'op_arrival', departure: 'op_departure', idle: 'op_idle' }[key];
+                return withHint(input, attrs['aria-label'], ttnHint(hintKey));
             };
             return h('div', { class: 'kpt-op' },
                 h('b', null, label),
@@ -413,7 +438,9 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
         touched.gross = false;
         touched.lineGross = false;
         if (!pre.vehicle && pre.vehicle_id === null && vehicles.length === 1) applyVehicle(vehicles[0]);
+        snap = null;
         if (calcPre && route.calc) applyCalcExtras();
+        applyMasses();
         numberHint.textContent = 'Порожньо — автоматичний номер (наступний: ' + (pre.prefix || '') + pre.next_number + '). Можна вказати свій, якщо він вільний.';
         if (pre.calculation) {
             clear(message, notice('Заявку прийнято. Рейс ' + fmtDate(pre.calculation.trip_date) + ': ' + [pre.calculation.route_from, pre.calculation.route_to].filter(Boolean).join(' — ')
@@ -497,9 +524,9 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
         },
     },
     h('div', { class: 'kpd-grid' },
-        h('div', { class: 'field kpr-wide' }, h('label', { for: 't-client' }, 'Клієнт (замовник)', h('span', { class: 'req', 'aria-hidden': 'true' }, ' *')), clientSel),
-        h('div', { class: 'field' }, h('label', { for: 't-date' }, 'Дата складання'), docDate),
-        h('div', { class: 'field' }, h('label', { for: 't-number' }, 'Номер'), number, numberHint)),
+        h('div', { class: 'field kpr-wide' }, h('div', { class: 'kp-label-row' }, h('label', { for: 't-client' }, 'Клієнт (замовник)', h('span', { class: 'req', 'aria-hidden': 'true' }, ' *')), fieldHint('Клієнт (замовник)', ttnHint('client'))), clientSel),
+        h('div', { class: 'field' }, h('div', { class: 'kp-label-row' }, h('label', { for: 't-date' }, 'Дата складання'), fieldHint('Дата складання', ttnHint('doc_date'))), docDate),
+        h('div', { class: 'field' }, h('div', { class: 'kp-label-row' }, h('label', { for: 't-number' }, 'Номер'), fieldHint('Номер', ttnHint('number'))), number, numberHint)),
     message,
     body,
     h('p', { class: 'muted small' }, h('span', { class: 'req' }, '*'), ' — обовʼязкові реквізити ст. 48 Закону «Про автомобільний транспорт». Решту полів форми № 1-ТН можна лишити порожніми — у PDF буде прочерк.'),

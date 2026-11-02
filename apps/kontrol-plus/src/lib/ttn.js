@@ -96,6 +96,34 @@ export function massWarning(tare, gross, maxMass) {
     return total > max ? `Загальна маса ${String(total).replace('.', ',')} т більша за максимально дозволену ${String(max).replace('.', ',')} т` : null;
 }
 
+const fmtMass = (n) => String(n).replace('.', ',');
+
+// Маси автопоїзда з карток: тара = авто + причіп, максимально дозволена = авто + причіп (суми в кг, без похибок float).
+// vehicle / trailer — картки (tare_t, max_mass_t) або null; hasTrailer — причіп вибрано в ТТН.
+// Без причепа — лише авто. Причіп без маси в картці не додається, замість цього — попередження.
+export function trainMasses(vehicle, trailer, hasTrailer) {
+    const part = (card, key) => (card ? kg(card[key]) : null);
+    const vTare = part(vehicle, 'tare_t');
+    const vMax = part(vehicle, 'max_mass_t');
+    const tTare = hasTrailer ? part(trailer, 'tare_t') : null;
+    const tMax = hasTrailer ? part(trailer, 'max_mass_t') : null;
+    const sum = (a, b) => (a === null && b === null ? null : (a || 0) + (b || 0));
+    const tare = sum(vTare, tTare);
+    const max = sum(vMax, tMax);
+    const t = (v) => (v === null ? null : v / 1000);
+    const missing = hasTrailer && (tTare === null || tMax === null);
+    const split = (v, tr, total) => {
+        if (total === null) return '';
+        return hasTrailer && tr !== null ? 'Авто ' + fmtMass(t(v || 0)) + ' т + причіп ' + fmtMass(t(tr)) + ' т' : 'Авто ' + fmtMass(t(v || 0)) + ' т';
+    };
+    return {
+        tare: t(tare), max: t(max),
+        tareHint: split(vTare, tTare, tare), maxHint: split(vMax, tMax, max),
+        trailerMassMissing: missing,
+        warning: missing ? 'немає маси причепа в картці' : '',
+    };
+}
+
 const CONTROL = /[\u0000-\u001F\u007F]/;
 
 // Перевірка до відправлення: { поле: текст }. Ті самі правила, що kp_ttn_create.
