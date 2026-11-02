@@ -12,9 +12,9 @@ import { STAGE_COLUMNS, tsBackSections, tsFrontMarks, tsStageRows, tsTotals } fr
 
 export { loadFonts };
 
-const PAGE = [595.28, 841.89];
-// Зворотний бік — A4 альбомна: таблиця етапів із 10 колонок не обрізається.
-const PAGE_BACK = [841.89, 595.28];
+const PAGE = [841.89, 595.28];
+// Обидва боки — A4 альбомна: лицьовий у кілька колонок, зворотний (10 колонок етапів) без обрізання.
+const PAGE_BACK = PAGE;
 const MARGIN = 36;
 const BOTTOM = 40;
 const WIDTH = PAGE[0] - MARGIN * 2;
@@ -67,10 +67,10 @@ function createLayout(pdf, fonts, pages) {
 }
 
 // Висота розділу (для вирівнювання колонок): заголовок + рядки з урахуванням переносу.
-function sectionHeight(L, section, width = WIDTH, compact = false) {
+function sectionHeight(L, section, width = WIDTH, compact = false, plaque = true) {
     const labelW = Math.min(LABEL_W, width * 0.48);
     const [fs, ls, pad] = compact ? [8, 10, 3] : [9, 11.5, 6];
-    let total = 16 + 8;
+    let total = plaque ? 16 + 8 : 8;
     for (const [label, value] of section.rows) {
         const valueLines = L.lines(value, fs, width - labelW - 14);
         const labelLines = L.lines(label, fs - 0.5, labelW - 10, true);
@@ -79,15 +79,19 @@ function sectionHeight(L, section, width = WIDTH, compact = false) {
     return total;
 }
 
-function drawSection(L, section, x = MARGIN, width = WIDTH, { breakPages = true, compact = false } = {}) {
+function drawSection(L, section, x = MARGIN, width = WIDTH, { breakPages = true, compact = false, plaque = true } = {}) {
     const labelW = Math.min(LABEL_W, width * 0.48);
     const [fs, ls, pad] = compact ? [8, 10, 3] : [9, 11.5, 6];
     if (breakPages) L.ensure(40);
     const top = L.y;
-    L.box(x, top, width, 16, HEAD_BG);
-    L.y = top - 11.5;
-    L.text(section.title.toUpperCase(), x + 6, 8.5, { bold: true });
-    L.y = top - 16;
+    if (plaque) {
+        L.box(x, top, width, 16, HEAD_BG);
+        L.y = top - 11.5;
+        L.text(section.title.toUpperCase(), x + 6, 8.5, { bold: true });
+        L.y = top - 16;
+    } else {
+        L.hline(x, x + width, top);
+    }
     for (const [label, value] of section.rows) {
         const valueLines = L.lines(value, fs, width - labelW - 14);
         const labelLines = L.lines(label, fs - 0.5, labelW - 10, true);
@@ -102,31 +106,48 @@ function drawSection(L, section, x = MARGIN, width = WIDTH, { breakPages = true,
     L.y -= compact ? 8 : 10;
 }
 
-function signatures(L, titles) {
-    L.ensure(titles.length * 26 + 10);
-    for (const title of titles) {
-        L.y -= 20;
-        L.text(title, MARGIN, 9);
-        L.hline(MARGIN + 230, MARGIN + L.width - 90, L.y - 2);
-        L.y -= 0;
-        L.text('(підпис)', MARGIN + 230, 6.5, { color: MUTED });
-    }
-    L.y -= 8;
-}
-
+// Лицьовий бік (A4 альбомна, одна сторінка): шапка без плашки у дві колонки; нижче три колонки —
+// «ТЗ і водій» | «Завдання» | «Виїзд» + «Допуск до рейсу»; підписи в один рядок.
 function drawFront(L, doc, sections) {
-    L.newPage();
+    L.newPage(PAGE);
     const top = L.y;
-    L.lines(TS_FORM_REF, 7, 360).forEach((line, i) => { L.y = top - 7 - i * 9; L.text(line, MARGIN, 7, { color: MUTED }); });
+    L.lines(TS_FORM_REF, 7, 420).forEach((line, i) => { L.y = top - 7 - i * 9; L.text(line, MARGIN, 7, { color: MUTED }); });
     L.y = top - 9;
-    L.text(TS_FORM_NO, MARGIN + WIDTH - 110, 9, { bold: true, align: 'right', width: 110 });
-    L.y = top - 46;
-    L.text(tsHeading(doc), MARGIN, 14, { bold: true, align: 'center', width: WIDTH });
-    L.y -= 8;
-    L.text(`від ${fmtDate(doc.doc_date)}`, MARGIN, 10, { align: 'center', width: WIDTH });
-    L.y -= 16;
-    for (const section of [...sections.slice(0, 4), tsFrontMarks(doc)]) drawSection(L, section, MARGIN, WIDTH, { compact: true });
-    signatures(L, ['Водія до рейсу допущено за станом здоров’я (медогляд)', 'Автомобіль технічно справний, випуск на лінію дозволено (механік)',
+    L.text(TS_FORM_NO, MARGIN + L.width - 110, 9, { bold: true, align: 'right', width: 110 });
+    L.y = top - 34;
+    L.text(tsHeading(doc), MARGIN, 14, { bold: true, align: 'center', width: L.width });
+    L.y -= 6;
+    L.text(`від ${fmtDate(doc.doc_date)}`, MARGIN, 10, { align: 'center', width: L.width });
+    L.y -= 12;
+
+    const gap = 14;
+    // Шапка (номер, дата видачі, строк дії, перевізник) — без заголовка секції, у дві колонки.
+    const head = sections[0];
+    const mid = Math.ceil(head.rows.length / 2);
+    const headCols = [{ rows: head.rows.slice(0, mid) }, { rows: head.rows.slice(mid) }];
+    const halfW = (L.width - gap) / 2;
+    const cols3 = [[sections[1]], [sections[2]], [sections[3], tsFrontMarks(doc)]];
+    const thirdW = (L.width - gap * 2) / 3;
+    const headH = Math.max(...headCols.map((c) => sectionHeight(L, c, halfW, true, false)));
+    const colsH = Math.max(...cols3.map((c) => c.reduce((n, sct) => n + sectionHeight(L, sct, thirdW, true), 0)));
+    L.ensure(headH + colsH + 70);
+
+    const headY = L.y;
+    let lowest = headY;
+    headCols.forEach((c, i) => {
+        L.y = headY;
+        drawSection(L, c, MARGIN + i * (halfW + gap), halfW, { breakPages: false, compact: true, plaque: false });
+        lowest = Math.min(lowest, L.y);
+    });
+    L.y = lowest;
+    const colsY = L.y;
+    cols3.forEach((c, i) => {
+        L.y = colsY;
+        c.forEach((sct) => drawSection(L, sct, MARGIN + i * (thirdW + gap), thirdW, { breakPages: false, compact: true }));
+        lowest = Math.min(lowest, L.y);
+    });
+    L.y = lowest;
+    signaturesRow(L, ['Водія допущено за станом здоров’я (медогляд)', 'Автомобіль справний, випуск на лінію дозволено (механік)',
         'Автомобіль прийняв водій', 'Диспетчер, що видав лист']);
 }
 

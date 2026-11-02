@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
+import { strFromU8, unzipSync } from 'fflate';
 import { buildTripSheetPdf } from '../src/lib/pdf-trip-sheet.js';
 import { buildDocXlsx, tripSheetSheet } from '../src/lib/xlsx-docs.js';
 import { tsSections } from '../src/lib/trip-sheet.js';
@@ -159,27 +160,45 @@ test('old sheets open and print: no new fields, no stages', async () => {
     assert.equal(tsFrontMarks(old).rows[0][1], '—');
     const pdf = await buildTripSheetPdf(old, { fonts });
     assert.equal(pdf.info.pages, 2);
+    assert.ok((await pageSizes(pdf.bytes)).every(({ width, height }) => width > height), 'an old sheet: both pages landscape');
+    const oldIssued = await buildTripSheetPdf(base({ status: 'issued', return_at: null, return_odometer: null, return_fuel_left: null, distance_km: null, fuel_actual: null, fuel_norm: null, fuel_diff: null }), { fonts });
+    assert.equal(oldIssued.info.pages, 2);
     assert.ok(buildDocXlsx(old).length > 500);
     assert.doesNotThrow(() => tsSections({ ...old, status: 'issued', return_at: null, return_odometer: null, return_fuel_left: null }));
 });
 
-test('PDF: two pages (front portrait, back landscape) with stages, marks and totals; nothing truncated', async () => {
+const pageSizes = async (bytes) => (await PDFDocument.load(bytes)).getPages().map((pg) => pg.getSize());
+
+test('PDF: exactly two pages, both A4 landscape, with stages, marks and totals; no «ШАПКА» plaque; nothing truncated', async () => {
     const doc = withStages(6);
     const { bytes, info } = await buildTripSheetPdf(doc, { fonts });
     assert.equal(info.pages, 2);
-    const pdf = await PDFDocument.load(bytes);
-    const [front, back] = pdf.getPages().map((p) => p.getSize());
-    assert.ok(front.width < front.height, 'the front side is portrait');
-    assert.ok(back.width > back.height, 'the back side is landscape');
+    const sizes = await pageSizes(bytes);
+    assert.equal(sizes.length, 2);
+    for (const { width, height } of sizes) {
+        assert.ok(width > height, 'landscape');
+        assert.ok(Math.abs(width - 841.89) < 0.1 && Math.abs(height - 595.28) < 0.1, 'A4');
+    }
+    const src = read('src/lib/pdf-trip-sheet.js');
+    assert.match(src, /plaque: false/, 'the header block is drawn without a section plaque');
+    assert.doesNotMatch(src, /ШАПКА/);
+    assert.match(src, /const PAGE = [841.89, 595.28];/);
     // порожній зворотний бік (без етапів) теж друкується на двох аркушах — з порожніми рядками для ручного заповнення
     assert.equal((await buildTripSheetPdf(base(), { fonts })).info.pages, 2);
+    // довгі значення у лицьовому боці (кілька колонок) не виштовхують його на другу сторінку
+    const longFront = withStages(6, {
+        driver: { full_name: 'Петренко Петро Петрович-Старший-Молодший', license_no: 'BB654321', tab_no: '17' },
+        vehicle: { make_model: 'DAF XF 480 FTG Super Space Cab', reg_number: 'AA1111AA', garage_no: '5', trailer_make_model: 'Schmitz Cargobull SKO 24', trailer_reg_number: 'AA2222XX', fuel_load: 30, fuel_empty: 20 },
+        task: { customer: 'ТОВ «Агропромислова компанія Золотий колос»', route_from: 'м. Луцьк, вул. Промислова, 1', route_to: 'м. Одеса, порт, термінал 7', feed_point: 'с. Рівне', via: ['Київ', 'Біла Церква', 'Умань'], cargo: 'Пшениця 3 класу', tonnage: 22, loaded_km: 300 },
+    });
+    assert.equal((await buildTripSheetPdf(longFront, { fonts })).info.pages, 2);
     assert.equal((await buildTripSheetPdf(withStages(6, { status: 'cancelled', cancelled_at: '2026-10-31T00:00:00Z', cancelled_reason: 'Помилка' }), { fonts })).info.watermark, true);
     // багато етапів не обрізаються: таблиця переходить на наступні аркуші, заголовок повторюється
     const many = await buildTripSheetPdf(withStages(30, {}, true), { fonts });
     assert.ok(many.info.pages > 2);
 });
 
-test('Excel: stage table with 10 columns, front and back on separate printed pages, totals and marks present', () => {
+test('Excel: print setup is landscape, fit to width; stage table with 10 columns, front and back on separate printed pages', () => {
     const doc = withStages(3);
     const sh = tripSheetSheet(doc);
     assert.equal(sh.landscape, true);
@@ -194,8 +213,10 @@ test('Excel: stage table with 10 columns, front and back on separate printed pag
     assert.deepEqual(headRow.map((c) => c.v), STAGE_COLUMNS.map(([t]) => t));
     // розрив — після лицьового боку, перед заголовком «Зворотний бік»
     assert.equal(cellsOf(sh.rows[sh.breaks[0]])[0].v, 'Зворотний бік');
-    const xlsx = buildDocXlsx(doc);
-    assert.ok(Buffer.from(xlsx).includes('rowBreaks') || xlsx.length > 500);
+    const xml = strFromU8(unzipSync(buildDocXlsx(doc))['xl/worksheets/sheet1.xml']);
+    assert.match(xml, /<pageSetup [^>]*orientation="landscape"[^>]*fitToWidth="1"/);
+    assert.match(xml, /<pageSetUpPr fitToPage="1"\/>/);
+    assert.match(xml, /<rowBreaks count="1" manualBreakCount="1"><brk id="\d+" max="16383" man="1"\/><\/rowBreaks>/);
 });
 
 test('migration 20261107090000: additive and idempotent, RLS through kp_org_id(), cascade, generated t·km, server-side close check', () => {
