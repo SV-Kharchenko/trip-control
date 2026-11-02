@@ -28,11 +28,11 @@ test('мітка: збірка Контроль+ має data-app="kp" на <html
     assert.equal(readFileSync(new URL('../apps/kontrol-plus/scripts/site-html.mjs', import.meta.url), 'utf8').includes('data-app'), true);
 });
 
-test('isKP() читає data-app з <html>; правило .kp-only ховає елемент на сайті', () => {
+test('isKP() читає data-app з <html>', () => {
     const src = fnSource('isKP');
     assert.equal(vm.runInContext(src + '; isKP()', context('kp')), true);
     assert.equal(vm.runInContext(src + '; isKP()', context(null)), false);
-    assert.ok(html.includes('html:not([data-app="kp"]) .kp-only { display: none !important; }'));
+    assert.equal(html.includes('.kp-only'), false, 'невикористаний клас прибрано');
 });
 
 test('вкладки кабінету: «Реквізити» і «Статистика» створюються лише в Контроль+, «Автопарк» і «Профіль» — завжди', () => {
@@ -104,4 +104,67 @@ test('мертві теми Night / Amber / Ocean / Paper видалено; :roo
     assert.equal(theme('dark'), 'dark');
     assert.equal(theme('light'), 'light');
     assert.equal(theme('anything'), 'light');
+});
+
+// ---- Сповіщення: на сайті сховані тільки при показі й у бейджі ----
+const NOTES = [
+    { id: 'n1', kind: 'approval_pending', ref_kind: 'calculation', read_at: null },
+    { id: 'n2', kind: 'signature_used', ref_kind: 'document', read_at: null },
+    { id: 'n3', kind: 'doc_emailed', ref_kind: 'document', read_at: null },
+    { id: 'n4', kind: 'doc_emailed', ref_kind: 'contract', read_at: null },
+    { id: 'n5', kind: 'signature_used', ref_kind: 'ttn', read_at: null },
+    { id: 'n6', kind: 'approval_pending', ref_kind: 'calculation', read_at: '2026-11-01T10:00:00Z' },
+];
+function notesWorld(app) {
+    const calls = [];
+    const ctx = context(app, {
+        currentOrgRole: 'owner', currentUserId: 'u1', calls,
+        teamApi: async (_method, body) => { calls.push(body); return { items: NOTES, unread: 5 }; },
+        paintUnread() {}, renderNotifications() {}, showToast() {},
+    });
+    vm.runInContext(['isKP', 'noteKpOnly', 'visibleNotes'].map((n) => fnSource(n)).join('\n')
+        + '\n' + ['refreshUnreadNotifications', 'markAllNotesRead'].map((n) => fnSource(n, true)).join('\n')
+        + "\nlet notesState = { items: [], unread: 0, loaded: false };", ctx);
+    return ctx;
+}
+
+test('сповіщення на сайті: підпис і печатка, документи, договори й ТТН не показуються і не входять у бейдж', async () => {
+    const site = notesWorld(null);
+    await vm.runInContext('refreshUnreadNotifications()', site);
+    const state = JSON.parse(vm.runInContext('JSON.stringify(notesState)', site));
+    assert.deepEqual(state.items.map((n) => n.id), ['n1', 'n6'], 'лишились лише заявки');
+    assert.equal(state.unread, 1, 'бейдж рахує тільки показані непрочитані (сервер казав 5)');
+    for (const kind of ['signature_used', 'doc_emailed']) assert.equal(state.items.some((n) => n.kind === kind), false, kind);
+    for (const ref of ['document', 'contract', 'ttn']) assert.equal(state.items.some((n) => n.ref_kind === ref), false, ref);
+});
+
+test('сповіщення в Контроль+: усе показується, бейдж — серверний лічильник', async () => {
+    const kp = notesWorld('kp');
+    await vm.runInContext('refreshUnreadNotifications()', kp);
+    const state = JSON.parse(vm.runInContext('JSON.stringify(notesState)', kp));
+    assert.equal(state.items.length, NOTES.length);
+    assert.equal(state.unread, 5);
+});
+
+test('«Прочитати все»: на сайті позначає лише показані непрочитані (сховані не чіпає), у Контроль+ — як раніше', async () => {
+    const site = notesWorld(null);
+    await vm.runInContext('refreshUnreadNotifications()', site);
+    site.calls.length = 0;
+    await vm.runInContext('markAllNotesRead()', site);
+    const sent = site.calls.find((c) => c.action === 'notifications_read');
+    assert.deepEqual(JSON.parse(JSON.stringify(sent)), { action: 'notifications_read', ids: ['n1'] });
+    assert.equal(site.calls.some((c) => c.all === true), false, 'без all:true — сховані лишаються непрочитаними');
+    const kp = notesWorld('kp');
+    await vm.runInContext('refreshUnreadNotifications()', kp);
+    kp.calls.length = 0;
+    await vm.runInContext('markAllNotesRead()', kp);
+    assert.deepEqual(JSON.parse(JSON.stringify(kp.calls.find((c) => c.action === 'notifications_read'))), { action: 'notifications_read', all: true });
+    // Нічого в базі не видаляється: фільтр лише в refresh / render, серверних викликів видалення немає.
+    assert.equal(/notifications_(delete|remove)/.test(html), false);
+});
+
+test('дрібниці: !isKP() — перший рядок calcDocButtons; мертве правило dispatcher-result night/amber і --rc-* прибрано', () => {
+    assert.match(fnSource('calcDocButtons'), /^function calcDocButtons\(row\) \{\n\s*if \(!isKP\(\)\) return '';/);
+    assert.equal(/\[data-theme="(night|amber)"\] #dispatcher-result/.test(html), false);
+    assert.equal(/--rc-(fg|muted|up|down|be)/.test(html), false);
 });

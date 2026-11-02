@@ -44,7 +44,6 @@
             --kpi-glow: rgba(52,211,153,0.35);
             --brand-black: #0A0A0A; --brand-cream: #F0ECE3; --brand-beige: #D6C29E;
             --surface: #101622; --positive: #34D399;
-            --rc-fg: #E8EDF5; --rc-muted: #A9B4C8; --rc-up: #34D399; --rc-down: #FF8A8A; --rc-be: #FBBF24;
             --font-ui: 'Manrope', sans-serif;
             --font-display: 'Manrope', sans-serif;
             --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -512,8 +511,6 @@
             display: none; flex-direction: column; gap: 6px; max-height: calc(100% - 20px); overflow: auto;
         }
         .tc-map-alts.visible { display: flex; }
-        /* Лише для Контроль+ (на <html> стоїть data-app="kp", його виставляє збірка apps/kontrol-plus): на сайті ховається. */
-        html:not([data-app="kp"]) .kp-only { display: none !important; }
         .tc-map-alt {
             text-align: left; cursor: pointer; border-radius: 10px; padding: 8px 10px;
             border: 1px solid var(--border-color);
@@ -3273,11 +3270,6 @@
             --tc-result-be: var(--gold);
             background: var(--surface);
             border-color: var(--border);
-        }
-        body.layout-studio[data-theme="night"] #dispatcher-result:not(.is-empty),
-        body.layout-studio[data-theme="amber"] #dispatcher-result:not(.is-empty) {
-            --tc-result-fg: var(--rc-fg); --tc-result-muted: var(--rc-muted); --tc-result-up: var(--rc-up); --tc-result-down: var(--rc-down); --tc-result-be: var(--rc-be);
-            background: var(--surface); color: var(--tc-result-fg);
         }
         body.layout-studio[data-theme="light"] #studio-sum,
         body.layout-studio[data-theme="dark"] #studio-sum { display: none !important; }
@@ -7897,11 +7889,23 @@
             tabBadge.hidden = n === 0;
         }
     }
+    // Сповіщення, що стосуються лише Контроль+ (документи, договори, ТТН, підпис і печатка), на сайті не показуємо й не рахуємо в бейджі.
+    // Лише фільтр при показі: у базі вони лишаються як є (нічого не видаляється й не позначається прочитаним).
+    function noteKpOnly(note) {
+        return note.kind === 'signature_used' || note.kind === 'doc_emailed'
+            || note.ref_kind === 'document' || note.ref_kind === 'contract' || note.ref_kind === 'ttn';
+    }
+    function visibleNotes(items) {
+        return isKP() ? (items || []) : (items || []).filter(function (note) { return !noteKpOnly(note); });
+    }
     async function refreshUnreadNotifications() {
         if (currentOrgRole !== 'owner' || !currentUserId) return;
         try {
             const data = await teamApi('POST', { action: 'notifications', limit: 50 });
-            notesState = { items: data.items || [], unread: data.unread || 0, loaded: true };
+            const items = visibleNotes(data.items);
+            // На сайті бейдж = непрочитані серед показаних (серверний лічильник включає сховані).
+            const unread = isKP() ? (data.unread || 0) : items.filter(function (note) { return !note.read_at; }).length;
+            notesState = { items: items, unread: unread, loaded: true };
             paintUnread();
             renderNotifications();
         } catch (e) { /* без сповіщень сайт працює як є */ }
@@ -7968,7 +7972,13 @@
     }
     async function markAllNotesRead() {
         try {
-            await teamApi('POST', { action: 'notifications_read', all: true });
+            if (isKP()) await teamApi('POST', { action: 'notifications_read', all: true });
+            else {
+                // На сайті «Прочитати все» не чіпає сховані сповіщення: лише показані непрочитані.
+                const ids = (notesState.items || []).filter(function (note) { return !note.read_at; }).map(function (note) { return note.id; });
+                if (!ids.length) return;
+                await teamApi('POST', { action: 'notifications_read', ids: ids });
+            }
             await refreshUnreadNotifications();
         } catch (error) { showToast(error.message || 'Не вдалося позначити сповіщення.'); }
     }
@@ -14776,8 +14786,8 @@
     // calcDocButtons: ТТН, акт, рахунок і подорожній лист — лише з ПРИЙНЯТОЇ заявки (accepted | done); сервер перевіряє те саме (CALC_NOT_ACCEPTED).
     // Створюють власник і логіст; кнопки відкривають форму Контроль+ вже заповненою даними заявки.
     function calcDocButtons(row) {
-        const status = historyFields(row).status;
         if (!isKP()) return ''; // ТТН, акти, рахунки й подорожні листи — лише в Контроль+; на сайті kp_ttn_list не викликається
+        const status = historyFields(row).status;
         if ((status !== 'accepted' && status !== 'done') || (currentOrgRole !== 'owner' && currentOrgRole !== 'logist')) return '';
         const id = escHtml(row.id);
         return '<button type="button" class="is-doc" onclick="openCalcDoc(\'ttn\', \'' + id + '\')">Створити ТТН</button>'
