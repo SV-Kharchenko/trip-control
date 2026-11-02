@@ -9,7 +9,7 @@
 --   * kp_trip_sheet_close(): факт = залишок на виїзді + видано на виїзді + сума дозаправок − залишок на поверненні;
 --     залишок на поверненні більший за все, що було, → TS_FUEL_NEGATIVE (факт не буває від'ємним);
 --   * kp_calc_doc_prefill(): норми л/100 км для листа — картка авто → дані заявки → «Витратна частина» компанії
---     (раніше брались лише з картки авто, тому «Норми: — / —» при порожній картці).
+--     (раніше брались лише з картки авто, тому «Норми: — / —» при порожній картці); план пального рахується з тими самими нормами.
 --
 -- РУЧНИЙ ВІДКАТ (дані дозаправок буде втрачено):
 --   DROP FUNCTION IF EXISTS public.kp_trip_sheet_refuels_save(uuid, jsonb);
@@ -340,10 +340,11 @@ BEGIN
   -- Норми для листа: картка авто → дані заявки → «Витратна частина» компанії (company_settings, ключі fuelLoad / fuelEmpty).
   SELECT cs.settings INTO v_set FROM public.company_settings AS cs WHERE cs.org_id = v_org;
   v_set := coalesce(v_set, '{}'::jsonb);
-  v_fl := coalesce(public.tc_num(v_inp, 'fuelLoad'), v_fv.fuel_load, public.tc_num(v_set, 'fuelLoad'));
-  v_fe := coalesce(public.tc_num(v_inp, 'fuelEmpty'), v_fv.fuel_empty, public.tc_num(v_set, 'fuelEmpty'));
-  v_nl := coalesce(v_fv.fuel_load, v_fl);
-  v_ne := coalesce(v_fv.fuel_empty, v_fe);
+  -- Один пріоритет і для норм, і для плану пального нижче.
+  v_fl := coalesce(v_fv.fuel_load, public.tc_num(v_inp, 'fuelLoad'), public.tc_num(v_set, 'fuelLoad'));
+  v_fe := coalesce(v_fv.fuel_empty, public.tc_num(v_inp, 'fuelEmpty'), public.tc_num(v_set, 'fuelEmpty'));
+  v_nl := v_fl;
+  v_ne := v_fe;
   -- План пального (підказка): з вантажем — рейс, порожнім — подача й повернення.
   v_plan := CASE WHEN v_dist IS NULL OR v_fl IS NULL THEN NULL
                  ELSE round(v_dist * v_fl / 100 + (coalesce(v_feed, 0) + v_dist) * coalesce(v_fe, 0) / 100, 1) END;

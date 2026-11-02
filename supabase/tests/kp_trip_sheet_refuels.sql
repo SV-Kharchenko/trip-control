@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(42);
+SELECT plan(48);
 
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
@@ -140,6 +140,33 @@ UPDATE public.calculations SET inputs = '{"fuelLoad": 31, "fuelEmpty": 22}'::jso
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e101","role":"authenticated"}', true);
 SELECT is((public.kp_calc_doc_prefill('c2000000-0000-4000-8000-0000000000c1') #>> '{norms,fuel_load}')::numeric, 31::numeric, 'prefill: the norms of the request win over the company ones');
+RESET ROLE;
+
+-- 9a. План пального і норми — один пріоритет: картка авто → заявка → «Витратна частина». Рейс 100 км, подачі немає: план = fuelLoad + fuelEmpty.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+UPDATE public.calculations SET inputs = '{"dist": 100, "fuelLoad": 31, "fuelEmpty": 22}'::jsonb WHERE id = 'c2000000-0000-4000-8000-0000000000c1';
+INSERT INTO public.fleet_vehicles (id, org_id, label, fuel_load, fuel_empty)
+VALUES ('c2000000-0000-4000-8000-0000000000d1', 'c2000000-0000-4000-8000-00000000000a', 'RF-CARD', 30, 20);
+INSERT INTO public.calc_vehicles (calc_id, vehicle_id, tonnage)
+VALUES ('c2000000-0000-4000-8000-0000000000c1', 'c2000000-0000-4000-8000-0000000000d1', 20);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e101","role":"authenticated"}', true);
+SELECT is((public.kp_calc_doc_prefill('c2000000-0000-4000-8000-0000000000c1') ->> 'plan_fuel_l')::numeric, 50::numeric, 'card and request differ: both from the card (30 + 20): plan');
+SELECT is((public.kp_calc_doc_prefill('c2000000-0000-4000-8000-0000000000c1') #>> '{norms,fuel_load}')::numeric, 30::numeric, 'card and request differ: both from the card (30 + 20): norms');
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+UPDATE public.fleet_vehicles SET fuel_load = NULL, fuel_empty = NULL WHERE id = 'c2000000-0000-4000-8000-0000000000d1';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e101","role":"authenticated"}', true);
+SELECT is((public.kp_calc_doc_prefill('c2000000-0000-4000-8000-0000000000c1') ->> 'plan_fuel_l')::numeric, 53::numeric, 'no norms on the card: both from the request (31 + 22): plan');
+SELECT is((public.kp_calc_doc_prefill('c2000000-0000-4000-8000-0000000000c1') #>> '{norms,fuel_load}')::numeric, 31::numeric, 'no norms on the card: both from the request (31 + 22): norms');
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+UPDATE public.calculations SET inputs = '{"dist": 100}'::jsonb WHERE id = 'c2000000-0000-4000-8000-0000000000c1';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e101","role":"authenticated"}', true);
+SELECT is((public.kp_calc_doc_prefill('c2000000-0000-4000-8000-0000000000c1') ->> 'plan_fuel_l')::numeric, 64.5::numeric, 'neither card nor request: both from the company (36.5 + 28): plan');
+SELECT is((public.kp_calc_doc_prefill('c2000000-0000-4000-8000-0000000000c1') #>> '{norms,fuel_load}')::numeric, 36.5::numeric, 'neither card nor request: both from the company (36.5 + 28): norms');
 RESET ROLE;
 
 -- 10. Каскад: разом із листом зникають і дозаправки (тригер заборони DELETE листа вимикаємо лише в тесті).
