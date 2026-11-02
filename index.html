@@ -2681,6 +2681,32 @@
             box-shadow: none;
         }
         body.layout-studio:not([data-theme="light"]) .tc-map-alt.active { background: #7C9CFF; color: #0B0E14; border-color: #7C9CFF; }
+        /* Чіп варіанта маршруту (карта калькулятора й екран погодження директором). Причина «темний текст на темному»: теми студії
+           задають -webkit-text-fill-color для всіх .tc-map-alt, і він перебивав color вибраного чіпа. Тут колір і заливка тексту задані явно.
+           Вибраний: Light — темно-зелений #0D2A29 + #F4EFE5 (≈13:1); Dark / Night / Amber — #7C9CFF + #0B0E14 (≈7,7:1); рамка 2px, жирний текст. */
+        body.layout-studio .tc-map-alts .tc-map-alt {
+            width: max-content; max-width: 100%; align-self: flex-start;
+            white-space: normal; overflow-wrap: anywhere; text-align: left; line-height: 1.25;
+        }
+        body.layout-studio .tc-map-alts .tc-map-alt:hover { border-color: #7C9CFF; }
+        body.layout-studio .tc-map-alts .tc-map-alt:focus-visible {
+            outline: 2px solid #FFD166; outline-offset: 2px; box-shadow: 0 0 0 5px rgba(11, 14, 20, 0.85);
+        }
+        body.layout-studio .tc-map-alts .tc-map-alt.active,
+        body.layout-studio .tc-map-alts .tc-map-alt[aria-pressed="true"] {
+            background: #7C9CFF; color: #0B0E14; -webkit-text-fill-color: #0B0E14; border: 2px solid #0B0E14; padding: 7px 9px;
+            font-weight: 800; box-shadow: none; opacity: 1;
+        }
+        body.layout-studio[data-theme="light"] .tc-map-alts .tc-map-alt.active,
+        body.layout-studio[data-theme="light"] .tc-map-alts .tc-map-alt[aria-pressed="true"] {
+            background: #0D2A29; color: #F4EFE5; -webkit-text-fill-color: #F4EFE5; border-color: #0D2A29;
+        }
+        body.layout-studio .tc-map-alts .tc-map-alt.active:hover,
+        body.layout-studio .tc-map-alts .tc-map-alt[aria-pressed="true"]:hover { filter: brightness(1.08); }
+        body.layout-studio .tc-map-alts .tc-map-alt.active:focus-visible,
+        body.layout-studio .tc-map-alts .tc-map-alt[aria-pressed="true"]:focus-visible {
+            outline: 2px solid #FFD166; outline-offset: 2px; box-shadow: 0 0 0 5px rgba(11, 14, 20, 0.85);
+        }
         body.layout-studio .tc-route-bar { display: none !important; }
         @media (max-width: 900px) {
             body.layout-studio .tc-map-frame > .tc-map-alts {
@@ -2698,6 +2724,8 @@
                 flex: 0 0 auto;
                 min-width: 0;
                 max-width: none;
+                white-space: nowrap;
+                align-self: center;
             }
         }
         body.layout-studio .tc-costs-visual .tc-costs-table-wrap {
@@ -15265,7 +15293,7 @@
             ['Варіант 1', '798 км · 9 год 12 хв'],
             ['Варіант 2', '812 км · 9 год 40 хв']
         ].map(function (row, i) {
-            return '<button type="button" class="tc-map-alt' + (i === 0 ? ' active' : '') + '" onclick="selectRouteAlternative(' + i + ')">' +
+            return '<button type="button" class="tc-map-alt' + (i === 0 ? ' active' : '') + '" aria-pressed="' + (i === 0) + '" onclick="selectRouteAlternative(' + i + ')">' +
                 row[0] + ' · ' + row[1] + '</button>';
         }).join('');
     }
