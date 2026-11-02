@@ -906,6 +906,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const keep = (await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n;
     await db.query(`SELECT set_config('request.jwt.claims', '{"role":"service_role"}', false)`);
     // Подорожній лист (20261028110121) посилається на fleet_trailers: відкат причепів — після відкату листів.
+    await db.exec('DROP TABLE IF EXISTS public.kp_trip_sheet_stages');
     await db.exec('DROP TABLE IF EXISTS public.kp_doc_trip_sheet');
     await db.exec(rollback);
     const gone = await one(`SELECT (SELECT count(*)::int FROM pg_proc WHERE proname IN ('kp_plate_norm', 'fleet_trailers_guard', 'fleet_vehicles_trailer_sync', 'fleet_trailers_after', 'kp_trailers_list', 'kp_trailer_save')) AS fns, to_regclass('public.fleet_trailers') AS tbl, (SELECT count(*)::int FROM information_schema.columns WHERE table_name = 'fleet_vehicles' AND column_name = 'default_trailer_id') AS col`);
@@ -1098,6 +1099,9 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const frFrom = fl.findIndex((l) => l === '--   BEGIN;');
     const frTo = fl.findIndex((l) => l === '--   COMMIT;');
     const followRollback = fl.slice(frFrom, frTo + 1).map((l) => l.slice(5)).join(String.fromCharCode(10));
+    // Спершу відкат 20261107090000 (етапи залежать від таблиці листа): таблиця етапів і нові функції.
+    await db.exec(`DROP TABLE IF EXISTS public.kp_trip_sheet_stages; DROP FUNCTION IF EXISTS public.kp_trip_sheet_stages_guard(); DROP FUNCTION IF EXISTS public.kp_trip_sheet_extra_save(uuid, jsonb);
+        DROP FUNCTION IF EXISTS public.kp_ts_text(text, integer, text); DROP FUNCTION IF EXISTS public.kp_ts_time(text, text)`);
     await db.exec(followRollback);
     await db.exec(rollback);
     const gone = await one(`SELECT to_regclass('public.kp_doc_trip_sheet') AS tbl, (SELECT count(*)::int FROM pg_proc WHERE proname LIKE 'kp_trip_sheet%' OR proname IN ('kp_calc_doc_prefill', 'kp_doc_ttn_calc_accepted', 'kp_calc_is_accepted')) AS fns`);
@@ -1697,6 +1701,22 @@ for (const [index, [name, extra]] of planCases.entries()) {
     check(pTap.length === pPlanned, `pgTAP kp_docs_polish.sql: ran ${pTap.length} of plan(${pPlanned})`);
     const bucket = await one(`SELECT public, file_size_limit FROM storage.buckets WHERE id = 'kp-other-docs'`);
     check(bucket && bucket.public === false && Number(bucket.file_size_limit) === 10485760, 'docs polish: kp-other-docs is private, 10 MB');
+}
+// Подорожній лист, повний первинний документ (20261107090000): повторне застосування, pgTAP kp_trip_sheet_full.sql.
+{
+    const fullSql = fs.readFileSync(new URL('20261107090000_kp_trip_sheet_full.sql', DIR), 'utf8');
+    await db.exec(fullSql);
+    await db.exec(fullSql);
+    check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(fullSql) && /РУЧНИЙ ВІДКАТ/.test(fullSql),
+        'trip sheet full: migration re-applied (idempotent), manual-apply header and manual rollback');
+    const fTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_trip_sheet_full.sql', import.meta.url), 'utf8')
+        .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+    const fPlanned = Number((fTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+    const fBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+    await db.exec(fTapSql);
+    const fTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(fBefore);
+    for (const row of fTap) check(row.ok, 'pgTAP kp_trip_sheet_full.sql: ' + row.label);
+    check(fTap.length === fPlanned, `pgTAP kp_trip_sheet_full.sql: ran ${fTap.length} of plan(${fPlanned})`);
 }
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 

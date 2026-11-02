@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { buildTripSheetPdf } from '../src/lib/pdf-trip-sheet.js';
 import { buildDocXlsx, docSheet, tripSheetSheet, xlsxFileName } from '../src/lib/xlsx-docs.js';
 import { tsSections, tsFileName } from '../src/lib/trip-sheet.js';
+import { tsBackSections, tsFrontMarks, tsTotals } from '../src/lib/trip-sheet-stages.js';
 
 const APP = new URL('../', import.meta.url);
 const fonts = {
@@ -35,14 +36,17 @@ test('Excel: ті самі розділи й поля по порядку, що 
     const sh = docSheet(doc);
     assert.equal(sh, docSheet(doc) && sh);
     const labels = sh.rows.map((r) => (Array.isArray(r) && r[0] && r[0].s === 'label' ? r[0].v : null)).filter(Boolean);
-    const expected = tsSections(doc).flatMap((s) => s.rows.map((r) => r[0]));
+    const base = tsSections(doc);
+    const back = tsBackSections(doc, tsTotals(doc));
+    const expected = [...base.slice(0, 4), tsFrontMarks(doc), base[4], back[0], back[1]].flatMap((s) => s.rows.map((r) => r[0]));
     assert.deepEqual(labels, expected);
-    const values = sh.rows.map((r) => (Array.isArray(r) && r[2] ? r[2].v : null)).filter(Boolean).join('|');
+    const values = sh.rows.map((r) => (Array.isArray(r) && r[4] ? r[4].v : null)).filter(Boolean).join('|');
     assert.match(values, /Петренко Петро Петрович/);
     assert.match(values, /Київ/);
     assert.match(values, /\+80 \(перевитрата\)/);
     assert.doesNotMatch(JSON.stringify(sh.rows), /phone|passport|телефон|паспорт|ІПН/);
-    assert.equal(tripSheetSheet(doc).landscape, false);
+    assert.equal(tripSheetSheet(doc).landscape, true);
+    assert.deepEqual(tripSheetSheet(doc).breaks.length, 1, 'розрив сторінки між лицьовим і зворотним боком');
     assert.ok(buildDocXlsx(doc).length > 500);
     assert.equal(xlsxFileName(doc), 'podorozhnii_list_7_2026-10-28.xlsx');
     assert.equal(tsFileName(sheet({ status: 'cancelled' })), 'podorozhnii_list_7_2026-10-28_anulovano.pdf');

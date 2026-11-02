@@ -4,6 +4,7 @@ import {
     calcTripSheet, fuelNorm, tripSheetPayload, emptyTripSheet, tsFromPrefill, validateTripSheet, prefillSnapshot, changedPaths, setPath,
     localToIso, isoToLocal, tsSections, tsErrorText, closePayload, TS_REQUIRED,
 } from '../src/lib/trip-sheet.js';
+import { tsBackSections, tsTotals } from '../src/lib/trip-sheet-stages.js';
 
 test('розрахунок: пробіг = спідометр повернення − виїзду; факт = залишок + видано − залишок повернення; норма з вантажем / порожнім', () => {
     const r = calcTripSheet({
@@ -99,12 +100,14 @@ test('розділи картки / PDF / Excel: Шапка, ТЗ і водій,
         return_at: '2026-10-30T17:00:00Z', return_odometer: 600, return_fuel_left: 70, distance_km: 500, fuel_actual: 210, fuel_norm: 130, fuel_diff: 80,
     };
     const sections = tsSections(doc);
-    assert.deepEqual(sections.map((s) => s.title), ['Шапка', 'ТЗ і водій', 'Завдання', 'Виїзд', 'Повернення', 'Розрахунок']);
-    const text = JSON.stringify(sections);
+    assert.deepEqual(sections.map((s) => s.title), ['Шапка', 'ТЗ і водій', 'Завдання', 'Виїзд', 'Повернення']);
+    const text = JSON.stringify([...sections, ...tsBackSections(doc, tsTotals(doc))]);
     assert.match(text, /\+80/);
     assert.match(text, /перевитрата/);
     assert.doesNotMatch(text, /phone|passport|ipn|address|телефон|паспорт/i);
-    assert.deepEqual(tsSections({ ...doc, status: 'issued' }).at(-1).rows, [['Розрахунок', 'Після закриття листа']]);
+    // «Розрахунок» об'єднано з «Підсумки» (tsBackSections): окремого розділу більше немає.
+    assert.equal(sections.some((s) => s.title === 'Розрахунок'), false);
+    assert.deepEqual(tsSections({ ...doc, status: 'issued' }).at(-1).rows, [['Статус', 'Не закрито — дані повернення ще не внесено']]);
 });
 
 test('помилки: людські тексти', () => {
