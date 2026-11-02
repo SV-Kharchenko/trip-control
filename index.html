@@ -863,6 +863,10 @@
         #cabinet-screen .cab-note {
             margin: 4px 0 12px; color: var(--muted); font-size: 0.82rem; line-height: 1.4;
         }
+        .tc-costs-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 8px 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 0.85rem; color: var(--muted); }
+        .tc-costs-line .tc-link-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: var(--accent); text-decoration: underline; cursor: pointer; }
+        #cabinet-screen .cab-costs-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+        #cabinet-screen .cab-costs-actions .cab-costs-message { font-size: 0.85rem; min-height: 1.2em; }
         #cabinet-screen .cab-overhead-sum {
             display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
             margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border);
@@ -6952,45 +6956,22 @@
             if (adblueRate) adblueRate.after(adbluePriceRow);
         }
 
-        // Витрати рейсу і накладні: ставки водія, ТО, шини, накладні, склад парку. Поля видимі й редаговані; значення —
-        // з картки авто (де вона їх має), інакше останні введені користувачем, інакше вбудовані. У картку нічого не пишеться.
-        const costsPanel = document.createElement('div');
-        costsPanel.id = 'tc-acc-body-costs';
-        costsPanel.className = 'tc-sec-body tc-costs-rows';
-        const costsGroup = function (title, nodes) {
-            const box = document.createElement('div');
-            box.className = 'tc-costs-group';
-            const h = document.createElement('div');
-            h.className = 'tc-costs-sub';
-            h.textContent = title;
-            box.appendChild(h);
-            nodes.forEach(function (node) { if (node) box.appendChild(node); });
-            costsPanel.appendChild(box);
-        };
-        const payMode = opMoveField('driver-pay-mode', 'Оплата водія');
-        const kmBox = opById('driver-km-box');
-        const pctBox = opById('driver-pct-box');
-        const rateLoadRow = opMoveField('driver-rate-load', 'Ставка з вантажем', 'грн/км');
-        const rateEmptyRow = opMoveField('driver-rate-empty', 'Ставка порожнім', 'грн/км');
-        const pctRow = opMoveField('driver-pct-val', 'Відсоток від фрахту', '%');
-        if (kmBox) [rateLoadRow, rateEmptyRow].forEach(function (row) { if (row) kmBox.appendChild(row); });
-        if (pctBox && pctRow) pctBox.appendChild(pctRow);
-        costsGroup('Водій', [payMode, kmBox, pctBox, opMoveField('per-diem', 'Добові', 'грн/день')]);
-        costsGroup('ТО і шини', [
-            opMoveField('to-cost', 'Вартість ТО', 'грн'), opMoveField('to-period', 'Пробіг між ТО', 'км'),
-            opMoveField('tire-cost', 'Ціна однієї шини', 'грн'), opMoveField('tire-count', 'Шин на авто', 'шт'),
-            opMoveField('tire-mileage', 'Ресурс шини', 'км')
-        ]);
-        const overheadNote = document.createElement('p');
-        overheadNote.className = 'tc-costs-note';
-        overheadNote.textContent = 'Річні суми на весь парк. Порожньо = 0 у розрахунку.';
-        costsGroup('Накладні', [
-            overheadNote,
-            opMoveField('total-fleet', 'Всього авто в парку', 'шт'),
-            opMoveField('overhead-amort', 'Амортизація', 'грн/рік'), opMoveField('overhead-admin', 'Адміністративні', 'грн/рік'),
-            opMoveField('overhead-other-op', 'Інші операційні', 'грн/рік'), opMoveField('overhead-other', 'Інші витрати', 'грн/рік'),
-            opMoveField('overhead-repair', 'Ремонти та інші оп.', 'грн/рік'), opMoveField('overhead-fin', 'Фінансові (кредити)', 'грн/рік')
-        ]);
+        // Витрати (водій, ТО і шини, накладні, пальне) беруться з «Витратної частини» компанії в особистому кабінеті; у калькуляторі їх
+        // не вводять. Поля лишаються у прихованому #main-sync-fields (джерело для розрахунку) — їх заповнює applyCalcDefaults.
+        const costsLine = document.createElement('div');
+        costsLine.id = 'tc-costs-line';
+        costsLine.className = 'tc-costs-line';
+        const costsText = document.createElement('span');
+        costsText.textContent = 'Витрати: з витратної частини компанії';
+        const costsEdit = document.createElement('button');
+        costsEdit.type = 'button';
+        costsEdit.id = 'tc-costs-edit';
+        costsEdit.className = 'tc-link-btn';
+        costsEdit.textContent = 'Змінити';
+        costsEdit.hidden = currentOrgRole !== 'owner';
+        costsEdit.addEventListener('click', function () { openCabinetTab('costs'); });
+        costsLine.appendChild(costsText);
+        costsLine.appendChild(costsEdit);
 
         // Додаткові параметри: решта кроку 2 (причіп, норма, авто, діб) + форма розрахунку.
         const extrasPanel = panel(4);
@@ -7019,7 +7000,7 @@
         acc.appendChild(opAccRow('route', '1', 'Назва / маршрут заявки', panel1, true));
         if (fuelPanel) acc.appendChild(opAccRow('fuel', '2', 'Пальне', fuelPanel, false));
         if (extrasPanel) acc.appendChild(opAccRow('extras', '3', 'Додаткові параметри', extrasPanel, false));
-        acc.appendChild(opAccRow('costs', '4', 'Витрати і накладні', costsPanel, false));
+        acc.appendChild(costsLine);
         acc.appendChild(opAccRow('recent', '↺', 'Останні маршрути', recentBody, true));
         opWrapFields(acc);
         // Використання AdBlue: перемикач замість select (select лишається джерелом значення для коду).
@@ -7848,7 +7829,7 @@
         '#/company': 'requisites', '#/docs/requisites': 'requisites', '#/team': 'team', '#/stats': 'stats',
         '#/notifications': 'notifications', '#/cabinet': 'company'
     };
-    const CABINET_TAB_IDS = ['company', 'requisites', 'notifications', 'team', 'stats', 'docs'];
+    const CABINET_TAB_IDS = ['company', 'requisites', 'costs', 'notifications', 'team', 'stats', 'docs'];
     function cabinetTabFromLocation() {
         const raw = String(location.hash || '').split('?')[0].replace(/\/+$/, '');
         const direct = /^#\/cabinet\/([a-z]+)$/.exec(raw);
@@ -10815,50 +10796,37 @@
     };
     let usedStarterTemplate = false;
 
-    // Значення калькулятора без «Значень за замовчуванням» компанії. Порядок джерел для кожного поля:
-    // дані вибраного ТЗ з автопарку (пальне, AdBlue — підставляє вибір авто) → останні значення цього користувача → вбудовані.
-    const CALC_LAST_KEY = 'tc_calc_last';
-    const CALC_VEHICLE_KEYS = ['fuelLoad', 'fuelEmpty', 'adblueEnable', 'adblueConsumption'];
-    function calcLastStorageKey() { return currentUserId ? CALC_LAST_KEY + ':' + currentUserId : null; }
-    function readCalcLast() {
-        const key = calcLastStorageKey();
-        if (!key) return {};
-        try {
-            const data = JSON.parse(localStorage.getItem(key) || '{}');
-            return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
-        } catch (e) { return {}; }
-    }
-    function calcLastValueOk(f, value) {
+    // Значення полів, яких немає в калькуляторі, беруться з «Витратної частини» компанії (company_settings.settings, ті самі ключі), а де там
+    // порожньо — вбудовані. Норми пального / AdBlue вибраного авто (картка автопарку) мають пріоритет над компанією: див. syncCardNormsToForm
+    // (поле з картки підставляється поверх, а без неї лишається значення компанії). Останні введені значення в localStorage більше не використовуються.
+    function calcSettingOk(f, value) {
+        if (!f) return false;
         if (f.select) return f.select.some(function (o) { return o[0] === value; });
         return typeof value === 'number' && isFinite(value) && value >= 0;
     }
-    function calcValueFor(key, last) {
+    // Ціни дизпалива й AdBlue вводяться лише в калькуляторі; остання введена зберігається для всієї організації (company_settings.settings,
+    // ключі lastFuelPrice / lastAdbluePrice, пише RPC kp_set_last_fuel_prices). Пріоритет: остання ціна → (старе значення fuelPrice /
+    // adbluePrice з налаштувань, якщо воно було) → вбудоване.
+    const PRICE_KEYS = ['fuelPrice', 'adbluePrice'];
+    const LAST_PRICE_KEY = { fuelPrice: 'lastFuelPrice', adbluePrice: 'lastAdbluePrice' };
+    function priceValueOk(v) { return typeof v === 'number' && isFinite(v) && v > 0 && v < 1000; }
+    function calcValueFor(key, settings) {
         const f = SETTINGS_MAP[key];
-        if (last && Object.prototype.hasOwnProperty.call(last, key) && calcLastValueOk(f, last[key])) return last[key];
+        const own = settings === undefined ? companySettings : settings;
+        const lastKey = LAST_PRICE_KEY[key];
+        if (lastKey) {
+            if (own && priceValueOk(own[lastKey])) return own[lastKey];
+            if (own && priceValueOk(own[key])) return own[key];
+            return STARTER_SETTINGS[key];
+        }
+        if (own && Object.prototype.hasOwnProperty.call(own, key) && calcSettingOk(f, own[key])) return own[key];
         return STARTER_SETTINGS[key];
     }
-    function saveCalcLast(key) {
-        const storageKey = calcLastStorageKey();
-        const f = SETTINGS_MAP[key];
-        const el = f && document.getElementById(f.id);
-        if (!storageKey || !el) return;
-        // Значення, підставлені вибраним авто, — не «введене користувачем».
-        if (CALC_VEHICLE_KEYS.indexOf(key) >= 0 && fleetChoiceActive()) return;
-        const last = readCalcLast();
-        const value = f.select ? el.value : parseFloat(el.value);
-        if (calcLastValueOk(f, value)) last[key] = value;
-        else delete last[key];
-        try { localStorage.setItem(storageKey, JSON.stringify(last)); } catch (e) { /* приватний режим */ }
-    }
-    let calcLastBound = false;
-    function bindCalcLast() {
-        if (calcLastBound) return;
-        calcLastBound = true;
-        Object.keys(SETTINGS_MAP).forEach(function (key) {
-            const el = document.getElementById(SETTINGS_MAP[key].id);
-            if (!el) return;
-            // input/change приходять лише від користувача: програмні підстановки value їх не викликають.
-            el.addEventListener(SETTINGS_MAP[key].select ? 'change' : 'input', function () { saveCalcLast(key); });
+    // Чи заповнено хоч щось у «Витратній частині» (інакше акаунт працює на вбудованому шаблоні).
+    function hasCompanyCosts(settings) {
+        const own = settings === undefined ? companySettings : settings;
+        return !!own && Object.keys(SETTINGS_MAP).some(function (key) {
+            return Object.prototype.hasOwnProperty.call(own, key) && calcSettingOk(SETTINGS_MAP[key], own[key]);
         });
     }
 
@@ -10890,7 +10858,7 @@
     // Новий користувач (немає збережених останніх значень) → вбудовані значення + банер налаштування; у БД нічого не пишемо.
     async function ensureStarterTemplate() {
         const banner = document.getElementById('onboard-banner');
-        usedStarterTemplate = Object.keys(readCalcLast()).length === 0;
+        usedStarterTemplate = !hasCompanyCosts();
         if (!usedStarterTemplate) {
             if (banner) banner.style.display = 'none';
             return;
@@ -11081,16 +11049,46 @@
         });
     }
 
-    // Підставляє в поля калькулятора останні значення користувача, а де їх немає — вбудовані.
-    function applyCalcDefaults() {
-        const last = readCalcLast();
-        Object.keys(SETTINGS_MAP).forEach(key => {
-            const v = calcValueFor(key, last);
+    // Підставляє в приховані поля калькулятора значення «Витратної частини» компанії, а де їх немає — вбудовані.
+    // keepPrices — не чіпати ціни дизпалива й AdBlue (після збереження вкладки «Витратна частина»); ціна, яку вже ввели в поточному рейсі,
+    // не затирається ніколи.
+    const priceTouched = {};
+    let priceMemoryBound = false;
+    function bindPriceMemory() {
+        if (priceMemoryBound) return;
+        priceMemoryBound = true;
+        PRICE_KEYS.forEach(function (key) {
             const el = document.getElementById(SETTINGS_MAP[key].id);
-            if (el && v !== undefined && v !== null && v !== '') el.value = v;
+            if (!el) return;
+            // input / change приходять лише від користувача: програмні підстановки value їх не викликають.
+            el.addEventListener('input', function () { priceTouched[key] = true; });
+            el.addEventListener('change', function () { saveLastPrice(key); });
         });
-        bindCalcLast();
+    }
+    // Остання введена ціна → спільна для організації (owner і логіст); решту ключів налаштувань функція бази не чіпає.
+    async function saveLastPrice(key) {
+        const el = document.getElementById(SETTINGS_MAP[key].id);
+        const v = el ? Math.round(parseFloat(el.value) * 100) / 100 : NaN;
+        const lastKey = LAST_PRICE_KEY[key];
+        if (!priceValueOk(v) || !currentOrgId || isDemo || (currentOrgRole !== 'owner' && currentOrgRole !== 'logist')) return;
+        if (companySettings && companySettings[lastKey] === v) return;
+        try {
+            const { error } = await supabaseClient.rpc('kp_set_last_fuel_prices', key === 'fuelPrice' ? { p_fuel: v, p_adblue: null } : { p_fuel: null, p_adblue: v });
+            if (!error) companySettings = Object.assign({}, companySettings, { [lastKey]: v });
+        } catch (e) { /* ціну не збережено: у цьому рейсі вона діє, наступного разу підставиться попередня */ }
+    }
+    function applyCalcDefaults(keepPrices) {
+        Object.keys(SETTINGS_MAP).forEach(key => {
+            if (PRICE_KEYS.indexOf(key) >= 0 && (keepPrices || priceTouched[key])) return;
+            const v = calcValueFor(key);
+            const el = document.getElementById(SETTINGS_MAP[key].id);
+            if (!el || v === undefined || v === null || v === '') return;
+            // Поле, що зараз підставлене з картки вибраного авто, не чіпаємо: компанія стане «попереднім» значенням (cardPrev).
+            if (cardSourced[key]) cardPrev[key] = String(v);
+            else el.value = v;
+        });
         bindCardOverrides();
+        bindPriceMemory();
         if (companyTax) document.getElementById('calc-type').value = companyTax;
         // Синхронізуємо видимість залежних блоків (без запуску розрахунку — він піде один раз пізніше)
         const mode = document.getElementById('driver-pay-mode').value;
@@ -11099,6 +11097,8 @@
         const adb = document.getElementById('adblue-enable').value === 'on';
         document.getElementById('field-adblue-consumption').classList.toggle('active', adb);
         document.getElementById('field-adblue-price').classList.toggle('active', adb);
+        const edit = document.getElementById('tc-costs-edit');
+        if (edit) edit.hidden = currentOrgRole !== 'owner';
         refreshCabWarning();
     }
 
@@ -11120,9 +11120,112 @@
         const actions = document.querySelector('#cabinet-screen .cab-actions');
         if (actions) actions.style.display = id === 'company' ? '' : 'none';
         if (id === 'notifications') loadNotifications();
+        if (id === 'costs') { updateCabVisibility(); refreshCabOverheadSum(); }
         // Реквізити й «Статистику» малює Контроль+ (міст у apps/kontrol-plus) у своїх слотах; на сайті без нього лишається підказка.
         window.dispatchEvent(new CustomEvent('tc:cabinet-tab', { detail: { tab: id } }));
     }
+    // ===== Кабінет → «Витратна частина» =====
+    // Водій, ТО і шини, накладні (річні суми на весь парк), пальне. Зберігається в company_settings.settings тими самими ключами, що й
+    // раніше (міграція не потрібна). Редагує лише власник; логіст бачить вкладку лише для читання (поля заблоковані, кнопки немає).
+    const COST_GROUPS = [
+        { title: 'Водій', builtin: true, note: 'Порожньо = вбудоване значення.', fields: [['driverPayMode', 'Оплата водія'], ['driverRateLoad'], ['driverRateEmpty'], ['driverPctVal'], ['perDiem', 'Добові']] },
+        { title: 'ТО і шини', builtin: true, note: 'Порожньо = вбудоване значення.', fields: [['toCost'], ['toPeriod'], ['tireCost', 'Ціна однієї шини'], ['tireCount', 'Шин на авто'], ['tireMileage']] },
+        { title: 'Накладні', note: 'Річні суми на весь парк. Порожньо = 0 у розрахунку.', sum: true, fields: [
+            ['totalFleet'], ['amort', 'Амортизація', 'грн/рік'], ['admin', 'Адміністративні', 'грн/рік'], ['otherOperating', 'Інші операційні', 'грн/рік'],
+            ['otherExpenses', 'Інші витрати', 'грн/рік'], ['repair', 'Ремонти та інші оп.', 'грн/рік'], ['fin', 'Фінансові (кредити)', 'грн/рік']] },
+        { title: 'Пальне', note: 'Середня витрата компанії. Якщо в картці авто є своя витрата — для цього авто діє вона. Ціни дизпалива й AdBlue вводяться в калькуляторі.', fields: [
+            ['fuelLoad', 'Середня витрата з вантажем'], ['fuelEmpty', 'Середня витрата порожнім'], ['adblueEnable'], ['adblueConsumption']] }
+    ];
+    const COST_SHOW_IF = {
+        driverRateLoad: () => document.getElementById('cab-driverPayMode').value === 'km',
+        driverRateEmpty: () => document.getElementById('cab-driverPayMode').value === 'km',
+        driverPctVal: () => document.getElementById('cab-driverPayMode').value === 'pct',
+        adblueConsumption: () => document.getElementById('cab-adblueEnable').value === 'on',
+        adbluePrice: () => document.getElementById('cab-adblueEnable').value === 'on'
+    };
+    function costFieldHtml(spec, esc, builtin) {
+        const f = SETTINGS_MAP[spec[0]];
+        const label = spec[1] || f.label;
+        const unit = spec[2] || f.unit;
+        const inner = f.select
+            ? '<select id="cab-' + f.key + '">' + f.select.map(o => '<option value="' + o[0] + '">' + esc(o[1]) + '</option>').join('') + '</select>'
+            : '<input type="number" id="cab-' + f.key + '" min="0" step="' + (f.step || '1') + '"' +
+                (builtin && STARTER_SETTINGS[f.key] !== undefined ? ' placeholder="' + esc(STARTER_SETTINGS[f.key]) + '"' : '') + '>';
+        return '<div class="cab-field" id="cabrow-' + f.key + '"><label for="cab-' + f.key + '">' + esc(label) + '</label>' +
+            '<div class="cab-input">' + inner + (unit && !f.select ? '<span class="cab-unit">' + esc(unit) + '</span>' : '') + '</div></div>';
+    }
+    function costsPanelHtml(esc) {
+        return '<div class="cab-panel" data-panel="costs"><p class="cab-note">Постійні витрати компанії. Підставляються в кожен розрахунок автоматично; ' +
+            'якщо в картці авто є своє значення — для цього авто діє воно.</p>' +
+            COST_GROUPS.map(g => '<div class="cab-card"><div class="cab-card-head"><h3>' + esc(g.title) + '</h3></div>' +
+                (g.note ? '<p class="cab-note">' + esc(g.note) + '</p>' : '') +
+                '<div class="cab-grid">' + g.fields.map(spec => costFieldHtml(spec, esc, g.builtin)).join('') + '</div>' +
+                (g.sum ? '<div class="cab-overhead-sum" id="cab-overhead-sum"><span>Разом накладних на рік</span><b></b></div>' : '') + '</div>').join('') +
+            '<div class="cab-costs-actions"><button type="button" class="btn btn-primary" id="cab-costs-save" onclick="saveCosts()">Зберегти</button>' +
+            '<span class="cab-costs-message" id="cab-costs-message" role="status"></span></div></div>';
+    }
+    function updateCabVisibility() {
+        Object.keys(COST_SHOW_IF).forEach(key => {
+            const row = document.getElementById('cabrow-' + key);
+            if (row) row.style.display = COST_SHOW_IF[key]() ? '' : 'none';
+        });
+    }
+    function refreshCabOverheadSum() {
+        const box = document.getElementById('cab-overhead-sum');
+        if (!box) return;
+        let sum = 0;
+        ['amort', 'admin', 'otherOperating', 'otherExpenses', 'repair', 'fin'].forEach(function (key) {
+            const el = document.getElementById('cab-' + key);
+            const n = el ? parseFloat(el.value) : NaN;
+            if (n > 0) sum += n;
+        });
+        const fleetEl = document.getElementById('cab-totalFleet');
+        const fleet = fleetEl ? parseFloat(fleetEl.value) : NaN;
+        const money = new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 2 }).format(sum);
+        const each = fleet > 0 ? new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(sum / fleet)) : '—';
+        const value = box.querySelector('b');
+        if (value) value.textContent = money + ' грн · ≈' + each + ' грн/авто';
+    }
+    // Значення з company_settings.settings → поля вкладки (старі значення з прод-даних відображаються як є); порожні ключі лишаються порожніми.
+    function fillCostsTab() {
+        Object.keys(SETTINGS_MAP).forEach(key => {
+            const el = document.getElementById('cab-' + key);
+            if (!el) return;
+            const f = SETTINGS_MAP[key];
+            const v = companySettings ? companySettings[key] : undefined;
+            if (f.select) el.value = calcSettingOk(f, v) ? v : f.select[0][0];
+            else el.value = calcSettingOk(f, v) ? String(v) : '';
+            el.disabled = currentOrgRole !== 'owner';
+        });
+        const save = document.getElementById('cab-costs-save');
+        if (save) save.hidden = currentOrgRole !== 'owner';
+        const msg = document.getElementById('cab-costs-message');
+        if (msg) msg.textContent = currentOrgRole === 'owner' ? '' : 'Лише перегляд — змінює директор.';
+        const panel = document.querySelector('#cabinet-screen .cab-panel[data-panel="costs"]');
+        if (panel) panel.dataset.filled = '1';
+        updateCabVisibility();
+        refreshCabOverheadSum();
+    }
+    // Поля вкладки → settings: непорожні й допустимі пишемо, порожні прибираємо (порожньо = 0 / вбудоване); решта ключів не чіпається.
+    function collectCostSettings(next) {
+        Object.keys(SETTINGS_MAP).forEach(key => {
+            const el = document.getElementById('cab-' + key);
+            if (!el) return;
+            const f = SETTINGS_MAP[key];
+            const value = f.select ? el.value : (String(el.value).trim() === '' ? NaN : parseFloat(el.value));
+            if (calcSettingOk(f, value)) next[key] = value;
+            else delete next[key];
+        });
+        return next;
+    }
+    // Підставити збережену «Витратну частину» в калькулятор одразу після збереження (без перезавантаження сторінки).
+    function refreshCalcFromCompany() {
+        applyCalcDefaults(true);
+        updateStepSummaries();
+        calculate();
+    }
+    function saveCosts() { return saveCabinet('costs'); }
+
     function buildCabinet() {
         const box = document.getElementById('cabinet-fields');
         if (box.dataset.built) return;
@@ -11132,7 +11235,8 @@
         const isOwner = currentOrgRole === 'owner';
         const tabs = [
             { id: 'company', title: 'Профіль' },
-            { id: 'requisites', title: 'Реквізити' }
+            { id: 'requisites', title: 'Реквізити' },
+            { id: 'costs', title: 'Витратна частина' }
         ];
         if (isOwner) tabs.push({ id: 'notifications', title: 'Сповіщення', badge: 'cab-tab-unread' });
         if (isOwner && currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
@@ -11201,6 +11305,7 @@
         html += '<div class="cab-panel" data-panel="requisites"><div class="cab-card"><div class="cab-card-head"><h3>Реквізити</h3>' +
             '<span class="cab-muted">' + (isOwner ? 'Компанія, підпис і печатка для актів, рахунків і ТТН' : 'Лише перегляд — змінює директор') + '</span></div>' +
             '<div id="cab-req-slot" class="cab-slot"><p class="cab-note">Реквізити компанії, підпис і печатка для актів і ТТН доступні в Контроль+.</p></div></div></div>';
+        html += costsPanelHtml(esc);
         if (isOwner) {
             html += '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
                 '<div id="cab-stats-slot" class="cab-slot"><p class="cab-note">Статистика за період доступна в Контроль+.</p></div></div></div>' +
@@ -11240,6 +11345,11 @@
         }
         box.innerHTML = html;
         box.dataset.built = '1';
+        ['cab-driverPayMode', 'cab-adblueEnable'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', updateCabVisibility); });
+        Object.keys(SETTINGS_MAP).forEach(key => {
+            const el = document.getElementById('cab-' + key);
+            if (el && !SETTINGS_MAP[key].select) el.addEventListener('input', refreshCabOverheadSum);
+        });
     }
 
     const FLEET_DOCS = [
@@ -11939,6 +12049,7 @@
             });
         }
         renderFleetDocs();
+        fillCostsTab();
         document.getElementById('cab-message').innerText = '';
         document.getElementById('cabinet-screen').style.display = 'block';
         document.body.style.overflow = 'hidden';
@@ -12535,10 +12646,13 @@
         }
     }
 
-    async function saveCabinet() {
-        const msg = document.getElementById('cab-message');
+    // scope 'costs' — кнопка «Зберегти» вкладки «Витратна частина»: пишемо лише company_settings (профіль і назву не чіпаємо).
+    // Інакше (вкладка «Профіль») settings зберігаються як є, плюс витратна частина, якщо вона відкрита й заповнена з бази.
+    async function saveCabinet(scope) {
+        const costsOnly = scope === 'costs';
+        const msg = document.getElementById(costsOnly ? 'cab-costs-message' : 'cab-message');
         const setMsg = (t, bad, quiet) => {
-            msg.innerText = t;
+            msg.textContent = t;
             msg.style.color = bad ? 'var(--danger)' : 'var(--success)';
             if (bad && !quiet) notifySaveError(t);
         };
@@ -12548,12 +12662,14 @@
         }
         const name = document.getElementById('cab-name').value.trim();
         const tax = document.getElementById('cab-tax').value;
-        if (!name) { setMsg('Введіть назву компанії.', true); return; }
+        if (!costsOnly && !name) { setMsg('Введіть назву компанії.', true); return; }
         if (!currentOrgId) { setMsg('Не вдалося визначити компанію. Оновіть сторінку.', true); return; }
 
         const next = Object.assign({}, companySettings);
         LEGACY_SETTINGS_KEYS.forEach(k => { delete next[k]; });
         COMPANY_PROFILE_FIELDS.forEach(f => { delete next[f.key]; }); // PII більше не в company_settings
+        const costsPanelEl = document.querySelector('#cabinet-screen .cab-panel[data-panel="costs"]');
+        if (currentOrgRole === 'owner' && costsPanelEl && costsPanelEl.dataset.filled === '1') collectCostSettings(next);
         const profileRow = { org_id: currentOrgId, updated_at: new Date().toISOString() };
         COMPANY_PROFILE_FIELDS.forEach(f => {
             const el = document.getElementById('cab-' + f.key);
@@ -12562,17 +12678,22 @@
             profileRow[f.col] = raw || null;
         });
 
-        const btn = document.getElementById('cab-save-btn');
+        const btn = document.getElementById(costsOnly ? 'cab-costs-save' : 'cab-save-btn');
         btn.disabled = true;
         try {
-            if (currentOrgRole === 'owner') {
+            if (currentOrgRole === 'owner' && !costsOnly) {
                 const r1 = await supabaseClient.from('organizations').update({ name, default_tax_mode: tax }).eq('id', currentOrgId);
                 if (r1 && r1.error) throw r1.error;
             }
+            // Останні ціни могли оновити логісти, поки сторінка була відкрита: беремо свіжі, щоб збереження їх не затерло.
+            try {
+                const { data: fresh } = await supabaseClient.from('company_settings').select('settings').eq('org_id', currentOrgId).maybeSingle();
+                if (fresh && fresh.settings) ['lastFuelPrice', 'lastAdbluePrice'].forEach(k => { if (fresh.settings[k] !== undefined) next[k] = fresh.settings[k]; });
+            } catch (e) { /* лишаємо те, що відомо на сторінці */ }
             const r2 = await supabaseClient.from('company_settings')
                 .upsert({ org_id: currentOrgId, settings: next, updated_at: new Date().toISOString() }, { onConflict: 'org_id' });
             if (r2 && r2.error) throw r2.error;
-            if (currentOrgRole === 'owner') {
+            if (currentOrgRole === 'owner' && !costsOnly) {
                 const r3 = await supabaseClient.from('org_company_profiles')
                     .upsert(profileRow, { onConflict: 'org_id' });
                 if (r3 && r3.error) throw r3.error;
@@ -12582,7 +12703,7 @@
             }
             companySettings = next;
             if (companyTax) document.getElementById('calc-type').value = companyTax;
-            calculate();
+            refreshCalcFromCompany();
             setMsg('✅ Збережено.');
             notifySaved();
         } catch (e) {
@@ -12816,11 +12937,14 @@
             const panel = input && input.closest('.tc-step-panel');
             if (panel && panel.id) return { input: input, step: parseInt(panel.id.replace('tc-step-panel-', ''), 10) };
             if (input && input.closest('.tc-acc-row')) return { input: input, step: 0 };
+            // Поле з витратної частини (водій, ТО, шини, накладні): у калькуляторі його немає, редагується в кабінеті.
+            if (input && input.closest('#main-sync-fields')) return { input: input, step: 0, cabinet: true };
         }
         return null;
     }
     function focusCalcWarningField(target) {
         toggleResultDock(false); // на мобільному розгорнутий док закрив би поле
+        if (target.cabinet) { openCabinetTab('costs'); return; }
         if (target.step) showCalcStep(target.step);
         openAccFor(target.input);
         if (target.input.scrollIntoView) target.input.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -12852,7 +12976,10 @@
         full.appendChild(text);
         const target = calcWarningField(list);
         const actions = [];
-        if (target) actions.push({ label: 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } });
+        // Статті витратної частини змінює лише власник (логіст бачить попередження без кнопки).
+        if (target && (!target.cabinet || currentOrgRole === 'owner')) {
+            actions.push({ label: target.cabinet ? 'Заповнити у витратній частині' : 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } });
+        }
         actions.forEach(function (action) {
             const button = document.createElement('button');
             button.type = 'button';

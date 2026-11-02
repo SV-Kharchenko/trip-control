@@ -206,7 +206,7 @@ test('10: saves show one shared toast with a success or an error tone', () => {
     const fleet = sliceBetween(html, 'async function saveFleetVehicle(id)', 'async function removeFleetVehicle(id)');
     assert.equal((fleet.match(/notifySaved\(\)/g) || []).length, 2);
     assert.match(fleet, /notifySaveError\(fleetWriteError\(e\)\)/);
-    const cab = sliceBetween(html, 'async function saveCabinet()', 'let lastExport = null;');
+    const cab = sliceBetween(html, 'async function saveCabinet(scope)', 'let lastExport = null;');
     assert.match(cab, /notifySaved\(\);/);
     assert.match(cab, /notifySaveError\(e && e\.message \? e\.message : e\);/);
 });

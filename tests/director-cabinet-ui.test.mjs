@@ -27,6 +27,15 @@ function buildFor({ role, mode }) {
             .map((key) => ({ key, label: key })),
         window: {},
     });
+    // «Витратна частина»: розмітка вкладки будується з CAB_SECTIONS / COST_GROUPS.
+    vm.runInContext([
+        'const OPT_ON_OFF = [["on","Увімкнено"],["off","Вимкнено"]];',
+        html.slice(html.indexOf('const CAB_SECTIONS = ['), html.indexOf('const LEGACY_SETTINGS_KEYS')),
+        'const SETTINGS_MAP = {}; CAB_SECTIONS.forEach(sec => sec.fields.forEach(f => { SETTINGS_MAP[f.key] = f; }));',
+        'const STARTER_SETTINGS = ' + html.match(/const STARTER_SETTINGS = (\{[\s\S]*?\});/)[1] + ';',
+        html.slice(html.indexOf('const COST_GROUPS = ['), html.indexOf('const COST_SHOW_IF')),
+        fnSource('costFieldHtml'), fnSource('costsPanelHtml'), 'function updateCabVisibility() {} function refreshCabOverheadSum() {}',
+    ].join(String.fromCharCode(10)), context);
     vm.runInContext(fnSource('buildCabinet'), context);
     vm.runInContext('buildCabinet()', context);
     return box.innerHTML;
@@ -36,8 +45,8 @@ const panelsOf = (markup) => [...markup.matchAll(/class="cab-panel[^"]*" data-pa
 
 test('one cabinet: the owner of a team gets Profile, Requisites, Notifications, Team, Statistics (+ Fleet) in that order', () => {
     const markup = buildFor({ role: 'owner', mode: 'team' });
-    assert.deepEqual(tabsOf(markup), ['company', 'requisites', 'notifications', 'team', 'stats', 'docs']);
-    assert.deepEqual(panelsOf(markup).sort(), ['company', 'docs', 'notifications', 'requisites', 'stats', 'team']);
+    assert.deepEqual(tabsOf(markup), ['company', 'requisites', 'costs', 'notifications', 'team', 'stats', 'docs']);
+    assert.deepEqual(panelsOf(markup).sort(), ['company', 'costs', 'docs', 'notifications', 'requisites', 'stats', 'team']);
     assert.match(markup, />Профіль</);
     assert.match(markup, />Реквізити</);
     assert.equal(markup.includes('>Компанія<'), false, 'the old "Компанія" tab is the Profile now');
@@ -48,14 +57,14 @@ test('one cabinet: the owner of a team gets Profile, Requisites, Notifications, 
 
 test('a solo owner has no Team tab; the invitation block stays in the Profile', () => {
     const markup = buildFor({ role: 'owner', mode: 'solo' });
-    assert.deepEqual(tabsOf(markup), ['company', 'requisites', 'notifications', 'stats', 'docs']);
+    assert.deepEqual(tabsOf(markup), ['company', 'requisites', 'costs', 'notifications', 'stats', 'docs']);
     assert.match(markup, /enableTeamAndInvite\(\)/);
 });
 
-test('a logist sees only Profile and Requisites (read-only): no Notifications, Team, Statistics or Fleet', () => {
+test('a logist sees only Profile, Requisites and the costs (read-only): no Notifications, Team, Statistics or Fleet', () => {
     const markup = buildFor({ role: 'logist', mode: 'team' });
-    assert.deepEqual(tabsOf(markup), ['company', 'requisites']);
-    assert.deepEqual(panelsOf(markup).sort(), ['company', 'requisites']);
+    assert.deepEqual(tabsOf(markup), ['company', 'requisites', 'costs']);
+    assert.deepEqual(panelsOf(markup).sort(), ['company', 'costs', 'requisites']);
     assert.match(markup, /Лише перегляд/);
     for (const hidden of ['cab-notes-list', 'cab-stats-slot', 'team-members-list', 'team-invite-btn', 'cab-tab-unread']) {
         assert.equal(markup.includes(hidden), false, hidden);
