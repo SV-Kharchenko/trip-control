@@ -51,7 +51,7 @@ test('UI: редактор відміток блокує передрейсов�
 
 test('сервер: міграція відмовляє TS_PRETRIP_LOCKED в RPC і в тригері, повторне надсилання тих самих значень дозволене', () => {
     const sql = read('../../supabase/migrations/20261110093000_ts_pretrip_marks_lock.sql');
-    assert.match(sql, /RAISE EXCEPTION 'TS_PRETRIP_LOCKED' USING ERRCODE = 'P0001'/);
+    assert.match(sql, /RAISE EXCEPTION 'TS_PRETRIP_LOCKED' USING ERRCODE = '42501'/);
     assert.match(sql, /RAISE EXCEPTION 'TS_PRETRIP_LOCKED' USING ERRCODE = '42501'/);
     assert.match(sql, /IS DISTINCT FROM/);
     assert.match(sql, /kp_ts_pretrip_locked\(v_t\.depart_at, v_t\.created_at\)/);

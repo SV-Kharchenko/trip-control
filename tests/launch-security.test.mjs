@@ -7,7 +7,7 @@ import { test } from 'node:test';
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 
-const { bucketKey, clientIp, enforceRateLimit, hasBearer, LIMIT_ANON, LIMIT_AUTHED } = await import('../lib/rate-limit.js');
+const { bucketKey, clientIp, enforceRateLimit, hasBearer, LIMIT_ANON, LIMIT_AUTHED, LIMIT_AUTHED_POI } = await import('../lib/rate-limit.js');
 const { createTeamHandler } = await import('../api/team.js');
 const { MAX_BODY_BYTES, readRawBody } = await import('../lib/billing/service.js');
 
@@ -22,9 +22,12 @@ const res = () => {
 const req = (headers = {}, extra = {}) => ({ method: 'POST', headers, socket: { remoteAddress: '10.0.0.9' }, ...extra });
 
 // ---- Ліміт запитів ----
-test('IP: перша адреса x-forwarded-for, інакше x-real-ip, інакше сокет; у ключі лише хеш', () => {
+test('IP: x-vercel-forwarded-for, потім x-real-ip, потім перший x-forwarded-for, потім сокет; у ключі лише хеш', () => {
+    const all = { 'x-vercel-forwarded-for': '192.0.2.1', 'x-real-ip': '198.51.100.2', 'x-forwarded-for': '203.0.113.7, 10.1.1.1' };
+    assert.equal(clientIp(req(all)), '192.0.2.1');
+    assert.equal(clientIp(req({ 'x-real-ip': '198.51.100.2', 'x-forwarded-for': '203.0.113.7' })), '198.51.100.2');
     assert.equal(clientIp(req({ 'x-forwarded-for': '203.0.113.7, 10.1.1.1' })), '203.0.113.7');
-    assert.equal(clientIp(req({ 'x-real-ip': '198.51.100.2' })), '198.51.100.2');
+    assert.equal(clientIp(req({ 'x-vercel-forwarded-for': '192.0.2.1, 10.0.0.1' })), '192.0.2.1');
     assert.equal(clientIp(req()), '10.0.0.9');
     assert.equal(clientIp({ headers: {} }), 'unknown');
     const key = bucketKey('calculate', '203.0.113.7');
@@ -34,18 +37,68 @@ test('IP: перша адреса x-forwarded-for, інакше x-real-ip, ін�
     assert.notEqual(bucketKey('calculate', '203.0.113.7'), bucketKey('calculate', '203.0.113.8'));
 });
 
-test('ліміти: ~60/хв із токеном, ~20/хв без; значення йдуть у RPC', async () => {
-    assert.equal(LIMIT_AUTHED, 60);
+const USER_A = '11111111-1111-4111-8111-111111111111';
+const USER_B = '22222222-2222-4222-8222-222222222222';
+const okRpc = (calls) => async (args) => { calls.push(args); return { data: [{ allowed: true, hits: 1, retry_after: 30 }], error: null }; };
+const goodTokens = (tokens) => async (token) => tokens[token] || null;
+
+test('ліміти: залогінені 120/хв за id користувача, /api/poi 240/хв, аноніми 20/хв за IP', async () => {
+    assert.equal(LIMIT_AUTHED, 120);
+    assert.equal(LIMIT_AUTHED_POI, 240);
     assert.equal(LIMIT_ANON, 20);
     const calls = [];
-    const rpc = async (args) => { calls.push(args); return { data: [{ allowed: true, hits: 1, retry_after: 30 }], error: null }; };
+    const deps = { rpc: okRpc(calls), getUser: goodTokens({ good: USER_A }) };
     assert.equal(hasBearer(req({ authorization: 'Bearer abc' })), true);
     assert.equal(hasBearer(req({ authorization: 'Basic abc' })), false);
     assert.equal(hasBearer(req()), false);
-    assert.equal(await enforceRateLimit(req({ authorization: 'Bearer abc' }), res(), 'team', { rpc }), true);
-    assert.equal(await enforceRateLimit(req(), res(), 'team', { rpc }), true);
-    assert.deepEqual(calls.map((c) => c.p_limit), [60, 20]);
-    assert.ok(calls.every((c) => c.p_window_seconds === 60 && /^team:[0-9a-f]{32}$/.test(c.p_bucket)));
+    assert.equal(await enforceRateLimit(req({ authorization: 'Bearer good' }), res(), 'team', deps), true);
+    assert.equal(await enforceRateLimit(req({ authorization: 'Bearer good' }), res(), 'poi', { ...deps, authed: LIMIT_AUTHED_POI }), true);
+    assert.equal(await enforceRateLimit(req(), res(), 'team', deps), true);
+    assert.deepEqual(calls.map((c) => c.p_limit), [120, 240, 20]);
+    assert.ok(calls.every((c) => c.p_window_seconds === 60 && /^(team|poi):[0-9a-f]{32}$/.test(c.p_bucket)));
+    const poi = read('api/poi.js');
+    assert.ok(poi.includes("enforceRateLimit(req, res, 'poi', { authed: LIMIT_AUTHED_POI })"), 'poi піднято до 240/хв');
+});
+
+test('залогінений рахується за id користувача, а не за IP: той самий користувач з різних IP ділить лічильник, різні — ні', async () => {
+    const calls = [];
+    const deps = { rpc: okRpc(calls), getUser: goodTokens({ a: USER_A, b: USER_B }) };
+    await enforceRateLimit(req({ authorization: 'Bearer a', 'x-vercel-forwarded-for': '192.0.2.1' }), res(), 'calculate', deps);
+    await enforceRateLimit(req({ authorization: 'Bearer a', 'x-vercel-forwarded-for': '192.0.2.99' }), res(), 'calculate', deps);
+    await enforceRateLimit(req({ authorization: 'Bearer b', 'x-vercel-forwarded-for': '192.0.2.1' }), res(), 'calculate', deps);
+    assert.equal(calls[0].p_bucket, calls[1].p_bucket, 'один користувач — один лічильник, хоч IP різні');
+    assert.notEqual(calls[0].p_bucket, calls[2].p_bucket, 'інший користувач з того самого IP — свій лічильник');
+    assert.equal(calls[0].p_bucket, bucketKey('calculate', 'user:' + USER_A));
+    assert.ok(calls.every((c) => !c.p_bucket.includes(USER_A) && !c.p_bucket.includes('192.0.2')), 'id та IP у базу не йдуть відкрито');
+});
+
+test('підробний, невалідний чи прострочений Bearer ліміт не підвищує: рахується як анонім за IP з лімітом 20', async () => {
+    const calls = [];
+    const failing = async () => { throw new Error('auth down'); };
+    for (const getUser of [goodTokens({}), failing, async () => ''] ) {
+        await enforceRateLimit(req({ authorization: 'Bearer forged.jwt.value', 'x-vercel-forwarded-for': '192.0.2.5' }), res(), 'calculate', { rpc: okRpc(calls), getUser });
+    }
+    assert.deepEqual(calls.map((c) => c.p_limit), [20, 20, 20]);
+    assert.ok(calls.every((c) => c.p_bucket === bucketKey('calculate', 'ip:192.0.2.5')));
+    // Без налаштованого Supabase токен перевірити нічим → теж анонім.
+    const noEnv = [];
+    await enforceRateLimit(req({ authorization: 'Bearer anything' }), res(), 'calculate', { rpc: okRpc(noEnv), env: {} });
+    assert.equal(noEnv[0].p_limit, 20);
+});
+
+test('перевірка токена кешується в межах запиту: два виклики лімітера — одна перевірка', async () => {
+    let checks = 0;
+    const getUser = async () => { checks += 1; return USER_A; };
+    const request = req({ authorization: 'Bearer good' });
+    const calls = [];
+    await enforceRateLimit(request, res(), 'team', { rpc: okRpc(calls), getUser });
+    await enforceRateLimit(request, res(), 'team', { rpc: okRpc(calls), getUser });
+    assert.equal(checks, 1);
+    assert.equal(calls.length, 2);
+    await enforceRateLimit(req({ authorization: 'Bearer good' }), res(), 'team', { rpc: okRpc(calls), getUser });
+    assert.equal(checks, 2, 'новий запит — нова перевірка');
+    const src = read('lib/rate-limit.js');
+    assert.match(src, /auth\.getUser\(token\)/, 'токен перевіряється Supabase Auth, а не лише декодується');
 });
 
 test('понад ліміт: 429 з JSON і Retry-After, обробник далі не йде', async () => {
@@ -84,7 +137,7 @@ test('без SUPABASE_* лімітер пропускає запит (локал
 test('підключення: calculate, poi, signup-notify, admin, team і billing (крім вебхуків і cron) лімітуються', async () => {
     for (const [file, name] of [['api/calculate.js', 'calculate'], ['api/poi.js', 'poi'], ['api/signup-notify.js', 'signup-notify'], ['api/admin.js', 'admin']]) {
         const src = read(file);
-        assert.ok(src.includes("enforceRateLimit(req, res, '" + name + "')"), file);
+        assert.ok(src.includes("enforceRateLimit(req, res, '" + name + "'"), file);
         const handler = src.slice(src.indexOf('export default async function handler'));
         assert.ok(handler.indexOf('enforceRateLimit') < handler.indexOf('requireAdmin(req, res)') || file !== 'api/admin.js', 'ліміт раніше за перевірку адміна');
         assert.ok(handler.slice(0, 200).includes('enforceRateLimit'), file + ': ліміт — перша дія обробника');

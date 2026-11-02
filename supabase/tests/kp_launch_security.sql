@@ -126,9 +126,9 @@ UPDATE public.kp_doc_trip_sheet SET created_at = now() - interval '1 hour' WHERE
 ALTER TABLE public.kp_doc_trip_sheet ENABLE TRIGGER trg_kp_doc_trip_sheet_guard;
 SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000b101","role":"authenticated"}', true);
-SELECT throws_ok($$SELECT public.kp_trip_sheet_extra_save((SELECT id FROM t_ls WHERE k = 'ts'), '{"medical_by":"Інший медик"}')$$, 'P0001', 'TS_PRETRIP_LOCKED', 'pre-trip marks: medical_by is read-only after departure');
-SELECT throws_ok($$SELECT public.kp_trip_sheet_extra_save((SELECT id FROM t_ls WHERE k = 'ts'), '{"medical_ok":false}')$$, 'P0001', 'TS_PRETRIP_LOCKED', 'pre-trip marks: medical_ok is read-only after departure');
-SELECT throws_ok($$SELECT public.kp_trip_sheet_extra_save((SELECT id FROM t_ls WHERE k = 'ts'), '{"tech_at":"2026-10-28T05:50:00+03:00"}')$$, 'P0001', 'TS_PRETRIP_LOCKED', 'pre-trip marks: tech_at is read-only after departure');
+SELECT throws_ok($$SELECT public.kp_trip_sheet_extra_save((SELECT id FROM t_ls WHERE k = 'ts'), '{"medical_by":"Інший медик"}')$$, '42501', 'TS_PRETRIP_LOCKED', 'pre-trip marks: medical_by is read-only after departure');
+SELECT throws_ok($$SELECT public.kp_trip_sheet_extra_save((SELECT id FROM t_ls WHERE k = 'ts'), '{"medical_ok":false}')$$, '42501', 'TS_PRETRIP_LOCKED', 'pre-trip marks: medical_ok is read-only after departure');
+SELECT throws_ok($$SELECT public.kp_trip_sheet_extra_save((SELECT id FROM t_ls WHERE k = 'ts'), '{"tech_at":"2026-10-28T05:50:00+03:00"}')$$, '42501', 'TS_PRETRIP_LOCKED', 'pre-trip marks: tech_at is read-only after departure');
 SELECT lives_ok($$SELECT public.kp_trip_sheet_extra_save((SELECT id FROM t_ls WHERE k = 'ts'),
   '{"medical_by":"Медик","medical_ok":true,"tech_by":"Механік","tech_ok":true,"medical_post_by":"Медик після","dispatcher_name":"Диспетчер"}')$$,
   'pre-trip marks: the same values may be re-sent; post-trip marks and the dispatcher stay editable');

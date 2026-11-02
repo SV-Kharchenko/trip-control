@@ -7,8 +7,8 @@
 
 - SECURITY DEFINER-функцій у `public`: **210**, з них тригерних (EXECUTE не потрібен, напряму не викликаються) — 47; викликається клієнтами (EXECUTE має `authenticated` або `anon`) — **107**.
 - Усі SECURITY DEFINER мають `SET search_path` (перевірено запитом по `pg_proc.proconfig`: функцій без нього — 0).
-- Знайдено **дір: 2** (одна функція, одна таблиця); обидві закриває міграція `20261110091000_security_audit_fixes.sql`.
-- `anon` має EXECUTE лише на одну функцію — `bump_calc_usage` (дірка, закрито); після міграції — на жодну.
+- Розбіжностей між репозиторієм і безпекою: **2** (одна функція, одна таблиця). **На проді обидві вже закриті** (власник виправив там вручну); міграція `20261110091000_security_audit_fixes.sql` лише вирівнює репозиторій з продом, на проді вона нічого не змінить.
+- У репозиторії `anon` мав EXECUTE лише на одну функцію — `bump_calc_usage` (на проді вже закрито); після міграції — на жодну.
 - Таблиць з RLS без політик: **14** — усі навмисно «deny all» для клієнтів (див. нижче), дірок немає.
 
 ## Функції (викликаються клієнтами)
@@ -16,7 +16,7 @@
 | функція | чим перевіряє org / роль | висновок |
 |---|---|---|
 | `api_rate_hit(p_bucket text, p_limit integer, p_window_seconds integer)` | лише service_role (нова, 20261110090000); клієнти не мають EXECUTE | OK |
-| `bump_calc_usage(p_org uuid, p_limit integer)` **(anon!)** | приймає p_org від викликача; EXECUTE мали anon / authenticated (REVOKE був лише з PUBLIC) | **дірка** → закрито 20261110091000: лише service_role |
+| `bump_calc_usage(p_org uuid, p_limit integer)` **(anon!)** | приймає p_org від викликача; EXECUTE мали anon / authenticated (REVOKE був лише з PUBLIC) | **дірка** (лише в репо; на проді вже закрито) → `20261110091000` вирівнює репо: лише service_role |
 | `client_history(p_client uuid)` | kp_org_id() + kp_trip_visible(user_id); клієнт лише своєї організації | OK |
 | `current_org_id()` | auth.uid() → активний профіль, організація не blocked | OK |
 | `current_org_is_control_plus()` | current_org_id() | OK |
@@ -145,7 +145,7 @@
 | `poi_cache` | кеш POI: лише service_role (api/poi.js) | OK (deny-all для клієнтів) |
 | `regular_removals` | REMOVE регулярних платежів WayForPay: лише service_role (api/billing) | OK (deny-all для клієнтів) |
 | `repair_invite_sends` | журнал розсилок запрошень ремонтів: лише service_role (api/team.js) | OK (deny-all для клієнтів) |
-| `trailer_presets` | політика `trailer_presets_all` є, але RLS у репозиторії ніде не вмикався (таблиця створена поза міграціями) | | **дірка** → `ENABLE ROW LEVEL SECURITY` у `20261110091000_security_audit_fixes.sql` (на проді, якщо вже ввімкнено, нічого не змінюється) |
+| `trailer_presets` | політика `trailer_presets_all` є, але RLS у репозиторії ніде не вмикався (таблиця створена поза міграціями) | **дірка** (лише в репо; на проді вже закрито) → `ENABLE ROW LEVEL SECURITY` у `20261110091000_security_audit_fixes.sql` вирівнює репо, на проді нічого не змінить |
 | `api_rate_limits` (нова) | лише service_role через `api_rate_hit` | OK (RLS без політик, гранти лише service_role) |
 
 ## Як повторити

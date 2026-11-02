@@ -133,7 +133,7 @@ BEGIN
     IF public.kp_ts_pretrip_locked(v_t.depart_at, v_t.created_at)
        AND (v_r.medical_by, v_r.medical_at, v_r.medical_ok, v_r.tech_by, v_r.tech_at, v_r.tech_ok)
            IS DISTINCT FROM (v_t.medical_by, v_t.medical_at, v_t.medical_ok, v_t.tech_by, v_t.tech_at, v_t.tech_ok) THEN
-      RAISE EXCEPTION 'TS_PRETRIP_LOCKED' USING ERRCODE = 'P0001';
+      RAISE EXCEPTION 'TS_PRETRIP_LOCKED' USING ERRCODE = '42501';
     END IF;
     UPDATE public.kp_doc_trip_sheet
     SET medical_by = v_r.medical_by, medical_at = v_r.medical_at, medical_ok = v_r.medical_ok,
