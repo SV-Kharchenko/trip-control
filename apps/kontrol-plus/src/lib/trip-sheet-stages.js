@@ -214,9 +214,22 @@ export function marksFromDoc(doc) {
     return m;
 }
 
-export function marksPayload(m) {
+// Передрейсові відмітки (медогляд до рейсу, механік на виїзді): після виїзду лише читання. Те саме правило на сервері
+// (kp_ts_pretrip_locked): now ≥ depart_at і з моменту створення листа минуло понад 10 хвилин (час на дозаповнення при видачі).
+export const PRETRIP_FIELDS = ['medical_by', 'medical_at', 'medical_ok', 'tech_by', 'tech_at', 'tech_ok'];
+export const PRETRIP_GRACE_MS = 10 * 60 * 1000;
+export function pretripLocked(doc, now = Date.now()) {
+    const depart = Date.parse(doc && doc.depart_at);
+    const created = Date.parse(doc && doc.created_at);
+    if (Number.isNaN(depart) || Number.isNaN(created)) return false;
+    return now >= depart && now > created + PRETRIP_GRACE_MS;
+}
+
+// locked: передрейсові поля не надсилаємо взагалі — сервер їх однаково не змінить, а так збереження решти відміток не впирається в помилку.
+export function marksPayload(m, { locked = false } = {}) {
     const out = {};
     for (const f of MARK_FIELDS) {
+        if (locked && PRETRIP_FIELDS.includes(f)) continue;
         if (f.endsWith('_at')) out[f] = localToIso(m[f]);
         else if (f.endsWith('_ok') || f.endsWith('_accepted')) out[f] = Boolean(m[f]);
         else out[f] = hasValue(m[f]) ? String(m[f]).trim() : null;

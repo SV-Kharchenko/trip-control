@@ -234,7 +234,7 @@ test('POI path is untouched: POST goes the old way, non-POST without a geo mode 
     assert.equal(put.statusCode, 405);
     const source = read('api/poi.js');
     const handlerStart = source.indexOf('export default async function handler(req, res) {');
-    assert.match(source.slice(handlerStart), /^export default async function handler\(req, res\) \{\n    if \(geoRequestMode\(req\)\) \{\n        return handleGeo\(req, res\);\n    \}\n    const startedAt = Date\.now\(\);\n    if \(req\.method !== 'POST'\) \{/);
+    assert.match(source.slice(handlerStart), /^export default async function handler\(req, res\) \{\n    if \(!\(await enforceRateLimit\(req, res, 'poi', \{ authed: LIMIT_AUTHED_POI \}\)\)\) return;\n    if \(geoRequestMode\(req\)\) \{\n        return handleGeo\(req, res\);\n    \}\n    const startedAt = Date\.now\(\);\n    if \(req\.method !== 'POST'\) \{/);
     const geo = source.slice(source.indexOf('// ===== Адреси й відстань за OpenStreetMap'), handlerStart);
     const geoCode = geo.replace(/^\s*\/\/.*$/gm, '').replace(/OVERPASS_USER_AGENT/g, '');
     assert.equal(/overpass|poi_cache|fetchOverpass|searchPOIs/i.test(geoCode), false);

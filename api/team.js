@@ -1,3 +1,4 @@
+import { enforceRateLimit } from '../lib/rate-limit.js';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
@@ -1360,6 +1361,8 @@ const INVITEE_ACTIONS = new Set(['accept', 'decline', 'my_invites']);
 export function createTeamHandler(deps) {
     const service = createTeamService(deps);
     return async function handler(req, res) {
+        // Ліміт запитів за IP; у тестах deps.rateLimit не передають.
+        if (deps.rateLimit && !(await deps.rateLimit(req, res))) return;
         try {
             const body = req.body || {};
             const action = String(body.action || '');
@@ -1419,5 +1422,6 @@ export function createTeamHandler(deps) {
 export default createTeamHandler({
     supabase: createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY),
     fetch: (...args) => fetch(...args),
-    env: process.env
+    env: process.env,
+    rateLimit: (req, res) => enforceRateLimit(req, res, 'team')
 });

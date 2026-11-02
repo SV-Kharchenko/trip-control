@@ -3,7 +3,7 @@
 // Кнопки — за розміром вмісту. Зберігає картка листа (kp_trip_sheet_extra_save), поки лист «Видано».
 import { h, clear } from '../ui.js';
 import {
-    MARK_LABELS, STAGE_LABELS, addStage, emptyStage, moveStage, removeStage, stageTkm, validateStages,
+    MARK_LABELS, PRETRIP_FIELDS, STAGE_LABELS, addStage, emptyStage, moveStage, removeStage, stageTkm, validateStages,
 } from '../lib/trip-sheet-stages.js';
 
 const num = (x) => (x === null || x === undefined ? '—' : String(x).replace('.', ','));
@@ -76,15 +76,16 @@ export function stagesEditor(list, onChange) {
 const FIELD_ATTRS = { maxlength: 200 };
 
 // Відмітки: рядки «ПІБ · дата й час · галочка». m — об'єкт marksFromDoc (змінюється на місці).
-export function marksEditor(m, onChange) {
+export function marksEditor(m, onChange, { locked = false } = {}) {
     const row = (title, by, at, ok) => {
+        const frozen = locked && PRETRIP_FIELDS.includes(by);
         const text = (key, attrs, wide) => {
-            const input = h('input', Object.assign({ type: 'text', id: 'ts-m-' + key, autocomplete: 'off', 'aria-label': MARK_LABELS[key] }, attrs));
+            const input = h('input', Object.assign({ type: 'text', id: 'ts-m-' + key, autocomplete: 'off', 'aria-label': MARK_LABELS[key], disabled: frozen }, attrs));
             input.value = m[key] || '';
             input.addEventListener('input', () => { m[key] = input.value; onChange(); });
             return h('span', { class: 'kpc-box ' + (wide ? 'kpc-w-l' : 'kpc-w-m') }, input);
         };
-        const check = h('input', { type: 'checkbox', id: 'ts-m-' + ok, checked: m[ok] === true });
+        const check = h('input', { type: 'checkbox', id: 'ts-m-' + ok, checked: m[ok] === true, disabled: frozen });
         check.addEventListener('change', () => { m[ok] = check.checked; onChange(); });
         return h('div', { class: 'field kpc-row kpts-mark' },
             h('label', { for: 'ts-m-' + by }, title),
@@ -95,6 +96,7 @@ export function marksEditor(m, onChange) {
     dispatcher.value = m.dispatcher_name || '';
     dispatcher.addEventListener('input', () => { m.dispatcher_name = dispatcher.value; onChange(); });
     return h('div', { class: 'kpts-marks' },
+        locked ? h('p', { class: 'muted small' }, 'Передрейсові відмітки (медогляд до рейсу, механік на виїзді) після виїзду тільки для читання.') : null,
         row('Медогляд перед рейсом', 'medical_by', 'medical_at', 'medical_ok'),
         row('Механік на виїзді', 'tech_by', 'tech_at', 'tech_ok'),
         row('Медогляд після рейсу', 'medical_post_by', 'medical_post_at', 'medical_post_ok'),

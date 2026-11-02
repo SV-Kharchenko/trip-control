@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createBillingHandler } from '../../lib/billing/service.js';
 import { createSupabaseStore } from '../../lib/billing/store.js';
+import { enforceRateLimit } from '../../lib/rate-limit.js';
 
 /**
  * Оплата тарифу організації (plata by mono, WayForPay). Одна функція (динамічний маршрут Vercel, route = req.query.route):
@@ -26,6 +27,14 @@ const supabase = env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
 
 const unavailable = async (req, res) => res.status(503).json({ error: 'Оплата тимчасово недоступна.' });
 
-export default supabase
-    ? createBillingHandler({ store: createSupabaseStore(supabase), fetch: globalThis.fetch, env })
-    : unavailable;
+// Ліміт запитів за IP — для користувацьких маршрутів. Вебхуки провайдерів (підписані) і cron (Bearer CRON_SECRET) не лімітуємо:
+// їх не можна відхиляти за IP, а підроблені відсікає перевірка підпису / секрету.
+const UNLIMITED_ROUTES = new Set(['mono-webhook', 'wayforpay-webhook', 'cron']);
+const billing = supabase ? createBillingHandler({ store: createSupabaseStore(supabase), fetch: globalThis.fetch, env }) : unavailable;
+
+export default async function handler(req, res) {
+    const url = new URL(req.url || '/', 'http://local');
+    const route = String((req.query && req.query.route) || url.searchParams.get('route') || '');
+    if (!UNLIMITED_ROUTES.has(route) && !(await enforceRateLimit(req, res, 'billing'))) return;
+    return billing(req, res);
+}

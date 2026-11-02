@@ -302,10 +302,12 @@ test('unmatched _WFPREG- callbacks (no parent, unknown plan, wrong amount / curr
         '❗ Автосписання не зараховано: ТОВ «Агро» · сума або валюта не збігаються (очікували 250 UAH) · сума 1 UAH · статус Approved · orderReference ' + ref + ' · перевірте вручну',
         '❗ Автосписання не зараховано: ТОВ «Агро» · сума або валюта не збігаються (очікували 250 UAH) · сума 250 USD · статус Approved · orderReference ' + parent.provider_order_id + '_WFPREG-4 · перевірте вручну'
     ]);
-    // Звичайний (не регулярний) платіж з неправильною сумою — як і раніше, без алерту.
+    // Звичайний (не регулярний) платіж з неправильною сумою: не зараховується, і адмін дізнається — раніше він тихо ігнорувався.
     const before = unmatched().length;
-    await w.approve((await w.pay()).provider_order_id, { amount: 1 });
-    assert.equal(unmatched().length, before);
+    const first = await w.pay();
+    await w.approve(first.provider_order_id, { amount: 1 });
+    assert.equal(unmatched().length, before + 1);
+    assert.match(unmatched().at(-1), /^❗ Оплату не зараховано: /);
 });
 
 test('parallel identical unmatched / mismatched callbacks: one alert (alert_key unique), every callback kept in history', async () => {

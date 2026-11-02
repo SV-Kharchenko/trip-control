@@ -1,3 +1,4 @@
+import { enforceRateLimit } from '../lib/rate-limit.js';
 import { createClient } from '@supabase/supabase-js';
 import { isUuid, sendTelegram, shouldNotifySignup, signupMessage, statusKeyboard } from '../lib/signup-notify.js';
 
@@ -14,6 +15,7 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
+    if (!(await enforceRateLimit(req, res, 'signup-notify'))) return;
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }

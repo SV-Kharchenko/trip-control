@@ -1751,6 +1751,24 @@ for (const [index, [name, extra]] of planCases.entries()) {
     for (const row of rTap) check(row.ok, 'pgTAP kp_trip_sheet_refuels.sql: ' + row.label);
     check(rTap.length === rPlanned, `pgTAP kp_trip_sheet_refuels.sql: ran ${rTap.length} of plan(${rPlanned})`);
 }
+// Безпека перед запуском (20261110090000 … 20261110093000): повторне застосування, pgTAP kp_launch_security.sql.
+{
+    for (const file of ['20261110090000_api_rate_limits.sql', '20261110091000_security_audit_fixes.sql', '20261110092000_company_settings_merge.sql', '20261110093000_ts_pretrip_marks_lock.sql']) {
+        const sql = fs.readFileSync(new URL(file, DIR), 'utf8');
+        await db.exec(sql);
+        await db.exec(sql);
+        check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(sql) && /РУЧНИЙ ВІДКАТ/.test(sql),
+            file + ': re-applied (idempotent), manual-apply header and manual rollback');
+    }
+    const sTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_launch_security.sql', import.meta.url), 'utf8')
+        .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+    const sPlanned = Number((sTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+    const sBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+    await db.exec(sTapSql);
+    const sTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(sBefore);
+    for (const row of sTap) check(row.ok, 'pgTAP kp_launch_security.sql: ' + row.label);
+    check(sTap.length === sPlanned, `pgTAP kp_launch_security.sql: ran ${sTap.length} of plan(${sPlanned})`);
+}
 await db.query(`SELECT set_config('request.jwt.claims', '', false)`);
 
 if (failed) {
