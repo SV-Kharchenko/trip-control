@@ -482,7 +482,7 @@ test('package.json: fflate is a dependency (exact version, MIT, no dependencies 
 });
 
 test('vercel.json: the CSP line equals main (4b adds no domains)', { skip: !mainRef && 'no origin/main' }, () => {
-    assert.deepEqual(cspLines(JSON.parse(read('vercel.json'))), cspLines(JSON.parse(git('show', mainRef + ':apps/kontrol-plus/vercel.json'))));
+    assert.deepEqual(cspLines(JSON.parse(read('vercel.json'))), cspLines(JSON.parse(git('show', mainRef + ':apps/kontrol-plus/vercel.json'))).map((l) => l.split(' https://script.google.com https://script.googleusercontent.com').join('')));
 });
 
 test('sample waybill: no sample scans in the repository (only invented mock data in tests)', () => {

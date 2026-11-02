@@ -316,6 +316,7 @@ test('dependencies: pdf-lib and @pdf-lib/fontkit (4a) and fflate (4b), pinned; f
 // CSP застосунку не змінюється етапом 4a: рядки дорівнюють main (і ці константи).
 const STRICT_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://*.supabase.co; "
     + "manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+const dropGoogleScript = (lines) => lines.map((l) => l.split(' https://script.google.com https://script.googleusercontent.com').join('')); // chore/launch-polish: Google Таблицю прибрано з CSP
 test('vercel.json: CSP unchanged (same strings as main); no blob: in the strict img-src, no new domains', () => {
     const cfg = JSON.parse(read('vercel.json'));
     const now = cspLines(cfg);
@@ -325,6 +326,6 @@ test('vercel.json: CSP unchanged (same strings as main); no blob: in the strict 
     try {
         main = JSON.parse(execFileSync('git', ['show', 'origin/main:apps/kontrol-plus/vercel.json'], { cwd: new URL('.', APP), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
     } catch { /* без origin/main — лише константа */ }
-    if (main) assert.deepEqual(now, cspLines(main), 'CSP headers equal origin/main');
+    if (main) assert.deepEqual(now, dropGoogleScript(cspLines(main)), 'CSP headers equal origin/main (except the removed Google Sheets domains)');
     assert.doesNotMatch(STRICT_CSP, /blob:|unsafe-inline|unsafe-eval|bank\.gov\.ua/);
 });

@@ -257,7 +257,7 @@ test('Photon / OSRM hostnames only on the server (and docs); CSP, rewrites, func
     assert.equal(vercel.rewrites.length, 4);
     assert.deepEqual(vercel.functions, { 'api/poi.js': { maxDuration: 60 } });
     const csp = vercel.headers[0].headers.find((h) => h.key === 'Content-Security-Policy').value;
-    assert.match(csp, /connect-src 'self' https:\/\/\*\.supabase\.co wss:\/\/\*\.supabase\.co https:\/\/maps\.googleapis\.com https:\/\/\*\.googleapis\.com https:\/\/bank\.gov\.ua https:\/\/script\.google\.com https:\/\/script\.googleusercontent\.com;/);
+    assert.match(csp, /connect-src 'self' https:\/\/\*\.supabase\.co wss:\/\/\*\.supabase\.co https:\/\/maps\.googleapis\.com https:\/\/\*\.googleapis\.com https:\/\/bank\.gov\.ua;/);
     const apiFiles = readdirSync(new URL('../api/', import.meta.url), { recursive: true }).filter((f) => String(f).endsWith('.js'));
     assert.ok(apiFiles.length <= 8, 'no new serverless functions: ' + apiFiles.join(', '));
     // Browser code only talks to our proxy.
