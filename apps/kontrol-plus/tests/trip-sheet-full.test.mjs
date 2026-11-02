@@ -63,8 +63,8 @@ test('totals: sum of km, sum of t·km, trips; blank rows do not count; old docs 
 });
 
 test('totals: mileage from the odometers, fuel norm by the stage km when stages exist (as the database does), else by the task plan', () => {
-    const doc = base();
-    const withPlan = tsTotals(doc);
+    const doc = base({ status: 'issued' });
+    const withPlan = tsTotals(doc, { stages: [] });
     // 300 км з вантажем (план) і 300 порожніх: 300 × 30 / 100 + 300 × 20 / 100 = 150
     assert.equal(withPlan.fuel_norm, 150);
     const withRows = tsTotals(doc, { stages: [stage({ loaded_km: '400', tonnage: '20' }), stage({ loaded_km: '100', tonnage: '10' })] });
@@ -73,6 +73,12 @@ test('totals: mileage from the odometers, fuel norm by the stage km when stages 
     assert.equal(withRows.fuel_actual, 250);
     assert.equal(withRows.fuel_diff, 80);
     assert.equal(withRows.distance_km, 600);
+    // закритий лист: збережені значення сервера, а не формула (norm 130 ≠ 150)
+    const stored = tsTotals(base({ fuel_norm: 130, fuel_diff: 120, fuel_actual: 250 }));
+    assert.deepEqual([stored.fuel_norm, stored.fuel_diff, stored.fuel_actual, stored.distance_km], [130, 120, 250, 600]);
+    // збережений лист: км з вантажем, т·км й їздки — з doc.totals (сервер), а не з етапів
+    const server = tsTotals(base({ stages: [{ loaded_km: 1, tonnage: 1 }], totals: { distance_km: 600, loaded_km: 777, tkm: 5555, trips: 4 } }));
+    assert.deepEqual([server.loaded_km, server.tkm, server.trips], [777, 5555, 4]);
     assert.equal(withRows.tkm, 8000 + 1000);
     // повернення ще не внесено → пробігу й пального ще немає
     const open = tsTotals(base({ status: 'issued', return_odometer: null, return_fuel_left: null, distance_km: null }));
@@ -254,4 +260,77 @@ test('UI: buttons by content size (no stretched buttons without .btn-block), no 
     const form = read('src/views/docs-ts-form.js');
     assert.match(form, /kp_trip_sheet_extra_save/);
     assert.match(form, /d\.dispatcher = dispatcherName\(app\.user\)/);
+});
+
+const longStages = (n) => withStages(n, { fuel_norm: 123.4, fuel_diff: 126.6 }, true).stages.map((r, i) => ({
+    ...r, customer: 'ТОВ «Агропромислова компанія Золотий колос» ' + (i + 1), ttn_no: 'ТТН-2026/' + (i + 1) + '-ЄҐЇ',
+    unload_point: 'м. Одеса, порт, термінал 7, причал 12 (' + (i + 1) + ')',
+}));
+
+test('closed sheet: the stored norm / fuel / difference are shown once in PDF and Excel (the server is the source of truth)', async () => {
+    const doc = withStages(8, { fuel_norm: 123.4, fuel_diff: 126.6, totals: { distance_km: 600, loaded_km: 828, tkm: 17000, trips: 8 } }, true);
+    doc.stages = longStages(8);
+    const { info } = await buildTripSheetPdf(doc, { fonts });
+    const texts = info.texts.map((t) => t.text);
+    // формула дала б 170, збережене значення — 123,4; воно одне, і «Розрахунку» окремо немає
+    assert.equal(texts.filter((t) => t === '123,4').length, 1);
+    assert.equal(texts.filter((t) => t === '+126,6 (перевитрата)').length, 1);
+    assert.equal(texts.filter((t) => t === '828').length, 1, 'km with cargo from doc.totals');
+    assert.equal(texts.filter((t) => /^17000$/.test(t)).length, 1, 't·km from doc.totals');
+    assert.equal(texts.filter((t) => t === 'РОЗРАХУНОК').length, 0);
+    assert.equal(texts.filter((t) => t === 'ПІДСУМКИ').length, 1);
+    const sh = tripSheetSheet(doc);
+    const values = sh.rows.flatMap((r) => (Array.isArray(r) ? r : r.cells)).map((c) => c && c.v).filter((v) => typeof v === 'string');
+    assert.equal(values.filter((v) => v === '123,4').length, 1);
+    assert.equal(values.filter((v) => v === 'Підсумки').length, 1);
+    assert.equal(values.filter((v) => v === 'Розрахунок').length, 0);
+});
+
+test('8 long stages: every page landscape, continuation pages are labelled with a repeated header, nothing cut, totals present', async () => {
+    const doc = withStages(8, { fuel_norm: 123.4, fuel_diff: 126.6, totals: { distance_km: 600, loaded_km: 828, tkm: 17000, trips: 8 } }, true);
+    doc.stages = longStages(8);
+    const { bytes, info } = await buildTripSheetPdf(doc, { fonts });
+    const sizes = await pageSizes(bytes);
+    assert.equal(sizes.length, info.pages);
+    assert.ok(sizes.every(({ width, height }) => width > height), 'all pages landscape');
+    const all = info.texts.map((t) => t.text).join(' ');
+    // повний текст кожного довгого пункту є в PDF (перенесений по рядках, але не обрізаний)
+    for (let i = 1; i <= 8; i += 1) {
+        for (const word of ['Агропромислова', 'Золотий', 'ТТН-2026/' + i + '-ЄҐЇ', 'термінал', 'причал', '(' + i + ')']) assert.ok(all.includes(word), word + ' #' + i);
+    }
+    for (const needle of ['ПІДСУМКИ', 'Сума т·км', 'Кількість їздок', 'ПОВЕРНЕННЯ', 'ПІСЛЯ РЕЙСУ']) assert.ok(all.includes(needle), needle);
+    // сторінки-продовження: підпис і повтор шапки таблиці (або лише блоки без таблиці, але теж з підписом)
+    const continuationPages = new Set(info.texts.filter((t) => t.text === 'Зворотний бік (продовження)').map((t) => t.page));
+    assert.equal(continuationPages.size, info.pages - 2);
+    for (let page = 3; page <= info.pages; page += 1) assert.ok(continuationPages.has(page), 'page ' + page + ' is labelled');
+    // кожна сторінка таблиці має шапку
+    const headerPages = new Set(info.texts.filter((t) => t.text === '№ ТТН').map((t) => t.page));
+    assert.ok(headerPages.has(2));
+    // «№ ТТН» не рветься посимвольно: номер у одному рядку
+    const ttnCells = info.texts.filter((t) => /^ТТН-2026\/\d-ЄҐЇ$/.test(t.text));
+    assert.equal(ttnCells.length, 8);
+    // 20 етапів — таблиця на кількох сторінках, усі альбомні, шапка таблиці повторюється
+    const many = withStages(20, { totals: { distance_km: 600, loaded_km: 1, tkm: 1, trips: 20 } }, true);
+    many.stages = longStages(20);
+    const big = await buildTripSheetPdf(many, { fonts });
+    assert.ok((await pageSizes(big.bytes)).every(({ width, height }) => width > height));
+    const headers = new Set(big.info.texts.filter((t) => t.text === '№ ТТН').map((t) => t.page));
+    assert.ok(headers.size >= 2, 'the table header repeats on the continuation pages');
+    assert.ok(big.info.texts.some((t) => t.text === 'Зворотний бік (продовження)'));
+});
+
+test('front side: the date line does not touch the 14 pt heading; one page', async () => {
+    const src = read('src/lib/pdf-trip-sheet.js');
+    assert.match(src, /L\.y -= 17;\n    L\.text\(`від \$\{fmtDate\(doc\.doc_date\)\}`/);
+    assert.ok(src.includes('альбомна') && !src.includes('книжна'));
+    const { info } = await buildTripSheetPdf(withStages(2), { fonts });
+    assert.equal(info.texts.filter((t) => t.page === 1).some((t) => t.text === 'Зворотний бік'), false);
+    assert.equal(info.pages, 2);
+});
+
+test('migration: kp_ts_time is STABLE (it parses text → timestamptz depending on the session time zone)', () => {
+    const sql = read('../../supabase/migrations/20261107090000_kp_trip_sheet_full.sql');
+    const fn = sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.kp_ts_time'), sql.indexOf('CREATE OR REPLACE FUNCTION public.kp_ts_text'));
+    assert.match(fn, /\nSTABLE\n/);
+    assert.doesNotMatch(fn, /IMMUTABLE/);
 });

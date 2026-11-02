@@ -1,4 +1,4 @@
-// PDF подорожнього листа вантажного автомобіля (типова форма № 2): A4 книжна, лицьовий бік (шапка, ТЗ і водій, завдання,
+// PDF подорожнього листа вантажного автомобіля (типова форма № 2): A4 альбомна, лицьовий бік (шапка, ТЗ і водій, завдання,
 // виїзд, підписи допуску) і зворотний (повернення, розрахунок, особливі відмітки, підписи). Поля й порядок — ті самі
 // розділи, що в картці й Excel (lib/trip-sheet.js tsSections). Той самий шрифт Noto Sans, що в ТТН. Анульований — водяний знак.
 // Персональних даних водія (телефон, паспорт, ІПН, адреса) тут немає. Модуль вантажиться лише по кнопці PDF (окремий чанк).
@@ -26,7 +26,7 @@ const LABEL_W = 190;
 
 const plain = (text) => String(text == null ? '' : text).replace(/[  ]/g, ' ');
 
-function createLayout(pdf, fonts, pages) {
+function createLayout(pdf, fonts, pages, texts = []) {
     let page = null;
     let y = 0;
     let pageSize = PAGE;
@@ -48,6 +48,7 @@ function createLayout(pdf, fonts, pages) {
         text(str, x, size, { bold = false, color = INK, align = 'left', width = 0 } = {}) {
             const font = bold ? fonts.bold : fonts.regular;
             const s = plain(str);
+            texts.push({ page: pages.length, text: s });
             let dx = x;
             if (align === 'right') dx = x + width - font.widthOfTextAtSize(s, size);
             if (align === 'center') dx = x + (width - font.widthOfTextAtSize(s, size)) / 2;
@@ -116,9 +117,9 @@ function drawFront(L, doc, sections) {
     L.text(TS_FORM_NO, MARGIN + L.width - 110, 9, { bold: true, align: 'right', width: 110 });
     L.y = top - 34;
     L.text(tsHeading(doc), MARGIN, 14, { bold: true, align: 'center', width: L.width });
-    L.y -= 6;
+    L.y -= 17;
     L.text(`від ${fmtDate(doc.doc_date)}`, MARGIN, 10, { align: 'center', width: L.width });
-    L.y -= 12;
+    L.y -= 14;
 
     const gap = 14;
     // Шапка (номер, дата видачі, строк дії, перевізник) — без заголовка секції, у дві колонки.
@@ -152,6 +153,13 @@ function drawFront(L, doc, sections) {
 }
 
 // Таблиця етапів: колонки пропорційні STAGE_COLUMNS, заголовок і рядки з переносом, без обрізання; заголовок повторюється на новій сторінці.
+// Верх сторінки-продовження зворотного боку.
+function continuation(L) {
+    L.newPage(PAGE_BACK);
+    L.text('Зворотний бік (продовження)', MARGIN, 8, { color: MUTED });
+    L.y -= 14;
+}
+
 function drawStageTable(L, doc) {
     const rows = tsStageRows(doc);
     const total = STAGE_COLUMNS.reduce((sum, [, w]) => sum + w, 0);
@@ -173,8 +181,8 @@ function drawStageTable(L, doc) {
     for (const row of body) {
         const cells = row.map((cell, i) => L.lines(cell, FONT, widths[i] - 6));
         const h = Math.max(...cells.map((c) => c.length), 1) * 9.5 + 8;
-        if (L.y - h < BOTTOM + 150) {
-            L.newPage(PAGE_BACK);
+        if (L.y - h < BOTTOM + 8) {
+            continuation(L);
             header();
         }
         const rowTop = L.y;
@@ -192,20 +200,20 @@ function drawBack(L, doc, sections) {
     L.text('Зворотний бік', MARGIN, 8, { color: MUTED });
     L.y -= 14;
     drawStageTable(L, doc);
-    // Нижче таблиці — дві колонки: повернення, після рейсу | розрахунок, підсумки.
+    // Нижче таблиці — дві колонки: повернення і відмітки після рейсу | підсумки (розрахунок і підсумки — один блок).
     const back = tsBackSections(doc, tsTotals(doc));
-    const left = [sections[4], back[0], sections[5]];
+    const left = [sections[4], back[0]];
     const right = [back[1]];
     const colW = (L.width - 14) / 2;
     const need = Math.max(left.reduce((n, sct) => n + sectionHeight(L, sct, colW, true), 0), right.reduce((n, sct) => n + sectionHeight(L, sct, colW, true), 0));
-    L.ensure(need + 56);
+    // Блоки повернення / підсумків / підписи не лишаються на сторінці без позначки: якщо не вміщаються — нова сторінка «(продовження)».
+    if (L.y - (need + 78) < BOTTOM) continuation(L);
     const startY = L.y;
     left.forEach((sct) => drawSection(L, sct, MARGIN, colW, { breakPages: false, compact: true }));
     const endLeft = L.y;
     L.y = startY;
     right.forEach((sct) => drawSection(L, sct, MARGIN + colW + 14, colW, { breakPages: false, compact: true }));
     L.y = Math.min(endLeft, L.y);
-    L.ensure(46);
     signaturesRow(L, ['Водій (автомобіль здав, лист закрито)', 'Механік (стан автомобіля при поверненні)', 'Диспетчер (лист прийняв)']);
 }
 
@@ -253,7 +261,8 @@ export async function buildTripSheetPdf(doc, { fonts } = {}) {
     pdf.setProducer('Контроль+');
     pdf.setSubject(doc.status === 'cancelled' ? 'АНУЛЬОВАНО' : 'Подорожній лист вантажного автомобіля (типова форма № 2)');
     const pages = [];
-    const L = createLayout(pdf, { regular, bold }, pages);
+    const texts = [];
+    const L = createLayout(pdf, { regular, bold }, pages, texts);
     const sections = tsSections(doc);
     drawFront(L, doc, sections);
     drawBack(L, doc, sections);
@@ -265,5 +274,5 @@ export async function buildTripSheetPdf(doc, { fonts } = {}) {
     const cancelled = doc.status === 'cancelled';
     if (cancelled) drawWatermark(pages, bold);
     const bytes = await pdf.save();
-    return { bytes, info: { pages: pages.length, watermark: cancelled } };
+    return { bytes, info: { pages: pages.length, watermark: cancelled, texts } };
 }

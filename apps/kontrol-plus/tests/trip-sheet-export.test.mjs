@@ -38,7 +38,7 @@ test('Excel: ті самі розділи й поля по порядку, що 
     const labels = sh.rows.map((r) => (Array.isArray(r) && r[0] && r[0].s === 'label' ? r[0].v : null)).filter(Boolean);
     const base = tsSections(doc);
     const back = tsBackSections(doc, tsTotals(doc));
-    const expected = [...base.slice(0, 4), tsFrontMarks(doc), base[4], back[0], base[5], back[1]].flatMap((s) => s.rows.map((r) => r[0]));
+    const expected = [...base.slice(0, 4), tsFrontMarks(doc), base[4], back[0], back[1]].flatMap((s) => s.rows.map((r) => r[0]));
     assert.deepEqual(labels, expected);
     const values = sh.rows.map((r) => (Array.isArray(r) && r[4] ? r[4].v : null)).filter(Boolean).join('|');
     assert.match(values, /Петренко Петро Петрович/);

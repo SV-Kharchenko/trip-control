@@ -284,13 +284,6 @@ export function tsSections(doc) {
             ['Спідометр, км', n1(doc.return_odometer)],
             ['Залишок пального, л', n1(doc.return_fuel_left)],
         ] : [['Статус', doc.status === 'cancelled' ? 'Анульовано' : 'Не закрито — дані повернення ще не внесено']] },
-        { title: 'Розрахунок', rows: closed ? [
-            ['Пробіг, км', n1(doc.distance_km)],
-            ['Витрата фактична, л', n1(doc.fuel_actual)],
-            ['Витрата за нормою, л', doc.fuel_norm === null || doc.fuel_norm === undefined ? DASH + ' (' + NORM_NEEDS_LOADED_KM.toLowerCase() + ')' : n1(doc.fuel_norm)],
-            ['Різниця, л', doc.fuel_diff === null || doc.fuel_diff === undefined ? DASH
-                : `${Number(doc.fuel_diff) > 0 ? '+' : ''}${n1(doc.fuel_diff)} (${Number(doc.fuel_diff) > 0 ? 'перевитрата' : Number(doc.fuel_diff) < 0 ? 'економія' : 'за нормою'})`],
-        ] : [['Розрахунок', 'Після закриття листа']] },
     ];
 }
 

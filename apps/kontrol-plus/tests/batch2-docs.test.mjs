@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { calcAccepted, CALC_DOC_HINT } from '../src/lib/docs.js';
 import { NORM_NEEDS_LOADED_KM, calcTripSheet, closePayload, fuelNorm, tsFromPrefill, tsSections } from '../src/lib/trip-sheet.js';
+import { tsBackSections, tsTotals } from '../src/lib/trip-sheet-stages.js';
 
 const read = (file) => fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
 const readRoot = (file) => fs.readFileSync(new URL('../../../' + file, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
@@ -35,7 +36,7 @@ test('п.9: без «пробігу з вантажем» норму не рах
     assert.equal(calcTripSheet({ ...base, loaded_km: 60 }).fuel_norm, 26, '60 км × 30% + 40 км × 20%');
     assert.equal(fuelNorm(100, null, 30, 20), null);
     const closed = { status: 'closed', number: 1, doc_date: '2026-10-28', valid_from: '2026-10-28', valid_to: '2026-10-28', vehicle: { fuel_load: 30, fuel_empty: 20 }, task: {}, distance_km: 100, fuel_actual: 20, fuel_norm: null };
-    const calc = tsSections(closed).find((s) => s.title === 'Розрахунок').rows.find(([label]) => label === 'Витрата за нормою, л');
+    const calc = tsBackSections(closed, tsTotals(closed)).find((s) => s.title === 'Підсумки').rows.find(([label]) => label === 'Пальне за нормою, л');
     assert.ok(calc[1].startsWith('—') && calc[1].includes(NORM_NEEDS_LOADED_KM.toLowerCase()));
 });
 

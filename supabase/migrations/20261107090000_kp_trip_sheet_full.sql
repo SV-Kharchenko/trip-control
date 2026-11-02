@@ -158,7 +158,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.kp_ts_time(p_val text, p_field text)
 RETURNS timestamptz
 LANGUAGE plpgsql
-IMMUTABLE
+STABLE
 SET search_path = public
 AS $$
 BEGIN

@@ -219,9 +219,9 @@ export function tripSheetSheet(doc) {
     for (const r of [...stageRows, ...blankRows]) b.row(r.map((v, i) => ({ v, s: i >= 7 ? 'cell' : 'wrap' })), { height: 30 });
     b.blank();
     const back = tsBackSections(doc, tsTotals(doc));
-    for (const section of [base[4], back[0], base[5], back[1]]) kv(section);
+    for (const section of [base[4], back[0], back[1]]) kv(section);
     return {
-        name: `Подорожній лист ${docNumberText(doc)}`, columns: [4, 22, 12, 22, 22, 26, 26, 11, 8, 11], rows: b.rows, merges: b.merges, landscape: true, breaks: [breakAfter],
+        name: `Подорожній лист ${docNumberText(doc)}`, columns: [4, 20, 16, 22, 22, 26, 26, 11, 6, 10], rows: b.rows, merges: b.merges, landscape: true, breaks: [breakAfter],
     };
 }
 
