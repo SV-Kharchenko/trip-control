@@ -60,7 +60,7 @@ function app() {
         // Бейдж ТО на вкладці «Ремонти»: з рядків, що вже завантажив розділ «ТО», або новим запитом.
         onMaintenance: (rows) => paintRepairsBadge(tabs.repairs, rows),
         refreshMaintenance: () => { loadRepairsBadge(); },
-        onPlanLost: () => { state.context = null; syncGpsTab(); render(); },
+        onPlanLost: () => { state.context = null; window.tcKpRole = null; syncGpsTab(); render(); },
         onCleanup: (fn) => { cleanups.push(fn); },
     };
 }
@@ -185,6 +185,8 @@ async function loadContext() {
     if (!state.session || state.session.user.id !== userId) return null;
     if (error) return { error };
     state.context = (data && data[0]) || { control_plus: false };
+    // Роль у Контроль+ (owner / logist / director) для сторінки сайту: «Реєстр заявок» показує кнопки директору з org_directors.
+    window.tcKpRole = state.context.role || null;
     state.repairs = await loadRepairsContext();
     state.contextUser = userId;
     // «Документи» — у фоні: вкладка зʼявиться, щойно база відповість, що функції 4a є.
@@ -343,7 +345,7 @@ async function acceptRepairInviteOnce() {
     }
     const hint = document.getElementById('kp-invite-hint');
     if (hint) hint.remove();
-    state.context = null;
+    state.context = null; window.tcKpRole = null;
     state.contextUser = null;
     await refreshGpsTab();
     toast('Ви — менеджер з ремонтів' + (out.org_name ? ' компанії «' + out.org_name + '»' : '') + '.');
@@ -547,7 +549,7 @@ export async function startBridge() {
         const changedUser = (state.session && state.session.user.id) !== (session && session.user.id);
         state.session = session;
         if (event === 'SIGNED_OUT' || changedUser) {
-            state.context = null;
+            state.context = null; window.tcKpRole = null;
             state.contextUser = null;
             state.repairs = null;
             state.docs = null;

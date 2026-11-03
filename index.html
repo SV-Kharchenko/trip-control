@@ -13864,8 +13864,13 @@
     }
     // Скасування прийнятої заявки (директор або логіст із правом): причина обов'язкова; сервер перевіряє ту саму умову.
     // Дзеркало lib/approvals.js (accepted -> cancelled): директор, або логіст із правом у режимі logist_can_accept. Сервер перевіряє так само.
+    // Директор Контроль+ (org_directors): міст КП виставляє window.tcKpRole з kp_context(). Права — як у lib/approvals.js (role: 'director').
+    function kpDirectorActive() {
+        return isKP() && typeof window !== 'undefined' && window.tcKpRole === 'director';
+    }
     function canCancelStatus(status) {
         if (status !== 'accepted') return false;
+        if (kpDirectorActive()) return true;
         if (currentOrgRole === 'owner') return approvalRole() === 'director';
         const me = (teamState.members || []).find(function (item) { return item.id === currentUserId; });
         return currentOrgRole === 'logist' && teamState.approval_mode === 'logist_can_accept' && Boolean(me && me.permissions && me.permissions.accept);
@@ -14963,16 +14968,18 @@
         if (f.status) out.status = f.status;
         if (f.user && currentWorkMode === 'team' && REGISTRY_UUID.test(f.user)) out.user_id = f.user;
         if (f.vehicle && REGISTRY_UUID.test(f.vehicle)) out.vehicle = f.vehicle;
+        if (f.client && isKP() && REGISTRY_UUID.test(f.client)) out.client = f.client;
         return out;
     }
+    // Локальний режим (вся вибірка до 5000 на клієнті): пошук, а на сайті ще й клієнт за назвою. У КП клієнт іде на сервер як uuid.
     function registryNeedsLocal(f) {
-        return Boolean(f.q || f.client);
+        return Boolean(f.q || (f.client && !isKP()));
     }
     function registryRouteLabel(row) {
         return row.route_from && row.route_to ? row.route_from + ' → ' + row.route_to : (row.name || 'Рейс');
     }
     function registryRowMatches(row, f) {
-        if (f.client && String(row.client_name || '') !== f.client) return false;
+        if (f.client && !isKP() && String(row.client_name || '') !== f.client) return false;
         if (f.q) {
             const hay = [row.registry_no, row.route_from, row.route_to, row.name].join(' ').toLowerCase();
             if (hay.indexOf(f.q.toLowerCase()) < 0) return false;
@@ -15013,7 +15020,7 @@
     function registryRowCan(row) {
         const accepted = row.status === 'accepted';
         return {
-            complete: accepted && (currentOrgRole === 'owner' || row.user_id === currentUserId),
+            complete: accepted && (kpDirectorActive() || currentOrgRole === 'owner' || row.user_id === currentUserId),
             cancel: accepted && canCancelStatus('accepted')
         };
     }
@@ -15074,12 +15081,21 @@
         try { localStorage.setItem(registryStorageKey(), JSON.stringify(registryFilters)); } catch (e) { /* без збереження фільтри працюють у сесії */ }
     }
     // Варіанти селектів: авто з автопарку, клієнти зі збережених заявок, учасники команди (лише team).
+    // Клієнти Контроль+ (id → назва) для фільтра; на сайті таблиці clients немає.
+    let registryClients = null;
+    async function registryLoadClients() {
+        registryClients = [];
+        try {
+            const { data, error } = await supabaseClient.from('clients').select('id, name').order('name');
+            if (!error && Array.isArray(data)) registryClients = data.filter(function (c) { return c && c.id; }).map(function (c) { return [String(c.id), c.name || 'Клієнт']; });
+        } catch (e) { /* без списку фільтр клієнта порожній */ }
+    }
     function registrySelectOptions() {
         const names = {};
         savedCalculations.forEach(function (row) { if (row.clientName) names[row.clientName] = true; });
         return {
             vehicle: (fleetVehicles || []).filter(function (v) { return v && v.id; }).map(function (v) { return [String(v.id), v.label || 'Авто']; }),
-            client: Object.keys(names).sort().map(function (n) { return [n, n]; }),
+            client: isKP() ? (registryClients || []) : Object.keys(names).sort().map(function (n) { return [n, n]; }),
             user: currentWorkMode === 'team' ? (teamState.members || []).map(function (m) { return [m.id, m.email || String(m.id).slice(0, 8)]; }) : []
         };
     }
@@ -15215,7 +15231,8 @@
         registryState.loading = false;
         registryRender();
     }
-    function registryOpen() {
+    async function registryOpen() {
+        if (isKP() && registryClients === null) await registryLoadClients();
         if (!registryFilters) registryFilters = registryNormalizeFilters(registryReadStored());
         registryFilters = registrySanitizeFilters(registryFilters, registrySelectOptions());
         registrySaveFilters();

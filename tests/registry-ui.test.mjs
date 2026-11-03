@@ -1,7 +1,7 @@
 // «Реєстр заявок» (PR B): фільтри → filters jsonb, підсумки без скасованих, CSV з причиною, кнопки за ролями й approval_mode,
 // solo без колонки логіста, серверна пагінація, розмітка вкладки, мобільна версія, сповіщення.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { test } from 'node:test';
 
@@ -23,7 +23,7 @@ const constLine = (name) => {
     return html.slice(start, html.indexOf(';\n', start) + 1);
 };
 const SYNC = ['registryMonthRange', 'registryDefaultFilters', 'registryNormalizeFilters', 'registryFiltersToJson', 'registryNeedsLocal', 'registryRouteLabel',
-    'registryRowMatches', 'registryTotalsOf', 'registryTotalsFromRpc', 'registryRowCan', 'canCancelStatus', 'approvalRole', 'registryVehicleLabel', 'registryColumns',
+    'registryRowMatches', 'registryTotalsOf', 'registryTotalsFromRpc', 'registryRowCan', 'kpDirectorActive', 'canCancelStatus', 'approvalRole', 'registryVehicleLabel', 'registryColumns',
     'registryCellValue', 'registryCsv', 'historyCsvCell', 'registryStorageKey', 'registryReadStored', 'registrySaveFilters', 'registrySelectOptions', 'registrySanitizeFilters'];
 const ASYNC = ['registryRpcPage', 'registryFetchAllRows', 'registryFetchAll', 'registryLoad'];
 
@@ -36,7 +36,7 @@ function world(extra = {}) {
     const ctx = vm.createContext({
         currentWorkMode: 'team', currentOrgRole: 'owner', currentUserId: 'u-owner', uiView: 'director', uiPreview: false,
         teamState: { members: [], approval_mode: 'owner_only' }, savedCalculations: [], tripActuals: {},
-        currentOrgId: 'org-1', fleetVehicles: [], localStorage: memoryStorage(), tcModal: async () => ({ ok: true }), showToast() {},
+        currentOrgId: 'org-1', isKP: () => false, window: {}, fleetVehicles: [], localStorage: memoryStorage(), tcModal: async () => ({ ok: true }), showToast() {},
         historyTripVehicles: () => [], savedAuthorLabel: (id) => 'user:' + id,
         document: { getElementById: () => null }, console, calls,
         supabaseClient: { rpc: async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; } },
@@ -44,7 +44,7 @@ function world(extra = {}) {
     });
     vm.runInContext(['REGISTRY_PAGE_SIZE', 'REGISTRY_FETCH_ALL_LIMIT', 'REGISTRY_STATUS_LABELS', 'REGISTRY_UUID', 'REGISTRY_LEGACY_STORAGE_KEY', 'REGISTRY_WARNING'].map(constLine).join('\n')
         + '\nlet registryState = { rows: [], total: 0, page: 0, totals: null, loaded: false, loading: false, error: "", focusId: "" };'
-        + '\nlet registryFilters = null;\nlet registryCache = null;\nfunction registryRender() {}\n'
+        + '\nlet registryFilters = null;\nlet registryCache = null;\nlet registryClients = null;\nfunction registryRender() {}\n'
         + SYNC.map((n) => fnSource(n)).join('\n') + '\n' + ASYNC.map((n) => fnSource(n, true)).join('\n'), ctx);
     return ctx;
 }
@@ -283,4 +283,50 @@ test('мобільні картки реєстру: другим рядком к
     const cards = html.slice(html.indexOf("cards.innerHTML = registryState.rows.map"), html.indexOf('function openRegistryRow('));
     assert.ok(cards.includes("registryCellValue(row, 'client'), registryCellValue(row, 'vehicles')"));
     assert.ok(cards.includes("+ ' км'"));
+});
+
+test('директор Контроль+ (org_directors, role director) бачить «Виконана» і «Скасувати» нарівні з директором; без КП-контексту — ні', () => {
+    const row = { id: 'a', status: 'accepted', user_id: 'u-author' };
+    const can = (extra) => run(world(extra), 'registryRowCan(' + JSON.stringify(row) + ')');
+    // Профіль директора — звичайний користувач (логіст/власник своєї компанії); роль director дає kp_context() через міст.
+    for (const role of ['logist', 'owner']) {
+        assert.deepEqual(can({ isKP: () => true, window: { tcKpRole: 'director' }, currentOrgRole: role, currentUserId: 'u-director', uiView: 'logist' }), { complete: true, cancel: true }, role);
+    }
+    assert.deepEqual(can({ isKP: () => true, window: { tcKpRole: 'logist' }, currentOrgRole: 'logist', currentUserId: 'u-director' }), { complete: false, cancel: false }, 'роль logist у КП');
+    assert.deepEqual(can({ isKP: () => false, window: { tcKpRole: 'director' }, currentOrgRole: 'logist', currentUserId: 'u-director' }), { complete: false, cancel: false }, 'на сайті ролі director немає');
+    for (const status of ['done', 'cancelled']) {
+        assert.deepEqual(run(world({ isKP: () => true, window: { tcKpRole: 'director' } }), 'registryRowCan({ id: "a", status: "' + status + '" })'), { complete: false, cancel: false }, status);
+    }
+    const bridge = fs.readFileSync(new URL('../apps/kontrol-plus/src/bridge.js', import.meta.url), 'utf8');
+    assert.ok(bridge.includes('window.tcKpRole = state.context.role || null;'), 'міст передає роль зі kp_context()');
+    assert.ok(bridge.includes('window.tcKpRole = null;'));
+});
+
+test('фільтр «Клієнт»: у КП — uuid із clients на сервер (без локального режиму й registryFetchAll), на сайті — назва й локальний режим', async () => {
+    const C1 = '33333333-3333-4333-8333-333333333333';
+    const kp = world({ isKP: () => true, supabaseClient: { rpc: async (name, args) => { kp.calls.push({ name, args }); return { data: name === 'registry_totals' ? [{ total_count: 1, cancelled_count: 0 }] : [{ id: 'r', status: 'accepted', total_count: 1 }], error: null }; } } });
+    const f = run(kp, 'registryNormalizeFilters({ from: "", to: "", client: "' + C1 + '" })');
+    assert.deepEqual(run(kp, 'registryFiltersToJson(' + JSON.stringify(f) + ')'), { client: C1 });
+    assert.equal(run(kp, 'registryNeedsLocal(' + JSON.stringify(f) + ')'), false);
+    assert.equal(run(kp, 'registryNeedsLocal({ q: "x", client: "" })'), true, 'пошук за назвою/№ лишається локальним');
+    vm.runInContext('registryFilters = registryNormalizeFilters({ from: "", to: "", client: "' + C1 + '" });', kp);
+    // registryFetchAll у КП не викликається: підміняємо на пастку.
+    vm.runInContext('registryFetchAll = async function () { throw new Error("registryFetchAll не має викликатись"); };', kp);
+    await vm.runInContext('registryLoad()', kp);
+    assert.equal(run(kp, 'registryState.error'), '');
+    assert.deepEqual(kp.calls.map((c) => [c.name, c.args.p_limit]), [['registry_list', 50], ['registry_totals', undefined]], 'серверна пагінація 50, не вибірка по 200');
+    assert.deepEqual(JSON.parse(JSON.stringify(kp.calls[0].args.p_filters)), { client: C1 });
+    // Сайт: назва → локальний режим.
+    const site = world({ supabaseClient: { rpc: async (name, args) => { site.calls.push({ name, args }); return { data: [], error: null }; } } });
+    assert.equal(run(site, 'registryNeedsLocal({ q: "", client: "ТОВ А" })'), true);
+    assert.deepEqual(run(site, 'registryFiltersToJson({ from: "", to: "", status: "", user: "", vehicle: "", client: "ТОВ А", q: "" })'), {});
+    assert.equal(run(site, 'registryRowMatches({ client_name: "ТОВ Б" }, { client: "ТОВ А", q: "" })'), false);
+    // У КП варіанти — clients (id → назва); збережений uuid, якого немає у списку, скидається.
+    const withClients = world({ isKP: () => true });
+    vm.runInContext('registryClients = [["' + C1 + '", "ТОВ А"]];', withClients);
+    assert.deepEqual(run(withClients, 'registrySelectOptions().client'), [[C1, 'ТОВ А']]);
+    assert.equal(run(withClients, 'registrySanitizeFilters({ client: "' + C1 + '", user: "", vehicle: "" }, registrySelectOptions()).client'), C1);
+    assert.equal(run(withClients, 'registrySanitizeFilters({ client: "44444444-4444-4444-8444-444444444444", user: "", vehicle: "" }, registrySelectOptions()).client'), '');
+    assert.match(fnSource('registryOpen', true), /isKP\(\) && registryClients === null\) await registryLoadClients\(\)/);
+    assert.match(fnSource('registryLoadClients', true), /from\('clients'\)\.select\('id, name'\)/);
 });
