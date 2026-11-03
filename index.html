@@ -1243,7 +1243,7 @@
         .tc-status.is-proposed { color: var(--accent); border-color: var(--accent); }
         .tc-status.is-accepted, .tc-status.is-done { color: var(--success); border-color: var(--success); }
         .tc-status.is-rejected { color: var(--danger); border-color: var(--danger); }
-        .tc-status.is-cancelled { color: var(--text-muted); border-color: var(--text-muted); text-decoration: line-through; }
+        .tc-status.is-cancelled { color: var(--text-muted); border-color: var(--text-muted); }
         .tc-history-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
         .tc-history-num.is-neg { color: var(--negative); font-weight: 700; }
         .tc-fact-alert, .tc-fact-alert small { color: var(--warning); font-weight: 700; }
@@ -2304,6 +2304,45 @@
         body.layout-studio[data-studio-view="history"] #saved-table td.tc-history-route { min-width: 110px; }
         body.layout-studio[data-studio-view="history"] #history-toggle { pointer-events: none; cursor: default; }
         body.layout-studio[data-studio-view="history"] #history-toggle .tc-history-chev { display: none; }
+        /* «Реєстр заявок»: accepted | done | cancelled; стилі таблиці, фільтрів і карток — ті самі, що в «Заявках». */
+        #registry-section { display: none; }
+        body.layout-studio[data-studio-view="registry"] #registry-section { display: block; grid-column: 1 / -1; margin-top: 0; }
+        body.layout-studio[data-studio-view="registry"] #tc-step-strip,
+        body.layout-studio[data-studio-view="registry"] #studio-overview,
+        body.layout-studio[data-studio-view="registry"] .actions-bar,
+        body.layout-studio[data-studio-view="registry"] #missing-hint,
+        body.layout-studio[data-studio-view="registry"] #onboard-banner,
+        body.layout-studio[data-studio-view="registry"] #cab-warning,
+        body.layout-studio[data-studio-view="registry"] .tc-result-dock,
+        body.layout-studio[data-studio-view="registry"] #studio-columns,
+        body.layout-studio[data-studio-view="registry"] #saved-section { display: none !important; }
+        .tc-registry-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+        .tc-registry-head h2 { margin: 0; font-size: 1.05rem; }
+        .tc-registry-head .tc-history-meta { color: var(--text-muted); font-size: 0.75rem; }
+        .tc-registry-filter-toggle { display: none; }
+        #registry-filters .tc-registry-reset { grid-column: auto; }
+        .tc-registry-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin: 10px 0; }
+        .tc-registry-totals > div {
+            border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 10px;
+            background: color-mix(in srgb, var(--input-bg) 88%, transparent);
+        }
+        .tc-registry-totals b { display: block; font-size: 1rem; font-variant-numeric: tabular-nums; }
+        .tc-registry-totals small { color: var(--text-muted); font-size: 0.7rem; }
+        #registry-table { font-size: 0.75rem; width: 100%; }
+        #registry-table th, #registry-table td { white-space: nowrap; vertical-align: middle; height: 40px; padding-left: 6px; padding-right: 6px; }
+        #registry-table td.tc-history-route { white-space: normal; min-width: 150px; }
+        #registry-table th, #registry-table td { text-align: left; }
+        #registry-table td.is-num, #registry-table th.is-num { text-align: right; font-variant-numeric: tabular-nums; }
+        #registry-table .tc-history-actions { flex-wrap: wrap; min-width: 120px; }
+        .tc-registry-row { cursor: pointer; }
+        .tc-registry-row:hover { background: color-mix(in srgb, var(--input-bg) 70%, transparent); }
+        .tc-registry-row.is-cancelled, .tc-history-card.is-cancelled { opacity: 0.62; }
+        .tc-registry-row.is-focus, .tc-history-card.is-focus { outline: 2px solid var(--gold); outline-offset: -2px; }
+        @media (max-width: 720px) {
+            #registry-section .comparison-table { display: none; }
+            .tc-registry-filter-toggle { display: inline-flex; margin-bottom: 8px; }
+            #registry-filters:not(.is-open) { display: none; }
+        }
         body.layout-studio[data-studio-view="overview"] #tc-step-strip { display: none !important; }
         body.layout-studio[data-studio-view="overview"] #studio-overview { display: block; }
         body.layout-studio[data-studio-view="overview"] #studio-columns { display: none !important; }
@@ -5106,6 +5145,7 @@
                 <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
                 <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Заявки</button>
+                <button type="button" id="studio-nav-registry" onclick="setStudioView('registry')">Реєстр заявок</button>
             </nav>
             <div class="tc-meta">
                 <div class="tc-rates-strip" aria-label="Курси та пальне">
@@ -5748,6 +5788,55 @@
         <input type="number" id="overhead-fin" oninput="calculate()">
         <input type="number" id="total-fleet" oninput="calculate()">
     </div>
+
+    <section class="card" id="registry-section" aria-label="Реєстр заявок" style="margin-top: 20px;">
+        <div class="tc-registry-head">
+            <h2>Реєстр заявок</h2>
+            <span class="tc-history-meta" id="registry-count"></span>
+        </div>
+        <button type="button" class="btn tc-registry-filter-toggle" id="registry-filter-toggle" aria-expanded="false" aria-controls="registry-filters" onclick="toggleRegistryFilters()">Фільтри</button>
+        <div class="tc-history-tools" id="registry-filters">
+            <input type="search" id="registry-q" class="tc-history-search" placeholder="Пошук: № реєстру або маршрут" oninput="registryFilterChanged(true)">
+            <input type="date" id="registry-from" aria-label="Період від" onchange="registryFilterChanged()">
+            <input type="date" id="registry-to" aria-label="Період до" onchange="registryFilterChanged()">
+            <select id="registry-status" aria-label="Статус" onchange="registryFilterChanged()">
+                <option value="">Усі статуси</option>
+                <option value="accepted">Активні</option>
+                <option value="done">Виконані</option>
+                <option value="cancelled">Скасовані</option>
+            </select>
+            <select id="registry-vehicle" aria-label="Авто" onchange="registryFilterChanged()">
+                <option value="">Усі авто</option>
+            </select>
+            <select id="registry-client" aria-label="Клієнт" onchange="registryFilterChanged()">
+                <option value="">Усі клієнти</option>
+            </select>
+            <label class="team-feature" for="registry-user">Логіст
+                <select id="registry-user" onchange="registryFilterChanged()">
+                    <option value="">Усі учасники</option>
+                </select>
+            </label>
+            <button type="button" class="btn tc-registry-reset" onclick="registryResetFilters()">Скинути</button>
+        </div>
+        <p class="tc-history-reason" id="registry-warning" role="status" hidden></p>
+        <div class="tc-registry-totals" id="registry-totals"></div>
+        <div class="comparison-table">
+            <table id="registry-table">
+                <thead id="registry-thead"></thead>
+                <tbody id="registry-tbody"></tbody>
+            </table>
+        </div>
+        <div class="tc-history-cards" id="registry-cards"></div>
+        <div class="tc-history-pager" id="registry-pager" hidden>
+            <button type="button" class="btn" onclick="shiftRegistryPage(-1)">Назад</button>
+            <span id="registry-page-label"></span>
+            <button type="button" class="btn" onclick="shiftRegistryPage(1)">Далі</button>
+        </div>
+        <div class="tc-history-export">
+            <button type="button" class="btn full-only" onclick="registryExportCsv()">Експорт CSV</button>
+            <span class="demo-only tc-history-meta">Експорт реєстру — після оплати.</span>
+        </div>
+    </section>
 
     <div class="card" id="saved-section" style="margin-top: 20px;">
         <button type="button" class="tc-history-toggle" id="history-toggle" aria-expanded="false" aria-controls="history-panel" onclick="toggleHistory()">
@@ -8006,7 +8095,9 @@
         if (event && event.preventDefault) event.preventDefault();
         markNoteRead(id);
         closeCabinet();
-        if (note.ref_kind === 'calculation') {
+        if (note.kind === 'approval_decided' && note.meta && note.meta.decision !== 'rejected') {
+            openRegistryFor(note.ref_id, note.meta.registry_no);
+        } else if (note.ref_kind === 'calculation') {
             setStudioView('history');
             if (currentOrgRole === 'owner' && typeof openApprovalReview === 'function') {
                 if (!savedCalculations.some(function (row) { return row.id === note.ref_id; }) && typeof loadSavedCalculations === 'function') {
@@ -8120,9 +8211,11 @@
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
         const histBtn = document.getElementById('studio-nav-history');
+        const regBtn = document.getElementById('studio-nav-registry');
         if (calcBtn) calcBtn.classList.remove('on');
         if (overBtn) overBtn.classList.remove('on');
         if (histBtn) histBtn.classList.remove('on');
+        if (regBtn) regBtn.classList.remove('on');
     }
     document.addEventListener('click', function (event) {
         const menu = document.getElementById('tc-user-menu');
@@ -9755,14 +9848,17 @@
         if (!document.body.classList.contains('layout-studio')) return;
         const overview = view === 'overview';
         const history = view === 'history';
-        document.body.setAttribute('data-studio-view', overview ? 'overview' : history ? 'history' : 'calc');
+        const registry = view === 'registry';
+        document.body.setAttribute('data-studio-view', overview ? 'overview' : history ? 'history' : registry ? 'registry' : 'calc');
         const calcBtn = document.getElementById('studio-nav-calc');
         const overBtn = document.getElementById('studio-nav-overview');
         const histBtn = document.getElementById('studio-nav-history');
+        const regBtn = document.getElementById('studio-nav-registry');
         const histToggle = document.getElementById('history-toggle');
-        if (calcBtn) calcBtn.classList.toggle('on', !overview && !history);
+        if (calcBtn) calcBtn.classList.toggle('on', !overview && !history && !registry);
         if (overBtn) overBtn.classList.toggle('on', overview);
         if (histBtn) histBtn.classList.toggle('on', history);
+        if (regBtn) regBtn.classList.toggle('on', registry);
         syncCompanyNav(false);
         if (histToggle) {
             histToggle.tabIndex = history ? -1 : 0;
@@ -9771,7 +9867,8 @@
         }
         if (history) setHistoryOpen(true);
         if (overview) renderStudioOverview();
-        if (overview || history) setCalcDetail(false);
+        if (registry) registryOpen();
+        if (overview || history || registry) setCalcDetail(false);
     }
     function isLightTheme() {
         return document.body.getAttribute('data-theme') === 'light';
@@ -13415,9 +13512,9 @@
             const fullColumns = 'id, name, user_id, results, inputs, created_at, status, trip_date, route_from, route_to, distance_km, revenue, profit, rate, client_name, trailer_type, vehicles_count, tonnage, trip_days, submitted_at, decided_at, decided_by, reject_reason';
             let full = await supabaseClient
                 .from('calculations')
-                .select(fullColumns + ', approved_variant')
+                .select(fullColumns + ', approved_variant, registry_no, cancel_reason, cancelled_at')
                 .order('created_at', { ascending: false });
-            if (full.error && /approved_variant/i.test(String(full.error.message || full.error))) {
+            if (full.error && /approved_variant|registry_no|cancel_reason|cancelled_at/i.test(String(full.error.message || full.error))) {
                 full = await supabaseClient
                     .from('calculations')
                     .select(fullColumns)
@@ -13457,7 +13554,10 @@
                 decidedAt: r.decided_at || null,
                 decidedBy: r.decided_by || null,
                 rejectReason: r.reject_reason || '',
-                approvedVariant: r.approved_variant || null
+                approvedVariant: r.approved_variant || null,
+                registryNo: r.registry_no || '',
+                cancelReason: r.cancel_reason || '',
+                cancelledAt: r.cancelled_at || null
             }));
             await loadCalcVehicleLinks();
             await loadRouteTemplates();
@@ -13763,29 +13863,44 @@
         }
     }
     // Скасування прийнятої заявки (директор або логіст із правом): причина обов'язкова; сервер перевіряє ту саму умову.
-    function canCancelRequest(row) {
-        if (historyFields(row).status !== 'accepted') return false;
+    // Дзеркало lib/approvals.js (accepted -> cancelled): директор, або логіст із правом у режимі logist_can_accept. Сервер перевіряє так само.
+    // Директор Контроль+ (org_directors): міст КП виставляє window.tcKpRole з kp_context(). Права — як у lib/approvals.js (role: 'director').
+    function kpDirectorActive() {
+        return isKP() && typeof window !== 'undefined' && window.tcKpRole === 'director';
+    }
+    function canCancelStatus(status) {
+        if (status !== 'accepted') return false;
+        if (kpDirectorActive()) return true;
         if (currentOrgRole === 'owner') return approvalRole() === 'director';
         const me = (teamState.members || []).find(function (item) { return item.id === currentUserId; });
         return currentOrgRole === 'logist' && teamState.approval_mode === 'logist_can_accept' && Boolean(me && me.permissions && me.permissions.accept);
     }
-    async function cancelRequest(id) {
-        const row = savedCalculations.find(function (item) { return item.id === id; });
-        if (!row) return false;
+    function canCancelRequest(row) {
+        return canCancelStatus(historyFields(row).status);
+    }
+    // Діалог скасування (спільний для «Заявок» і «Реєстру»): повертає причину або null.
+    async function promptCancelReason(label) {
         const answer = await tcModal({
             title: 'Скасувати заявку?',
-            text: historyRouteLabel(historyFields(row)),
+            text: label,
             input: true,
             inputLabel: 'Причина скасування (обов’язково)',
             confirmText: 'Скасувати заявку',
             danger: true
         });
-        if (!answer.ok) return false;
+        if (!answer.ok) return null;
         if (!answer.value) {
             showToast('Вкажіть причину скасування.', 3200, 'error');
-            return false;
+            return null;
         }
-        return runApproval(id, 'calc_cancel', { reason: answer.value }, 'cancelled', 'Заявку скасовано', { cancelReason: answer.value });
+        return answer.value;
+    }
+    async function cancelRequest(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return false;
+        const reason = await promptCancelReason(historyRouteLabel(historyFields(row)));
+        if (!reason) return false;
+        return runApproval(id, 'calc_cancel', { reason: reason }, 'cancelled', 'Заявку скасовано', { cancelReason: reason });
     }
     async function submitForApproval(id) {
         return runApproval(id, 'calc_submit', null, 'pending', 'Заявку відправлено на погодження');
@@ -14564,7 +14679,7 @@
             return String(value);
         }
         let text = String(value);
-        if (/^[=+\-@]/.test(text)) text = "'" + text;
+        if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
         if (/[;"\n\r]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
         return text;
     }
@@ -14802,6 +14917,499 @@
         reviewRender();
         const ok = overlay.querySelector('#tc-review-ok');
         if (ok) ok.focus();
+    }
+
+    // ===== Реєстр заявок: статуси accepted | done | cancelled (RPC registry_list / registry_totals) =====
+    const REGISTRY_PAGE_SIZE = 50;
+    const REGISTRY_FETCH_ALL_LIMIT = 5000;
+    const REGISTRY_LEGACY_STORAGE_KEY = 'tc_registry_filters';
+    const REGISTRY_WARNING = 'Показано перші 5000 записів, звузь період або фільтри';
+    const REGISTRY_STATUS_LABELS = { accepted: 'Активна', done: 'Виконана', cancelled: 'Скасована' };
+    const REGISTRY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let registryState = { rows: [], total: 0, page: 0, totals: null, loaded: false, loading: false, error: '', focusId: '', truncated: false };
+    let registryFilters = null;
+    let registryTimer = null;
+    // Повна вибірка локального режиму: тримається, поки не змінились період, статус, логіст, авто; q і клієнт фільтруються по кешу.
+    let registryCache = null;
+
+    // Поточний місяць за київським часом (а не часом пристрою): межі періоду збігаються з trip_date на сервері.
+    function registryMonthRange(date) {
+        const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit' }).formatToParts(date || new Date());
+        const year = Number(parts.find(function (p) { return p.type === 'year'; }).value);
+        const month = Number(parts.find(function (p) { return p.type === 'month'; }).value);
+        const pad = function (n) { return String(n).padStart(2, '0'); };
+        const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        return { from: year + '-' + pad(month) + '-01', to: year + '-' + pad(month) + '-' + pad(last) };
+    }
+    function registryDefaultFilters() {
+        const month = registryMonthRange();
+        return { from: month.from, to: month.to, status: '', user: '', vehicle: '', client: '', q: '' };
+    }
+    // Фільтри з форми або localStorage; відсутній період = поточний місяць, порожній (скинутий користувачем) лишається порожнім.
+    function registryNormalizeFilters(raw) {
+        const base = registryDefaultFilters();
+        const src = raw && typeof raw === 'object' ? raw : {};
+        const date = function (value) { return /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? String(value) : ''; };
+        return {
+            from: 'from' in src ? date(src.from) : base.from,
+            to: 'to' in src ? date(src.to) : base.to,
+            status: ['accepted', 'done', 'cancelled'].indexOf(src.status) >= 0 ? src.status : '',
+            user: String(src.user || ''),
+            vehicle: String(src.vehicle || ''),
+            client: String(src.client || ''),
+            q: String(src.q || '').trim().slice(0, 100)
+        };
+    }
+    // Фільтри для RPC. Пошук (q) і клієнт (за назвою) RPC не знає — їх застосовує клієнт (registryRowMatches).
+    function registryFiltersToJson(f) {
+        const out = {};
+        if (f.from) out.from = f.from;
+        if (f.to) out.to = f.to;
+        if (f.status) out.status = f.status;
+        if (f.user && currentWorkMode === 'team' && REGISTRY_UUID.test(f.user)) out.user_id = f.user;
+        if (f.vehicle && REGISTRY_UUID.test(f.vehicle)) out.vehicle = f.vehicle;
+        if (f.client && isKP() && REGISTRY_UUID.test(f.client)) out.client = f.client;
+        return out;
+    }
+    // Локальний режим (вся вибірка до 5000 на клієнті): пошук, а на сайті ще й клієнт за назвою. У КП клієнт іде на сервер як uuid.
+    function registryNeedsLocal(f) {
+        return Boolean(f.q || (f.client && !isKP()));
+    }
+    function registryRouteLabel(row) {
+        return row.route_from && row.route_to ? row.route_from + ' → ' + row.route_to : (row.name || 'Рейс');
+    }
+    function registryRowMatches(row, f) {
+        if (f.client && !isKP() && String(row.client_name || '') !== f.client) return false;
+        if (f.q) {
+            const hay = [row.registry_no, row.route_from, row.route_to, row.name].join(' ').toLowerCase();
+            if (hay.indexOf(f.q.toLowerCase()) < 0) return false;
+        }
+        return true;
+    }
+    // Підсумки: скасовані рахуються окремо й у суми не входять.
+    function registryTotalsOf(rows) {
+        const sum = function (list, key) {
+            return list.reduce(function (acc, row) {
+                const n = Number(row[key]);
+                return row[key] !== null && row[key] !== undefined && Number.isFinite(n) ? acc + n : acc;
+            }, 0);
+        };
+        const counted = rows.filter(function (row) { return row.status !== 'cancelled'; });
+        return {
+            count: counted.length,
+            cancelled: rows.length - counted.length,
+            revenue: sum(counted, 'revenue'),
+            profit_plan: sum(counted, 'profit'),
+            profit_fact: sum(counted, 'fact_profit'),
+            distance: sum(counted, 'distance_km')
+        };
+    }
+    function registryTotalsFromRpc(row) {
+        const total = Number(row && row.total_count) || 0;
+        const cancelled = Number(row && row.cancelled_count) || 0;
+        return {
+            count: total - cancelled,
+            cancelled: cancelled,
+            revenue: Number(row && row.revenue) || 0,
+            profit_plan: Number(row && row.profit_plan) || 0,
+            profit_fact: Number(row && row.profit_fact) || 0,
+            distance: Number(row && row.distance_km) || 0
+        };
+    }
+    // Кнопки рядка (дзеркало lib/approvals.js; сервер перевіряє так само): «Виконана» — автор або директор, «Скасувати» — canCancelStatus.
+    function registryRowCan(row) {
+        const accepted = row.status === 'accepted';
+        return {
+            complete: accepted && (kpDirectorActive() || currentOrgRole === 'owner' || row.user_id === currentUserId),
+            cancel: accepted && canCancelStatus('accepted')
+        };
+    }
+    function registryVehicleLabel(row) {
+        const saved = savedCalculations.find(function (item) { return item.id === row.id; });
+        const labels = saved ? historyTripVehicles(saved).map(function (item) { return String(item.label || '').trim(); }).filter(Boolean) : [];
+        return labels.join(', ');
+    }
+    // Колонки таблиці й CSV (без дій); колонка «Логіст» лише в режимі team.
+    function registryColumns() {
+        const columns = [
+            { key: 'no', title: '№ реєстру' }, { key: 'date', title: 'Дата рейсу' }, { key: 'route', title: 'Маршрут' },
+            { key: 'client', title: 'Клієнт' }, { key: 'vehicles', title: 'Авто' }
+        ];
+        if (currentWorkMode === 'team') columns.push({ key: 'user', title: 'Логіст' });
+        return columns.concat([
+            { key: 'status', title: 'Статус' }, { key: 'km', title: 'Км', num: true }, { key: 'revenue', title: 'Виручка', num: true },
+            { key: 'profit', title: 'Прибуток план', num: true }, { key: 'fact', title: 'Прибуток факт', num: true }
+        ]);
+    }
+    function registryCellValue(row, key) {
+        const num = function (value) { return value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value); };
+        if (key === 'no') return row.registry_no || '';
+        if (key === 'date') return row.trip_date ? String(row.trip_date).slice(0, 10) : '';
+        if (key === 'route') return registryRouteLabel(row);
+        if (key === 'client') return row.client_name || '';
+        if (key === 'vehicles') return registryVehicleLabel(row);
+        if (key === 'user') return savedAuthorLabel(row.user_id);
+        if (key === 'status') return REGISTRY_STATUS_LABELS[row.status] || row.status;
+        if (key === 'km') return num(row.distance_km);
+        if (key === 'revenue') return num(row.revenue);
+        if (key === 'profit') return num(row.profit);
+        if (key === 'fact') return num(row.fact_profit);
+        return '';
+    }
+    // CSV усіх рядків за фільтром: колонки таблиці плюс причина скасування (той самий екранувальник, що в історії).
+    function registryCsv(rows) {
+        const columns = registryColumns();
+        const lines = [columns.map(function (c) { return c.title; }).concat(['Причина скасування']).map(historyCsvCell).join(';')];
+        rows.forEach(function (row) {
+            lines.push(columns.map(function (c) { return registryCellValue(row, c.key); })
+                .concat([row.status === 'cancelled' ? (row.cancel_reason || '') : '']).map(historyCsvCell).join(';'));
+        });
+        return '﻿' + lines.join('\r\n');
+    }
+
+    // Фільтри окремі для кожної пари компанія + користувач: tc_registry_filters:<org_id>:<user_id>.
+    function registryStorageKey() {
+        return REGISTRY_LEGACY_STORAGE_KEY + ':' + (currentOrgId || '-') + ':' + (currentUserId || '-');
+    }
+    function registryReadStored() {
+        try {
+            localStorage.removeItem(REGISTRY_LEGACY_STORAGE_KEY);
+            return JSON.parse(localStorage.getItem(registryStorageKey()) || 'null');
+        } catch (e) { return null; }
+    }
+    function registrySaveFilters() {
+        try { localStorage.setItem(registryStorageKey(), JSON.stringify(registryFilters)); } catch (e) { /* без збереження фільтри працюють у сесії */ }
+    }
+    // Варіанти селектів: авто з автопарку, клієнти зі збережених заявок, учасники команди (лише team).
+    // Клієнти Контроль+ (id → назва) для фільтра; на сайті таблиці clients немає.
+    let registryClients = null;
+    async function registryLoadClients() {
+        registryClients = [];
+        try {
+            const { data, error } = await supabaseClient.from('clients').select('id, name').order('name');
+            if (!error && Array.isArray(data)) registryClients = data.filter(function (c) { return c && c.id; }).map(function (c) { return [String(c.id), c.name || 'Клієнт']; });
+        } catch (e) { /* без списку фільтр клієнта порожній */ }
+    }
+    function registrySelectOptions() {
+        const names = {};
+        savedCalculations.forEach(function (row) { if (row.clientName) names[row.clientName] = true; });
+        return {
+            vehicle: (fleetVehicles || []).filter(function (v) { return v && v.id; }).map(function (v) { return [String(v.id), v.label || 'Авто']; }),
+            client: isKP() ? (registryClients || []) : Object.keys(names).sort().map(function (n) { return [n, n]; }),
+            user: currentWorkMode === 'team' ? (teamState.members || []).map(function (m) { return [m.id, m.email || String(m.id).slice(0, 8)]; }) : []
+        };
+    }
+    // Збережені user / vehicle / client, яких немає серед варіантів, скидаються на «Усі».
+    function registrySanitizeFilters(f, options) {
+        const has = function (list, value) { return !value || list.some(function (o) { return o[0] === value; }); };
+        return Object.assign({}, f, {
+            user: has(options.user, f.user) ? f.user : '',
+            vehicle: has(options.vehicle, f.vehicle) ? f.vehicle : '',
+            client: has(options.client, f.client) ? f.client : ''
+        });
+    }
+    function registryReadControls() {
+        const value = function (id) { const el = document.getElementById(id); return el ? el.value : ''; };
+        registryFilters = registryNormalizeFilters({
+            from: value('registry-from'), to: value('registry-to'), status: value('registry-status'), user: value('registry-user'),
+            vehicle: value('registry-vehicle'), client: value('registry-client'), q: value('registry-q')
+        });
+    }
+    function registryApplyControls() {
+        const set = function (id, v) { const el = document.getElementById(id); if (el) el.value = v; };
+        const f = registryFilters;
+        set('registry-from', f.from); set('registry-to', f.to); set('registry-status', f.status);
+        set('registry-user', f.user); set('registry-vehicle', f.vehicle); set('registry-client', f.client); set('registry-q', f.q);
+    }
+    function registryPopulateSelects() {
+        const fill = function (id, first, options, keep) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.innerHTML = '<option value="">' + first + '</option>' + options.map(function (o) {
+                return '<option value="' + escHtml(o[0]) + '">' + escHtml(o[1]) + '</option>';
+            }).join('');
+            el.value = options.some(function (o) { return o[0] === keep; }) ? keep : '';
+        };
+        const f = registryFilters;
+        const options = registrySelectOptions();
+        fill('registry-vehicle', 'Усі авто', options.vehicle, f.vehicle);
+        fill('registry-client', 'Усі клієнти', options.client, f.client);
+        fill('registry-user', 'Усі учасники', options.user, f.user);
+    }
+
+    // Рядки у форматі registry_list з локальних збережених заявок (режим перегляду без бази, ?preview=1).
+    function registryLocalRows(f) {
+        const rows = savedCalculations.filter(function (row) {
+            const status = historyFields(row).status;
+            if (status !== 'accepted' && status !== 'done' && status !== 'cancelled') return false;
+            const fields = historyFields(row);
+            const day = fields.date ? String(fields.date).slice(0, 10) : '';
+            if (f.from && day && day < f.from) return false;
+            if (f.to && day && day > f.to) return false;
+            if (f.status && status !== f.status) return false;
+            if (f.user && row.userId !== f.user) return false;
+            if (f.vehicle && !historyTripVehicles(row).some(function (v) { return String(v.id) === f.vehicle; })) return false;
+            return true;
+        }).map(function (row) {
+            const fields = historyFields(row);
+            const actual = tripActuals[row.id];
+            return {
+                id: row.id, registry_no: row.registryNo || '', status: fields.status, user_id: row.userId, name: row.name || row.routeName || '',
+                client_name: fields.client || '', trip_date: fields.date || null, route_from: fields.from || null, route_to: fields.to || null,
+                distance_km: fields.km, revenue: fields.revenue, profit: fields.profit,
+                fact_profit: actual && Number.isFinite(Number(actual.profit)) ? Number(actual.profit) : null,
+                cancel_reason: row.cancelReason || '', cancelled_at: row.cancelledAt || null, created_at: row.createdAt
+            };
+        });
+        rows.sort(function (a, b) { return String(b.registry_no).localeCompare(String(a.registry_no)) || String(b.created_at).localeCompare(String(a.created_at)); });
+        return rows;
+    }
+    async function registryRpcPage(json, limit, offset) {
+        const { data, error } = await supabaseClient.rpc('registry_list', { p_filters: json, p_limit: limit, p_offset: offset });
+        if (error) throw error;
+        return data || [];
+    }
+    // Усі рядки за серверними фільтрами (для експорту, пошуку й клієнтського фільтра): сторінками по 200 до REGISTRY_FETCH_ALL_LIMIT.
+    // truncated = дійшли до ліміту, частину записів не завантажено.
+    async function registryFetchAllRows(f) {
+        const json = registryFiltersToJson(f);
+        const key = JSON.stringify([uiPreview, json]);
+        if (registryCache && registryCache.key === key) return registryCache;
+        let all = [];
+        let truncated = false;
+        if (uiPreview) {
+            all = registryLocalRows(f);
+        } else {
+            truncated = true;
+            for (let offset = 0; offset < REGISTRY_FETCH_ALL_LIMIT; offset += 200) {
+                const part = await registryRpcPage(json, 200, offset);
+                all = all.concat(part);
+                if (part.length < 200) { truncated = false; break; }
+            }
+        }
+        registryCache = { key: key, rows: all, truncated: truncated };
+        return registryCache;
+    }
+    async function registryFetchAll(f) {
+        const full = await registryFetchAllRows(f);
+        registryState.truncated = full.truncated;
+        return full.rows.filter(function (row) { return registryRowMatches(row, f); });
+    }
+    async function registryLoad() {
+        if (!registryFilters) return;
+        registryState.loading = true;
+        registryState.error = '';
+        registryState.truncated = false;
+        registryRender();
+        const f = registryFilters;
+        try {
+            if (uiPreview || registryNeedsLocal(f)) {
+                const all = await registryFetchAll(f);
+                const pages = Math.max(1, Math.ceil(all.length / REGISTRY_PAGE_SIZE));
+                if (registryState.page >= pages) registryState.page = pages - 1;
+                registryState.rows = all.slice(registryState.page * REGISTRY_PAGE_SIZE, (registryState.page + 1) * REGISTRY_PAGE_SIZE);
+                registryState.total = all.length;
+                registryState.totals = registryTotalsOf(all);
+            } else {
+                const json = registryFiltersToJson(f);
+                let part = await registryRpcPage(json, REGISTRY_PAGE_SIZE, registryState.page * REGISTRY_PAGE_SIZE);
+                if (!part.length && registryState.page > 0) {
+                    registryState.page = 0;
+                    part = await registryRpcPage(json, REGISTRY_PAGE_SIZE, 0);
+                }
+                registryState.rows = part;
+                registryState.total = part.length ? Number(part[0].total_count) || 0 : 0;
+                const totals = await supabaseClient.rpc('registry_totals', { p_filters: json });
+                if (totals.error) throw totals.error;
+                registryState.totals = registryTotalsFromRpc((totals.data || [])[0]);
+            }
+            registryState.loaded = true;
+        } catch (e) {
+            console.error('Реєстр заявок:', e);
+            registryState.error = 'Не вдалося завантажити реєстр. Спробуйте ще раз.';
+        }
+        registryState.loading = false;
+        registryRender();
+    }
+    async function registryOpen() {
+        if (isKP() && registryClients === null) await registryLoadClients();
+        if (!registryFilters) registryFilters = registryNormalizeFilters(registryReadStored());
+        registryFilters = registrySanitizeFilters(registryFilters, registrySelectOptions());
+        registrySaveFilters();
+        registryCache = null;
+        registryPopulateSelects();
+        registryApplyControls();
+        registryLoad();
+    }
+    function registryFilterChanged(debounce) {
+        registryReadControls();
+        registrySaveFilters();
+        registryState.page = 0;
+        clearTimeout(registryTimer);
+        if (debounce) registryTimer = setTimeout(registryLoad, 250);
+        else registryLoad();
+    }
+    function registryResetFilters() {
+        registryCache = null;
+        registryFilters = registryDefaultFilters();
+        registrySaveFilters();
+        registryState.page = 0;
+        registryApplyControls();
+        registryLoad();
+    }
+    function toggleRegistryFilters() {
+        const box = document.getElementById('registry-filters');
+        const button = document.getElementById('registry-filter-toggle');
+        if (!box) return;
+        const open = box.classList.toggle('is-open');
+        if (button) button.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function shiftRegistryPage(delta) {
+        registryState.page = Math.max(0, registryState.page + delta);
+        registryLoad();
+    }
+
+    function registryRender() {
+        const thead = document.getElementById('registry-thead');
+        const tbody = document.getElementById('registry-tbody');
+        const cards = document.getElementById('registry-cards');
+        if (!thead || !tbody) return;
+        const columns = registryColumns();
+        const team = currentWorkMode === 'team';
+        thead.innerHTML = '<tr>' + columns.map(function (c) { return '<th' + (c.num ? ' class="is-num"' : '') + '>' + escHtml(c.title) + '</th>'; }).join('') + '<th>Дії</th></tr>';
+        const countEl = document.getElementById('registry-count');
+        const totalsEl = document.getElementById('registry-totals');
+        const warnEl = document.getElementById('registry-warning');
+        if (warnEl) {
+            warnEl.hidden = !registryState.truncated;
+            warnEl.textContent = registryState.truncated ? REGISTRY_WARNING : '';
+        }
+        const t = registryState.totals;
+        if (countEl) countEl.textContent = registryState.loaded ? String(registryState.total) + ' шт' : '';
+        const money = function (n) { return displayMinus(formatMoney(n)); };
+        if (totalsEl) {
+            totalsEl.innerHTML = t ? [
+                ['Заявок', String(t.count), t.cancelled ? 'скасованих: ' + t.cancelled + ' (не в сумах)' : 'без скасованих'],
+                ['Виручка', money(t.revenue), 'без скасованих'],
+                ['Прибуток план', money(t.profit_plan), 'без скасованих'],
+                ['Прибуток факт', money(t.profit_fact), 'за внесеним фактом'],
+                ['Км', formatHistoryNum(t.distance, 0) + ' км', 'без скасованих']
+            ].map(function (item) { return '<div><small>' + escHtml(item[0]) + '</small><b>' + escHtml(item[1]) + '</b><small>' + escHtml(item[2]) + '</small></div>'; }).join('') : '';
+        }
+        const pages = Math.max(1, Math.ceil(registryState.total / REGISTRY_PAGE_SIZE));
+        const pager = document.getElementById('registry-pager');
+        const pageLabel = document.getElementById('registry-page-label');
+        if (pager) pager.hidden = registryState.total <= REGISTRY_PAGE_SIZE;
+        if (pageLabel) pageLabel.textContent = (registryState.page + 1) + ' / ' + pages;
+        if (registryState.error || !registryState.rows.length) {
+            const message = registryState.error || (registryState.loading ? 'Завантаження…' : 'За цими фільтрами заявок немає.');
+            tbody.innerHTML = '<tr><td colspan="' + (columns.length + 1) + '" style="text-align: center; color: var(--text-muted);">' + escHtml(message) + '</td></tr>';
+            if (cards) cards.innerHTML = '<p class="tc-history-meta">' + escHtml(message) + '</p>';
+            return;
+        }
+        const money0 = function (n) { return n === null ? '—' : money(n); };
+        const cell = function (row, c) {
+            const value = registryCellValue(row, c.key);
+            if (c.key === 'route') {
+                return '<td class="tc-history-route"><b>' + escHtml(value) + '</b>' +
+                    (row.status === 'cancelled' ? '<small class="tc-history-reason">Скасовано: ' + escHtml(row.cancel_reason || 'без причини') + '</small>' : '') + '</td>';
+            }
+            if (c.key === 'status') return '<td><span class="tc-status is-' + escHtml(row.status) + '">' + escHtml(value) + '</span></td>';
+            if (c.key === 'date') return '<td>' + escHtml(formatHistoryDate(value)) + '</td>';
+            if (c.key === 'km') return '<td class="is-num">' + (value === null ? '—' : escHtml(formatHistoryNum(value, 0))) + '</td>';
+            if (c.num) return '<td class="is-num">' + escHtml(money0(value)) + '</td>';
+            if (c.key === 'no') return '<td class="is-num"><b>' + escHtml(value || '—') + '</b></td>';
+            return '<td>' + escHtml(value || '—') + '</td>';
+        };
+        const actions = function (row) {
+            const can = registryRowCan(row);
+            const id = escHtml(row.id);
+            const parts = [];
+            if (can.complete) parts.push('<button type="button" onclick="event.stopPropagation(); registryComplete(\'' + id + '\')">Виконана</button>');
+            if (can.cancel) parts.push('<button type="button" class="is-danger" onclick="event.stopPropagation(); registryCancel(\'' + id + '\')">Скасувати</button>');
+            return parts.length ? '<div class="tc-history-actions">' + parts.join('') + '</div>' : '';
+        };
+        tbody.innerHTML = registryState.rows.map(function (row) {
+            const reason = row.status === 'cancelled' ? ' title="' + escHtml('Скасовано: ' + (row.cancel_reason || 'без причини')) + '"' : '';
+            return '<tr class="tc-registry-row' + (row.status === 'cancelled' ? ' is-cancelled' : '') + (row.id === registryState.focusId ? ' is-focus' : '') + '" data-id="' + escHtml(row.id) + '"' + reason +
+                ' onclick="openRegistryRow(\'' + escHtml(row.id) + '\')">' + columns.map(function (c) { return cell(row, c); }).join('') + '<td>' + actions(row) + '</td></tr>';
+        }).join('');
+        if (cards) {
+            cards.innerHTML = registryState.rows.map(function (row) {
+                return '<article class="tc-history-card' + (row.status === 'cancelled' ? ' is-cancelled' : '') + (row.id === registryState.focusId ? ' is-focus' : '') + '" onclick="openRegistryRow(\'' + escHtml(row.id) + '\')">' +
+                    '<b>' + escHtml((row.registry_no || '—') + ' · ' + registryRouteLabel(row)) + '</b>' +
+                    '<div class="tc-history-meta">' + escHtml(formatHistoryDate(registryCellValue(row, 'date'))) + (team ? ' · ' + escHtml(savedAuthorLabel(row.user_id)) : '') +
+                    ' · <span class="tc-status is-' + escHtml(row.status) + '">' + escHtml(registryCellValue(row, 'status')) + '</span></div>' +
+                    '<div class="tc-history-meta">' + escHtml([registryCellValue(row, 'client'), registryCellValue(row, 'vehicles'),
+                        registryCellValue(row, 'km') === null ? '' : formatHistoryNum(registryCellValue(row, 'km'), 0) + ' км'].filter(Boolean).join(' · ') || '—') + '</div>' +
+                    (row.status === 'cancelled' ? '<div class="tc-history-meta tc-history-reason">Скасовано: ' + escHtml(row.cancel_reason || 'без причини') + '</div>' : '') +
+                    '<div class="tc-history-meta">Виручка ' + escHtml(money0(registryCellValue(row, 'revenue'))) + ' · Прибуток ' + escHtml(money0(registryCellValue(row, 'profit'))) + '</div>' +
+                    actions(row) + '</article>';
+            }).join('');
+        }
+    }
+
+    function openRegistryRow(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (row) { openSaved(id); return; }
+        loadSavedCalculations().then(function () {
+            if (savedCalculations.some(function (item) { return item.id === id; })) openSaved(id);
+            else showToast('Заявку не знайдено в історії.', 3200, 'error');
+        });
+    }
+    // Сповіщення approval_decided: реєстр на цій заявці (період і статус знімаємо, шукаємо за № реєстру).
+    function openRegistryFor(id, registryNo) {
+        registryFilters = Object.assign(registryNormalizeFilters(registryReadStored()), { from: '', to: '', status: '', user: '', vehicle: '', client: '', q: registryNo || '' });
+        registryState.focusId = id || '';
+        registryState.page = 0;
+        registrySaveFilters();
+        setStudioView('registry');
+    }
+    async function registryAct(id, action, body, nextStatus, okText) {
+        try {
+            if (!uiPreview) await teamApi('POST', Object.assign({ action: action, id: id }, body || {}));
+            const saved = savedCalculations.find(function (item) { return item.id === id; });
+            if (saved) {
+                saved.status = nextStatus;
+                if (body && body.reason) saved.cancelReason = body.reason;
+                renderSavedTable();
+            }
+            showToast(okText, 2400, 'ok');
+            registryCache = null;
+            await registryLoad();
+        } catch (e) {
+            showToast(approvalErrorText(e), 4200, 'error');
+        }
+    }
+    async function registryComplete(id) {
+        return registryAct(id, 'calc_complete', null, 'done', 'Заявку виконано');
+    }
+    async function registryCancel(id) {
+        const row = registryState.rows.find(function (item) { return item.id === id; });
+        const reason = await promptCancelReason(row ? registryRouteLabel(row) : '');
+        if (!reason) return false;
+        return registryAct(id, 'calc_cancel', { reason: reason }, 'cancelled', 'Заявку скасовано');
+    }
+    async function registryExportCsv() {
+        if (isDemo) return;
+        if (registryFilters && registryFilters.from && registryFilters.to && registryFilters.from > registryFilters.to) {
+            showToast('Дата «від» пізніша за дату «до».');
+            return;
+        }
+        try {
+            const rows = await registryFetchAll(registryFilters || registryDefaultFilters());
+            if (!rows.length) { showToast('За цим фільтром немає заявок.'); return; }
+            if (registryState.truncated) {
+                const answer = await tcModal({ title: 'Експорт неповний', text: REGISTRY_WARNING, confirmText: 'Завантажити все одно' });
+                if (!answer.ok) return;
+            }
+            const f = registryFilters || {};
+            const period = (f.from || f.to) ? '_' + (f.from || 'початок') + '_' + (f.to || 'кінець') : '';
+            downloadHistoryFile('TripControl_реєстр' + period + '.csv', registryCsv(rows), 'text/csv;charset=utf-8');
+            showToast('CSV: ' + rows.length + ' рядків');
+        } catch (e) {
+            showToast('Не вдалося сформувати експорт. Спробуйте ще раз.', 3600, 'error');
+        }
     }
 
     async function exportHistory(kind) {

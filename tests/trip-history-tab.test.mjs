@@ -21,7 +21,7 @@ test('history tab button follows Overview', () => {
 test('setStudioView supports the history view and toggles the tab', () => {
     const body = fnBody('setStudioView');
     assert.match(body, /'history'/);
-    assert.match(body, /data-studio-view', overview \? 'overview' : history \? 'history' : 'calc'/);
+    assert.match(body, /data-studio-view', overview \? 'overview' : history \? 'history' : registry \? 'registry' : 'calc'/);
     assert.match(body, /histBtn\.classList\.toggle\('on', history\)/);
     assert.match(body, /setHistoryOpen\(true\)/);
 });

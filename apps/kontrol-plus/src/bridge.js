@@ -60,7 +60,7 @@ function app() {
         // Бейдж ТО на вкладці «Ремонти»: з рядків, що вже завантажив розділ «ТО», або новим запитом.
         onMaintenance: (rows) => paintRepairsBadge(tabs.repairs, rows),
         refreshMaintenance: () => { loadRepairsBadge(); },
-        onPlanLost: () => { state.context = null; syncGpsTab(); render(); },
+        onPlanLost: () => { state.context = null; window.tcKpRole = null; syncGpsTab(); render(); },
         onCleanup: (fn) => { cleanups.push(fn); },
     };
 }
@@ -122,9 +122,11 @@ function syncNav() {
     const active = tab || (siteView === 'overview' ? 'overview' : 'calc');
     const historyTab = document.getElementById('kp-calc-tab-history');
     const calcTab = document.getElementById('kp-calc-tab-calc');
+    const registryTab = document.getElementById('kp-calc-tab-registry');
     if (historyTab && calcTab) {
         historyTab.classList.toggle('on', siteView === 'history');
-        calcTab.classList.toggle('on', siteView !== 'history');
+        calcTab.classList.toggle('on', siteView !== 'history' && siteView !== 'registry');
+        if (registryTab) registryTab.classList.toggle('on', siteView === 'registry');
     }
     for (const [name, button] of Object.entries(tabs)) {
         button.classList.toggle('on', name === active);
@@ -132,7 +134,7 @@ function syncNav() {
         else button.removeAttribute('aria-current');
     }
     if (!tab) return;
-    for (const id of ['studio-nav-calc', 'studio-nav-overview', 'studio-nav-history']) {
+    for (const id of ['studio-nav-calc', 'studio-nav-overview', 'studio-nav-history', 'studio-nav-registry']) {
         const button = document.getElementById(id);
         if (button && button.classList.contains('on')) button.classList.remove('on');
     }
@@ -183,6 +185,8 @@ async function loadContext() {
     if (!state.session || state.session.user.id !== userId) return null;
     if (error) return { error };
     state.context = (data && data[0]) || { control_plus: false };
+    // Роль у Контроль+ (owner / logist / director) для сторінки сайту: «Реєстр заявок» показує кнопки директору з org_directors.
+    window.tcKpRole = state.context.role || null;
     state.repairs = await loadRepairsContext();
     state.contextUser = userId;
     // «Документи» — у фоні: вкладка зʼявиться, щойно база відповість, що функції 4a є.
@@ -341,7 +345,7 @@ async function acceptRepairInviteOnce() {
     }
     const hint = document.getElementById('kp-invite-hint');
     if (hint) hint.remove();
-    state.context = null;
+    state.context = null; window.tcKpRole = null;
     state.contextUser = null;
     await refreshGpsTab();
     toast('Ви — менеджер з ремонтів' + (out.org_name ? ' компанії «' + out.org_name + '»' : '') + '.');
@@ -508,7 +512,8 @@ function mount() {
     // «Розрахунок» і «Заявки» — вкладки всередині «Розрахунків» (кнопки з верхньої шапки сайту прибрано, щоб не дублювати меню).
     const calcTabs = h('nav', { id: 'kp-calc-tabs', class: 'kp-calc-tabs', 'aria-label': 'Розрахунки' },
         h('button', { type: 'button', id: 'kp-calc-tab-calc', onclick: openSite('calc') }, 'Розрахунок'),
-        h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Заявки'));
+        h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Заявки'),
+        h('button', { type: 'button', id: 'kp-calc-tab-registry', onclick: openSite('registry') }, 'Реєстр заявок'));
     // Одразу під шапкою, над калькулятором (#studio-columns сайт перебудовує, тому прив'язуємось до шапки, а не до нього).
     insertAfterHeader(main, calcTabs, document.getElementById('sticky-top'), root);
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
@@ -544,7 +549,7 @@ export async function startBridge() {
         const changedUser = (state.session && state.session.user.id) !== (session && session.user.id);
         state.session = session;
         if (event === 'SIGNED_OUT' || changedUser) {
-            state.context = null;
+            state.context = null; window.tcKpRole = null;
             state.contextUser = null;
             state.repairs = null;
             state.docs = null;
