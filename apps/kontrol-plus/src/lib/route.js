@@ -41,6 +41,8 @@ export function parseCrmHash(hash) {
     if (!raw.startsWith('/')) return null;
     const parts = raw.split(/[?&]/)[0].split('/').filter(Boolean);
     if (parts[0] === 'docs') return parseDocsHash(parts);
+    // Заявка у вікні (PR 3): #/requests/<id> — реєстр відкриває її вікном над розділом.
+    if (parts[0] === 'requests' && parts.length === 2 && UUID.test(parts[1])) return { view: 'request', id: parts[1] };
     if (parts[0] === 'report' && parts.length === 1) return { view: 'report', sub: 'main' };
     if (parts[0] === 'report' && parts.length === 2 && parts[1] === 'debts') return { view: 'report', sub: 'debts' };
     if (parts[0] === 'fleet' && parts.length === 1) return { view: 'fleet', sub: 'cars' };
@@ -61,4 +63,29 @@ export function tabOf(route) {
     if (!route) return null;
     if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers'].includes(route.view)) return route.view;
     return 'clients';
+}
+
+// Маршрути, які в Контроль+ (≥900px, каркас CRM) відкриваються ВІКНОМ над поточним розділом: картки документів, форми створення,
+// картка / форма клієнта, заявка. Решта (списки, розділи) — звичайна сторінка. Повертає { type, id, key } або null.
+// key — ключ вікна: той самий документ двічі не відкривається. Для форм id — повний hash (з ним форму можна відновити).
+export function windowSpecOf(route, hash) {
+    if (!route) return null;
+    if (route.view === 'docs') {
+        if (route.sub === 'doc') return { type: 'doc', id: route.id, key: 'doc:' + route.id };
+        if (route.sub === 'ttn') return { type: 'ttn', id: route.id, key: 'ttn:' + route.id };
+        if (route.sub === 'trip_sheet') return { type: 'trip_sheet', id: route.id, key: 'trip_sheet:' + route.id };
+        if (route.sub === 'new') {
+            const id = '#/' + String(hash || '').replace(/^#\/?/, '').split(/[?&]/)[0].replace(/\/+$/, '');
+            return { type: 'form', id, key: 'form:' + id };
+        }
+        return null;
+    }
+    if (route.view === 'client') return { type: 'client', id: route.id, key: 'client:' + route.id };
+    if (route.view === 'client-edit') return { type: 'client_form', id: route.id, key: 'client_form:' + route.id };
+    if (route.view === 'client-new') return { type: 'client_form', id: '', key: 'client_form:new' };
+    if (route.view === 'request') return { type: 'request', id: route.id, key: 'request:' + route.id };
+    return null;
+}
+export function isWindowRoute(route) {
+    return windowSpecOf(route, '') !== null || (!!route && route.view === 'docs' && route.sub === 'new');
 }

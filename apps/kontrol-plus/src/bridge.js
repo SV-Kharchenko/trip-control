@@ -4,7 +4,7 @@
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
 import { h, clear, spinner, notice, toast } from './ui.js';
 import { errorText } from './lib/errors.js';
-import { legacyRedirect, parseCrmHash, tabOf } from './lib/route.js';
+import { legacyRedirect, parseCrmHash, tabOf, windowSpecOf } from './lib/route.js';
 import { navIcon } from './nav-icons.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
@@ -20,6 +20,8 @@ import { repairsAccess } from './lib/repairs.js';
 import { callKpApi } from './lib/gps-client.js';
 import { kpVehiclesToSite, needsKpFleet } from './lib/site-fleet.js';
 import { mountShell } from './shell.js';
+import { createWindowManager } from './kp-windows.js';
+import { renderRequestWindow } from './views/request-window.js';
 
 const SITE_URL = 'https://trip-control.com';
 
@@ -191,6 +193,7 @@ async function loadContext() {
     window.tcKpOrgId = state.context.org_id || null;
     // Каркас CRM (shell.js): назва компанії для верхньої панелі; подія перемальовує роль, пункти меню й лічильники.
     window.tcKpOrgName = state.context.org_name || null;
+    syncWindowsScope();
     if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('tc:kp-context'));
     state.repairs = await loadRepairsContext();
     state.contextUser = userId;
@@ -480,11 +483,117 @@ function onCabinetTab(event) {
     if (tab === 'requisites' || tab === 'stats') fillCabinetSlot(tab);
 }
 
+// ===== Вікна поверх розділу (PR 3): картки документів, форми, клієнт, заявка. Лише Контроль+ ≥900px (createWindowManager сам вирішує). =====
+let windows = null;
+let coldStart = true;
+const WINDOW_TITLES = { doc: 'Документ', ttn: 'ТТН', trip_sheet: 'Подорожній лист', form: 'Новий документ', client: 'Клієнт', client_form: 'Клієнт', request: 'Заявка' };
+
+// Те саме, що app(), але навігація зсередини вікна: заміна вікна (після збереження форми), а не перемальовування розділу.
+function winApp(ctl) {
+    return { ...app(), go: (hash) => windowGo(ctl, hash), onCleanup: (fn) => ctl.onClose(fn) };
+}
+function windowGo(ctl, hash) {
+    ctl.close({ force: true }).then(() => {
+        // Той самий hash (напр. список після видалення): події hashchange не буде, тож перемальовуємо розділ самі.
+        if (location.hash === hash) onHash();
+        else location.hash = hash;
+    });
+}
+
+async function buildWindow(type, id, container, ctl) {
+    clear(container, spinner('Завантаження…'));
+    if (!state.session) {
+        clear(container, notice('Увійдіть, щоб відкрити розділ Контроль+.', 'info'));
+        return;
+    }
+    if (!state.context || state.contextUser !== state.session.user.id) {
+        const result = await loadContext();
+        if (result && result.error) { clear(container, notice(errorText(result.error))); return; }
+    }
+    if (crmAccess(state.context) !== 'open') {
+        clear(container, notice('Цей розділ доступний на тарифі Контроль+.', 'info'));
+        return;
+    }
+    if (type === 'request') {
+        await renderRequestWindow(container, id, ctl);
+        return;
+    }
+    const a = winApp(ctl);
+    let view;
+    if (type === 'client') view = renderClientCard(a, id);
+    else if (type === 'client_form') view = renderClientForm(a, id || null);
+    else {
+        if (state.docs === null) await loadDocsAvailability();
+        const access = docsAccess(state.context);
+        if (!access.visible || state.docs !== true) {
+            clear(container, notice('Документи ще не ввімкнено для вашої компанії.', 'info'));
+            return;
+        }
+        if (type === 'doc') view = (await import('./views/docs-card.js')).renderDocCard(a, access, id);
+        else if (type === 'ttn') view = (await import('./views/docs-ttn-card.js')).renderTtnCard(a, access, id);
+        else if (type === 'trip_sheet') view = (await import('./views/docs-ts-card.js')).renderTripSheetCard(a, access, id);
+        else {
+            const route = parseCrmHash(id);
+            if (!route || route.view !== 'docs' || route.sub !== 'new') { clear(container, notice('Не вдалося відкрити форму.')); return; }
+            if (!access.canWrite) view = notice('Створювати документи можуть власник і логіст.', 'info');
+            else if (route.kind === 'ttn') view = (await import('./views/docs-ttn-form.js')).renderTtnForm(a, access, route);
+            else if (route.kind === 'trip_sheet') view = (await import('./views/docs-ts-form.js')).renderTripSheetForm(a, access, route);
+            else view = (await import('./views/docs-form.js')).renderDocForm(a, access, route);
+        }
+    }
+    clear(container, view);
+    ctl.titleFrom(container);
+}
+
+// spec вікна за маршрутом (або за елементом збереженого стану): ключ, тип, id і функція монтування.
+function toWindowSpec(base) {
+    return { ...base, title: WINDOW_TITLES[base.type] || 'Вікно', build: (container, ctl) => buildWindow(base.type, base.id, container, ctl) };
+}
+function specFromItem(item) {
+    if (item.type === 'form') {
+        const route = parseCrmHash(item.id);
+        const base = windowSpecOf(route, item.id);
+        return base ? toWindowSpec(base) : null;
+    }
+    const keyed = { doc: 'doc', ttn: 'ttn', trip_sheet: 'trip_sheet', client: 'client', request: 'request', client_form: 'client_form' }[item.type];
+    if (!keyed) return null;
+    return toWindowSpec({ type: item.type, id: item.id, key: item.type + ':' + (item.type === 'client_form' && !item.id ? 'new' : item.id) });
+}
+
+// Пара компанія / користувач змінилась → усі вікна закриваються; для нової пари відновлюється збережений список (sessionStorage).
+function syncWindowsScope() {
+    if (!windows) return;
+    const orgId = state.context && state.context.org_id;
+    const userId = state.session && state.session.user && state.session.user.id;
+    windows.setScope(orgId || null, userId || null, specFromItem).catch(() => {});
+}
+
+// Розділ за замовчуванням під вікном при прямому заході за посиланням: Реєстр заявок (наявна кнопка вкладки).
+function openDefaultSection() {
+    const tab = document.getElementById('kp-calc-tab-registry');
+    if (tab && typeof tab.click === 'function') tab.click();
+}
+
 function onHash() {
     // Старі підвкладки «Документів» переїхали: Авто й водії → Автопарк, Реквізити → Реквізити компанії, Борги → План/факт.
     const moved = legacyRedirect(location.hash);
     if (moved) history.replaceState(null, '', location.pathname + location.search + moved);
     const route = parseCrmHash(moved || location.hash);
+    if (route && route.view === 'request' && !(windows && windows.enabled())) {
+        // Вікон немає (вузький екран): заявка відкривається, як раніше, — у калькуляторі.
+        history.replaceState(null, '', location.pathname + location.search);
+        if (typeof window.openRegistryRow === 'function') window.openRegistryRow(route.id);
+        return;
+    }
+    if (windows) {
+        const base = windowSpecOf(route, location.hash);
+        // Прямий захід за посиланням на вікно: під ним розділ за замовчуванням.
+        if (base && coldStart && !state.route && windows.count() === 0 && windows.enabled()) openDefaultSection();
+        const handled = windows.handleHash(location.hash, base ? toWindowSpec(base) : null);
+        coldStart = false;
+        if (handled) return;
+    }
+    coldStart = false;
     if (!route) {
         leave();
         return;
@@ -551,6 +660,13 @@ export async function startBridge() {
     const { data } = await state.supabase.auth.getSession();
     state.session = data.session;
     mountShell({ supabase: state.supabase });
+    windows = createWindowManager({
+        storage: (() => { try { return typeof sessionStorage !== 'undefined' ? sessionStorage : null; } catch { return null; } })(),
+        // Підтвердження закриття «брудної» форми — наявний діалог сайту (tcModal), не confirm().
+        confirm: (options) => (typeof tcModal === 'function' ? tcModal(options) : Promise.resolve({ ok: true })), // eslint-disable-line no-undef
+        notify: (text) => toast(text),
+    });
+    window.kpWindowsOn = () => !!(windows && windows.enabled());
     state.supabase.auth.onAuthStateChange((event, session) => {
         const changedUser = (state.session && state.session.user.id) !== (session && session.user.id);
         state.session = session;
@@ -559,6 +675,7 @@ export async function startBridge() {
             state.contextUser = null;
             state.repairs = null;
             state.docs = null;
+            if (windows) windows.setScope(null, null).catch(() => {});
             syncGpsTab();
             // Supabase не можна кликати прямо з колбеку onAuthStateChange.
             if (state.route) setTimeout(render, 0);

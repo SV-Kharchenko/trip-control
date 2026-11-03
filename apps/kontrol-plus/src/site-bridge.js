@@ -3,6 +3,7 @@ import './crm.css';
 import './cabinet-slot.css';
 import './kp-shell.css';
 import './kp-registry.css';
+import './kp-windows.css';
 import { startBridge } from './bridge.js';
 
 startBridge();
