@@ -86,12 +86,14 @@ test('report totals and CSV', () => {
     const total = totals(rows);
     assert.equal(total.trips, 3);
     assert.equal(total.plan_profit, 25000);
+    assert.equal(total.plan_profit_with_fact, 22000);
     assert.equal(total.deviation_profit, 2000);
     assert.equal(total.deviation_pct, 9.1);
+    // CSV: ті самі колонки й назви, що в таблиці (докладно — report-plan-fact.test.mjs); числа без пробілів тисяч
     const csv = reportCsv(rows, 'Клієнти').slice(1).split('\r\n');
-    assert.equal(csv[0], 'Клієнти;Рейсів;З фактом;План: дохід;План: витрати;План: прибуток;Факт: дохід;Факт: витрати;Факт: прибуток;Відхилення прибутку;Відхилення, %');
-    assert.equal(csv[1], 'owner@a.ua;1;1;100000;80000;20000;95000;77000;18000;-2000;-10');
-    assert.equal(csv[3], 'Разом;3;2;150000;125000;25000;135000;111000;24000;2000;9,1');
+    assert.equal(csv[0], 'Клієнти;Рейси (з фактом / усього);Усі рейси: План прибутку;Рейси з фактом: План прибутку;Рейси з фактом: Факт прибутку;Рейси з фактом: Відхилення;Рейси з фактом: %');
+    assert.equal(csv[1], 'owner@a.ua;1 з 1;20000;20000;18000;-2000;-10');
+    assert.equal(csv[3], 'Разом;2 з 3;25000;22000;24000;2000;9,1');
     assert.equal(totals([]).deviation_pct, null);
     assert.deepEqual(GROUPS.map((g) => g.value), ['logist', 'vehicle', 'client', 'direction']);
 });
