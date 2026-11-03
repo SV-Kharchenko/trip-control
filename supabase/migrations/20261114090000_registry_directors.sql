@@ -10,18 +10,21 @@
 --
 -- ЩО ЗМІНЕНО:
 --  * can_view_org(org) — SECURITY DEFINER: org = current_org_id() АБО користувач директор цієї org (kp_is_org_director: org_directors +
---    тариф control_plus). EXECUTE лише authenticated.
+--    тариф control_plus). EXECUTE: authenticated і service_role (для майбутніх викликів API).
 --  * registry_list / registry_totals: необов'язковий ключ filters.org_id (за замовчуванням current_org_id()); явний org_id без доступу —
 --    42501 REGISTRY_FORBIDDEN. Лишаються SECURITY INVOKER: видимість рядків усе одно задає RLS (захист у два шари), а не довіра функції.
---  * Нові SELECT-політики (лише додаються, наявні не змінюються): calculations_select_director, trip_actuals_select_director, а також
---    calc_vehicles_select_director і calculation_clients_select_director (без них у директора не працюють фільтри «авто» і «клієнт»
---    та підсумки). Політики використовують kp_is_org_director(org_id), а не can_view_org: гілка «своя організація» в can_view_org
+--  * Нові SELECT-політики (лише додаються, наявні не змінюються): calculations_select_director — лише pending, accepted, done, cancelled
+--    (чернетки й відхилені логістів директору не показуються; pending потрібні, щоб він міг приймати), trip_actuals_select_director,
+--    calc_vehicles_select_director, calculation_clients_select_director, clients_select_director і fleet_vehicles_select_director
+--    (без них у директора не працюють фільтри «авто» і «клієнт» та підсумки). Лише читання. Політики використовують kp_is_org_director(org_id), а не can_view_org: гілка «своя організація» в can_view_org
 --    розширила б видимість логістів. UPDATE / INSERT / DELETE не розширюються: зміни статусу йдуть через API.
 --
 -- Ідемпотентно. Старі міграції не редагуються.
 --
 -- РУЧНИЙ ВІДКАТ (SQL editor, однією транзакцією; спершу політики, потім функції):
 --   BEGIN;
+--   DROP POLICY IF EXISTS fleet_vehicles_select_director ON public.fleet_vehicles;
+--   DROP POLICY IF EXISTS clients_select_director ON public.clients;
 --   DROP POLICY IF EXISTS calculation_clients_select_director ON public.calculation_clients;
 --   DROP POLICY IF EXISTS calc_vehicles_select_director ON public.calc_vehicles;
 --   DROP POLICY IF EXISTS trip_actuals_select_director ON public.trip_actuals;
@@ -46,7 +49,7 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.can_view_org(uuid) FROM PUBLIC, anon, authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.can_view_org(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_view_org(uuid) TO authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- SELECT для директора Контроль+ (лише читання; kp_is_org_director = org_directors + control_plus)
@@ -55,7 +58,7 @@ GRANT EXECUTE ON FUNCTION public.can_view_org(uuid) TO authenticated;
 DROP POLICY IF EXISTS calculations_select_director ON public.calculations;
 CREATE POLICY calculations_select_director ON public.calculations
   FOR SELECT TO authenticated
-  USING (public.kp_is_org_director(org_id));
+  USING (public.kp_is_org_director(org_id) AND status IN ('pending', 'accepted', 'done', 'cancelled'));
 
 DROP POLICY IF EXISTS trip_actuals_select_director ON public.trip_actuals;
 CREATE POLICY trip_actuals_select_director ON public.trip_actuals
@@ -71,6 +74,16 @@ DROP POLICY IF EXISTS calculation_clients_select_director ON public.calculation_
 CREATE POLICY calculation_clients_select_director ON public.calculation_clients
   FOR SELECT TO authenticated
   USING (EXISTS (SELECT 1 FROM public.calculations AS c WHERE c.id = calculation_clients.calculation_id AND public.kp_is_org_director(c.org_id)));
+
+DROP POLICY IF EXISTS clients_select_director ON public.clients;
+CREATE POLICY clients_select_director ON public.clients
+  FOR SELECT TO authenticated
+  USING (public.kp_is_org_director(org_id));
+
+DROP POLICY IF EXISTS fleet_vehicles_select_director ON public.fleet_vehicles;
+CREATE POLICY fleet_vehicles_select_director ON public.fleet_vehicles
+  FOR SELECT TO authenticated
+  USING (public.kp_is_org_director(org_id));
 
 -- ---------------------------------------------------------------------------
 -- RPC реєстру з необов'язковим org_id у filters (SECURITY INVOKER, сигнатури не змінились)

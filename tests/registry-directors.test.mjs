@@ -47,9 +47,17 @@ test('міграція: can_view_org, org_id у filters, SELECT-політики
     assert.ok(migration.startsWith('-- Apply manually after review. This file is not applied to production by the agent.'));
     const helper = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.can_view_org'), migration.indexOf('-- SELECT для директора'));
     for (const part of ['SECURITY DEFINER', 'SET search_path = public', 'p_org = public.current_org_id() OR public.kp_is_org_director(p_org)',
-        'REVOKE ALL ON FUNCTION public.can_view_org(uuid) FROM PUBLIC, anon, authenticated, service_role;', 'GRANT EXECUTE ON FUNCTION public.can_view_org(uuid) TO authenticated;']) assert.ok(helper.includes(part), part);
-    for (const policy of ['calculations_select_director', 'trip_actuals_select_director', 'calc_vehicles_select_director', 'calculation_clients_select_director']) {
+        'REVOKE ALL ON FUNCTION public.can_view_org(uuid) FROM PUBLIC, anon, authenticated, service_role;', 'GRANT EXECUTE ON FUNCTION public.can_view_org(uuid) TO authenticated, service_role;']) assert.ok(helper.includes(part), part);
+    for (const policy of ['calculations_select_director', 'trip_actuals_select_director', 'calc_vehicles_select_director', 'calculation_clients_select_director',
+        'clients_select_director', 'fleet_vehicles_select_director']) {
         assert.ok(migration.includes('CREATE POLICY ' + policy), policy);
+    }
+    // Чернетки й відхилені логістів директору не видно; лише читання; клієнти й авто — через kp_is_org_director.
+    assert.ok(migration.includes("USING (public.kp_is_org_director(org_id) AND status IN ('pending', 'accepted', 'done', 'cancelled'));"));
+    for (const table of ['clients', 'fleet_vehicles']) {
+        const policy = migration.slice(migration.indexOf('CREATE POLICY ' + table + '_select_director ON public.' + table));
+        assert.ok(policy.startsWith('CREATE POLICY'), table);
+        assert.match(policy.split(';')[0].replace(/\s+/g, ' '), /FOR SELECT TO authenticated USING \(public\.kp_is_org_director\(org_id\)\)$/, table);
     }
     assert.equal(/CREATE POLICY[^;]*FOR (UPDATE|INSERT|DELETE|ALL)/.test(migration), false, 'UPDATE / INSERT / DELETE не розширюються');
     assert.equal(/DROP POLICY IF EXISTS (calculations_select_role|trip_actuals_select|calc_vehicles_select_role|calculation_clients_select) /.test(migration.slice(migration.indexOf('\nBEGIN;\n'))), false, 'наявні політики не чіпаємо');
@@ -61,7 +69,7 @@ test('міграція: can_view_org, org_id у filters, SELECT-політики
     // «РУЧНИЙ ВІДКАТ»: спершу політики, потім функції (одна транзакція).
     const head = migration.slice(migration.indexOf('-- РУЧНИЙ ВІДКАТ'), migration.indexOf('\nBEGIN;\n'));
     const at = (text) => { const i = head.indexOf(text); assert.ok(i >= 0, text); return i; };
-    const policies = ['DROP POLICY IF EXISTS calculation_clients_select_director', 'DROP POLICY IF EXISTS calc_vehicles_select_director',
+    const policies = ['DROP POLICY IF EXISTS fleet_vehicles_select_director', 'DROP POLICY IF EXISTS clients_select_director', 'DROP POLICY IF EXISTS calculation_clients_select_director', 'DROP POLICY IF EXISTS calc_vehicles_select_director',
         'DROP POLICY IF EXISTS trip_actuals_select_director', 'DROP POLICY IF EXISTS calculations_select_director'].map(at);
     const functions = [at('registry_list(jsonb, integer, integer) і registry_totals(jsonb) назад'), at('DROP FUNCTION IF EXISTS public.can_view_org(uuid);')];
     for (const p of policies) for (const fn of functions) assert.ok(p < fn, 'політики раніше функцій');
@@ -69,9 +77,9 @@ test('міграція: can_view_org, org_id у filters, SELECT-політики
     assert.ok(migration.includes('GRANT EXECUTE ON FUNCTION public.registry_list(jsonb, integer, integer) TO authenticated, service_role;'), 'гранти RPC як були');
 });
 
-test('pgTAP директорів: 21 перевірка (власна компанія, чужа, company-тариф, UPDATE, логіст і власник без змін, зниження тарифу)', () => {
+test('pgTAP директорів: 26 перевірок (власна компанія, статуси, clients / fleet_vehicles лише читання, чужа, company-тариф, UPDATE, логіст і власник без змін, зниження тарифу)', () => {
     const tap = read('supabase/tests/registry_directors.sql');
     assert.match(tap, /SELECT plan\(21\)/);
-    assert.equal(tap.split('\n').filter((line) => /^SELECT (is|ok|results_eq|throws_ok)\(/.test(line)).length, 21);
+    assert.equal(tap.split('\n').filter((line) => /^SELECT (is|ok|results_eq|throws_ok)\(/.test(line)).length, 26);
     for (const part of ['registry_totals', "'42501'", 'can_view_org', 'set_org_plan', 'control_plus', 'org_directors']) assert.ok(tap.includes(part), part);
 });

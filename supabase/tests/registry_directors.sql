@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(21);
+SELECT plan(26);
 
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
@@ -56,9 +56,11 @@ BEGIN
   PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
   INSERT INTO public.calculations (id, org_id, user_id, name, inputs, results, status, decided_at)
   VALUES (p_id, p_org, p_user, 'dir ' || left(p_id::text, 8), '{"dist":"100"}'::jsonb, '{"grossIncome":1000,"netProfit":100}'::jsonb,
-          CASE WHEN p_status = 'cancelled' THEN 'accepted' ELSE p_status END, CASE WHEN p_status = 'draft' THEN NULL ELSE now() END);
+          CASE WHEN p_status IN ('cancelled', 'done') THEN 'accepted' ELSE p_status END, CASE WHEN p_status = 'draft' THEN NULL ELSE now() END);
   IF p_status = 'cancelled' THEN
     UPDATE public.calculations SET status = 'cancelled', cancel_reason = 'setup' WHERE id = p_id;
+  ELSIF p_status = 'done' THEN
+    UPDATE public.calculations SET status = 'done' WHERE id = p_id;
   END IF;
   RETURN p_id;
 END;
@@ -69,6 +71,11 @@ SELECT pg_temp.mk('73000000-0000-0000-0000-000000000003', '70000000-0000-0000-00
 SELECT pg_temp.mk('73000000-0000-0000-0000-000000000004', '70000000-0000-0000-0000-00000000000d', '00000000-0000-0000-0000-0000000000e1', 'accepted');
 SELECT pg_temp.mk('73000000-0000-0000-0000-000000000005', '70000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000e3', 'accepted');
 SELECT pg_temp.mk('73000000-0000-0000-0000-000000000006', '70000000-0000-0000-0000-00000000000c', '00000000-0000-0000-0000-0000000000e4', 'accepted');
+SELECT pg_temp.mk('73000000-0000-0000-0000-000000000007', '70000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1', 'pending');
+SELECT pg_temp.mk('73000000-0000-0000-0000-000000000008', '70000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1', 'rejected');
+SELECT pg_temp.mk('73000000-0000-0000-0000-000000000009', '70000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1', 'done');
+INSERT INTO public.clients (id, org_id, name) VALUES ('72000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-00000000000c', 'Клієнт C');
+INSERT INTO public.fleet_vehicles (id, org_id, label) VALUES ('71000000-0000-0000-0000-000000000002', '70000000-0000-0000-0000-00000000000c', 'CC7002KA');
 INSERT INTO public.calc_vehicles (calc_id, vehicle_id, tonnage) VALUES ('73000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000001', 20);
 INSERT INTO public.calculation_clients (calculation_id, client_id, org_id) VALUES ('73000000-0000-0000-0000-000000000001', '72000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-00000000000a');
 INSERT INTO public.trip_actuals (org_id, calculation_id, revenue, costs, planned_overhead, profit, entered_by)
@@ -96,13 +103,13 @@ $$;
 -- Директор Контроль+ (control_plus)
 -- ---------------------------------------------------------------------------
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
-  $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '2',
-  '1: директор бачить реєстр своєї компанії (accepted + cancelled, чернетки немає)');
+  $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '3',
+  '1: директор бачить реєстр своєї компанії (accepted + done + cancelled)');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$SELECT string_agg(id::text, ',') FROM public.registry_list('{}'::jsonb)$$), '73000000-0000-0000-0000-000000000005',
   '2: без org_id — як раніше, власна організація директора');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
-  $$SELECT total_count || '/' || cancelled_count || '/' || profit_fact FROM public.registry_totals('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '2/1/80',
+  $$SELECT total_count || '/' || cancelled_count || '/' || profit_fact FROM public.registry_totals('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '3/1/80',
   '3: registry_totals компанії: кількість, скасовані, прибуток факт (trip_actuals)');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000a","vehicle":"71000000-0000-0000-0000-000000000001"}'::jsonb)$$), '1',
@@ -117,8 +124,8 @@ SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$SELECT 'A=' || (SELECT count(*) FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000a')
       || ' Q=' || (SELECT count(*) FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000d')
       || ' C=' || (SELECT count(*) FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000c')
-      || ' P=' || (SELECT count(*) FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000b')$$), 'A=3 Q=0 C=0 P=1',
-  '7: SELECT calculations: директор бачить усі заявки A (з чернеткою) і свою P; Q (company) і C — ні');
+      || ' P=' || (SELECT count(*) FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000b')$$), 'A=4 Q=0 C=0 P=1',
+  '7: SELECT calculations: директор бачить 4 заявки A (pending, accepted, done, cancelled) і свою P; Q (company) і C — ні');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$WITH x AS (SELECT 1) SELECT (SELECT count(*) FROM public.trip_actuals WHERE org_id = '70000000-0000-0000-0000-00000000000a')::text$$), '1',
   '8: SELECT trip_actuals компанії директора');
@@ -126,6 +133,32 @@ SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$WITH u AS (UPDATE public.calculations SET name = 'змінено директором' WHERE id = '73000000-0000-0000-0000-000000000001' RETURNING 1) SELECT count(*)::text FROM u$$), '0',
   '9: UPDATE заявки директором не проходить (статуси міняє API)');
+-- Статуси: чернетки й відхилені логістів директор не бачить, решту — бачить.
+SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
+  $$SELECT string_agg(status, ',' ORDER BY status) FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000a'$$), 'accepted,cancelled,done,pending',
+  '22: директор бачить pending / accepted / done / cancelled компанії');
+SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
+  $$SELECT count(*)::text FROM public.calculations WHERE id IN ('73000000-0000-0000-0000-000000000003', '73000000-0000-0000-0000-000000000008')$$), '0',
+  '23: чернетка (a3) і відхилена (a5) чужої компанії директору не видно');
+-- clients і fleet_vehicles: лише читання власної КП-компанії.
+SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
+  $$SELECT (SELECT count(*) FROM public.clients WHERE org_id = '70000000-0000-0000-0000-00000000000a') || '/' ||
+           (SELECT count(*) FROM public.fleet_vehicles WHERE org_id = '70000000-0000-0000-0000-00000000000a') || '/' ||
+           (SELECT count(*) FROM public.clients WHERE org_id = '70000000-0000-0000-0000-00000000000c') || '/' ||
+           (SELECT count(*) FROM public.fleet_vehicles WHERE org_id = '70000000-0000-0000-0000-00000000000c')$$), '1/1/0/0',
+  '24: директор бачить clients і fleet_vehicles своєї компанії, не чужої');
+SELECT is(
+  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$WITH u AS (UPDATE public.clients SET name = 'змінено' WHERE org_id = '70000000-0000-0000-0000-00000000000a' RETURNING 1) SELECT count(*)::text FROM u$$) || '/' ||
+  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$WITH u AS (UPDATE public.fleet_vehicles SET label = 'змінено' WHERE org_id = '70000000-0000-0000-0000-00000000000a' RETURNING 1) SELECT count(*)::text FROM u$$) || '/' ||
+  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$WITH d AS (DELETE FROM public.clients WHERE org_id = '70000000-0000-0000-0000-00000000000a' RETURNING 1) SELECT count(*)::text FROM d$$) || '/' ||
+  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$INSERT INTO public.clients (org_id, name) VALUES ('70000000-0000-0000-0000-00000000000a', 'вставлено директором') RETURNING 'вставлено'$$),
+  '0/0/0/42501', '25: директор не змінює, не видаляє й не додає clients / fleet_vehicles (UPDATE, DELETE — 0 рядків, INSERT — 42501)');
+SELECT is(
+  has_function_privilege('authenticated', 'public.can_view_org(uuid)', 'EXECUTE')::text || '/' ||
+  has_function_privilege('service_role', 'public.can_view_org(uuid)', 'EXECUTE')::text || '/' ||
+  has_function_privilege('anon', 'public.can_view_org(uuid)', 'EXECUTE')::text,
+  'true/true/false', '26: EXECUTE can_view_org: authenticated і service_role — так, anon — ні');
+
 -- ---------------------------------------------------------------------------
 -- Чужа компанія / тариф company
 -- ---------------------------------------------------------------------------
@@ -148,9 +181,9 @@ SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$SELECT publi
 -- ---------------------------------------------------------------------------
 -- Логіст і власник: без змін
 -- ---------------------------------------------------------------------------
-SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e1', $$SELECT count(*)::text FROM public.registry_list('{}'::jsonb)$$), '2',
+SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e1', $$SELECT count(*)::text FROM public.registry_list('{}'::jsonb)$$), '3',
   '15: власник A: реєстр за замовчуванням (accepted + cancelled) — як раніше');
-SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e1', $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '2',
+SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e1', $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '3',
   '16: власник A з явним org_id = своя компанія');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e1', $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000b"}'::jsonb)$$), '42501',
   '17: власник не бачить чужу компанію через org_id');
@@ -165,8 +198,10 @@ SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e4', $$SELECT (SELE
 SELECT public.set_org_plan('70000000-0000-0000-0000-00000000000a', 'company');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$) || '/' ||
-  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$SELECT count(*)::text FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000a'$$),
-  '42501/0', '21: після зниження тарифу A до company директор нічого не бачить');
+  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$SELECT count(*)::text FROM public.calculations WHERE org_id = '70000000-0000-0000-0000-00000000000a'$$) || '/' ||
+  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$SELECT count(*)::text FROM public.clients WHERE org_id = '70000000-0000-0000-0000-00000000000a'$$) || '/' ||
+  pg_temp.as_user('00000000-0000-0000-0000-0000000000e3', $$SELECT count(*)::text FROM public.fleet_vehicles WHERE org_id = '70000000-0000-0000-0000-00000000000a'$$),
+  '42501/0/0/0', '21: після зниження тарифу A до company директор нічого не бачить (реєстр, заявки, clients, fleet_vehicles)');
 
 SELECT * FROM finish();
 ROLLBACK;
