@@ -69,7 +69,8 @@ test('кнопки документів заявки: на сайті calcDocBut
     }));
     assert.equal(run(null), '', 'сайт');
     const kp = run('kp');
-    for (const text of ['Створити ТТН', 'Створити акт', 'Створити рахунок', 'Створити подорожній лист', 'Документи заявки']) assert.ok(kp.includes(text), text);
+    for (const text of ['Створити ТТН', 'Створити подорожній лист', 'Документи заявки']) assert.ok(kp.includes(text), text);
+    assert.equal(/Створити акт|Створити рахунок/.test(kp), false, 'акти й рахунки — лише з Реєстру');
     // kp_ttn_list викликає лише showCalcDocs, який відкривається тільки кнопкою «Документи заявки».
     const callers = [...html.matchAll(/showCalcDocs\(/g)].length;
     assert.equal(callers, 2, 'оголошення + кнопка в calcDocButtons');

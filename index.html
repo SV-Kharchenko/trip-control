@@ -15596,7 +15596,7 @@
         if (currentOrgRole === 'logist') return 'logist';
         return currentOrgRole === 'owner' && uiView === 'logist' ? 'logist' : 'director';
     }
-    // calcDocButtons: ТТН, акт, рахунок і подорожній лист — лише з ПРИЙНЯТОЇ заявки (accepted | done); сервер перевіряє те саме (CALC_NOT_ACCEPTED).
+    // calcDocButtons: ТТН і подорожній лист (акти й рахунки створюються лише з Реєстру заявок) — лише з ПРИЙНЯТОЇ заявки (accepted | done); сервер перевіряє те саме (CALC_NOT_ACCEPTED).
     // Створюють власник і логіст; кнопки відкривають форму Контроль+ вже заповненою даними заявки.
     function calcDocButtons(row) {
         if (!isKP()) return ''; // ТТН, акти, рахунки й подорожні листи — лише в Контроль+; на сайті kp_ttn_list не викликається
@@ -15604,8 +15604,6 @@
         if ((status !== 'accepted' && status !== 'done') || (currentOrgRole !== 'owner' && currentOrgRole !== 'logist')) return '';
         const id = escHtml(row.id);
         return '<button type="button" class="is-doc" onclick="openCalcDoc(\'ttn\', \'' + id + '\')">Створити ТТН</button>'
-            + '<button type="button" class="is-doc" onclick="openCalcDoc(\'act\', \'' + id + '\')">Створити акт</button>'
-            + '<button type="button" class="is-doc" onclick="openCalcDoc(\'invoice\', \'' + id + '\')">Створити рахунок</button>'
             + '<button type="button" class="is-doc" onclick="openCalcDoc(\'trip_sheet\', \'' + id + '\')">Створити подорожній лист</button>'
             + '<button type="button" class="is-doc" onclick="showCalcDocs(\'' + id + '\')">Документи заявки</button>';
     }
