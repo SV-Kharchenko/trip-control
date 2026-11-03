@@ -1,0 +1,182 @@
+/* Каркас CRM Контроль+ (PR 1 з 5): бокове меню, верхня панель, смуга тріалу. Підключається лише у збірці Контроль+ (site-bridge.js),
+   а всі правила діють тільки при <html data-app="kp"> і body.kp-shell-on (його ставить shell.js). На сайті trip-control.com цього файлу немає. */
+
+html[data-app="kp"] body.kp-shell-on {
+    --kp-side-w: 232px;
+    --kp-top-h: 52px;
+    --kp-strip-h: 0px;
+    --kp-side-bg: #0D2A29;
+    --kp-side-gold: #B08A4C;
+    --kp-side-ink: rgba(244, 239, 229, 0.74);
+    --kp-side-ink-strong: #F4EFE5;
+    --kp-side-faint: rgba(244, 239, 229, 0.42);
+    --kp-font: Manrope, 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --kp-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-side-bg: #0A1717; --kp-side-gold: #E0B25A; }
+html[data-app="kp"] body.kp-shell-on.kp-shell-strip-on { --kp-strip-h: 30px; }
+html[data-app="kp"] body.kp-shell-on.kp-shell-collapsed { --kp-side-w: 64px; }
+
+/* Старі горизонтальні вкладки й старе ліве меню лишаються в DOM (їх кличе bridge.js), але не показуються. */
+html[data-app="kp"] body.kp-shell-on #kp-side,
+html[data-app="kp"] body.kp-shell-on #kp-calc-tabs,
+html[data-app="kp"] body.kp-shell-on .kp-calc-tabs,
+html[data-app="kp"] body.kp-shell-on .tc-studio-nav,
+html[data-app="kp"] body.kp-shell-on #sticky-top .tc-topbar { display: none !important; }
+
+/* Рамка навколо розділів */
+html[data-app="kp"] body.kp-shell-on.layout-studio #main-app {
+    max-width: none !important;
+    margin: 0 !important;
+    margin-left: var(--kp-side-w) !important;
+    padding: calc(var(--kp-strip-h) + var(--kp-top-h) + 16px) 24px 40px !important;
+    min-width: 0;
+    transition: margin-left 0.18s ease;
+}
+html[data-app="kp"] body.kp-shell-on #sticky-top { position: static; margin: 0 !important; padding: 0; background: none; }
+html[data-app="kp"] body.kp-shell-on #main-app > #kp-crm { box-sizing: border-box; width: 100%; max-width: 1480px; margin: 0; padding-left: 0; padding-right: 0; }
+html[data-app="kp"] body.kp-shell-on #cabinet-screen { left: var(--kp-side-w); top: calc(var(--kp-strip-h) + var(--kp-top-h)); }
+
+/* Бокове меню */
+.kp-shell-side { display: none; }
+body.kp-shell-on .kp-shell-side {
+    position: fixed; z-index: 3100; left: 0; top: 0; bottom: 0; width: var(--kp-side-w);
+    display: flex; flex-direction: column; box-sizing: border-box; overflow-x: hidden; overflow-y: auto;
+    background: var(--kp-side-bg); color: var(--kp-side-ink); font-family: var(--kp-font);
+    transition: width 0.18s ease, transform 0.2s ease;
+}
+body.kp-shell-on .kp-shell-brand {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; height: calc(var(--kp-top-h) + var(--kp-strip-h)); flex: none;
+    padding: 0 12px 0 20px; border-bottom: 1px solid rgba(244, 239, 229, 0.1);
+}
+body.kp-shell-on .kp-shell-logo { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; color: var(--kp-side-ink-strong); white-space: nowrap; }
+body.kp-shell-on .kp-shell-logo b { color: var(--kp-side-gold); }
+body.kp-shell-on .kp-shell-collapse {
+    flex: none; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px;
+    background: transparent; color: var(--kp-side-faint); cursor: pointer;
+}
+body.kp-shell-on .kp-shell-collapse:hover { background: rgba(244, 239, 229, 0.08); color: var(--kp-side-ink-strong); }
+body.kp-shell-on .kp-shell-nav { flex: 1 1 auto; padding: 4px 10px 16px; }
+body.kp-shell-on .kp-shell-group[hidden] { display: none; }
+body.kp-shell-on .kp-shell-glabel {
+    padding: 16px 10px 6px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--kp-side-faint);
+}
+body.kp-shell-on .kp-shell-item {
+    position: relative; display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; min-width: 0; height: 36px; margin: 1px 0; padding: 0 10px;
+    border: 0; border-radius: 8px; background: transparent; color: var(--kp-side-ink); font: inherit; font-size: 0.88rem; font-weight: 600; text-align: left; cursor: pointer;
+}
+body.kp-shell-on .kp-shell-item[hidden] { display: none; }
+body.kp-shell-on .kp-shell-item:hover { background: rgba(244, 239, 229, 0.07); color: var(--kp-side-ink-strong); }
+body.kp-shell-on .kp-shell-item:focus-visible { outline: 2px solid var(--kp-side-gold); outline-offset: -2px; }
+body.kp-shell-on .kp-shell-item.on { background: rgba(244, 239, 229, 0.1); color: var(--kp-side-ink-strong); }
+body.kp-shell-on .kp-shell-item.on::before { content: ''; position: absolute; left: -10px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: var(--kp-side-gold); }
+body.kp-shell-on .kp-shell-item .ic { flex: none; display: inline-flex; width: 16px; height: 16px; }
+body.kp-shell-on .kp-shell-lb { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.kp-shell-on .kp-shell-count {
+    flex: none; min-width: 20px; padding: 1px 6px; border-radius: 10px; background: var(--kp-side-gold); color: #0D2A29;
+    font-family: var(--kp-mono); font-size: 0.7rem; font-weight: 700; text-align: center;
+}
+body.kp-shell-on .kp-shell-count[hidden] { display: none; }
+body.kp-shell-on .kp-shell-item.is-soon { cursor: default; opacity: 0.6; }
+body.kp-shell-on .kp-shell-item.is-soon:hover { background: transparent; color: var(--kp-side-ink); }
+body.kp-shell-on .kp-shell-soon { flex: none; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--kp-side-faint); }
+
+/* Меню, згорнуте до іконок */
+body.kp-shell-collapsed .kp-shell-brand { padding: 0 6px; justify-content: center; flex-direction: column; gap: 2px; }
+body.kp-shell-collapsed .kp-shell-logo { font-size: 0; }
+body.kp-shell-collapsed .kp-shell-logo b { font-size: 1.3rem; }
+body.kp-shell-collapsed .kp-shell-collapse { transform: rotate(180deg); }
+body.kp-shell-collapsed .kp-shell-lb, body.kp-shell-collapsed .kp-shell-soon, body.kp-shell-collapsed .kp-shell-glabel { display: none; }
+body.kp-shell-collapsed .kp-shell-group + .kp-shell-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(244, 239, 229, 0.1); }
+body.kp-shell-collapsed .kp-shell-item { justify-content: center; padding: 0; }
+body.kp-shell-collapsed .kp-shell-item.on::before { left: -10px; }
+body.kp-shell-collapsed .kp-shell-count { position: absolute; top: 2px; right: 2px; min-width: 0; padding: 0 4px; font-size: 0.6rem; }
+
+/* Верхня панель */
+.kp-shell-top, .kp-shell-strip, .kp-shell-backdrop { display: none; }
+body.kp-shell-on .kp-shell-top {
+    position: fixed; z-index: 3090; left: var(--kp-side-w); right: 0; top: var(--kp-strip-h); height: var(--kp-top-h);
+    display: flex; align-items: center; gap: 12px; box-sizing: border-box; padding: 0 20px;
+    background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text); font-family: var(--kp-font);
+    transition: left 0.18s ease;
+}
+body.kp-shell-on .kp-shell-grow { flex: 1 1 auto; }
+body.kp-shell-on .kp-shell-search {
+    display: inline-flex; align-items: center; gap: 8px; width: 300px; max-width: 40vw; height: 34px; padding: 0 10px; box-sizing: border-box;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--input, var(--surface)); color: var(--muted); font: inherit; font-size: 0.85rem; cursor: text;
+}
+body.kp-shell-on .kp-shell-search:hover { border-color: var(--kp-side-gold); }
+body.kp-shell-on .kp-shell-search .ic { flex: none; display: inline-flex; width: 16px; height: 16px; }
+body.kp-shell-on .kp-shell-search-t { flex: 1 1 auto; text-align: left; }
+body.kp-shell-on .kp-shell-search kbd { font-family: var(--kp-mono); font-size: 0.68rem; padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
+body.kp-shell-on .kp-shell-company { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; font-weight: 700; }
+body.kp-shell-on .kp-shell-company[hidden] { display: none; }
+body.kp-shell-on .kp-shell-bell {
+    position: relative; width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer;
+}
+body.kp-shell-on .kp-shell-bell:hover { border-color: var(--kp-side-gold); }
+body.kp-shell-on .kp-shell-bell .ic { display: inline-flex; width: 16px; height: 16px; }
+body.kp-shell-on .kp-shell-bell-n {
+    position: absolute; top: -5px; right: -5px; min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--kp-side-gold); color: #0D2A29;
+    font-family: var(--kp-mono); font-size: 0.62rem; font-weight: 700; line-height: 16px; text-align: center;
+}
+body.kp-shell-on .kp-shell-bell-n[hidden] { display: none; }
+body.kp-shell-on .kp-shell-who { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; min-width: 0; }
+body.kp-shell-on .kp-shell-who-name { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; font-weight: 700; }
+body.kp-shell-on .kp-shell-who-role { font-size: 0.7rem; font-weight: 600; color: var(--muted); }
+body.kp-shell-on .kp-shell-burger {
+    display: none; width: 34px; height: 34px; padding: 0; align-items: center; justify-content: center;
+    border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer;
+}
+body.kp-shell-on .kp-shell-burger .ic { display: inline-flex; width: 16px; height: 16px; }
+/* Наявні вузли сайту, перенесені в панель: тема, перемикач виду, меню акаунта */
+body.kp-shell-on .kp-shell-top .tc-head-end { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; }
+body.kp-shell-on .kp-shell-top #tc-burger-btn { display: none !important; }
+
+/* Смуга тріалу над верхньою панеллю: той самий #billing-banner (логіка #111), лише тонша */
+body.kp-shell-on.kp-shell-strip-on .kp-shell-strip {
+    position: fixed; z-index: 3095; left: var(--kp-side-w); right: 0; top: 0; height: var(--kp-strip-h);
+    display: flex; align-items: stretch; box-sizing: border-box; overflow: hidden; transition: left 0.18s ease;
+}
+body.kp-shell-on .kp-shell-strip .tc-billing-banner {
+    flex: 1 1 auto; width: 100%; height: var(--kp-strip-h); min-height: 0; margin: 0; padding: 0 20px; box-sizing: border-box; flex-wrap: nowrap; gap: 12px;
+    border: 0; border-bottom: 1px solid var(--kp-side-gold); border-radius: 0; font-family: var(--kp-font); font-size: 0.78rem; line-height: 1;
+    background: color-mix(in srgb, var(--kp-side-gold) 14%, var(--surface)); color: var(--text);
+}
+body.kp-shell-on .kp-shell-strip .tc-billing-banner > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.kp-shell-on .kp-shell-strip .tc-billing-banner .btn { height: 22px; padding: 0 12px; font-size: 0.74rem; line-height: 22px; }
+body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-warn { background: rgba(255, 200, 0, 0.24); border-bottom-color: #d9a400; }
+body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: rgba(179, 38, 30, 0.14); border-bottom-color: var(--danger, #b3261e); }
+
+/* Мобільний: меню ховається в бургер і відкривається поверх контенту */
+@media (max-width: 899px) {
+    html[data-app="kp"] body.kp-shell-on, html[data-app="kp"] body.kp-shell-on.kp-shell-collapsed { --kp-side-w: 0px; }
+    html[data-app="kp"] body.kp-shell-on.layout-studio #main-app { margin-left: 0 !important; padding: calc(var(--kp-strip-h) + var(--kp-top-h) + 12px) 12px 32px !important; }
+    html[data-app="kp"] body.kp-shell-on #cabinet-screen { left: 0; }
+    body.kp-shell-on .kp-shell-side { width: 264px; transform: translateX(-100%); box-shadow: none; }
+    body.kp-shell-on.kp-shell-open .kp-shell-side { transform: translateX(0); box-shadow: 0 0 40px rgba(0, 0, 0, 0.45); }
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-side { width: 264px; }
+    body.kp-shell-on .kp-shell-collapse { display: none; }
+    body.kp-shell-on.kp-shell-open .kp-shell-backdrop { display: block; position: fixed; inset: 0; z-index: 3095; background: rgba(8, 12, 16, 0.5); }
+    body.kp-shell-on .kp-shell-burger { display: inline-flex; }
+    body.kp-shell-on .kp-shell-top { left: 0; padding: 0 12px; gap: 8px; }
+    body.kp-shell-on.kp-shell-strip-on .kp-shell-strip { left: 0; }
+    body.kp-shell-on .kp-shell-strip .tc-billing-banner { padding: 0 12px; }
+    body.kp-shell-on .kp-shell-search { width: 34px; padding: 0; justify-content: center; }
+    body.kp-shell-on .kp-shell-search-t, body.kp-shell-on .kp-shell-search kbd, body.kp-shell-on .kp-shell-company, body.kp-shell-on .kp-shell-who { display: none; }
+    /* У згорнутому вигляді на мобільному підписи не ховаємо: меню відкривається як повне. */
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-lb, body.kp-shell-on.kp-shell-collapsed .kp-shell-glabel { display: block; }
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-soon { display: inline; }
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-item { justify-content: flex-start; padding: 0 10px; }
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-brand { flex-direction: row; justify-content: space-between; padding: 0 12px 0 20px; }
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-logo { font-size: 1.1rem; }
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-logo b { font-size: inherit; }
+    body.kp-shell-on.kp-shell-collapsed .kp-shell-count { position: static; }
+}
+@media (min-width: 900px) {
+    body.kp-shell-on .kp-shell-backdrop { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.kp-shell-on .kp-shell-side, body.kp-shell-on .kp-shell-top, body.kp-shell-on .kp-shell-strip, html[data-app="kp"] body.kp-shell-on.layout-studio #main-app { transition: none; }
+}

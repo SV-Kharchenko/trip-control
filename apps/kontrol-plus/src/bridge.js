@@ -19,6 +19,7 @@ import { paintRepairsBadge } from './views/repairs-maintenance.js';
 import { repairsAccess } from './lib/repairs.js';
 import { callKpApi } from './lib/gps-client.js';
 import { kpVehiclesToSite, needsKpFleet } from './lib/site-fleet.js';
+import { mountShell } from './shell.js';
 
 const SITE_URL = 'https://trip-control.com';
 
@@ -60,7 +61,7 @@ function app() {
         // Бейдж ТО на вкладці «Ремонти»: з рядків, що вже завантажив розділ «ТО», або новим запитом.
         onMaintenance: (rows) => paintRepairsBadge(tabs.repairs, rows),
         refreshMaintenance: () => { loadRepairsBadge(); },
-        onPlanLost: () => { state.context = null; window.tcKpRole = null; window.tcKpOrgId = null; syncGpsTab(); render(); },
+        onPlanLost: () => { state.context = null; window.tcKpRole = null; window.tcKpOrgId = null; window.tcKpOrgName = null; syncGpsTab(); render(); },
         onCleanup: (fn) => { cleanups.push(fn); },
     };
 }
@@ -188,6 +189,9 @@ async function loadContext() {
     // Роль у Контроль+ (owner / logist / director) для сторінки сайту: «Реєстр заявок» показує кнопки директору з org_directors.
     window.tcKpRole = state.context.role || null;
     window.tcKpOrgId = state.context.org_id || null;
+    // Каркас CRM (shell.js): назва компанії для верхньої панелі; подія перемальовує роль, пункти меню й лічильники.
+    window.tcKpOrgName = state.context.org_name || null;
+    if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('tc:kp-context'));
     state.repairs = await loadRepairsContext();
     state.contextUser = userId;
     // «Документи» — у фоні: вкладка зʼявиться, щойно база відповість, що функції 4a є.
@@ -346,7 +350,7 @@ async function acceptRepairInviteOnce() {
     }
     const hint = document.getElementById('kp-invite-hint');
     if (hint) hint.remove();
-    state.context = null; window.tcKpRole = null; window.tcKpOrgId = null;
+    state.context = null; window.tcKpRole = null; window.tcKpOrgId = null; window.tcKpOrgName = null;
     state.contextUser = null;
     await refreshGpsTab();
     toast('Ви — менеджер з ремонтів' + (out.org_name ? ' компанії «' + out.org_name + '»' : '') + '.');
@@ -546,11 +550,12 @@ export async function startBridge() {
     }
     const { data } = await state.supabase.auth.getSession();
     state.session = data.session;
+    mountShell({ supabase: state.supabase });
     state.supabase.auth.onAuthStateChange((event, session) => {
         const changedUser = (state.session && state.session.user.id) !== (session && session.user.id);
         state.session = session;
         if (event === 'SIGNED_OUT' || changedUser) {
-            state.context = null; window.tcKpRole = null; window.tcKpOrgId = null;
+            state.context = null; window.tcKpRole = null; window.tcKpOrgId = null; window.tcKpOrgName = null;
             state.contextUser = null;
             state.repairs = null;
             state.docs = null;
