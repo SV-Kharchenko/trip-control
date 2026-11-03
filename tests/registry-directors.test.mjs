@@ -79,7 +79,7 @@ test('міграція: can_view_org, org_id у filters, SELECT-політики
 
 test('pgTAP директорів: 26 перевірок (власна компанія, статуси, clients / fleet_vehicles лише читання, чужа, company-тариф, UPDATE, логіст і власник без змін, зниження тарифу)', () => {
     const tap = read('supabase/tests/registry_directors.sql');
-    assert.match(tap, /SELECT plan\(21\)/);
+    assert.match(tap, /SELECT plan\(26\)/);
     assert.equal(tap.split('\n').filter((line) => /^SELECT (is|ok|results_eq|throws_ok)\(/.test(line)).length, 26);
     for (const part of ['registry_totals', "'42501'", 'can_view_org', 'set_org_plan', 'control_plus', 'org_directors']) assert.ok(tap.includes(part), part);
 });
