@@ -42,6 +42,7 @@ export const STATUS_LABELS = {
     accepted: 'Прийнято',
     rejected: 'Відхилено',
     done: 'Виконано',
+    cancelled: 'Скасовано',
 };
 
 // Дата YYYY-MM-DD у київському часі (так само рахує trip_date на сервері).

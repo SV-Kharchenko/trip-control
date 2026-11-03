@@ -32,6 +32,7 @@ function createFake() {
         ],
         orgs: { [ORG]: { id: ORG, name: 'Test', status: 'active', work_mode: 'team' }, [OTHER_ORG]: { id: OTHER_ORG, name: 'Other', status: 'active', work_mode: 'team' } },
         org_member_permissions: [],
+        rpc: [],
         org_notifications: [
             { id: N1, org_id: ORG, kind: 'approval_pending', ref_kind: 'calculation', ref_id: 'c1', actor_id: LOGIST, meta: { name: 'Київ — Львів' }, created_at: '2026-10-28T10:00:00Z', read_at: null },
             { id: N2, org_id: ORG, kind: 'signature_used', ref_kind: 'document', ref_id: 'd1', actor_id: LOGIST, meta: { doc_kind: 'act', number: 5 }, created_at: '2026-10-28T11:00:00Z', read_at: null },
@@ -44,6 +45,11 @@ function createFake() {
         select() { return this; }
         eq(col, val) { this.filters.push((row) => row[col] === val); return this; }
         is(col, val) { this.filters.push((row) => (row[col] === undefined ? null : row[col]) === val); return this; }
+        or(expr) {
+            const parts = String(expr).split(',').map((part) => part.split('.'));
+            this.filters.push((row) => parts.some(([col, op, val]) => (op === 'is' ? (row[col] === undefined ? null : row[col]) === (val === 'null' ? null : val) : row[col] === val)));
+            return this;
+        }
         in(col, list) { this.filters.push((row) => list.includes(row[col])); return this; }
         neq(col, val) { this.filters.push((row) => row[col] !== val); return this; }
         gte() { return this; }
@@ -78,6 +84,7 @@ function createFake() {
             },
             admin: { async listUsers() { return { data: { users: [] }, error: null }; } }
         },
+        rpc: async (name, args) => { state.rpc.push({ name, args }); return { data: args.p_mode, error: null }; },
         from: (table) => new Query(table)
     };
     return { state, supabase };
@@ -94,8 +101,8 @@ async function call(fake, token, method, body) {
 const post = (fake, token, body) => call(fake, token, 'POST', body);
 
 test('defaults: every right except signature and stamp', () => {
-    assert.deepEqual(MEMBER_PERMISSIONS, ['acts', 'sign', 'fleet', 'clients', 'contracts']);
-    assert.deepEqual(DEFAULT_MEMBER_PERMISSIONS, { acts: true, sign: false, fleet: true, clients: true, contracts: true });
+    assert.deepEqual(MEMBER_PERMISSIONS, ['acts', 'sign', 'fleet', 'clients', 'contracts', 'accept']);
+    assert.deepEqual(DEFAULT_MEMBER_PERMISSIONS, { acts: true, sign: false, fleet: true, clients: true, contracts: true, accept: false });
 });
 
 test('the team list gives the owner every member\'s rights (owner: all, logist: row or defaults), a logist only its own', async () => {
@@ -104,9 +111,9 @@ test('the team list gives the owner every member\'s rights (owner: all, logist: 
     const owner = await call(fake, 'owner-token', 'GET');
     assert.equal(owner.status, 200);
     const byId = Object.fromEntries(owner.payload.members.map((m) => [m.id, m.permissions]));
-    assert.deepEqual(byId[OWNER], { acts: true, sign: true, fleet: true, clients: true, contracts: true });
+    assert.deepEqual(byId[OWNER], { acts: true, sign: true, fleet: true, clients: true, contracts: true, accept: true });
     assert.deepEqual(byId[LOGIST], DEFAULT_MEMBER_PERMISSIONS);
-    assert.deepEqual(byId[LOGIST2], { acts: false, sign: true, fleet: true, clients: false, contracts: true });
+    assert.deepEqual(byId[LOGIST2], { acts: false, sign: true, fleet: true, clients: false, contracts: true, accept: false });
     const logist = await call(fake, 'logist-token', 'GET');
     const seen = Object.fromEntries(logist.payload.members.map((m) => [m.id, m.permissions]));
     assert.deepEqual(seen[LOGIST], DEFAULT_MEMBER_PERMISSIONS);
@@ -131,12 +138,13 @@ test('the owner switches rights: merged with the defaults, one row per logist, a
     const fake = createFake();
     const first = await post(fake, 'owner-token', { action: 'set_permissions', user_id: LOGIST, permissions: { sign: true } });
     assert.equal(first.status, 200);
-    assert.deepEqual(first.payload.permissions, { acts: true, sign: true, fleet: true, clients: true, contracts: true });
+    assert.deepEqual(first.payload.permissions, { acts: true, sign: true, fleet: true, clients: true, contracts: true, accept: false });
     const second = await post(fake, 'owner-token', { action: 'set_permissions', user_id: LOGIST, permissions: { clients: false, contracts: false } });
-    assert.deepEqual(second.payload.permissions, { acts: true, sign: true, fleet: true, clients: false, contracts: false });
+    assert.deepEqual(second.payload.permissions, { acts: true, sign: true, fleet: true, clients: false, contracts: false, accept: false });
     const rows = fake.state.org_member_permissions;
     assert.equal(rows.length, 1);
     assert.deepEqual([rows[0].can_acts, rows[0].can_sign, rows[0].can_fleet, rows[0].can_clients, rows[0].can_contracts, rows[0].updated_by], [true, true, true, false, false, OWNER]);
+    assert.equal(rows[0].can_accept, false);
     assert.equal(fake.state.audit.filter((row) => row.action === 'set_member_permissions').length, 2);
 });
 
@@ -155,7 +163,7 @@ test('bad rights requests are refused: unknown key, non-boolean, empty, the owne
     assert.deepEqual(fake.state.org_member_permissions, []);
 });
 
-test('notifications: the owner reads own organisation (newest first, with the author and the unread count), a logist gets 403', async () => {
+test('notifications: the owner reads own organisation (newest first, with the author and the unread count), a logist only sees own', async () => {
     const fake = createFake();
     const list = await post(fake, 'owner-token', { action: 'notifications' });
     assert.equal(list.status, 200);
@@ -165,7 +173,8 @@ test('notifications: the owner reads own organisation (newest first, with the au
     assert.equal(list.payload.items[0].kind, 'signature_used');
     assert.equal(list.payload.items[1].ref_kind, 'calculation');
     const logist = await post(fake, 'logist-token', { action: 'notifications' });
-    assert.equal(logist.status, 403);
+    assert.equal(logist.status, 200);
+    assert.deepEqual(logist.payload.items, [], 'company notifications (no recipient) are the owner only');
     assert.equal((await post(fake, '', { action: 'notifications' })).status, 401);
 });
 
@@ -188,5 +197,59 @@ test('notifications: mark as read one by one or all; a foreign id changes nothin
         const res = await post(fake, 'owner-token', { action: 'notifications_read', ...bad });
         assert.equal(res.status, 400, JSON.stringify(bad));
     }
-    assert.equal((await post(fake, 'logist-token', { action: 'notifications_read', all: true })).status, 403);
+    const logist = await post(fake, 'logist-token', { action: 'notifications_read', all: true });
+    assert.equal(logist.status, 200);
+    assert.equal(logist.payload.marked, 0, 'a logist cannot mark the owner notifications');
+});
+
+const N4 = '66666666-6666-4666-8666-666666666664';
+const decided = (extra = {}) => ({ id: N4, org_id: ORG, kind: 'approval_decided', ref_kind: 'calculation', ref_id: 'c4', actor_id: OWNER, recipient_id: LOGIST,
+    meta: { name: 'Київ — Львів', decision: 'cancelled', reason: 'Клієнт відмовився', registry_no: '2026-0007' }, created_at: '2026-10-28T13:00:00Z', read_at: null, ...extra });
+
+test('approval_decided: the author (a logist) reads and marks only own; the owner list does not include it', async () => {
+    const fake = createFake();
+    fake.state.org_notifications.push(decided());
+    const logist = await post(fake, 'logist-token', { action: 'notifications' });
+    assert.equal(logist.status, 200);
+    assert.deepEqual(logist.payload.items.map((item) => [item.id, item.kind, item.meta.decision, item.meta.reason]), [[N4, 'approval_decided', 'cancelled', 'Клієнт відмовився']]);
+    assert.equal(logist.payload.unread, 1);
+    const owner = await post(fake, 'owner-token', { action: 'notifications' });
+    assert.equal(owner.payload.items.some((item) => item.kind === 'approval_decided'), false, 'the decision is addressed to the author, not the owner');
+    const foreign = await post(fake, 'logist-token', { action: 'notifications_read', ids: [N1] });
+    assert.equal(foreign.payload.marked, 0, 'a logist cannot read a company notification');
+    const own = await post(fake, 'logist-token', { action: 'notifications_read', ids: [N4] });
+    assert.equal(own.payload.marked, 1);
+    assert.equal(fake.state.org_notifications.find((item) => item.id === N4).read_by, LOGIST);
+    assert.equal((await post(fake, 'logist-token', { action: 'notifications' })).payload.unread, 0);
+});
+
+test('the accept right is switched like the others and the owner sees the approval mode in the team list', async () => {
+    const fake = createFake();
+    const res = await post(fake, 'owner-token', { action: 'set_permissions', user_id: LOGIST, permissions: { accept: true } });
+    assert.equal(res.status, 200);
+    assert.equal(res.payload.permissions.accept, true);
+    assert.equal(fake.state.org_member_permissions[0].can_accept, true);
+    const list = await call(fake, 'owner-token', 'GET');
+    assert.equal(list.payload.approval_mode, 'owner_only');
+    assert.equal(list.payload.members.find((m) => m.id === LOGIST).permissions.accept, true);
+});
+
+test('set_approval_mode: the owner in team mode only, two known modes, written through the RPC and audited', async () => {
+    const fake = createFake();
+    const ok = await post(fake, 'owner-token', { action: 'set_approval_mode', approval_mode: 'logist_can_accept' });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(ok.payload, { ok: true, approval_mode: 'logist_can_accept' });
+    assert.deepEqual(fake.state.rpc, [{ name: 'set_approval_mode', args: { p_org: ORG, p_mode: 'logist_can_accept' } }]);
+    assert.equal(fake.state.audit.filter((row) => row.action === 'set_approval_mode').length, 1);
+    for (const bad of ['anyone', '', undefined]) {
+        const res = await post(fake, 'owner-token', { action: 'set_approval_mode', approval_mode: bad });
+        assert.equal(res.status, 400, String(bad));
+        assert.equal(res.payload.code, 'BAD_APPROVAL_MODE');
+    }
+    assert.equal((await post(fake, 'logist-token', { action: 'set_approval_mode', approval_mode: 'logist_can_accept' })).status, 403);
+    fake.state.orgs[ORG].work_mode = 'solo';
+    const solo = await post(fake, 'owner-token', { action: 'set_approval_mode', approval_mode: 'logist_can_accept' });
+    assert.equal(solo.status, 409);
+    assert.equal(solo.payload.code, 'TEAM_MODE_ONLY');
+    assert.equal(fake.state.rpc.length, 1, 'nothing written in solo mode or by a logist');
 });

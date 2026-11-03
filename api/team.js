@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
 import { buildInviteEmail, joinedMessage, sendInviteEmail } from '../lib/invite-mail.js';
 import { sendTelegram, statusKeyboard } from '../lib/signup-notify.js';
-import { cleanRejectReason, planDelete, planTransition, planUpdate } from '../lib/approvals.js';
+import { APPROVAL_MODES, cleanCancelReason, cleanRejectReason, normalizeApprovalMode, planDelete, planTransition, planUpdate } from '../lib/approvals.js';
 import { recalculateRequest } from './calculate.js';
 import { requestOrigin } from '../lib/request-origin.js';
 
@@ -14,9 +14,10 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const TEAM_ROLES = new Set(['owner', 'logist']);
 // Права логіста (колонки org_member_permissions.can_*). Рядка немає = значення за замовчуванням: усе, крім підпису.
 // Право перевіряє БАЗА (member_can у тригерах і RPC); тут лише керування ними і показ у «Команді».
-export const MEMBER_PERMISSIONS = ['acts', 'sign', 'fleet', 'clients', 'contracts'];
-export const DEFAULT_MEMBER_PERMISSIONS = { acts: true, sign: false, fleet: true, clients: true, contracts: true };
-const ALL_PERMISSIONS = { acts: true, sign: true, fleet: true, clients: true, contracts: true };
+// accept = «Приймати заявки в роботу»: діє лише в режимі company_settings.approval_mode = 'logist_can_accept'.
+export const MEMBER_PERMISSIONS = ['acts', 'sign', 'fleet', 'clients', 'contracts', 'accept'];
+export const DEFAULT_MEMBER_PERMISSIONS = { acts: true, sign: false, fleet: true, clients: true, contracts: true, accept: false };
+const ALL_PERMISSIONS = { acts: true, sign: true, fleet: true, clients: true, contracts: true, accept: true };
 const NOTIFICATIONS_LIMIT = 100;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const INVITE_ROLES = new Set(['logist']);
@@ -403,6 +404,7 @@ export function createTeamService(deps) {
                 member_status: actor.profile.member_status
             },
             logists_see_all: settingsResult.data?.settings?.logists_see_all === true,
+            approval_mode: normalizeApprovalMode(settingsResult.data?.settings?.approval_mode),
             active_owner_count: activeOwners,
             seats,
             members: result,
@@ -984,7 +986,19 @@ export function createTeamService(deps) {
     }
 
     // ---- Погодження заявок (календар «Заявки»). Роль перевіряється тут і тригером бази. ----
-    async function loadCalculation(actor, id) {
+    // Директор Контроль+ (org_directors) працює із заявками своєї компанії, хоч його профіль в іншій організації:
+    // options.allowDirector дозволяє знайти заявку за id і підтвердити членство в org_directors.
+    async function isOrgDirector(orgId, userId) {
+        const { data, error } = await supabase
+            .from('org_directors')
+            .select('user_id')
+            .eq('org_id', orgId)
+            .eq('user_id', userId)
+            .maybeSingle();
+        return !error && Boolean(data);
+    }
+
+    async function loadCalculation(actor, id, options = {}) {
         const calcId = String(id || '');
         if (!UUID_RE.test(calcId)) throw new HttpError(400, 'BAD_CALC_ID', 'Некоректна заявка.');
         const { data, error } = await supabase
@@ -994,8 +1008,19 @@ export function createTeamService(deps) {
             .eq('org_id', actor.profile.org_id)
             .maybeSingle();
         if (error) throw error;
-        if (!data) throw new HttpError(404, 'CALC_NOT_FOUND', 'Заявку не знайдено.');
-        return data;
+        if (data) return data;
+        if (options.allowDirector) {
+            const { data: foreign, error: foreignError } = await supabase
+                .from('calculations')
+                .select('id, org_id, user_id, status, inputs, results')
+                .eq('id', calcId)
+                .maybeSingle();
+            if (foreignError) throw foreignError;
+            if (foreign && foreign.org_id !== actor.profile.org_id && await isOrgDirector(foreign.org_id, actor.user.id)) {
+                return { ...foreign, viaDirector: true };
+            }
+        }
+        throw new HttpError(404, 'CALC_NOT_FOUND', 'Заявку не знайдено.');
     }
 
     function approvalContext(actor, calc) {
@@ -1006,12 +1031,56 @@ export function createTeamService(deps) {
         };
     }
 
+    async function loadApprovalMode(orgId) {
+        const { data, error } = await supabase.from('company_settings').select('settings').eq('org_id', orgId).maybeSingle();
+        if (error || !data) return normalizeApprovalMode(null);
+        return normalizeApprovalMode(data.settings && data.settings.approval_mode);
+    }
+
+    async function loadCanAccept(orgId, userId) {
+        const { data, error } = await supabase
+            .from('org_member_permissions')
+            .select('can_accept')
+            .eq('org_id', orgId)
+            .eq('user_id', userId)
+            .maybeSingle();
+        return !error && Boolean(data) && data.can_accept === true;
+    }
+
+    // Те саме, що approvalContext, плюс режим прийняття і право логіста (потрібні лише для рішень і скасування).
+    async function approvalDecisionContext(actor, calc) {
+        const viaDirector = calc.viaDirector === true;
+        const ctx = viaDirector
+            ? { role: 'director', isAuthor: false, soloMode: false }
+            : approvalContext(actor, calc);
+        if (viaDirector) {
+            const { data } = await supabase.from('organizations').select('work_mode').eq('id', calc.org_id).maybeSingle();
+            ctx.soloMode = Boolean(data) && data.work_mode === 'solo';
+        }
+        if (ctx.role === 'logist') {
+            ctx.approvalMode = await loadApprovalMode(calc.org_id);
+            ctx.canAccept = ctx.approvalMode === 'logist_can_accept' && await loadCanAccept(calc.org_id, actor.user.id);
+        }
+        return ctx;
+    }
+
     function denyFrom(plan) {
         return new HttpError(plan.status, plan.code, plan.message);
     }
 
-    async function moveCalculation(actor, calc, to, extra = {}) {
-        const plan = planTransition(approvalContext(actor, calc), calc.status, to);
+    function approvalDbError(error) {
+        const text = String((error && (error.message || error.code)) || '');
+        if (text.includes('CANCEL_REASON_REQUIRED')) return new HttpError(400, 'CANCEL_REASON_REQUIRED', 'Вкажіть причину скасування.');
+        if (text.includes('DONE_CANNOT_CANCEL')) return new HttpError(403, 'DONE_LOCKED', 'Виконану заявку скасувати не можна.');
+        if (text.includes('CANCELLED_FINAL')) return new HttpError(409, 'CANCELLED_FINAL', 'Скасована заявка більше не змінюється.');
+        if (String(error && error.code) === '42501' || text.includes('APPROVAL_FORBIDDEN')) {
+            return new HttpError(403, 'APPROVAL_FORBIDDEN', 'Немає прав на цю зміну статусу.');
+        }
+        return null;
+    }
+
+    async function moveCalculation(actor, calc, to, extra = {}, opts = {}) {
+        const plan = planTransition(await approvalDecisionContext(actor, calc), calc.status, to, opts);
         if (!plan.ok) throw denyFrom(plan);
         const stamp = new Date(now()).toISOString();
         const patch = { status: to, ...extra };
@@ -1020,24 +1089,30 @@ export function createTeamService(deps) {
             patch.decided_by = actor.user.id;
             patch.decided_at = stamp;
         }
+        if (to === 'cancelled') {
+            patch.cancel_reason = cleanCancelReason(opts.reason);
+            patch.cancelled_by = actor.user.id;
+            patch.cancelled_at = stamp;
+        }
         // .eq('status', ...) не дає двом рішенням затертись: хто встиг першим, той і вирішив.
         const { data, error } = await supabase
             .from('calculations')
             .update(patch)
             .eq('id', calc.id)
-            .eq('org_id', actor.profile.org_id)
+            .eq('org_id', calc.org_id)
             .eq('status', calc.status)
             .select('id, status')
             .maybeSingle();
-        if (error) {
-            if (String(error.code) === '42501' || String(error.message || '').includes('APPROVAL_FORBIDDEN')) {
-                throw new HttpError(403, 'APPROVAL_FORBIDDEN', 'Немає прав на цю зміну статусу.');
-            }
-            throw error;
-        }
+        if (error) throw approvalDbError(error) || error;
         if (!data) throw new HttpError(409, 'STATUS_CHANGED', 'Статус заявки вже змінився. Оновіть сторінку.');
-        await audit(actor.user.id, actor.profile.org_id, 'calc_' + to, 'calculations', calc.id, { from: calc.status, to });
-        return { ok: true, id: calc.id, status: data.status };
+        await audit(actor.user.id, calc.org_id, 'calc_' + to, 'calculations', calc.id, { from: calc.status, to, ...(to === 'cancelled' ? { reason: patch.cancel_reason } : {}) });
+        const out = { ok: true, id: calc.id, status: data.status };
+        // Номер реєстру присвоює база при першому переході в accepted. До міграції колонки немає — без номера.
+        if (to === 'accepted' || to === 'done') {
+            const { data: numbered, error: numberError } = await supabase.from('calculations').select('registry_no').eq('id', calc.id).maybeSingle();
+            if (!numberError && numbered && numbered.registry_no) out.registry_no = numbered.registry_no;
+        }
+        return out;
     }
 
     async function submitCalc(actor, body) {
@@ -1121,15 +1196,35 @@ export function createTeamService(deps) {
         if (decision !== 'accepted' && decision !== 'rejected') {
             throw new HttpError(400, 'BAD_DECISION', 'Невідоме рішення.');
         }
-        const calc = await loadCalculation(actor, body.id);
+        const calc = await loadCalculation(actor, body.id, { allowDirector: true });
         const extra = decision === 'rejected' ? { reject_reason: cleanRejectReason(body.reason) } : { reject_reason: null };
         if (decision === 'accepted') Object.assign(extra, await approvedRoutePatch(calc, body.variantIndex, actor));
         return moveCalculation(actor, calc, decision, extra);
     }
 
     async function completeCalc(actor, body) {
-        const calc = await loadCalculation(actor, body.id);
+        const calc = await loadCalculation(actor, body.id, { allowDirector: true });
         return moveCalculation(actor, calc, 'done');
+    }
+
+    // Скасування прийнятої заявки: owner, директор або логіст із правом; причина обов'язкова (CANCEL_REASON_REQUIRED, 400).
+    async function cancelCalc(actor, body) {
+        const calc = await loadCalculation(actor, body.id, { allowDirector: true });
+        return moveCalculation(actor, calc, 'cancelled', {}, { reason: body.reason });
+    }
+
+    // Режим прийняття заявок (лише «Команда»): owner_only | logist_can_accept. Запис через RPC set_approval_mode (service_role).
+    async function setApprovalMode(actor, body) {
+        requireOwner(actor);
+        const mode = String(body.approval_mode || '');
+        if (!APPROVAL_MODES.includes(mode)) throw new HttpError(400, 'BAD_APPROVAL_MODE', 'Невідомий режим прийняття заявок.');
+        if ((actor.profile.organizations && actor.profile.organizations.work_mode) !== 'team') {
+            throw new HttpError(409, 'TEAM_MODE_ONLY', 'Режим прийняття заявок налаштовується лише в режимі «Команда».');
+        }
+        const { error } = await supabase.rpc('set_approval_mode', { p_org: actor.profile.org_id, p_mode: mode });
+        if (error) throw error;
+        await audit(actor.user.id, actor.profile.org_id, 'set_approval_mode', 'company_settings', actor.profile.org_id, { approval_mode: mode });
+        return { ok: true, approval_mode: mode };
     }
 
     async function deleteCalc(actor, body) {
@@ -1214,9 +1309,9 @@ export function createTeamService(deps) {
     async function loadPermissionRows(orgId) {
         const { data, error } = await supabase
             .from('org_member_permissions')
-            .select('user_id, can_acts, can_sign, can_fleet, can_clients, can_contracts')
+            .select('user_id, can_acts, can_sign, can_fleet, can_clients, can_contracts, can_accept')
             .eq('org_id', orgId);
-        // До міграції таблиці немає: показуємо значення за замовчуванням.
+        // До міграції таблиці (чи колонки can_accept) немає: показуємо значення за замовчуванням.
         if (error) return new Map();
         return new Map((data || []).map(row => [row.user_id, row]));
     }
@@ -1256,48 +1351,73 @@ export function createTeamService(deps) {
         }
         const rows = await loadPermissionRows(actor.profile.org_id);
         const next = { ...permissionsOf(target, rows), ...patch };
-        const { error } = await supabase
+        const row = {
+            org_id: actor.profile.org_id,
+            user_id: userId,
+            can_acts: next.acts,
+            can_sign: next.sign,
+            can_fleet: next.fleet,
+            can_clients: next.clients,
+            can_contracts: next.contracts,
+            updated_by: actor.user.id,
+            updated_at: new Date(now()).toISOString()
+        };
+        let { error } = await supabase
             .from('org_member_permissions')
-            .upsert({
-                org_id: actor.profile.org_id,
-                user_id: userId,
-                can_acts: next.acts,
-                can_sign: next.sign,
-                can_fleet: next.fleet,
-                can_clients: next.clients,
-                can_contracts: next.contracts,
-                updated_by: actor.user.id,
-                updated_at: new Date(now()).toISOString()
-            }, { onConflict: 'org_id,user_id' });
+            .upsert({ ...row, can_accept: next.accept }, { onConflict: 'org_id,user_id' });
+        // Колонки can_accept ще немає (міграція реєстру не застосована): решта прав зберігається як раніше, accept = false.
+        if (error && /can_accept|42703|PGRST204/.test(String(error.message || error.code || '')) && next.accept !== true) {
+            ({ error } = await supabase.from('org_member_permissions').upsert(row, { onConflict: 'org_id,user_id' }));
+        }
         if (error) throw error;
         await audit(actor.user.id, actor.profile.org_id, 'set_member_permissions', 'profiles', userId, { permissions: next });
         return { ok: true, user_id: userId, permissions: next };
     }
 
     // Сповіщення директору (пишуться тригерами бази). Список + лічильник непрочитаних.
+    // Чия це черга сповіщень: власник бачить сповіщення компанії (без адресата) і адресовані йому; інший учасник — лише адресовані
+    // йому (approval_decided: заявку прийнято / відхилено / скасовано). Колонки recipient_id ще немає (до міграції реєстру) —
+    // власник бачить усе, як раніше, учасник нічого.
+    const NOTIFICATION_NO_COLUMN = /recipient_id|42703|PGRST204/;
+    const NOTIFICATION_NO_TABLE = /org_notifications|relation|schema cache|42P01|PGRST205/i;
+    function scopeNotifications(query, actor, withRecipient) {
+        const owner = actor.profile.org_role === 'owner';
+        if (!withRecipient) return owner ? query : null;
+        return owner ? query.or('recipient_id.is.null,recipient_id.eq.' + actor.user.id) : query.eq('recipient_id', actor.user.id);
+    }
+
     async function listNotifications(actor, body) {
-        requireOwner(actor);
         const orgId = actor.profile.org_id;
         const limit = Math.max(1, Math.min(NOTIFICATIONS_LIMIT, Number(body && body.limit) || 50));
-        const { data, error } = await supabase
-            .from('org_notifications')
-            .select('id, kind, ref_kind, ref_id, actor_id, meta, created_at, read_at')
-            .eq('org_id', orgId)
-            .order('created_at', { ascending: false })
-            .limit(limit);
+        const run = async (withRecipient) => {
+            const base = supabase
+                .from('org_notifications')
+                .select('id, kind, ref_kind, ref_id, actor_id, meta, created_at, read_at')
+                .eq('org_id', orgId);
+            const scoped = scopeNotifications(base, actor, withRecipient);
+            if (!scoped) return { data: [], error: null };
+            return scoped.order('created_at', { ascending: false }).limit(limit);
+        };
+        let withRecipient = true;
+        let { data, error } = await run(true);
+        if (error && NOTIFICATION_NO_COLUMN.test(String(error.message || error.code || ''))) {
+            withRecipient = false;
+            ({ data, error } = await run(false));
+        }
         if (error) {
             // До міграції таблиці немає: порожній список замість помилки.
-            if (/org_notifications|relation|schema cache|42P01|PGRST205/i.test(String(error.message || error.code || ''))) {
+            if (NOTIFICATION_NO_TABLE.test(String(error.message || error.code || ''))) {
                 return { items: [], unread: 0 };
             }
             throw error;
         }
-        const { data: unreadRows, error: unreadError } = await supabase
+        const unreadBase = supabase
             .from('org_notifications')
             .select('id')
             .eq('org_id', orgId)
-            .is('read_at', null)
-            .limit(1000);
+            .is('read_at', null);
+        const unreadScoped = scopeNotifications(unreadBase, actor, withRecipient);
+        const { data: unreadRows, error: unreadError } = unreadScoped ? await unreadScoped.limit(1000) : { data: [], error: null };
         if (unreadError) throw unreadError;
         const actorIds = [...new Set((data || []).map(item => item.actor_id).filter(Boolean))];
         const emails = new Map();
@@ -1312,19 +1432,24 @@ export function createTeamService(deps) {
     }
 
     async function markNotificationsRead(actor, body) {
-        requireOwner(actor);
         const all = body && body.all === true;
         const ids = Array.isArray(body && body.ids) ? body.ids : [];
         if (!all && (!ids.length || ids.length > NOTIFICATIONS_LIMIT || ids.some(id => !UUID_PATTERN.test(String(id))))) {
             throw new HttpError(400, 'BAD_NOTIFICATIONS', 'Не вказано сповіщення.');
         }
-        let query = supabase
-            .from('org_notifications')
-            .update({ read_at: new Date(now()).toISOString(), read_by: actor.user.id })
-            .eq('org_id', actor.profile.org_id)
-            .is('read_at', null);
-        if (!all) query = query.in('id', ids);
-        const { data, error } = await query.select('id');
+        const mark = async (withRecipient) => {
+            let query = supabase
+                .from('org_notifications')
+                .update({ read_at: new Date(now()).toISOString(), read_by: actor.user.id })
+                .eq('org_id', actor.profile.org_id)
+                .is('read_at', null);
+            query = scopeNotifications(query, actor, withRecipient);
+            if (!query) return { data: [], error: null };
+            if (!all) query = query.in('id', ids);
+            return query.select('id');
+        };
+        let { data, error } = await mark(true);
+        if (error && NOTIFICATION_NO_COLUMN.test(String(error.message || error.code || ''))) ({ data, error } = await mark(false));
         if (error) throw error;
         return { ok: true, marked: (data || []).length };
     }
@@ -1337,6 +1462,8 @@ export function createTeamService(deps) {
         submitCalc,
         decideCalc,
         completeCalc,
+        cancelCalc,
+        setApprovalMode,
         deleteCalc,
         updateCalc,
         listTeam,
@@ -1402,6 +1529,8 @@ export function createTeamHandler(deps) {
             else if (action === 'calc_submit') result = await service.submitCalc(actor, body);
             else if (action === 'calc_decide') result = await service.decideCalc(actor, body);
             else if (action === 'calc_complete') result = await service.completeCalc(actor, body);
+            else if (action === 'calc_cancel') result = await service.cancelCalc(actor, body);
+            else if (action === 'set_approval_mode') result = await service.setApprovalMode(actor, body);
             else if (action === 'calc_update') result = await service.updateCalc(actor, body);
             else if (action === 'calc_delete') result = await service.deleteCalc(actor, body);
             else throw new HttpError(400, 'UNKNOWN_ACTION', 'Невідома дія.');

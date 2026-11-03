@@ -75,8 +75,8 @@ test('кнопки документів заявки: на сайті calcDocBut
     assert.equal(callers, 2, 'оголошення + кнопка в calcDocButtons');
 });
 
-test('«Команда»: на сайті лише «Редагувати Автопарк»; усі п’ять прав — у Контроль+; значення в БД не чіпаються', () => {
-    assert.ok(html.includes("MEMBER_PERMISSION_LABELS.filter(function (item) { return isKP() || item[0] === 'fleet'; }).map("));
+test('«Команда»: на сайті «Редагувати Автопарк» і «Приймати заявки в роботу»; усі права — у Контроль+; значення в БД не чіпаються', () => {
+    assert.ok(html.includes("MEMBER_PERMISSION_LABELS.filter(function (item) { return isKP() || item[0] === 'fleet' || item[0] === 'accept'; }).map("));
     assert.ok(html.includes("['acts', 'Створювати акти'], ['sign', 'Підпис і печатка'], ['fleet', 'Редагувати Автопарк']"));
     assert.equal(/can_acts\s*=|set_permissions[^\n]*isKP/.test(html), false, 'збереження прав не залежить від мітки');
 });
