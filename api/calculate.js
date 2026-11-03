@@ -1,7 +1,9 @@
 import { enforceRateLimit } from '../lib/rate-limit.js';
 import { createClient } from '@supabase/supabase-js';
 import { USER_BLOCKED_ERROR, userIsBlocked } from '../lib/account-block.js';
-import { isDemoAccess, loadPaidUntil } from '../lib/billing/access.js';
+import { isDemoAccess, isOrgReadOnly, loadPaidUntil } from '../lib/billing/access.js';
+
+const TRIAL_EXPIRED_TEXT = 'Тріал закінчився: акаунт у режимі «лише читання». Оплатіть тариф, щоб створювати розрахунки.';
 import { composeTripFact } from '../lib/trip-fact.js';
 
 const supabase = createClient(
@@ -873,7 +875,7 @@ async function tripFactRequest(req, res) {
 
         const { data: profile } = await supabase
             .from('profiles')
-            .select('org_id, org_role, member_status, organizations(status)')
+            .select('org_id, org_role, member_status, is_approved, organizations(status)')
             .eq('id', user.id)
             .single();
         if (!profile || !profile.org_id) return fail(403, 'NO_PROFILE', 'Профіль користувача не знайдено.');
@@ -881,6 +883,8 @@ async function tripFactRequest(req, res) {
         if (!profile.organizations || profile.organizations.status === 'blocked') {
             return fail(403, 'ORG_BLOCKED', 'Доступ компанії заблоковано адміністратором.');
         }
+
+        if (await isOrgReadOnly(supabase, profile.org_id, profile)) return fail(403, 'TRIAL_EXPIRED', TRIAL_EXPIRED_TEXT);
 
         const { data: calc, error: calcError } = await supabase
             .from('calculations')
@@ -1063,6 +1067,10 @@ export default async function handler(req, res) {
 
         // --- Демо-режим: ручне схвалення (is_approved) або оплачена компанія (org_subscriptions.paid_until). ---
         // Клієнтський isDemo / ?preview ігнорується. Без таблиці оплат (міграція не застосована) — як раніше.
+        // Тріал скінчився без оплати — лише читання: новий розрахунок не робимо (те саме в БД: 42501 TRIAL_EXPIRED).
+        if (await isOrgReadOnly(supabase, profile.org_id, profile)) {
+            return res.status(403).json({ code: 'TRIAL_EXPIRED', error: TRIAL_EXPIRED_TEXT });
+        }
         const isDemo = isDemoAccess(profile, profile.is_approved ? null : await loadPaidUntil(supabase, profile.org_id));
         let demoInfo = null;
         if (isDemo) {

@@ -7,6 +7,7 @@ import { sendTelegram, statusKeyboard } from '../lib/signup-notify.js';
 import { APPROVAL_MODES, cleanCancelReason, cleanRejectReason, normalizeApprovalMode, planDelete, planTransition, planUpdate } from '../lib/approvals.js';
 import { recalculateRequest } from './calculate.js';
 import { requestOrigin } from '../lib/request-origin.js';
+import { isOrgReadOnly } from '../lib/billing/access.js';
 
 // Logist seats only. The owner is a fourth person and does not consume one.
 const MAX_TEAM_SEATS = 3;
@@ -1080,6 +1081,10 @@ export function createTeamService(deps) {
     }
 
     async function moveCalculation(actor, calc, to, extra = {}, opts = {}) {
+        // Тріал скінчився без оплати — лише читання: статуси заявок не змінюємо (у БД те саме: 42501 TRIAL_EXPIRED).
+        if (await isOrgReadOnly(supabase, calc.org_id, null)) {
+            throw new HttpError(403, 'TRIAL_EXPIRED', 'Тріал закінчився: акаунт у режимі «лише читання». Оплатіть тариф, щоб змінювати заявки.');
+        }
         const plan = planTransition(await approvalDecisionContext(actor, calc), calc.status, to, opts);
         if (!plan.ok) throw denyFrom(plan);
         const stamp = new Date(now()).toISOString();

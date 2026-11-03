@@ -1992,6 +1992,8 @@
             border: 1px solid var(--gold); background: var(--surface); color: var(--text); font-size: 0.88rem;
         }
         .tc-billing-banner[hidden] { display: none !important; }
+        .tc-billing-banner.is-warn { border-color: #d9a400; background: rgba(255, 200, 0, 0.16); }
+        .tc-billing-banner.is-expired { border-color: var(--danger, #b3261e); }
         .tc-billing-banner .btn { flex: none; width: auto; min-width: 0; padding: 6px 16px; }
         @media (max-width: 480px) {
             .tc-billing-options { grid-template-columns: 1fr; }
@@ -8036,6 +8038,8 @@
             const verb = meta.decision === 'cancelled' ? 'скасовано' : (meta.decision === 'rejected' ? 'відхилено' : 'прийнято');
             return 'Заявку ' + verb + (meta.registry_no ? ' № ' + meta.registry_no : '') + (meta.name ? ': «' + meta.name + '»' : '') + (meta.reason ? '. Причина: ' + meta.reason : '');
         },
+        trial_day5: function (note) { return 'Тріал: ' + billingDaysText((note.meta && note.meta.days_left) || 3) + '. Оплатіть тариф, щоб не втратити можливість створювати розрахунки й документи.'; },
+        trial_day7: function () { return 'Сьогодні останній день тріалу. Далі акаунт перейде в режим «лише читання».'; },
         approval_pending: function (note) { return 'Заявка чекає погодження' + (note.meta && note.meta.name ? ': «' + note.meta.name + '»' : ''); },
         doc_emailed: function (note) {
             const meta = note.meta || {};
@@ -8649,13 +8653,14 @@
             // Доступ є: повний (ручне is_approved або оплачена компанія) або демо. Лише для UI — сервер перевіряє сам.
             billingManualAccess = !!profile.is_approved;
             billingPaidUntil = await loadOrgPaidUntil(profile.org_id);
-            isDemo = !(profile.is_approved || billingPaidActive(billingPaidUntil));
+            isDemo = !(profile.is_approved || billingPaidActive(billingPaidUntil) || billingTrial().active);
             isAdmin = profile.role === 'admin';
             currentOrgRole = profile.org_role || 'owner';
             currentWorkMode = (profile.organizations && profile.organizations.work_mode) || 'solo';
             document.body.classList.toggle('demo-mode', isDemo);
             document.body.classList.toggle('is-admin', isAdmin);
             applyTeamModeUi();
+            syncBillingBanner();
 
             authScreen.style.display = 'none';
             mainApp.style.display = 'grid'; mainApp.classList.add('tc-enter');
@@ -8735,6 +8740,8 @@
     // ===== Тариф і оплата =====
     // Сума й доступ рахуються на сервері (/api/billing/*); тут лише UI. isDemo = !(is_approved || paid_until > зараз).
     let billingPaidUntil = null;
+    let billingTrialEndsAt = null;   // тріал 7 днів (org_subscriptions.trial_ends_at); null — тріалу немає
+    let billingExpiredShown = false;
     let billingManualAccess = false;
     let billingSummary = null;
     let billingReturnFocus = null;
@@ -8756,6 +8763,29 @@
         const at = Date.parse(until || '');
         return Number.isFinite(at) && at > Date.now();
     }
+    // Тріал 7 днів: trial_ends_at — початок київської доби після 7-го дня. days — дні за Києвом ВКЛЮЧНО із сьогоднішнім
+    // (день реєстрації 7, останній день 1). Дзеркало trialInfo() у lib/billing/access.js.
+    function billingKyivDay(at) {
+        const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at));
+        return Date.parse(p + 'T00:00:00Z') / 86400000;
+    }
+    function billingTrial() {
+        const end = Date.parse(billingTrialEndsAt || '');
+        if (!Number.isFinite(end)) return { has: false, active: false, expired: false, days: 0, last: false };
+        const active = end > Date.now();
+        const days = active ? Math.round(billingKyivDay(end - 1) - billingKyivDay(Date.now())) + 1 : 0;
+        return { has: true, active: active, expired: !active, days: days, last: active && days <= 1 };
+    }
+    // «Лише читання»: тріал скінчився, оплати й ручного доступу немає. Сервер і БД перевіряють самі (42501 TRIAL_EXPIRED).
+    function billingReadOnly() {
+        return !billingManualAccess && billingTrial().expired && !billingPaidActive(billingPaidUntil);
+    }
+    function billingDaysText(n) {
+        const mod10 = n % 10, mod100 = n % 100;
+        if (mod10 === 1 && mod100 !== 11) return 'залишився ' + n + ' день';
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'залишилось ' + n + ' дні';
+        return 'залишилось ' + n + ' днів';
+    }
     function billingDate(at) {
         const d = new Date(at);
         if (!Number.isFinite(d.getTime())) return '—';
@@ -8765,9 +8795,12 @@
     async function loadOrgPaidUntil(orgId) {
         if (!orgId) return null;
         try {
-            const { data, error } = await supabaseClient.from('org_subscriptions').select('paid_until').eq('org_id', orgId).maybeSingle();
-            if (error || !data) return null;
-            return data.paid_until || null;
+            let res = await supabaseClient.from('org_subscriptions').select('paid_until, trial_ends_at').eq('org_id', orgId).maybeSingle();
+            // Колонки тріалу ще може не бути (міграція не застосована) — тоді лише paid_until.
+            if (res.error) res = await supabaseClient.from('org_subscriptions').select('paid_until').eq('org_id', orgId).maybeSingle();
+            if (res.error || !res.data) return null;
+            billingTrialEndsAt = res.data.trial_ends_at || null;
+            return res.data.paid_until || null;
         } catch (e) {
             return null;
         }
@@ -8790,6 +8823,8 @@
     function billingStatusText(summary) {
         if (summary && summary.manual_full_access) return 'Повний доступ';
         if (summary && billingPaidActive(summary.paid_until)) return 'Оплачено до ' + billingDate(summary.paid_until);
+        if (summary && summary.read_only) return 'Тріал закінчився · лише читання';
+        if (summary && summary.trial_active) return 'Тріал до ' + billingDate(summary.trial_ends_at);
         return 'Демо';
     }
     function billingPreviewSummary() {
@@ -9045,7 +9080,7 @@
     function applyPaidAccess(paidUntil) {
         billingPaidUntil = paidUntil;
         const wasDemo = isDemo;
-        isDemo = !(billingManualAccess || billingPaidActive(billingPaidUntil));
+        isDemo = !(billingManualAccess || billingPaidActive(billingPaidUntil) || billingTrial().active);
         document.body.classList.toggle('demo-mode', isDemo);
         syncHeaderChrome();
         syncBillingBanner();
@@ -9097,10 +9132,57 @@
             if (/^[0-9a-f-]{36}$/i.test(pid) && !uiPreview) pollBillingStatus(pid);
         }
     }
-    // Банер за ≤ 3 дні до кінця оплаченого періоду (ручний повний доступ — без банера).
+    // Банер тріалу: «Тріал: залишилось N днів» (в останній день жовтий), після кінця — «лише читання». Видно директору (owner,
+    // у Контроль+ ще директору КП); логіст після кінця бачить лише «зверніться до директора». У Контроль+ замість оплати карткою —
+    // «Замовити договір» (форма лідів на /kontrol-plus#demo, POST /api/kp-lead). Інакше — банер за ≤ 3 дні до кінця оплати.
+    function openTrialContract() {
+        window.open('https://trip-control.com/kontrol-plus#demo', '_blank', 'noopener');
+    }
+    function syncTrialBanner(banner) {
+        const trial = billingTrial();
+        const director = currentOrgRole === 'owner' || kpDirectorActive();
+        const text = document.getElementById('billing-banner-text');
+        const btn = document.getElementById('billing-banner-btn');
+        banner.classList.toggle('is-warn', trial.last);
+        banner.classList.toggle('is-expired', trial.expired);
+        document.body.classList.toggle('trial-readonly', trial.expired);
+        if (!director) {
+            banner.hidden = !trial.expired;
+            text.textContent = 'Тріал закінчився, зверніться до директора. Акаунт у режимі «лише читання».';
+            btn.hidden = true;
+            return;
+        }
+        banner.hidden = false;
+        text.textContent = trial.expired
+            ? 'Тріал закінчився. Акаунт у режимі «лише читання»: дані й експорт CSV доступні, нові розрахунки, заявки й документи створювати не можна.'
+            : (trial.last ? 'Тріал: сьогодні останній день.' : 'Тріал: ' + billingDaysText(trial.days) + '.');
+        if (isKP()) {
+            btn.hidden = false;
+            btn.textContent = 'Замовити договір';
+            btn.onclick = openTrialContract;
+        } else {
+            btn.hidden = !billingEnabled;
+            btn.textContent = 'Оплатити';
+            btn.onclick = openBillingModal;
+            if (trial.expired && billingEnabled && !billingExpiredShown) {
+                billingExpiredShown = true;
+                openBillingModal();
+            }
+        }
+    }
     function syncBillingBanner() {
         const banner = document.getElementById('billing-banner');
         if (!banner) return;
+        const trial = billingTrial();
+        if (!billingManualAccess && trial.has && !billingPaidActive(billingPaidUntil)) {
+            syncTrialBanner(banner);
+            return;
+        }
+        banner.classList.remove('is-warn', 'is-expired');
+        document.body.classList.remove('trial-readonly');
+        const payBtn = document.getElementById('billing-banner-btn');
+        payBtn.textContent = 'Продовжити';
+        payBtn.onclick = openBillingModal;
         const until = Date.parse(billingPaidUntil || '');
         const left = until - Date.now();
         const show = billingEnabled && !billingManualAccess && Number.isFinite(until) && left > 0 && left <= 3 * 24 * 3600 * 1000;
@@ -13774,6 +13856,7 @@
         } catch (e) {
             const message = dbErrorText(e);
             if (message.indexOf('DEMO_SAVE_LIMIT') !== -1) showToast(demoSaveLimitText(), 4200);
+            else if (message.indexOf('TRIAL_EXPIRED') !== -1) showToast('Тріал закінчився: акаунт у режимі «лише читання».', 4200);
             else showToast('Не вдалося зберегти розрахунок: ' + message, 4200);
             return;
         }

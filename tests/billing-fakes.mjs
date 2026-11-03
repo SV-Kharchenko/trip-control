@@ -195,7 +195,24 @@ export function memoryStore(clock) {
         },
         async orgStatus(orgId) {
             if (db.failOrgStatus) throw Object.assign(new Error('db down'), { code: 'EDB' });
-            return db.orgs[orgId] ? { name: db.orgs[orgId].name, status: db.orgs[orgId].status } : null;
+            return db.orgs[orgId] ? { name: db.orgs[orgId].name, status: db.orgs[orgId].status, plan: db.orgs[orgId].plan || 'company' } : null;
+        },
+        // Тріал 7 днів (20261117090000_trial_7d.sql): як у store.js.
+        async trialSubscriptionsActive(nowIso) {
+            return Object.values(db.subs).filter((s) => s.trial_ends_at && s.trial_ends_at > nowIso).map((s) => Object.assign({}, s));
+        },
+        async markTrialNotified(orgId, day, atIso) {
+            const sub = db.subs[orgId];
+            const key = day === 5 ? 'trial_notified_d5' : 'trial_notified_d7';
+            if (!sub || sub[key]) return false;
+            sub[key] = atIso;
+            return true;
+        },
+        async unmarkTrialNotified(orgId, day) {
+            if (db.subs[orgId]) db.subs[orgId][day === 5 ? 'trial_notified_d5' : 'trial_notified_d7'] = null;
+        },
+        async insertTrialNotification(orgId, kind, meta) {
+            (db.notifications = db.notifications || []).push({ org_id: orgId, kind, meta });
         },
         async markReminderSent(orgId, paidUntil) {
             if (db.subs[orgId] && db.subs[orgId].paid_until === paidUntil) db.subs[orgId].reminder_sent_for = paidUntil;

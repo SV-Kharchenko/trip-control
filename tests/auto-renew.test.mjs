@@ -1136,10 +1136,10 @@ test('without AUTO_RENEW_ENABLED nothing changes: same Purchase, same summary, b
     assert.equal(refused.statusCode, 400);
     assert.equal(refused.body.code, 'AUTO_RENEW_UNAVAILABLE');
     const summary = (await off.call('GET', 'summary', { token: 'owner' })).body;
-    assert.deepEqual(Object.keys(summary).sort(), ['can_pay', 'legal_version', 'manual_full_access', 'paid', 'paid_until', 'payments_enabled', 'payments', 'prices', 'providers'].sort());
+    assert.deepEqual(Object.keys(summary).sort(), ['can_pay', 'legal_version', 'manual_full_access', 'paid', 'paid_until', 'payments_enabled', 'payments', 'prices', 'providers', 'read_only', 'trial_active', 'trial_days_left', 'trial_ends_at'].sort());
     assert.deepEqual(summary.prices, [{ plan: 'month', label: '1 місяць', uah: 250 }, { plan: 'year', label: '1 рік', uah: 2500 }]);
     const cron = (await off.call('GET', 'cron', { headers: { authorization: 'Bearer cron-test-secret' } })).body;
-    assert.deepEqual(Object.keys(cron).sort(), ['reconcile_failed', 'reconciled', 'reminders']);
+    assert.deepEqual(Object.keys(cron).sort(), ['reconcile_failed', 'reconciled', 'reminders', 'trial']);
     assert.equal(off.net.regularCalls().length, 0);
 
     // Регулярка, ввімкнена раніше, лишається під контролем і з вимкненим прапорцем: автосписання, скасування.
