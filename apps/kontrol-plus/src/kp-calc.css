@@ -1,0 +1,89 @@
+/* Компактний «Розрахунок» і адаптив під ноутбук (redesign, PR kp-calc-compact). Діє лише в Контроль+: файл підключає site-bridge.js
+   (на сайті trip-control.com його немає), а кожен селектор починається з body.kp-shell-on. Розмітку калькулятора й формули не чіпаємо:
+   пари полів, KPI-рядок і розкладка робляться лише стилями поверх тієї розмітки, яку будує index.html.
+   Нижче 901px нічого не міняємо (мобільна версія — PR 5). */
+
+@media (min-width: 901px) {
+    body.kp-shell-on.layout-studio {
+        --tc-fs: 13px;
+        --tc-fs-s: 12px;
+        --tc-h: 30px;
+        --kpc-off: calc(var(--kp-strip-h, 0px) + var(--kp-top-h, 52px));
+        --kpc-kpi-h: 40px;
+        --kpc-gap: 8px;
+    }
+
+    /* Поля, підписи, кнопки */
+    body.kp-shell-on.layout-studio #tc-op { font-size: 13px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-in { height: 30px; border-radius: 8px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-in > input,
+    body.kp-shell-on.layout-studio #tc-op .tc-in > select { padding: 0 8px; font-size: 13px; }
+    body.kp-shell-on.layout-studio #tc-op .form-row > label,
+    body.kp-shell-on.layout-studio #tc-op .tc-f-lab { font-size: 12px; color: var(--muted); }
+    body.kp-shell-on.layout-studio #tc-op .tc-f { gap: 3px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body { gap: 6px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sg { gap: 6px 8px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-panel-head { padding: 8px 12px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-head { min-height: 34px; padding: 6px 12px; gap: 8px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-n { width: 20px; height: 20px; font-size: 11px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-body { padding: 2px 12px 10px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-body .tc-fuel-compact { gap: 6px; }
+    body.kp-shell-on.layout-studio #tc-op .btn,
+    body.kp-shell-on.layout-studio #tc-op button.btn-ghost,
+    body.kp-shell-on.layout-studio #tc-op .preset-btn { min-height: 28px; height: 28px; padding-block: 0; font-size: 12px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-f-truck .tc-segment { height: 30px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-f-truck #vehicle-face { min-height: 28px; margin-top: 4px; }
+    body.kp-shell-on.layout-studio #tc-op #podacha-info { font-size: 12px !important; }
+
+    /* Крок 1: двоколонкова сітка. Групи розмітки розчиняємо, щоб осередки ставали у пари; усе широке — на всю ширину. */
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; align-items: start;
+    }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg { display: contents; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > .form-row { order: 1; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-podacha { order: 2; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-a { order: 3; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-b { order: 4; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > #route-fields-slot { order: 5; grid-column: 1 / -1; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-dist { order: 6; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-weight { order: 7; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-rate { order: 8; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { order: 9; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-truck { order: 10; grid-column: 1 / -1; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-vehicle-more,
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > #tc-demo-fields-note { order: 11; grid-column: 1 / -1; }
+    body.kp-shell-on.layout-studio #tc-op #route-fields-slot .btn,
+    body.kp-shell-on.layout-studio #tc-op #route-fields-slot button { width: 100%; }
+    body.kp-shell-on.layout-studio #tc-op .tc-f-rate .form-row > .tc-in { width: 100%; }
+
+    /* KPI: один тонкий рядок ≈40px, підпис і значення в одному рядку */
+    body.kp-shell-on.layout-studio[data-studio-view="calc"] .tc-kpi-bar {
+        top: var(--kpc-off); min-height: var(--kpc-kpi-h); padding-block: 4px; gap: 8px 16px;
+    }
+    body.kp-shell-on.layout-studio[data-studio-view="calc"] .tc-kpi-bar::before { inset: 4px var(--tc-pad); box-shadow: none; }
+    body.kp-shell-on.layout-studio .tc-kb-m { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+    body.kp-shell-on.layout-studio .tc-kb-m small { display: inline; font-size: 12px; }
+    body.kp-shell-on.layout-studio .tc-kb-m b { font-size: 14px; }
+    body.kp-shell-on.layout-studio .tc-kb-main b { font-size: 16px; }
+    body.kp-shell-on.layout-studio .tc-kb-detail { height: 28px; min-height: 28px; padding-block: 0; font-size: 12px; }
+
+    /* Розкладка: форма clamp(380, 34vw, 480), решта — карта; карта sticky на всю видиму висоту */
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+        grid-template-columns: clamp(380px, 34vw, 480px) minmax(0, 1fr); gap: 12px; padding-bottom: 12px;
+    }
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
+        top: calc(var(--kpc-off) + var(--kpc-kpi-h) + var(--kpc-gap));
+        height: calc(100vh - var(--kpc-off) - var(--kpc-kpi-h) - 2 * var(--kpc-gap)) !important;
+        min-height: 360px !important;
+    }
+}
+
+/* 901–1200px: карта під формою, висота ≈45vh */
+@media (min-width: 901px) and (max-width: 1200px) {
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+        display: flex; flex-direction: column;
+    }
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
+        position: relative; top: auto; height: 45vh !important; min-height: 320px !important;
+    }
+}
