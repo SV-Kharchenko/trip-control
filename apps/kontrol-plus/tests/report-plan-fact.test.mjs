@@ -1,5 +1,5 @@
 // Звіт «План/факт»: одна база для плану й факту (рейси з фактом), «Усі рейси» окремо, CSV = таблиця, без «Разом» для одного рядка,
-// без скролу на 390 / 1024 / 1366 / 1920, лише змінні тем, ролі «Директор» / «Перегляд».
+// без скролу на 390 / 1024 / 1366 / 1920, лише змінні тем, ролі «Директор» / «Менеджер».
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -86,8 +86,8 @@ test('CSV: ті самі колонки й назви, що в таблиці, �
     assert.equal(lines[0].split(';').length, lines[1].split(';').length);
 });
 
-test('ролі: owner — «Директор», director (перегляд) — «Перегляд»; шапка Контроль+ і меню узгоджені', () => {
-    assert.deepEqual(ROLE_LABELS, { owner: 'Директор', logist: 'Логіст', director: 'Перегляд' });
+test('ролі: owner — «Директор», director — «Менеджер»; шапка Контроль+ і меню узгоджені', () => {
+    assert.deepEqual(ROLE_LABELS, { owner: 'Директор', logist: 'Логіст', director: 'Менеджер' });
     for (const role of ['owner', 'logist', 'director']) {
         assert.equal(roleLabel(role), ROLE_LABELS[role], 'шапка (shell-menu): ' + role);
         if (role !== 'logist' || REPAIR_ROLE_LABELS.logist) assert.equal(REPAIR_ROLE_LABELS[role], ROLE_LABELS[role], 'ремонти: ' + role);
@@ -95,7 +95,7 @@ test('ролі: owner — «Директор», director (перегляд) — 
     assert.equal(roleLabel('x', 'запасний'), 'запасний');
     assert.equal(roleLabel('owner') === roleLabel('director'), false, 'owner і director — різні підписи');
     assert.equal(REPAIR_ROLE_LABELS.repair_manager, 'Менеджер з ремонтів');
-    assert.match(read('src/views/repairs-handlers.js'), /Директор і роль «Перегляд» вносять ремонти завжди/, 'director реально пише ремонти (kp_repairs_can_write)');
+    assert.match(read('src/views/repairs-handlers.js'), /Директор і Менеджер вносять ремонти завжди/, 'director реально пише ремонти (kp_repairs_can_write)');
     // «Власник» з великої літери — як підпис ролі — ніде в UI Контроль+
     const hits = [];
     const walk = (dir) => { for (const f of fs.readdirSync(path.join(APP, dir), { withFileTypes: true })) {
@@ -234,6 +234,15 @@ test('браузер: один рядок — без «Разом»; 0 факт�
         assert.match(await page.locator('.kpq-hint').innerText(), /Шаблонів маршрутів немає/);
         await page.goto(base + '?s=oct');
         await page.waitForSelector('.kpq tbody tr');
+        const pos = await page.evaluate(() => {
+            const p = (el) => (getComputedStyle(el).position === 'sticky' && getComputedStyle(el).left === '0px' ? 'sticky' : 'free'); // липкість по горизонталі (th шапки лишаються липкими лише зверху)
+            const rows = document.querySelectorAll('.kpq thead tr');
+            return { head1: p(rows[0].firstElementChild), head2: [...rows[1].children].map(p), body: p(document.querySelector('.kpq tbody tr').firstElementChild), foot: p(document.querySelector('.kpq tfoot tr').firstElementChild) };
+        });
+        assert.equal(pos.head1, 'sticky');
+        assert.ok(pos.head2.every((v) => v !== 'sticky'), 'у другому рядку шапки нічого не липке: ' + pos.head2);
+        assert.equal(pos.body, 'sticky');
+        assert.equal(pos.foot, 'sticky');
         const detail = page.locator('.kpq-detail').first();
         assert.equal(await detail.isHidden(), true);
         await page.locator('.kpq-exp').first().click();

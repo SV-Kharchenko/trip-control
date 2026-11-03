@@ -58,7 +58,7 @@ export function renderHandlers(app) {
                         toast('Прибрано');
                         await Promise.all([loadHandlers(), loadInvites()]);
                     }
-                }, 'btn btn-sm btn-danger'))))))) : h('p', { class: 'muted' }, 'Відповідальних ще немає. Директор і роль «Перегляд» вносять ремонти завжди.'));
+                }, 'btn btn-sm btn-danger'))))))) : h('p', { class: 'muted' }, 'Відповідальних ще немає. Директор і Менеджер вносять ремонти завжди.'));
     }
 
     async function loadInvites() {

@@ -33,8 +33,9 @@
 
 /* Перша колонка липка на широких (≥721px) */
 @media (min-width: 721px) {
-    #kp-crm .kp-report .kpq tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+    #kp-crm .kp-report .kpq tbody tr > :first-child, #kp-crm .kp-report .kpq tfoot tr > :first-child, #kp-crm .kp-report .kpq thead tr:first-child > :first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
     #kp-crm .kp-report .kpq thead tr:first-child > :first-child { z-index: 2; background: var(--bg); }
+    #kp-crm .kp-report .kpq thead tr:nth-child(2) > :first-child { position: static; box-shadow: none; z-index: auto; }
     #kp-crm .kp-report .kpq tfoot tr > :first-child { background: var(--bg); }
     #kp-crm .kp-report .kpq tr.kpq-detail > :first-child { position: static; }
 }

@@ -67,7 +67,7 @@ export function parseSidebarPref(raw) {
     return raw === 'collapsed' ? 'collapsed' : 'expanded';
 }
 
-// Підписи ролей — одне джерело, ROLE_LABELS (lib/gate.js): owner — «Директор», director (org_directors, лише перегляд) — «Перегляд», logist — «Логіст».
+// Підписи ролей — одне джерело, ROLE_LABELS (lib/gate.js): owner — «Директор», director (org_directors, лише перегляд) — «Менеджер», logist — «Логіст».
 export function roleLabel(kpRole, fallback) {
     return ROLE_LABELS[kpRole] || fallback || '';
 }
