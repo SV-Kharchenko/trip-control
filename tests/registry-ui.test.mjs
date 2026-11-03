@@ -23,9 +23,9 @@ const constLine = (name) => {
     return html.slice(start, html.indexOf(';\n', start) + 1);
 };
 const SYNC = ['registryMonthRange', 'registryDefaultFilters', 'registryNormalizeFilters', 'registryFiltersToJson', 'registryNeedsLocal', 'registryRouteLabel',
-    'registryRowMatches', 'registryTotalsOf', 'registryTotalsFromRpc', 'registryFactNote', 'registryRowCan', 'kpDirectorActive', 'canCancelStatus', 'approvalRole', 'registryVehicleLabel', 'registryColumns',
+    'registryRowMatches', 'registryTotalsOf', 'registryTotalsFromRpc', 'registryFactNote', 'registryRowCan', 'kpDirectorActive', 'registryDocText', 'registryPayState', 'registryDocMatches', 'registryCanMarkPaid', 'registryDocActions', 'canCancelStatus', 'approvalRole', 'registryVehicleLabel', 'registryColumns',
     'registryCellValue', 'registryCsv', 'historyCsvCell', 'registryStorageKey', 'registryReadStored', 'registrySaveFilters', 'registrySelectOptions', 'registrySanitizeFilters'];
-const ASYNC = ['registryRpcPage', 'registryFetchAllRows', 'registryFetchAll', 'registryLoad'];
+const ASYNC = ['registryLoadDocs', 'registryRpcPage', 'registryFetchAllRows', 'registryFetchAll', 'registryLoad'];
 
 function memoryStorage(initial = {}) {
     const data = { ...initial };
@@ -42,9 +42,9 @@ function world(extra = {}) {
         supabaseClient: { rpc: async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; } },
         ...extra,
     });
-    vm.runInContext(['REGISTRY_PAGE_SIZE', 'REGISTRY_FETCH_ALL_LIMIT', 'REGISTRY_STATUS_LABELS', 'REGISTRY_UUID', 'REGISTRY_LEGACY_STORAGE_KEY', 'REGISTRY_WARNING'].map(constLine).join('\n')
+    vm.runInContext(['REGISTRY_PAGE_SIZE', 'REGISTRY_FETCH_ALL_LIMIT', 'REGISTRY_STATUS_LABELS', 'REGISTRY_UUID', 'REGISTRY_LEGACY_STORAGE_KEY', 'REGISTRY_WARNING', 'REGISTRY_PAY_LABELS', 'REGISTRY_DOC_STATUS'].map(constLine).join('\n')
         + '\nlet registryState = { rows: [], total: 0, page: 0, totals: null, loaded: false, loading: false, error: "", focusId: "" };'
-        + '\nlet registryFilters = null;\nlet registryCache = null;\nlet registryClients = null;\nfunction registryRender() {}\n'
+        + '\nlet registryFilters = null;\nlet registryCache = null;\nlet registryClients = null;\nlet registryDocs = {};\nfunction registryRender() {}\n'
         + SYNC.map((n) => fnSource(n)).join('\n') + '\n' + ASYNC.map((n) => fnSource(n, true)).join('\n'), ctx);
     return ctx;
 }
@@ -55,7 +55,7 @@ const V1 = '22222222-2222-4222-8222-222222222222';
 test('фільтри збираються в правильний filters jsonb (період, статус, логіст лише в team, авто); пошук і клієнт — клієнтські', () => {
     const ctx = world();
     const f = run(ctx, 'registryNormalizeFilters({ from: "2026-11-01", to: "2026-11-30", status: "cancelled", user: "' + U1 + '", vehicle: "' + V1 + '", client: "ТОВ А", q: " 2026-0007 " })');
-    assert.deepEqual(f, { from: '2026-11-01', to: '2026-11-30', status: 'cancelled', user: U1, vehicle: V1, client: 'ТОВ А', q: '2026-0007' });
+    assert.deepEqual(f, { from: '2026-11-01', to: '2026-11-30', status: 'cancelled', user: U1, vehicle: V1, client: 'ТОВ А', contract: '', pay: '', q: '2026-0007' });
     assert.deepEqual(run(ctx, 'registryFiltersToJson(' + JSON.stringify(f) + ')'), { from: '2026-11-01', to: '2026-11-30', status: 'cancelled', user_id: U1, vehicle: V1 });
     assert.equal(run(ctx, 'registryNeedsLocal(' + JSON.stringify(f) + ')'), true);
     assert.equal(run(ctx, 'registryNeedsLocal({ q: "", client: "" })'), false);
@@ -74,7 +74,7 @@ test('період за замовчуванням — поточний міся
     assert.deepEqual(run(ctx, 'registryMonthRange(new Date("2026-10-31T22:30:00Z"))'), { from: '2026-11-01', to: '2026-11-30' });
     assert.deepEqual(run(ctx, 'registryMonthRange(new Date("2026-06-30T21:30:00Z"))'), { from: '2026-07-01', to: '2026-07-31' }, 'літній час UTC+3');
     const month = run(ctx, 'registryMonthRange()');
-    assert.deepEqual(run(ctx, 'registryNormalizeFilters(null)'), { from: month.from, to: month.to, status: '', user: '', vehicle: '', client: '', q: '' });
+    assert.deepEqual(run(ctx, 'registryNormalizeFilters(null)'), { from: month.from, to: month.to, status: '', user: '', vehicle: '', client: '', contract: '', pay: '', q: '' });
     assert.deepEqual(run(ctx, 'registryNormalizeFilters({ from: "", to: "" })').from, '');
 });
 
@@ -216,7 +216,7 @@ test('відновлення: збережені user / vehicle / client без 
         teamState: { members: [{ id: U1, email: 'l@x.test' }], approval_mode: 'owner_only' },
         savedCalculations: [{ id: 'a', clientName: 'ТОВ А' }],
     });
-    const stored = { from: '2026-11-01', to: '2026-11-30', status: 'done', user: U1, vehicle: V1, client: 'ТОВ А', q: 'x' };
+    const stored = { from: '2026-11-01', to: '2026-11-30', status: 'done', user: U1, vehicle: V1, client: 'ТОВ А', contract: '', pay: '', q: 'x' };
     assert.deepEqual(run(ctx, 'registrySanitizeFilters(registryNormalizeFilters(' + JSON.stringify(stored) + '), registrySelectOptions())'), stored);
     const stale = { ...stored, user: '99999999-9999-4999-8999-999999999999', vehicle: '88888888-8888-4888-8888-888888888888', client: 'Видалений клієнт' };
     assert.deepEqual(run(ctx, 'registrySanitizeFilters(registryNormalizeFilters(' + JSON.stringify(stale) + '), registrySelectOptions())'), { ...stored, user: '', vehicle: '', client: '' });
@@ -304,7 +304,7 @@ test('директор Контроль+ (org_directors, role director) бачи
 
 test('фільтр «Клієнт»: у КП — uuid із clients на сервер (без локального режиму й registryFetchAll), на сайті — назва й локальний режим', async () => {
     const C1 = '33333333-3333-4333-8333-333333333333';
-    const kp = world({ isKP: () => true, supabaseClient: { rpc: async (name, args) => { kp.calls.push({ name, args }); return { data: name === 'registry_totals' ? [{ total_count: 1, cancelled_count: 0 }] : [{ id: 'r', status: 'accepted', total_count: 1 }], error: null }; } } });
+    const kp = world({ isKP: () => true, supabaseClient: { rpc: async (name, args) => { kp.calls.push({ name, args }); return { data: name === 'registry_totals' ? [{ total_count: 1, cancelled_count: 0 }] : (name === 'registry_documents' ? [] : [{ id: 'r', status: 'accepted', total_count: 1 }]), error: null }; } } });
     const f = run(kp, 'registryNormalizeFilters({ from: "", to: "", client: "' + C1 + '" })');
     assert.deepEqual(run(kp, 'registryFiltersToJson(' + JSON.stringify(f) + ')'), { client: C1 });
     assert.equal(run(kp, 'registryNeedsLocal(' + JSON.stringify(f) + ')'), false);
@@ -314,7 +314,7 @@ test('фільтр «Клієнт»: у КП — uuid із clients на серв
     vm.runInContext('registryFetchAll = async function () { throw new Error("registryFetchAll не має викликатись"); };', kp);
     await vm.runInContext('registryLoad()', kp);
     assert.equal(run(kp, 'registryState.error'), '');
-    assert.deepEqual(kp.calls.map((c) => [c.name, c.args.p_limit]), [['registry_list', 50], ['registry_totals', undefined]], 'серверна пагінація 50, не вибірка по 200');
+    assert.deepEqual(kp.calls.map((c) => [c.name, c.args.p_limit]), [['registry_list', 50], ['registry_totals', undefined], ['registry_documents', undefined]], 'серверна пагінація 50, не вибірка по 200; документи лише для рядків сторінки');
     assert.deepEqual(JSON.parse(JSON.stringify(kp.calls[0].args.p_filters)), { client: C1 });
     // Сайт: назва → локальний режим.
     const site = world({ supabaseClient: { rpc: async (name, args) => { site.calls.push({ name, args }); return { data: [], error: null }; } } });

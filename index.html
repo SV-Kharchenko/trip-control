@@ -2338,6 +2338,7 @@
         .tc-registry-row:hover { background: color-mix(in srgb, var(--input-bg) 70%, transparent); }
         .tc-registry-row.is-cancelled, .tc-history-card.is-cancelled { opacity: 0.62; }
         .tc-registry-fact-plan { color: var(--text-muted); font-style: italic; }
+        #registry-contract[hidden], #registry-pay[hidden] { display: none; }
         .tc-registry-row.is-focus, .tc-history-card.is-focus { outline: 2px solid var(--gold); outline-offset: -2px; }
         @media (max-width: 720px) {
             #registry-section .comparison-table { display: none; }
@@ -5811,6 +5812,17 @@
             </select>
             <select id="registry-client" aria-label="Клієнт" onchange="registryFilterChanged()">
                 <option value="">Усі клієнти</option>
+            </select>
+            <select id="registry-contract" aria-label="Договір" onchange="registryFilterChanged()" hidden>
+                <option value="">Усі договори</option>
+                <option value="yes">Є договір</option>
+                <option value="no">Немає договору</option>
+            </select>
+            <select id="registry-pay" aria-label="Оплата" onchange="registryFilterChanged()" hidden>
+                <option value="">Усі оплати</option>
+                <option value="paid">Оплачені</option>
+                <option value="unpaid">Не оплачені</option>
+                <option value="partial">Частково</option>
             </select>
             <label class="team-feature" for="registry-user">Логіст
                 <select id="registry-user" onchange="registryFilterChanged()">
@@ -14944,7 +14956,7 @@
     }
     function registryDefaultFilters() {
         const month = registryMonthRange();
-        return { from: month.from, to: month.to, status: '', user: '', vehicle: '', client: '', q: '' };
+        return { from: month.from, to: month.to, status: '', user: '', vehicle: '', client: '', contract: '', pay: '', q: '' };
     }
     // Фільтри з форми або localStorage; відсутній період = поточний місяць, порожній (скинутий користувачем) лишається порожнім.
     function registryNormalizeFilters(raw) {
@@ -14958,6 +14970,9 @@
             user: String(src.user || ''),
             vehicle: String(src.vehicle || ''),
             client: String(src.client || ''),
+            // «Договір» і «Оплата» — лише Контроль+; на сайті ключі не використовуються.
+            contract: ['yes', 'no'].indexOf(src.contract) >= 0 ? src.contract : '',
+            pay: ['paid', 'unpaid', 'partial'].indexOf(src.pay) >= 0 ? src.pay : '',
             q: String(src.q || '').trim().slice(0, 100)
         };
     }
@@ -14976,7 +14991,68 @@
     }
     // Локальний режим (вся вибірка до 5000 на клієнті): пошук, а на сайті ще й клієнт за назвою. У КП клієнт іде на сервер як uuid.
     function registryNeedsLocal(f) {
-        return Boolean(f.q || (f.client && !isKP()));
+        return Boolean(f.q || (f.client && !isKP()) || (isKP() && (f.contract || f.pay)));
+    }
+    // ===== Документи заявок (лише Контроль+): договір, рахунки, акти, оплата — RPC registry_documents / registry_doc_set_paid =====
+    const REGISTRY_PAY_LABELS = { paid: 'оплачено', unpaid: 'не оплачено', partial: 'частково' };
+    const REGISTRY_DOC_STATUS = { issued: 'виданий', cancelled: 'анульований' };
+    let registryDocs = {};
+    function registryDocText(info, kind) {
+        return ((info && info.docs) || []).filter(function (d) { return d.kind === kind; })
+            .map(function (d) { return d.number + ' (' + (REGISTRY_DOC_STATUS[d.status] || d.status) + ')'; }).join(', ');
+    }
+    // Оплата заявки за чинними (не анульованими) рахунками й актами: усі оплачені / жоден / частково; документів немає — порожньо.
+    function registryPayState(info) {
+        const live = ((info && info.docs) || []).filter(function (d) { return d.status === 'issued'; });
+        if (!live.length) return '';
+        const paid = live.filter(function (d) { return d.paid; }).length;
+        return paid === live.length ? 'paid' : (paid === 0 ? 'unpaid' : 'partial');
+    }
+    function registryDocMatches(row, f) {
+        const info = registryDocs[row.id];
+        if (f.contract === 'yes' && !(info && info.contract_no)) return false;
+        if (f.contract === 'no' && info && info.contract_no) return false;
+        if (f.pay && registryPayState(info) !== f.pay) return false;
+        return true;
+    }
+    async function registryLoadDocs(ids) {
+        if (!isKP()) return;
+        const missing = ids.filter(function (id) { return !registryDocs[id]; });
+        for (let i = 0; i < missing.length; i += 200) {
+            const chunk = missing.slice(i, i + 200);
+            const { data, error } = await supabaseClient.rpc('registry_documents', { p_calcs: chunk });
+            if (error) throw error;
+            const got = {};
+            (data || []).forEach(function (item) { got[item.calculation_id] = item; });
+            // Заявка без відповіді (немає доступу) отримує порожній запис, щоб не питати двічі.
+            chunk.forEach(function (id) { registryDocs[id] = got[id] || { calculation_id: id, docs: [] }; });
+        }
+    }
+    // Хто може ставити оплату (дзеркало registry_doc_set_paid): директор КП та owner / logist (kp_can_write, як створення документів).
+    function registryCanMarkPaid() {
+        if (!isKP()) return false;
+        if (kpDirectorActive() || currentOrgRole === 'owner') return true;
+        const me = (teamState.members || []).find(function (item) { return item.id === currentUserId; });
+        return currentOrgRole === 'logist';
+    }
+    // Кнопки документів рядка: «Створити …» (наявна форма заявки) або «Відкрити …», якщо документ уже є; оплата — для тих, хто може.
+    function registryDocActions(row) {
+        if (!isKP() || (row.status !== 'accepted' && row.status !== 'done')) return [];
+        const info = registryDocs[row.id] || { docs: [] };
+        const parts = [];
+        const labels = { invoice: 'рахунок', act: 'акт' };
+        ['invoice', 'act'].forEach(function (kind) {
+            const live = (info.docs || []).filter(function (d) { return d.kind === kind && d.status === 'issued'; });
+            if (live.length) parts.push({ kind: 'open', doc: live[0].id, label: 'Відкрити ' + labels[kind] });
+            else if (!kpDirectorActive()) parts.push({ kind: 'create', docKind: kind, label: 'Створити ' + labels[kind] });
+        });
+        const state = registryPayState(info);
+        if (state && registryCanMarkPaid()) {
+            const first = (info.docs || []).filter(function (d) { return d.status === 'issued'; });
+            const target = (first.find(function (d) { return d.kind === 'invoice'; }) || first[0]).id;
+            parts.push({ kind: 'pay', doc: target, paid: state !== 'paid', label: state === 'paid' ? 'Зняти оплату' : 'Позначити оплаченим' });
+        }
+        return parts;
     }
     function registryRouteLabel(row) {
         return row.route_from && row.route_to ? row.route_from + ' → ' + row.route_to : (row.name || 'Рейс');
@@ -15051,7 +15127,7 @@
         return columns.concat([
             { key: 'status', title: 'Статус' }, { key: 'km', title: 'Км', num: true }, { key: 'revenue', title: 'Виручка', num: true },
             { key: 'profit', title: 'Прибуток план', num: true }, { key: 'fact', title: 'Прибуток факт', num: true }
-        ]);
+        ]).concat(isKP() ? [{ key: 'contract', title: 'Договір' }, { key: 'invoice', title: 'Рахунок' }, { key: 'act', title: 'Акт' }, { key: 'pay', title: 'Оплата' }] : []);
     }
     function registryCellValue(row, key) {
         const num = function (value) { return value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value); };
@@ -15066,6 +15142,9 @@
         if (key === 'revenue') return num(row.revenue);
         if (key === 'profit') return num(row.profit);
         if (key === 'fact') return num(row.fact_profit);
+        if (key === 'contract') return (registryDocs[row.id] && registryDocs[row.id].contract_no) || '';
+        if (key === 'invoice' || key === 'act') return registryDocText(registryDocs[row.id], key);
+        if (key === 'pay') return REGISTRY_PAY_LABELS[registryPayState(registryDocs[row.id])] || '';
         return '';
     }
     // CSV усіх рядків за фільтром: колонки таблиці плюс причина скасування (той самий екранувальник, що в історії).
@@ -15138,7 +15217,8 @@
         const value = function (id) { const el = document.getElementById(id); return el ? el.value : ''; };
         registryFilters = registryNormalizeFilters({
             from: value('registry-from'), to: value('registry-to'), status: value('registry-status'), user: value('registry-user'),
-            vehicle: value('registry-vehicle'), client: value('registry-client'), q: value('registry-q')
+            vehicle: value('registry-vehicle'), client: value('registry-client'), q: value('registry-q'),
+            contract: value('registry-contract'), pay: value('registry-pay')
         });
     }
     function registryApplyControls() {
@@ -15146,6 +15226,7 @@
         const f = registryFilters;
         set('registry-from', f.from); set('registry-to', f.to); set('registry-status', f.status);
         set('registry-user', f.user); set('registry-vehicle', f.vehicle); set('registry-client', f.client); set('registry-q', f.q);
+        set('registry-contract', f.contract); set('registry-pay', f.pay);
     }
     function registryPopulateSelects() {
         const fill = function (id, first, options, keep) {
@@ -15219,7 +15300,8 @@
     async function registryFetchAll(f) {
         const full = await registryFetchAllRows(f);
         registryState.truncated = full.truncated;
-        return full.rows.filter(function (row) { return registryRowMatches(row, f); });
+        if (isKP() && (f.contract || f.pay)) await registryLoadDocs(full.rows.map(function (row) { return row.id; }));
+        return full.rows.filter(function (row) { return registryRowMatches(row, f) && (!isKP() || registryDocMatches(row, f)); });
     }
     async function registryLoad() {
         if (!registryFilters) return;
@@ -15249,6 +15331,7 @@
                 if (totals.error) throw totals.error;
                 registryState.totals = registryTotalsFromRpc((totals.data || [])[0]);
             }
+            if (isKP()) await registryLoadDocs(registryState.rows.map(function (row) { return row.id; }));
             registryState.loaded = true;
         } catch (e) {
             console.error('Реєстр заявок:', e);
@@ -15263,6 +15346,8 @@
         registryFilters = registrySanitizeFilters(registryFilters, registrySelectOptions());
         registrySaveFilters();
         registryCache = null;
+        registryDocs = {};
+        ['registry-contract', 'registry-pay'].forEach(function (id) { const el = document.getElementById(id); if (el) el.hidden = !isKP(); });
         registryPopulateSelects();
         registryApplyControls();
         registryLoad();
@@ -15354,6 +15439,11 @@
             const parts = [];
             if (can.complete) parts.push('<button type="button" onclick="event.stopPropagation(); registryComplete(\'' + id + '\')">Виконана</button>');
             if (can.cancel) parts.push('<button type="button" class="is-danger" onclick="event.stopPropagation(); registryCancel(\'' + id + '\')">Скасувати</button>');
+            registryDocActions(row).forEach(function (a) {
+                if (a.kind === 'create') parts.push('<button type="button" class="is-doc" onclick="event.stopPropagation(); openCalcDoc(\'' + a.docKind + '\', \'' + id + '\')">' + escHtml(a.label) + '</button>');
+                else if (a.kind === 'open') parts.push('<button type="button" class="is-doc" onclick="event.stopPropagation(); openRegistryDoc(\'' + escHtml(a.doc) + '\')">' + escHtml(a.label) + '</button>');
+                else parts.push('<button type="button" onclick="event.stopPropagation(); registrySetPaid(\'' + escHtml(a.doc) + '\', ' + (a.paid ? 'true' : 'false') + ')">' + escHtml(a.label) + '</button>');
+            });
             return parts.length ? '<div class="tc-history-actions">' + parts.join('') + '</div>' : '';
         };
         tbody.innerHTML = registryState.rows.map(function (row) {
@@ -15369,6 +15459,9 @@
                     ' · <span class="tc-status is-' + escHtml(row.status) + '">' + escHtml(registryCellValue(row, 'status')) + '</span></div>' +
                     '<div class="tc-history-meta">' + escHtml([registryCellValue(row, 'client'), registryCellValue(row, 'vehicles'),
                         registryCellValue(row, 'km') === null ? '' : formatHistoryNum(registryCellValue(row, 'km'), 0) + ' км'].filter(Boolean).join(' · ') || '—') + '</div>' +
+                    (isKP() ? '<div class="tc-history-meta">' + escHtml(['Договір', 'Рахунок', 'Акт', 'Оплата'].map(function (title, i) {
+                        return title + ': ' + (registryCellValue(row, ['contract', 'invoice', 'act', 'pay'][i]) || '—');
+                    }).join(' · ')) + '</div>' : '') +
                     (row.status === 'cancelled' ? '<div class="tc-history-meta tc-history-reason">Скасовано: ' + escHtml(row.cancel_reason || 'без причини') + '</div>' : '') +
                     '<div class="tc-history-meta">Виручка ' + escHtml(money0(registryCellValue(row, 'revenue'))) + ' · Прибуток ' + escHtml(money0(registryCellValue(row, 'profit'))) + ' · Факт ' + registryFactHtml(row, money) + '</div>' +
                     actions(row) + '</article>';
@@ -15376,6 +15469,21 @@
         }
     }
 
+    function openRegistryDoc(docId) {
+        location.hash = '#/docs/' + encodeURIComponent(docId);
+    }
+    // Оплата рахунку чи акта: одна RPC ставить/знімає її для рахунку й усіх його актів (атомарно, права перевіряє сервер).
+    async function registrySetPaid(docId, paid) {
+        try {
+            const { error } = await supabaseClient.rpc('registry_doc_set_paid', { p_doc: docId, p_paid: paid });
+            if (error) throw error;
+            registryDocs = {};
+            showToast(paid ? 'Позначено оплаченим (рахунок і пов’язані акти)' : 'Оплату знято (рахунок і пов’язані акти)', 2600, 'ok');
+            await registryLoad();
+        } catch (e) {
+            showToast(String((e && e.message) || '').indexOf('FORBIDDEN') >= 0 ? 'Немає прав змінювати оплату документів.' : 'Не вдалося змінити оплату. Спробуйте ще раз.', 4200, 'error');
+        }
+    }
     function openRegistryRow(id) {
         const row = savedCalculations.find(function (item) { return item.id === id; });
         if (row) { openSaved(id); return; }
@@ -15426,6 +15534,7 @@
         try {
             const rows = await registryFetchAll(registryFilters || registryDefaultFilters());
             if (!rows.length) { showToast('За цим фільтром немає заявок.'); return; }
+            if (isKP()) await registryLoadDocs(rows.map(function (row) { return row.id; }));
             if (registryState.truncated) {
                 const answer = await tcModal({ title: 'Експорт неповний', text: REGISTRY_WARNING, confirmText: 'Завантажити все одно' });
                 if (!answer.ok) return;
