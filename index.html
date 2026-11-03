@@ -14969,6 +14969,8 @@
         if (f.user && currentWorkMode === 'team' && REGISTRY_UUID.test(f.user)) out.user_id = f.user;
         if (f.vehicle && REGISTRY_UUID.test(f.vehicle)) out.vehicle = f.vehicle;
         if (f.client && isKP() && REGISTRY_UUID.test(f.client)) out.client = f.client;
+        // Директор Контроль+: компанія з kp_context() (активна організація Контроль+), не профільна current_org_id().
+        if (kpDirectorActive() && typeof window.tcKpOrgId === 'string' && REGISTRY_UUID.test(window.tcKpOrgId)) out.org_id = window.tcKpOrgId;
         return out;
     }
     // Локальний режим (вся вибірка до 5000 на клієнті): пошук, а на сайті ще й клієнт за назвою. У КП клієнт іде на сервер як uuid.
