@@ -5,7 +5,9 @@ import { test } from 'node:test';
 
 process.env.SUPABASE_URL = 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
-const { validateLead, processLead, ipHash } = await import('../lib/kp-lead.js');
+const { validateLead, processLead, ipHash, resetSaltWarning } = await import('../lib/kp-lead.js');
+const { createBillingService } = await import('../lib/billing/service.js');
+const { baseEnv, memoryStore, NOW } = await import('./billing-fakes.mjs');
 const { buildLeadEmail, LEAD_TO } = await import('../lib/kp-lead-mail.js');
 const { createKpLeadHandler } = await import('../api/kp-lead.js');
 
@@ -49,12 +51,12 @@ test('пастка: заповнене приховане поле → 200 бе�
 
 test('запис: рядок зі status new і хешем IP, лист на support@, відповідь 200', async () => {
     const calls = [];
-    const deps = { insert: async (r) => { calls.push(['insert', r]); return { error: null }; }, sendMail: async (m) => { calls.push(['mail', m]); } };
+    const deps = { ipSalt: 'salt-A', insert: async (r) => { calls.push(['insert', r]); return { error: null }; }, sendMail: async (m) => { calls.push(['mail', m]); } };
     const out = await processLead(good, '192.0.2.1', deps);
     assert.equal(out.status, 200);
     assert.equal(calls[0][0], 'insert');
     assert.equal(calls[0][1].status, 'new');
-    assert.equal(calls[0][1].ip_hash, ipHash('192.0.2.1'));
+    assert.equal(calls[0][1].ip_hash, ipHash('192.0.2.1', 'salt-A'));
     assert.match(calls[0][1].ip_hash, /^[0-9a-f]{64}$/);
     assert.equal(JSON.stringify(calls[0][1]).includes('192.0.2.1'), false, 'сирого IP немає');
     assert.equal(calls[1][0], 'mail');
@@ -160,4 +162,87 @@ test('міграція kp_leads: RLS без політик, гранти лиш�
     const tap = read('supabase/tests/kp_leads.sql');
     assert.match(tap, /SELECT plan\(9\)/);
     assert.equal((tap.match(/^SELECT (ok|is|throws_ok)\(/gm) || []).length, 9);
+});
+
+test('сіль: хеш залежить від солі й IP, без солі ip_hash = null і одне попередження без IP', async () => {
+    assert.notEqual(ipHash('192.0.2.1', 'salt-A'), ipHash('192.0.2.1', 'salt-B'));
+    assert.notEqual(ipHash('192.0.2.1', 'salt-A'), ipHash('192.0.2.2', 'salt-A'));
+    assert.equal(ipHash('192.0.2.1', 'salt-A'), ipHash('192.0.2.1', 'salt-A'));
+    assert.match(ipHash('192.0.2.1', 'salt-A'), /^[0-9a-f]{64}$/);
+    assert.equal(ipHash('192.0.2.1', ''), null);
+    assert.equal(ipHash('192.0.2.1'), null);
+    resetSaltWarning();
+    const warnings = [];
+    const original = console.warn;
+    console.warn = (...args) => { warnings.push(args.join(' ')); };
+    const rows = [];
+    try {
+        const deps = { insert: async (r) => { rows.push(r); return { error: null }; }, sendMail: async () => {} };
+        assert.equal((await processLead(good, '203.0.113.9', deps)).status, 200, 'без солі не падаємо');
+        assert.equal((await processLead(good, '203.0.113.9', deps)).status, 200);
+    } finally {
+        console.warn = original;
+    }
+    assert.deepEqual(rows.map((r) => r.ip_hash), [null, null]);
+    assert.equal(warnings.length, 1, 'попередження один раз');
+    assert.equal(warnings[0].includes('203.0.113.9'), false, 'без IP у логу');
+    assert.match(read('.env.example'), /^KP_LEAD_IP_SALT=$/m);
+    assert.match(read('api/kp-lead.js'), /ipSalt: env[.]KP_LEAD_IP_SALT/);
+});
+
+test('413: тіло понад 16 КБ → PAYLOAD_TOO_LARGE без запису, листа й ліміту', async () => {
+    const touched = [];
+    const deps = { rpc: async () => { touched.push('rpc'); return { data: [{ allowed: true }], error: null }; }, insert: async () => { touched.push('insert'); return { error: null }; }, sendMail: async () => { touched.push('mail'); } };
+    const handler = createKpLeadHandler(deps);
+    const big = { ...good, comment: 'я'.repeat(9000) };
+    for (const request of [req(big), req(JSON.stringify(big)), req(good, { headers: { 'x-vercel-forwarded-for': '192.0.2.44', 'content-length': '20000' } })]) {
+        const out = res();
+        await handler(request, out);
+        assert.equal(out.code, 413);
+        assert.deepEqual(out.body, { error: 'PAYLOAD_TOO_LARGE' });
+    }
+    assert.deepEqual(touched, []);
+    // Звичайна заявка (обмежена 2000 символів коментаря) проходить.
+    const small = res();
+    await createKpLeadHandler({ rpc: okRpc, insert: async () => ({ error: null }), sendMail: async () => {} })(req({ ...good, comment: 'я'.repeat(2000) }), small);
+    assert.equal(small.code, 200);
+});
+
+test('дубль сторінки: /landing/kontrol-plus.html → 301 на /kontrol-plus, інші rewrite-и ті самі', () => {
+    const vercel = JSON.parse(read('vercel.json'));
+    assert.deepEqual(vercel.redirects, [{ source: '/landing/kontrol-plus.html', destination: '/kontrol-plus', statusCode: 301 }]);
+    assert.equal(vercel.rewrites.length, 5);
+    assert.deepEqual(vercel.rewrites.find((r) => r.source === '/kontrol-plus'), { source: '/kontrol-plus', destination: '/landing/kontrol-plus.html' });
+});
+
+test('шапка на 360px: один рядок, кнопка теми не менше 40×40', () => {
+    const html = read('landing/kontrol-plus.html');
+    assert.ok(html.includes('.kp-theme { min-width: 40px; min-height: 40px;'));
+    assert.ok(html.includes('.kp-head .kp-wrap { flex-wrap: nowrap;'));
+    const nav = html.slice(html.indexOf('<nav class="kp-nav"'), html.indexOf('</nav>', html.indexOf('<nav class="kp-nav"')));
+    assert.ok(nav.includes('Контроль+ для компаній'), 'пункт меню лишається в розмітці');
+});
+
+test('щоденний cron прибирає заявки старші за рік (purge_old_kp_leads), збій не ламає cron; нова функція не додається', async () => {
+    const CRON = { headers: { authorization: 'Bearer cron-test-secret' } };
+    const clock = { now: NOW };
+    const calls = [];
+    const store = Object.assign(memoryStore(clock), { purgeOldKpLeads: async () => { calls.push('purge'); return 3; } });
+    const service = createBillingService({ store, fetch: async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' }), env: baseEnv(), now: () => clock.now });
+    assert.equal((await service.cron(CRON)).kp_leads_purged, 3);
+    const failing = Object.assign(memoryStore(clock), { purgeOldKpLeads: async () => { throw Object.assign(new Error('x'), { code: 'XX' }); } });
+    const original = console.warn;
+    console.warn = () => {};
+    try {
+        const out = await createBillingService({ store: failing, fetch: async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' }), env: baseEnv(), now: () => clock.now }).cron(CRON);
+        assert.equal('kp_leads_purged' in out, false);
+    } finally {
+        console.warn = original;
+    }
+    assert.ok(read('lib/billing/store.js').includes("rpc('purge_old_kp_leads')"));
+    const sql = read('supabase/migrations/20261112090000_kp_leads_purge.sql');
+    assert.ok(sql.startsWith('-- Apply manually after review. This file is not applied to production by the agent.'));
+    for (const part of ['РУЧНИЙ ВІДКАТ', "DELETE FROM public.kp_leads WHERE created_at < now() - interval '1 year'",
+        'REVOKE ALL ON FUNCTION public.purge_old_kp_leads() FROM PUBLIC, anon, authenticated', 'GRANT EXECUTE ON FUNCTION public.purge_old_kp_leads() TO service_role']) assert.ok(sql.includes(part), part);
+    assert.equal(read('supabase/tests/kp_leads_purge.sql').split('\n').filter((l) => /^SELECT (ok|is|throws_ok)/.test(l)).length, 7);
 });

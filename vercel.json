@@ -4,6 +4,9 @@
       "maxDuration": 60
     }
   },
+  "redirects": [
+    { "source": "/landing/kontrol-plus.html", "destination": "/kontrol-plus", "statusCode": 301 }
+  ],
   "rewrites": [
     { "source": "/offer", "destination": "/legal/offer.html" },
     { "source": "/privacy", "destination": "/legal/privacy.html" },

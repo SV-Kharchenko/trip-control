@@ -65,7 +65,7 @@
     .kp-nav { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-left: auto; align-items: center; font-size: 14px; font-weight: 600; }
     .kp-nav a { color: var(--muted); text-decoration: none; }
     .kp-nav a:hover, .kp-nav a[aria-current] { color: var(--text); }
-    .kp-theme { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .kp-theme { min-width: 40px; min-height: 40px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 4px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
     .btn { display: inline-block; padding: 12px 22px; border-radius: 10px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
     .btn:hover { opacity: .9; }
     .btn[disabled] { opacity: .6; cursor: default; }
@@ -116,8 +116,10 @@
       .kp-hero { padding: 32px 16px 24px; }
       .kp-row { grid-template-columns: 1fr; }
       .kp-form { padding: 16px; }
-      .kp-nav { margin-left: 0; width: 100%; gap: 4px 14px; }
-      .kp-nav .kp-hide-sm { display: none; }
+      /* Шапка в один рядок: логотип, «Замовити демо», тема. Решта пунктів є в футері й у hero. */
+      .kp-head .kp-wrap { flex-wrap: nowrap; gap: 8px; }
+      .kp-nav { flex-wrap: nowrap; gap: 10px; white-space: nowrap; }
+      .kp-nav .kp-hide-sm, .kp-nav .kp-hide-xs { display: none; }
     }
   </style>
   <script defer src="/_vercel/insights/script.js"></script>
@@ -127,8 +129,8 @@
   <div class="kp-wrap">
     <a class="kp-brand" href="/">TRIP-CONTROL</a>
     <nav class="kp-nav" aria-label="Меню">
-      <a href="/">Калькулятор</a>
-      <a href="/kontrol-plus" aria-current="page">Контроль+ для компаній</a>
+      <a class="kp-hide-xs" href="/">Калькулятор</a>
+      <a class="kp-hide-xs" href="/kontrol-plus" aria-current="page">Контроль+ для компаній</a>
       <a class="kp-hide-sm" href="#price">Ціна</a>
       <a class="kp-hide-sm" href="#faq">FAQ</a>
       <a href="#demo">Замовити демо</a>
