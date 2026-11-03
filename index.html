@@ -1243,6 +1243,7 @@
         .tc-status.is-proposed { color: var(--accent); border-color: var(--accent); }
         .tc-status.is-accepted, .tc-status.is-done { color: var(--success); border-color: var(--success); }
         .tc-status.is-rejected { color: var(--danger); border-color: var(--danger); }
+        .tc-status.is-cancelled { color: var(--text-muted); border-color: var(--text-muted); text-decoration: line-through; }
         .tc-history-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
         .tc-history-num.is-neg { color: var(--negative); font-weight: 700; }
         .tc-fact-alert, .tc-fact-alert small { color: var(--warning); font-weight: 700; }
@@ -5767,6 +5768,7 @@
                 <option value="accepted">Прийнята</option>
                 <option value="rejected">Відхилена</option>
                 <option value="done">Виконана</option>
+                <option value="cancelled">Скасована</option>
             </select>
             <select id="history-plate" aria-label="Авто" onchange="historyPage=0;renderSavedTable()">
                 <option value="">Усі авто</option>
@@ -7876,12 +7878,17 @@
 
     let notesState = { items: [], unread: 0, loaded: false };
     let notesTimer = null;
+    // Сповіщення: директор бачить сповіщення компанії, логіст — адресовані йому рішення за його заявками (approval_decided)
+    // і, якщо має право приймати заявки в режимі logist_can_accept, заявки на погодженні. Що саме віддати, вирішує сервер.
+    function notesAllowed() {
+        return Boolean(currentUserId) && (currentOrgRole === 'owner' || currentOrgRole === 'logist');
+    }
     function paintUnread() {
         const n = notesState.unread || 0;
         const menuBadge = document.getElementById('tc-menu-unread');
         if (menuBadge) {
             menuBadge.textContent = n > 99 ? '99+' : String(n);
-            menuBadge.hidden = n === 0 || currentOrgRole !== 'owner';
+            menuBadge.hidden = n === 0 || !notesAllowed();
         }
         const tabBadge = document.getElementById('cab-tab-unread');
         if (tabBadge) {
@@ -7895,28 +7902,38 @@
         return note.kind === 'signature_used' || note.kind === 'doc_emailed'
             || note.ref_kind === 'document' || note.ref_kind === 'contract' || note.ref_kind === 'ttn';
     }
+    // Логісту директорські типи (підпис і печатка, пошта документів) не показуємо: лише рішення за заявками.
+    function noteForRole(note) {
+        return currentOrgRole === 'owner' || note.kind === 'approval_decided' || note.kind === 'approval_pending';
+    }
     function visibleNotes(items) {
-        return isKP() ? (items || []) : (items || []).filter(function (note) { return !noteKpOnly(note); });
+        const list = (items || []).filter(noteForRole);
+        return isKP() ? list : list.filter(function (note) { return !noteKpOnly(note); });
     }
     async function refreshUnreadNotifications() {
-        if (currentOrgRole !== 'owner' || !currentUserId) return;
+        if (!notesAllowed()) return;
         try {
             const data = await teamApi('POST', { action: 'notifications', limit: 50 });
             const items = visibleNotes(data.items);
             // На сайті бейдж = непрочитані серед показаних (серверний лічильник включає сховані).
-            const unread = isKP() ? (data.unread || 0) : items.filter(function (note) { return !note.read_at; }).length;
+            const unread = (isKP() || currentOrgRole !== 'owner') ? (data.unread || 0) : items.filter(function (note) { return !note.read_at; }).length;
             notesState = { items: items, unread: unread, loaded: true };
             paintUnread();
             renderNotifications();
         } catch (e) { /* без сповіщень сайт працює як є */ }
     }
     function startNotificationPolling() {
-        if (currentOrgRole !== 'owner' || notesTimer) return;
+        if (!notesAllowed() || notesTimer) return;
         refreshUnreadNotifications();
         notesTimer = setInterval(function () { if (!document.hidden) refreshUnreadNotifications(); }, 90000);
         document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshUnreadNotifications(); });
     }
     const NOTE_KIND_TEXT = {
+        approval_decided: function (note) {
+            const meta = note.meta || {};
+            const verb = meta.decision === 'cancelled' ? 'скасовано' : (meta.decision === 'rejected' ? 'відхилено' : 'прийнято');
+            return 'Заявку ' + verb + (meta.registry_no ? ' № ' + meta.registry_no : '') + (meta.name ? ': «' + meta.name + '»' : '') + (meta.reason ? '. Причина: ' + meta.reason : '');
+        },
         approval_pending: function (note) { return 'Заявка чекає погодження' + (note.meta && note.meta.name ? ': «' + note.meta.name + '»' : ''); },
         doc_emailed: function (note) {
             const meta = note.meta || {};
@@ -7945,7 +7962,7 @@
         } else {
             list.innerHTML = items.map(function (note) {
                 const text = (NOTE_KIND_TEXT[note.kind] || function () { return 'Сповіщення'; })(note);
-                const who = note.actor_email ? '<small>Логіст: ' + teamEsc(note.actor_email) + '</small>' : '';
+                const who = note.actor_email ? '<small>' + (note.kind === 'approval_decided' ? 'Вирішив: ' : 'Логіст: ') + teamEsc(note.actor_email) + '</small>' : '';
                 const when = new Date(note.created_at).toLocaleString('uk-UA');
                 const open = note.ref_kind === 'calculation'
                     ? '<button type="button" onclick="openNotification(\'' + teamEsc(note.id) + '\')">Відкрити заявку</button>'
@@ -7960,7 +7977,7 @@
         if (all) all.disabled = !(notesState.unread > 0);
     }
     async function loadNotifications() {
-        if (currentOrgRole !== 'owner') return;
+        if (!notesAllowed()) return;
         renderNotifications();
         await refreshUnreadNotifications();
     }
@@ -7972,7 +7989,7 @@
     }
     async function markAllNotesRead() {
         try {
-            if (isKP()) await teamApi('POST', { action: 'notifications_read', all: true });
+            if (isKP() || currentOrgRole !== 'owner') await teamApi('POST', { action: 'notifications_read', all: true });
             else {
                 // На сайті «Прочитати все» не чіпає сховані сповіщення: лише показані непрочитані.
                 const ids = (notesState.items || []).filter(function (note) { return !note.read_at; }).map(function (note) { return note.id; });
@@ -7991,7 +8008,7 @@
         closeCabinet();
         if (note.ref_kind === 'calculation') {
             setStudioView('history');
-            if (typeof openApprovalReview === 'function') {
+            if (currentOrgRole === 'owner' && typeof openApprovalReview === 'function') {
                 if (!savedCalculations.some(function (row) { return row.id === note.ref_id; }) && typeof loadSavedCalculations === 'function') {
                     try { await loadSavedCalculations(); } catch (e) { /* список лишається як є */ }
                 }
@@ -11282,7 +11299,7 @@
             { id: 'costs', title: 'Витратна частина' }
         ];
         if (isKP()) tabs.splice(1, 0, { id: 'requisites', title: 'Реквізити' });
-        if (isOwner) tabs.push({ id: 'notifications', title: 'Сповіщення', badge: 'cab-tab-unread' });
+        if (isOwner || currentOrgRole === 'logist') tabs.push({ id: 'notifications', title: 'Сповіщення', badge: 'cab-tab-unread' });
         if (isOwner && currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
         if (isOwner && isKP()) tabs.push({ id: 'stats', title: 'Статистика' });
         if (isOwner) tabs.push({ id: 'docs', title: 'Автопарк' });
@@ -11352,12 +11369,12 @@
             '<span class="cab-muted">' + (isOwner ? 'Компанія, підпис і печатка для актів, рахунків і ТТН' : 'Лише перегляд — змінює директор') + '</span></div>' +
             '<div id="cab-req-slot" class="cab-slot"><p class="cab-note">Реквізити компанії, підпис і печатка для актів і ТТН доступні в Контроль+.</p></div></div></div>';
         html += costsPanelHtml(esc);
-        if (isOwner) {
-            html += (isKP() ? '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
+        if (isOwner || currentOrgRole === 'logist') {
+            html += (isOwner && isKP() ? '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
                 '<div id="cab-stats-slot" class="cab-slot"><p class="cab-note">Статистика за період доступна в Контроль+.</p></div></div></div>' : '') +
                 '<div class="cab-panel" data-panel="notifications"><div class="cab-card">' +
                 '<div class="cab-card-head"><h3>Сповіщення</h3><button type="button" class="btn" id="cab-notes-all" onclick="markAllNotesRead()">Позначити все прочитаним</button></div>' +
-                '<p class="cab-note">Заявки, що чекають погодження' + (isKP() ? ', і кожне використання підпису та печатки логістом' : '') + '.</p>' +
+                '<p class="cab-note">' + (isOwner ? 'Заявки, що чекають погодження' + (isKP() ? ', і кожне використання підпису та печатки логістом' : '') + '.' : 'Рішення за вашими заявками: прийнято, відхилено чи скасовано.') + '</p>' +
                 '<div class="tc-notes-list" id="cab-notes-list"><div class="cab-muted">Завантаження…</div></div></div></div>';
         }
         if (isOwner) html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
@@ -11384,7 +11401,8 @@
                         '</div>'
                     : '<p class="cab-note">Керування складом команди доступне директору.</p>') +
                 (currentOrgRole === 'owner'
-                    ? '<label class="tc-team-check"><input type="checkbox" id="team-see-all" onchange="saveTeamVisibility()"> Логісти бачать розрахунки колег</label>'
+                    ? '<label class="tc-team-check"><input type="checkbox" id="team-see-all" onchange="saveTeamVisibility()"> Логісти бачать розрахунки колег</label>' +
+                        '<label class="tc-team-check"><input type="checkbox" id="team-approval-mode" onchange="saveApprovalMode()"> Логісти з правом «Приймати заявки в роботу» приймають заявки замість директора</label>'
                     : '') +
                 '<div class="tc-team-list" id="team-members-list"><div class="cab-muted">Завантаження…</div></div>' +
                 '</div></div>';
@@ -12143,7 +12161,7 @@
     // Права логіста. Перемикач лише записує; перевіряє їх база (member_can у тригерах і RPC), тож без права сервер дає 403.
     const MEMBER_PERMISSION_LABELS = [
         ['acts', 'Створювати акти'], ['sign', 'Підпис і печатка'], ['fleet', 'Редагувати Автопарк'],
-        ['clients', 'Додавати клієнтів'], ['contracts', 'Договори']
+        ['clients', 'Додавати клієнтів'], ['contracts', 'Договори'], ['accept', 'Приймати заявки в роботу']
     ];
     async function setMemberPermission(userId, key, input) {
         const wanted = input.checked;
@@ -12198,7 +12216,7 @@
                 : '';
             const perms = canManage && member.org_role === 'logist' && member.permissions
                 ? '<div class="tc-member-perms" role="group" aria-label="Права ' + teamEsc(member.email) + '">' +
-                    MEMBER_PERMISSION_LABELS.filter(function (item) { return isKP() || item[0] === 'fleet'; }).map(function (item) {
+                    MEMBER_PERMISSION_LABELS.filter(function (item) { return isKP() || item[0] === 'fleet' || item[0] === 'accept'; }).map(function (item) {
                         return '<label><input type="checkbox"' + (member.permissions[item[0]] ? ' checked' : '') + (disabled ? ' disabled' : '') +
                             ' onchange="setMemberPermission(\'' + teamEsc(member.id) + '\', \'' + item[0] + '\', this)"> ' + teamEsc(item[1]) + '</label>';
                     }).join('') + '</div>'
@@ -12237,6 +12255,8 @@
         list.innerHTML = rows.concat(inviteRows).join('') || '<div class="cab-muted">У команді поки нікого немає.</div>';
         const visibility = document.getElementById('team-see-all');
         if (visibility) visibility.checked = teamState.logists_see_all === true;
+        const approvalMode = document.getElementById('team-approval-mode');
+        if (approvalMode) approvalMode.checked = teamState.approval_mode === 'logist_can_accept';
         const seats = teamState.seats || { used: 0, limit: 3 };
         const seatCount = document.getElementById('team-seat-count');
         if (seatCount) seatCount.textContent = seats.used + ' з ' + seats.limit + ' логістів';
@@ -12461,6 +12481,22 @@
         } catch (error) {
             if (checkbox) checkbox.checked = teamState.logists_see_all === true;
             teamActionStatus(error.message || 'Не вдалося змінити налаштування.');
+        }
+    }
+
+    // Режим прийняття заявок: owner_only (за замовчуванням) | logist_can_accept. Лише «Команда»; у solo перемикача немає.
+    async function saveApprovalMode() {
+        const checkbox = document.getElementById('team-approval-mode');
+        try {
+            const result = await teamApi('POST', {
+                action: 'set_approval_mode',
+                approval_mode: checkbox && checkbox.checked ? 'logist_can_accept' : 'owner_only'
+            });
+            teamState.approval_mode = result.approval_mode;
+            showToast('Режим прийняття заявок оновлено');
+        } catch (error) {
+            if (checkbox) checkbox.checked = teamState.approval_mode === 'logist_can_accept';
+            teamActionStatus(error.message || 'Не вдалося змінити режим прийняття заявок.');
         }
     }
 
@@ -13662,6 +13698,10 @@
         const code = String((e && e.code) || '');
         if (code === 'OWNER_ONLY') return 'Погоджувати чи відхиляти заявки може лише директор.';
         if (code === 'ACCEPTED_LOCKED') return 'Прийняту заявку видалити не можна.';
+        if (code === 'CANCEL_REASON_REQUIRED') return 'Вкажіть причину скасування.';
+        if (code === 'CANCEL_FORBIDDEN') return 'Скасувати заявку може лише директор або логіст із правом приймати заявки.';
+        if (code === 'DONE_LOCKED') return 'Виконану заявку скасувати не можна.';
+        if (code === 'CANCELLED_FINAL') return 'Скасована заявка більше не змінюється.';
         if (code === 'NOT_EDITABLE') return 'Заявка вже на погодженні або прийнята — її не можна змінити. Створіть новий розрахунок.';
         if (code === 'BAD_VARIANT') return 'Такого варіанта маршруту в заявці немає. Оновіть сторінку.';
         return String((e && e.message) || 'Не вдалося виконати дію із заявкою.');
@@ -13721,6 +13761,31 @@
             showToast(approvalErrorText(e), 4200, 'error');
             return false;
         }
+    }
+    // Скасування прийнятої заявки (директор або логіст із правом): причина обов'язкова; сервер перевіряє ту саму умову.
+    function canCancelRequest(row) {
+        if (historyFields(row).status !== 'accepted') return false;
+        if (currentOrgRole === 'owner') return approvalRole() === 'director';
+        const me = (teamState.members || []).find(function (item) { return item.id === currentUserId; });
+        return currentOrgRole === 'logist' && teamState.approval_mode === 'logist_can_accept' && Boolean(me && me.permissions && me.permissions.accept);
+    }
+    async function cancelRequest(id) {
+        const row = savedCalculations.find(function (item) { return item.id === id; });
+        if (!row) return false;
+        const answer = await tcModal({
+            title: 'Скасувати заявку?',
+            text: historyRouteLabel(historyFields(row)),
+            input: true,
+            inputLabel: 'Причина скасування (обов’язково)',
+            confirmText: 'Скасувати заявку',
+            danger: true
+        });
+        if (!answer.ok) return false;
+        if (!answer.value) {
+            showToast('Вкажіть причину скасування.', 3200, 'error');
+            return false;
+        }
+        return runApproval(id, 'calc_cancel', { reason: answer.value }, 'cancelled', 'Заявку скасовано', { cancelReason: answer.value });
     }
     async function submitForApproval(id) {
         return runApproval(id, 'calc_submit', null, 'pending', 'Заявку відправлено на погодження');
@@ -13862,7 +13927,9 @@
             return !!d && d >= from && (!to || d < to);
         });
     }
+    // Скасовані заявки (cancelled) у підсумки огляду не входять.
     function overviewStats(rows) {
+        rows = rows.filter(function (row) { return row.status !== 'cancelled'; });
         const sum = function (key) {
             return rows.reduce(function (acc, row) {
                 const n = Number(row[key]);
@@ -14135,7 +14202,8 @@
         ['pending', 'На погодженні'],
         ['accepted', 'Прийнята'],
         ['rejected', 'Відхилена'],
-        ['done', 'Виконана']
+        ['done', 'Виконана'],
+        ['cancelled', 'Скасована']
     ];
     const TRIP_FIELD_MAP = [
         ['calcType', 'calc-type'], ['returnMode', 'return-mode'], ['roadQuality', 'road-quality'],
@@ -14829,7 +14897,10 @@
     }
     function historyActions(row) {
         const id = escHtml(row.id);
-        if (!canEditSaved(row)) return '<span class="tc-history-meta">лише перегляд</span>' + calcDocButtons(row);
+        if (!canEditSaved(row)) {
+            const cancelOnly = canCancelRequest(row) ? '<button type="button" class="is-danger" onclick="cancelRequest(\'' + id + '\')">Скасувати</button>' : '';
+            return '<span class="tc-history-meta">лише перегляд</span>' + calcDocButtons(row) + cancelOnly;
+        }
         const status = historyFields(row).status;
         const mine = row.userId === currentUserId;
         const director = approvalRole() === 'director';
@@ -14850,7 +14921,8 @@
         const fact = factButton(row);
         if (fact) parts.push(fact);
         if (status === 'accepted') parts.push('<button type="button" onclick="setTripStatus(\'' + id + '\', \'done\')">Виконано</button>');
-        if (status !== 'accepted' && status !== 'done') parts.push(button('Видалити', 'removeSaved', 'is-danger'));
+        if (canCancelRequest(row)) parts.push(button('Скасувати', 'cancelRequest', 'is-danger'));
+        if (status !== 'accepted' && status !== 'done' && status !== 'cancelled') parts.push(button('Видалити', 'removeSaved', 'is-danger'));
         parts.push(calcDocButtons(row));
         return '<div class="tc-history-actions">' + parts.join('') + '</div>';
     }

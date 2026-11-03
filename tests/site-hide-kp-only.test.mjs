@@ -43,7 +43,7 @@ test('вкладки кабінету: «Реквізити» і «Статис�
     assert.ok(block.includes("if (isOwner) tabs.push({ id: 'docs', title: 'Автопарк' });"));
     assert.equal(block.includes("{ id: 'requisites', title: 'Реквізити' }\n"), false, 'у базовому списку немає «Реквізитів»');
     assert.ok(html.includes("if (isKP()) html += '<div class=\"cab-panel\" data-panel=\"requisites\">"), 'панель «Реквізити» лише в Контроль+');
-    assert.ok(html.includes("html += (isKP() ? '<div class=\"cab-panel\" data-panel=\"stats\">"), 'панель «Статистика» лише в Контроль+');
+    assert.ok(html.includes("html += (isOwner && isKP() ? '<div class=\"cab-panel\" data-panel=\"stats\">"), 'панель «Статистика» лише в Контроль+');
 });
 
 test('маршрути #/company, #/docs/requisites, #/stats і #/cabinet/requisites: на сайті ведуть на «Профіль», у Контроль+ — як раніше', () => {
@@ -75,14 +75,14 @@ test('кнопки документів заявки: на сайті calcDocBut
     assert.equal(callers, 2, 'оголошення + кнопка в calcDocButtons');
 });
 
-test('«Команда»: на сайті лише «Редагувати Автопарк»; усі п’ять прав — у Контроль+; значення в БД не чіпаються', () => {
-    assert.ok(html.includes("MEMBER_PERMISSION_LABELS.filter(function (item) { return isKP() || item[0] === 'fleet'; }).map("));
+test('«Команда»: на сайті «Редагувати Автопарк» і «Приймати заявки в роботу»; усі права — у Контроль+; значення в БД не чіпаються', () => {
+    assert.ok(html.includes("MEMBER_PERMISSION_LABELS.filter(function (item) { return isKP() || item[0] === 'fleet' || item[0] === 'accept'; }).map("));
     assert.ok(html.includes("['acts', 'Створювати акти'], ['sign', 'Підпис і печатка'], ['fleet', 'Редагувати Автопарк']"));
     assert.equal(/can_acts\s*=|set_permissions[^\n]*isKP/.test(html), false, 'збереження прав не залежить від мітки');
 });
 
 test('«Сповіщення»: на сайті опис без підпису й печатки, а сповіщення документів — без посилання', () => {
-    assert.ok(html.includes("'<p class=\"cab-note\">Заявки, що чекають погодження' + (isKP() ? ', і кожне використання підпису та печатки логістом' : '') + '.</p>'"));
+    assert.ok(html.includes("(isOwner ? 'Заявки, що чекають погодження' + (isKP() ? ', і кожне використання підпису та печатки логістом' : '') + '.' : 'Рішення за вашими заявками: прийнято, відхилено чи скасовано.')"));
     const noteHref = fnSource('isKP') + ' ' + fnSource('noteHref');
     const run = (app, note) => vm.runInContext(noteHref + '; noteHref(' + JSON.stringify(note) + ')', context(app));
     for (const note of [{ ref_kind: 'document', ref_id: 'd1' }, { ref_kind: 'ttn', ref_id: 't1' }, { ref_kind: 'contract', ref_id: 'c1', meta: { client_id: 'k1' } }]) {
@@ -122,7 +122,7 @@ function notesWorld(app) {
         teamApi: async (_method, body) => { calls.push(body); return { items: NOTES, unread: 5 }; },
         paintUnread() {}, renderNotifications() {}, showToast() {},
     });
-    vm.runInContext(['isKP', 'noteKpOnly', 'visibleNotes'].map((n) => fnSource(n)).join('\n')
+    vm.runInContext(['isKP', 'notesAllowed', 'noteForRole', 'noteKpOnly', 'visibleNotes'].map((n) => fnSource(n)).join('\n')
         + '\n' + ['refreshUnreadNotifications', 'markAllNotesRead'].map((n) => fnSource(n, true)).join('\n')
         + "\nlet notesState = { items: [], unread: 0, loaded: false };", ctx);
     return ctx;

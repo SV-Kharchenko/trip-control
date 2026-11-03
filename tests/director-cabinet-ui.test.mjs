@@ -62,12 +62,13 @@ test('a solo owner has no Team tab; the invitation block stays in the Profile', 
     assert.match(markup, /enableTeamAndInvite\(\)/);
 });
 
-test('a logist sees only Profile, Requisites and the costs (read-only): no Notifications, Team, Statistics or Fleet', () => {
+test('a logist sees Profile, Requisites, the costs (read-only) and own Notifications (decisions on their requests): no Team, Statistics or Fleet', () => {
     const markup = buildFor({ role: 'logist', mode: 'team' });
-    assert.deepEqual(tabsOf(markup), ['company', 'requisites', 'costs']);
-    assert.deepEqual(panelsOf(markup).sort(), ['company', 'costs', 'requisites']);
+    assert.deepEqual(tabsOf(markup), ['company', 'requisites', 'costs', 'notifications']);
+    assert.deepEqual(panelsOf(markup).sort(), ['company', 'costs', 'notifications', 'requisites']);
     assert.match(markup, /Лише перегляд/);
-    for (const hidden of ['cab-notes-list', 'cab-stats-slot', 'team-members-list', 'team-invite-btn', 'cab-tab-unread']) {
+    assert.match(markup, /Рішення за вашими заявками/);
+    for (const hidden of ['cab-stats-slot', 'team-members-list', 'team-invite-btn']) {
         assert.equal(markup.includes(hidden), false, hidden);
     }
 });
@@ -191,14 +192,15 @@ test('notifications list: who, when, link to the request or the document, unread
     assert.equal(emptyEls['cab-notes-all'].disabled, true);
 });
 
-test('notifications are read and marked only through the API; the unread counter sits on the menu and the tab, owner only', () => {
+test('notifications are read and marked only through the API; the unread counter sits on the menu and the tab, owner and logist', () => {
     for (const name of ['refreshUnreadNotifications', 'markNoteRead', 'markAllNotesRead']) {
         const fn = fnSource(name);
         assert.match(fn, /teamApi\('POST'/, name);
         assert.equal(/supabaseClient|\.from\(/.test(fn), false, name + ' does not touch tables from the client');
     }
-    assert.match(fnSource('refreshUnreadNotifications'), /currentOrgRole !== 'owner'/);
-    assert.match(fnSource('startNotificationPolling'), /currentOrgRole !== 'owner'/);
+    assert.match(fnSource('refreshUnreadNotifications'), /!notesAllowed\(\)/);
+    assert.match(fnSource('startNotificationPolling'), /!notesAllowed\(\)/);
+    assert.match(fnSource('notesAllowed'), /currentOrgRole === 'owner' \|\| currentOrgRole === 'logist'/);
     assert.match(fnSource('paintUnread'), /tc-menu-unread/);
     assert.match(fnSource('paintUnread'), /cab-tab-unread/);
     assert.match(html, /body:not\(\.org-owner\) \.tc-menu-badge \{ display: none !important; \}/);
