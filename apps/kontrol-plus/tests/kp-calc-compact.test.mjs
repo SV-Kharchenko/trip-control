@@ -103,3 +103,11 @@ test('рядок проміжної зупинки і пари полів: min-w
     assert.match(rule(/\.form-row:has\(> \.tc-in > input\[type="number"\]\) > label,[^{]*\{[^}]*\}/), /min-width: 0;[^}]*text-overflow: ellipsis; white-space: nowrap/);
     assert.match(rule(/\.tc-place-field gmp-place-autocomplete \{[^}]*\}/), /min-height: 30px !important/);
 });
+
+test('KPI-рядок ≈56–60px: підпис над значенням 18px (mono), кнопка 28px по центру; висота мапи обмежена --tc-map-h', () => {
+    assert.match(css, /\.tc-kpi-bar \{[^}]*padding-block: 14px/);
+    assert.match(css, /\.tc-kb-m \{[^}]*flex-direction: column/);
+    assert.match(css, /\.tc-kb-m b \{[^}]*font-family: var\(--font-mono[^}]*font-size: 18px; font-weight: 700/);
+    assert.match(css, /\.tc-kb-detail \{[^}]*height: 28px;[^}]*align-self: center/);
+    assert.match(css, /height: min\(calc\(100vh - [^)]*\)[^;]*var\(--tc-map-h, 100vh\)\) !important/);
+});
