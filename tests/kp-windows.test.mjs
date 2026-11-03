@@ -183,6 +183,8 @@ test('картки документів у вікнах (рахунок / акт
         assert.equal(/\bid: '[a-z]/.test(src(file).replace(/id: pfx/g, '')), false, file + ': лише унікальні id');
         assert.match(src(file), /uniqueId\('(kpe|ts-m|kpc)'\)/);
     }
+    // Чекбокс у label без id: for: <box>.id дав би порожній for="" і зламав прив’язку.
+    assert.equal(/for: p.box.id/.test(src('doc-email.js')), false, 'doc-email.js: label вибору PDF без for (чекбокс усередині label)');
     assert.match(read('apps/kontrol-plus/src/ui.js'), /export function uniqueId\(prefix\)/);
     assert.match(src('docs-ts-card.js'), /querySelector\('\.kpts-related-box'\)/, 'контейнер пов’язаних документів — клас, не id');
 });

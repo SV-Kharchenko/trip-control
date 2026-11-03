@@ -112,7 +112,7 @@ export function emailControl(app, { docs = [], contract = null, to = '', clientN
                 h('div', { class: 'field' }, h('label', null, contract ? 'Вкладення' : 'PDF'),
                     h('div', { class: 'kpd-email-docs' }, contract
                         ? (contract.files || []).map((name) => h('span', { class: 'kpd-email-pick' }, name))
-                        : picks.map((p) => h('label', { class: 'kpd-email-pick', for: p.box.id }, p.box, ' ' + docLabel(p.doc))))),
+                        : picks.map((p) => h('label', { class: 'kpd-email-pick' }, p.box, ' ' + docLabel(p.doc))))),
                 status,
                 h('div', { class: 'actions' }, send, h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { panel.hidden = true; } }, 'Скасувати'))));
     }
