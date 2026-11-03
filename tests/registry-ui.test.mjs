@@ -23,7 +23,7 @@ const constLine = (name) => {
     return html.slice(start, html.indexOf(';\n', start) + 1);
 };
 const SYNC = ['registryMonthRange', 'registryDefaultFilters', 'registryNormalizeFilters', 'registryFiltersToJson', 'registryNeedsLocal', 'registryRouteLabel',
-    'registryRowMatches', 'registryTotalsOf', 'registryTotalsFromRpc', 'registryRowCan', 'kpDirectorActive', 'canCancelStatus', 'approvalRole', 'registryVehicleLabel', 'registryColumns',
+    'registryRowMatches', 'registryTotalsOf', 'registryTotalsFromRpc', 'registryFactNote', 'registryRowCan', 'kpDirectorActive', 'canCancelStatus', 'approvalRole', 'registryVehicleLabel', 'registryColumns',
     'registryCellValue', 'registryCsv', 'historyCsvCell', 'registryStorageKey', 'registryReadStored', 'registrySaveFilters', 'registrySelectOptions', 'registrySanitizeFilters'];
 const ASYNC = ['registryRpcPage', 'registryFetchAllRows', 'registryFetchAll', 'registryLoad'];
 
@@ -86,10 +86,10 @@ const ROWS = [
 
 test('підсумки: скасовані не входять у суми, їх кількість окремо (локально й з registry_totals)', () => {
     const ctx = world();
-    assert.deepEqual(run(ctx, 'registryTotalsOf(' + JSON.stringify(ROWS) + ')'), { count: 2, cancelled: 1, revenue: 3000, profit_plan: 400, profit_fact: 330, distance: 840 });
-    assert.deepEqual(run(ctx, 'registryTotalsFromRpc({ total_count: 3, cancelled_count: 1, revenue: 3000, profit_plan: 400, profit_fact: 330, distance_km: 840 })'),
-        { count: 2, cancelled: 1, revenue: 3000, profit_plan: 400, profit_fact: 330, distance: 840 });
-    assert.deepEqual(run(ctx, 'registryTotalsOf([])'), { count: 0, cancelled: 0, revenue: 0, profit_plan: 0, profit_fact: 0, distance: 0 });
+    assert.deepEqual(run(ctx, 'registryTotalsOf(' + JSON.stringify(ROWS) + ')'), { count: 2, cancelled: 1, revenue: 3000, profit_plan: 400, profit_fact: 330, fact_count: 2, distance: 840 });
+    assert.deepEqual(run(ctx, 'registryTotalsFromRpc({ total_count: 3, cancelled_count: 1, revenue: 3000, profit_plan: 400, profit_fact: 330, fact_count: 2, distance_km: 840 })'),
+        { count: 2, cancelled: 1, revenue: 3000, profit_plan: 400, profit_fact: 330, fact_count: 2, distance: 840 });
+    assert.deepEqual(run(ctx, 'registryTotalsOf([])'), { count: 0, cancelled: 0, revenue: 0, profit_plan: 0, profit_fact: 0, fact_count: 0, distance: 0 });
     assert.equal(run(ctx, 'registryRowMatches(' + JSON.stringify(ROWS[0]) + ', { q: "2026-0003", client: "" })'), true);
     assert.equal(run(ctx, 'registryRowMatches(' + JSON.stringify(ROWS[0]) + ', { q: "львів", client: "" })'), true, 'пошук за маршрутом без урахування регістру');
     assert.equal(run(ctx, 'registryRowMatches(' + JSON.stringify(ROWS[0]) + ', { q: "", client: "ТОВ Б" })'), false);
@@ -99,15 +99,15 @@ test('CSV: ті самі колонки, що в таблиці, плюс при
     const ctx = world();
     const csv = vm.runInContext('registryCsv(' + JSON.stringify(ROWS) + ')', ctx);
     const lines = csv.replace('﻿', '').split('\r\n');
-    assert.equal(lines[0], '№ реєстру;Дата рейсу;Маршрут;Клієнт;Авто;Логіст;Статус;Км;Виручка;Прибуток план;Прибуток факт;Причина скасування');
+    assert.equal(lines[0], '№ реєстру;Дата рейсу;Маршрут;Клієнт;Авто;Логіст;Статус;Км;Виручка;Прибуток план;Прибуток факт;Факт внесено;Причина скасування');
     assert.ok(csv.startsWith('﻿'));
     assert.equal(lines.length, 4);
-    assert.equal(lines[1], '2026-0003;2026-11-03;Київ → Львів;ТОВ А;;user:u1;Активна;540;1000;100;80;');
-    assert.ok(lines[3].endsWith(';Скасована;100;500;50;40;"Клієнт; відмовився ""зранку"""'), lines[3]);
+    assert.equal(lines[1], '2026-0003;2026-11-03;Київ → Львів;ТОВ А;;user:u1;Активна;540;1000;100;80;так;');
+    assert.ok(lines[3].endsWith(';Скасована;100;500;50;40;так;"Клієнт; відмовився ""зранку"""'), lines[3]);
     const solo = world({ currentWorkMode: 'solo' });
     const soloLines = vm.runInContext('registryCsv(' + JSON.stringify(ROWS) + ')', solo).replace('﻿', '').split('\r\n');
-    assert.equal(soloLines[0], '№ реєстру;Дата рейсу;Маршрут;Клієнт;Авто;Статус;Км;Виручка;Прибуток план;Прибуток факт;Причина скасування');
-    assert.equal(soloLines[1].split(';').length, 11);
+    assert.equal(soloLines[0], '№ реєстру;Дата рейсу;Маршрут;Клієнт;Авто;Статус;Км;Виручка;Прибуток план;Прибуток факт;Факт внесено;Причина скасування');
+    assert.equal(soloLines[1].split(';').length, 12);
     assert.deepEqual(run(solo, 'registryColumns().map(c => c.key)'), ['no', 'date', 'route', 'client', 'vehicles', 'status', 'km', 'revenue', 'profit', 'fact']);
     assert.deepEqual(run(ctx, 'registryColumns().map(c => c.key)').includes('user'), true);
 });
@@ -142,7 +142,7 @@ test('серверна пагінація: 50 на сторінку через r
     assert.deepEqual(JSON.parse(JSON.stringify(ctx.calls[0].args)), { p_filters: { from: '2026-11-01', to: '2026-11-30', status: 'accepted' }, p_limit: 50, p_offset: 100 });
     assert.deepEqual(JSON.parse(JSON.stringify(ctx.calls[1].args)), { p_filters: { from: '2026-11-01', to: '2026-11-30', status: 'accepted' } });
     assert.equal(run(ctx, 'registryState.total'), 120);
-    assert.deepEqual(run(ctx, 'registryState.totals'), { count: 115, cancelled: 5, revenue: 10, profit_plan: 2, profit_fact: 1, distance: 9 });
+    assert.deepEqual(run(ctx, 'registryState.totals'), { count: 115, cancelled: 5, revenue: 10, profit_plan: 2, profit_fact: 1, fact_count: 0, distance: 9 });
 
     const pages = [Array.from({ length: 200 }, (_, i) => ({ id: 'p' + i, registry_no: '2026-' + i, status: 'accepted', revenue: 1, client_name: 'К' })), [{ id: 'z', registry_no: '2026-9999', status: 'cancelled', revenue: 5, client_name: 'К' }]];
     const all = world({ supabaseClient: { rpc: async (name, args) => { all.calls.push({ name, args }); return { data: pages[args.p_offset / 200] || [], error: null }; } } });
@@ -151,7 +151,7 @@ test('серверна пагінація: 50 на сторінку через r
     assert.deepEqual(all.calls.map((c) => [c.name, c.args.p_limit, c.args.p_offset]), [['registry_list', 200, 0], ['registry_list', 200, 200]], 'без registry_totals: підсумки рахуються по всіх знайдених');
     assert.equal(run(all, 'registryState.total'), 201);
     assert.equal(run(all, 'registryState.rows.length'), 50, 'таблиця — 50 на сторінку');
-    assert.deepEqual(run(all, 'registryState.totals'), { count: 200, cancelled: 1, revenue: 200, profit_plan: 0, profit_fact: 0, distance: 0 });
+    assert.deepEqual(run(all, 'registryState.totals'), { count: 200, cancelled: 1, revenue: 200, profit_plan: 0, profit_fact: 0, fact_count: 0, distance: 0 });
 });
 
 test('розмітка: вкладка поруч із «Заявками», фільтри, підсумки, таблиця, картки, експорт; фільтри в localStorage; мобільні фільтри згортаються', () => {
@@ -329,4 +329,42 @@ test('фільтр «Клієнт»: у КП — uuid із clients на серв
     assert.equal(run(withClients, 'registrySanitizeFilters({ client: "44444444-4444-4444-8444-444444444444", user: "", vehicle: "" }, registrySelectOptions()).client'), '');
     assert.match(fnSource('registryOpen', true), /isKP\(\) && registryClients === null\) await registryLoadClients\(\)/);
     assert.match(fnSource('registryLoadClients', true), /from\('clients'\)\.select\('id, name'\)/);
+});
+
+test('«Прибуток факт»: сума = факт, інакше план (скасовані не входять); рядок «факт у N з M»; таблиця й картки — план сірим курсивом; CSV окремо з «Факт внесено»', () => {
+    const ctx = world();
+    const rows = [
+        { id: 'a', status: 'accepted', profit: 100, fact_profit: 80, user_id: 'u', trip_date: '2026-11-01' },
+        { id: 'b', status: 'done', profit: 300, fact_profit: null, user_id: 'u', trip_date: '2026-11-02' },
+        { id: 'c', status: 'accepted', profit: 50000, fact_profit: undefined, user_id: 'u', trip_date: '2026-11-03' },
+        { id: 'd', status: 'cancelled', profit: 999, fact_profit: 5, user_id: 'u', trip_date: '2026-11-04' },
+    ];
+    const t = run(ctx, 'registryTotalsOf(' + JSON.stringify(rows) + ')');
+    assert.deepEqual([t.count, t.cancelled, t.profit_plan, t.profit_fact, t.fact_count], [3, 1, 50400, 50380, 1], 'факт 80 + план 300 + план 50000; скасована не рахується');
+    const noFact = run(ctx, 'registryTotalsOf(' + JSON.stringify(rows.slice(1, 3)) + ')');
+    assert.deepEqual([noFact.profit_fact, noFact.fact_count], [50300, 0], 'факту немає зовсім — сума за планом, не 0');
+    const note = (totals) => vm.runInContext('registryFactNote(' + JSON.stringify(totals) + ')', ctx);
+    assert.equal(note({ count: 3, fact_count: 1 }), 'факт у 1 з 3, решта за планом');
+    assert.equal(note({ count: 3, fact_count: 3 }), 'за внесеним фактом');
+    assert.equal(note({ count: 0, fact_count: 0 }), 'за внесеним фактом');
+    assert.deepEqual(run(ctx, 'registryTotalsFromRpc({ total_count: 9, cancelled_count: 0, profit_fact: 168000, fact_count: 3 })').fact_count, 3);
+    assert.ok(html.includes("['Прибуток факт', money(t.profit_fact), registryFactNote(t)],"));
+    // Таблиця й картки: без факту — план у span.tc-registry-fact-plan з підказкою «за планом».
+    const withFn = world();
+    vm.runInContext(fnSource('registryFactHtml') + ' const escHtml = (v) => String(v);', withFn);
+    const cell = (row) => vm.runInContext('registryFactHtml(' + JSON.stringify(row) + ', (n) => n + " грн")', withFn);
+    assert.equal(cell({ status: 'accepted', profit: 300, fact_profit: 80 }), '80 грн');
+    assert.equal(cell({ status: 'accepted', profit: 300, fact_profit: null }), '<span class="tc-registry-fact-plan" title="за планом">300 грн</span>');
+    assert.equal(cell({ status: 'accepted', profit: null, fact_profit: null }), '—');
+    assert.ok(html.includes("if (c.key === 'fact') return '<td class=\"is-num\">' + registryFactHtml(row, money) + '</td>';"));
+    assert.ok(html.includes("' · Факт ' + registryFactHtml(row, money)"), 'мобільні картки');
+    assert.ok(html.includes('.tc-registry-fact-plan { color: var(--text-muted); font-style: italic; }'));
+    // CSV: колонка факту без плану, «Факт внесено» так / ні.
+    const csv = vm.runInContext('registryCsv(' + JSON.stringify([{ id: 'a', registry_no: '1', status: 'accepted', user_id: 'u', profit: 300, fact_profit: null }, { id: 'b', registry_no: '2', status: 'done', user_id: 'u', profit: 300, fact_profit: 80 }]) + ')', world({ currentWorkMode: 'solo' }));
+    const lines = csv.replace('﻿', '').split('\r\n');
+    const head = lines[0].split(';');
+    const fi = head.indexOf('Прибуток факт');
+    assert.equal(head[fi + 1], 'Факт внесено');
+    assert.deepEqual([lines[1].split(';')[fi], lines[1].split(';')[fi + 1]], ['', 'ні'], 'план у колонку факту не потрапляє');
+    assert.deepEqual([lines[2].split(';')[fi], lines[2].split(';')[fi + 1]], ['80', 'так']);
 });

@@ -2337,6 +2337,7 @@
         .tc-registry-row { cursor: pointer; }
         .tc-registry-row:hover { background: color-mix(in srgb, var(--input-bg) 70%, transparent); }
         .tc-registry-row.is-cancelled, .tc-history-card.is-cancelled { opacity: 0.62; }
+        .tc-registry-fact-plan { color: var(--text-muted); font-style: italic; }
         .tc-registry-row.is-focus, .tc-history-card.is-focus { outline: 2px solid var(--gold); outline-offset: -2px; }
         @media (max-width: 720px) {
             #registry-section .comparison-table { display: none; }
@@ -15002,9 +15003,17 @@
             cancelled: rows.length - counted.length,
             revenue: sum(counted, 'revenue'),
             profit_plan: sum(counted, 'profit'),
-            profit_fact: sum(counted, 'fact_profit'),
+            // Факт, якщо його внесено, інакше план (як registry_totals); fact_count — у скількох заявках факт внесено.
+            profit_fact: counted.reduce(function (acc, row) {
+                const n = Number(row.fact_profit !== null && row.fact_profit !== undefined ? row.fact_profit : row.profit);
+                return Number.isFinite(n) ? acc + n : acc;
+            }, 0),
+            fact_count: counted.filter(function (row) { return row.fact_profit !== null && row.fact_profit !== undefined && Number.isFinite(Number(row.fact_profit)); }).length,
             distance: sum(counted, 'distance_km')
         };
+    }
+    function registryFactNote(t) {
+        return t.count > 0 && t.fact_count < t.count ? 'факт у ' + t.fact_count + ' з ' + t.count + ', решта за планом' : 'за внесеним фактом';
     }
     function registryTotalsFromRpc(row) {
         const total = Number(row && row.total_count) || 0;
@@ -15015,6 +15024,7 @@
             revenue: Number(row && row.revenue) || 0,
             profit_plan: Number(row && row.profit_plan) || 0,
             profit_fact: Number(row && row.profit_fact) || 0,
+            fact_count: Number(row && row.fact_count) || 0,
             distance: Number(row && row.distance_km) || 0
         };
     }
@@ -15059,12 +15069,26 @@
         return '';
     }
     // CSV усіх рядків за фільтром: колонки таблиці плюс причина скасування (той самий екранувальник, що в історії).
+    // «Прибуток факт» у таблиці й картках: внесений факт, інакше план сірим курсивом із підказкою «за планом».
+    function registryFactHtml(row, money) {
+        const fact = registryCellValue(row, 'fact');
+        if (fact !== null) return escHtml(money(fact));
+        const plan = registryCellValue(row, 'profit');
+        return plan === null ? '—' : '<span class="tc-registry-fact-plan" title="за планом">' + escHtml(money(plan)) + '</span>';
+    }
     function registryCsv(rows) {
         const columns = registryColumns();
-        const lines = [columns.map(function (c) { return c.title; }).concat(['Причина скасування']).map(historyCsvCell).join(';')];
+        // «Прибуток факт» — лише внесений факт (без підстановки плану); поруч «Факт внесено» так/ні.
+        const headers = [];
+        columns.forEach(function (c) { headers.push(c.title); if (c.key === 'fact') headers.push('Факт внесено'); });
+        const lines = [headers.concat(['Причина скасування']).map(historyCsvCell).join(';')];
         rows.forEach(function (row) {
-            lines.push(columns.map(function (c) { return registryCellValue(row, c.key); })
-                .concat([row.status === 'cancelled' ? (row.cancel_reason || '') : '']).map(historyCsvCell).join(';'));
+            const cells = [];
+            columns.forEach(function (c) {
+                cells.push(registryCellValue(row, c.key));
+                if (c.key === 'fact') cells.push(registryCellValue(row, 'fact') === null ? 'ні' : 'так');
+            });
+            lines.push(cells.concat([row.status === 'cancelled' ? (row.cancel_reason || '') : '']).map(historyCsvCell).join(';'));
         });
         return '﻿' + lines.join('\r\n');
     }
@@ -15294,7 +15318,7 @@
                 ['Заявок', String(t.count), t.cancelled ? 'скасованих: ' + t.cancelled + ' (не в сумах)' : 'без скасованих'],
                 ['Виручка', money(t.revenue), 'без скасованих'],
                 ['Прибуток план', money(t.profit_plan), 'без скасованих'],
-                ['Прибуток факт', money(t.profit_fact), 'за внесеним фактом'],
+                ['Прибуток факт', money(t.profit_fact), registryFactNote(t)],
                 ['Км', formatHistoryNum(t.distance, 0) + ' км', 'без скасованих']
             ].map(function (item) { return '<div><small>' + escHtml(item[0]) + '</small><b>' + escHtml(item[1]) + '</b><small>' + escHtml(item[2]) + '</small></div>'; }).join('') : '';
         }
@@ -15319,6 +15343,7 @@
             if (c.key === 'status') return '<td><span class="tc-status is-' + escHtml(row.status) + '">' + escHtml(value) + '</span></td>';
             if (c.key === 'date') return '<td>' + escHtml(formatHistoryDate(value)) + '</td>';
             if (c.key === 'km') return '<td class="is-num">' + (value === null ? '—' : escHtml(formatHistoryNum(value, 0))) + '</td>';
+            if (c.key === 'fact') return '<td class="is-num">' + registryFactHtml(row, money) + '</td>';
             if (c.num) return '<td class="is-num">' + escHtml(money0(value)) + '</td>';
             if (c.key === 'no') return '<td class="is-num"><b>' + escHtml(value || '—') + '</b></td>';
             return '<td>' + escHtml(value || '—') + '</td>';
@@ -15345,7 +15370,7 @@
                     '<div class="tc-history-meta">' + escHtml([registryCellValue(row, 'client'), registryCellValue(row, 'vehicles'),
                         registryCellValue(row, 'km') === null ? '' : formatHistoryNum(registryCellValue(row, 'km'), 0) + ' км'].filter(Boolean).join(' · ') || '—') + '</div>' +
                     (row.status === 'cancelled' ? '<div class="tc-history-meta tc-history-reason">Скасовано: ' + escHtml(row.cancel_reason || 'без причини') + '</div>' : '') +
-                    '<div class="tc-history-meta">Виручка ' + escHtml(money0(registryCellValue(row, 'revenue'))) + ' · Прибуток ' + escHtml(money0(registryCellValue(row, 'profit'))) + '</div>' +
+                    '<div class="tc-history-meta">Виручка ' + escHtml(money0(registryCellValue(row, 'revenue'))) + ' · Прибуток ' + escHtml(money0(registryCellValue(row, 'profit'))) + ' · Факт ' + registryFactHtml(row, money) + '</div>' +
                     actions(row) + '</article>';
             }).join('');
         }

@@ -109,8 +109,8 @@ SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$SELECT string_agg(id::text, ',') FROM public.registry_list('{}'::jsonb)$$), '73000000-0000-0000-0000-000000000005',
   '2: без org_id — як раніше, власна організація директора');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
-  $$SELECT total_count || '/' || cancelled_count || '/' || profit_fact FROM public.registry_totals('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '3/1/80',
-  '3: registry_totals компанії: кількість, скасовані, прибуток факт (trip_actuals)');
+  $$SELECT total_count || '/' || cancelled_count || '/' || profit_fact FROM public.registry_totals('{"org_id":"70000000-0000-0000-0000-00000000000a"}'::jsonb)$$), '3/1/180',
+  '3: registry_totals компанії: кількість, скасовані, прибуток факт = факт, інакше план (80 + 100 плану done без факту)');
 SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000e3',
   $$SELECT count(*)::text FROM public.registry_list('{"org_id":"70000000-0000-0000-0000-00000000000a","vehicle":"71000000-0000-0000-0000-000000000001"}'::jsonb)$$), '1',
   '4: фільтр «авто» працює для директора (calc_vehicles)');
