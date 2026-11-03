@@ -63,7 +63,8 @@ test('vercel.json: rewrites to legal/*.html, headers and CSP untouched', () => {
         { source: '/offer', destination: '/legal/offer.html' },
         { source: '/privacy', destination: '/legal/privacy.html' },
         { source: '/payment-refund', destination: '/legal/payment-refund.html' },
-        { source: '/support', destination: '/legal/support.html' }
+        { source: '/support', destination: '/legal/support.html' },
+        { source: '/kontrol-plus', destination: '/landing/kontrol-plus.html' }
     ]);
     const csp = config.headers[0].headers.find((h) => h.key === 'Content-Security-Policy').value;
     assert.match(csp, /^default-src 'self'; script-src 'self' 'unsafe-inline'/);
