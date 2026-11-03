@@ -29,7 +29,7 @@ export function renderTripSheetCard(app, access, id) {
 
     // ТТН цього ж рейсу (за calculation_id) — посилання зі статусами.
     async function loadRelated(doc) {
-        const holder = box.querySelector('#ts-related');
+        const holder = box.querySelector('.kpts-related-box');
         if (!holder) return;
         const { data, error } = await app.supabase.rpc('kp_ttn_list', {
             p_from: shiftDate(doc.doc_date, -365), p_to: shiftDate(doc.doc_date, 365), p_client: null, p_status: null, p_calculation: doc.calculation_id,
@@ -43,9 +43,9 @@ export function renderTripSheetCard(app, access, id) {
 
     function closeForm(doc, ctx) {
         const saved = (value) => (value === null || value === undefined ? '' : String(value).replace('.', ','));
-        const at = h('input', { type: 'datetime-local', id: 'ts-return-at', value: isoToLocal(doc.return_at || new Date().toISOString()), 'aria-label': 'Дата і час повернення' });
-        const odo = h('input', { type: 'text', id: 'ts-return-odo', inputmode: 'numeric', value: saved(doc.return_odometer), 'aria-label': 'Спідометр при поверненні' });
-        const left = h('input', { type: 'text', id: 'ts-return-left', inputmode: 'decimal', value: saved(doc.return_fuel_left), 'aria-label': 'Залишок пального при поверненні' });
+        const at = h('input', { type: 'datetime-local', value: isoToLocal(doc.return_at || new Date().toISOString()), 'aria-label': 'Дата і час повернення' });
+        const odo = h('input', { type: 'text', inputmode: 'numeric', value: saved(doc.return_odometer), 'aria-label': 'Спідометр при поверненні' });
+        const left = h('input', { type: 'text', inputmode: 'decimal', value: saved(doc.return_fuel_left), 'aria-label': 'Залишок пального при поверненні' });
         const preview = h('div', { class: 'kpr-totals', 'aria-live': 'polite' });
         const message = h('div', { 'aria-live': 'polite' });
         const task = doc.task || {};
@@ -104,12 +104,12 @@ export function renderTripSheetCard(app, access, id) {
         };
         redraw();
         ctx.onInput(odo.value, left.value);
-        return h('div', { class: 'card kpc', id: 'ts-close' },
+        return h('div', { class: 'card kpc' },
             h('h3', { class: 'kpc-section' }, 'Повернення (змінюється до закриття листа)'),
             row('Дата і час повернення', at, 'kpc-w-m'), row('Спідометр, км', odo, 'kpc-w-s'), row('Залишок пального, л', left, 'kpc-w-s'),
             preview, message,
             h('div', { class: 'actions kpc-actions' },
-                h('button', { type: 'button', class: 'btn', id: 'ts-return-save', onclick: saveDraft }, 'Зберегти повернення'),
+                h('button', { type: 'button', class: 'btn', onclick: saveDraft }, 'Зберегти повернення'),
                 confirmButton('Закрити лист', 'Після закриття лист не змінюється. Закрити?', run, 'btn btn-primary')));
     }
 
@@ -147,7 +147,7 @@ export function renderTripSheetCard(app, access, id) {
     // Редактор відміток і етапів + форма закриття + живі підсумки (лист «Видано»).
     function editBlocks(doc) {
         const marks = marksFromDoc(doc);
-        const totalsBox = h('div', { class: 'card kpc-view', id: 'ts-totals' });
+        const totalsBox = h('div', { class: 'card kpc-view' });
         let editor = null;
         let refEditor = null;
         const closeCtx = {};
@@ -170,7 +170,7 @@ export function renderTripSheetCard(app, access, id) {
             const refuelSave = await app.supabase.rpc('kp_trip_sheet_refuels_save', { p_id: doc.id, p_rows: refuelsPayload(refEditor.get()) });
             return refuelSave.error ? { ok: false, node: notice(tsErrorText(refuelSave.error)) } : { ok: true };
         };
-        const save = h('button', { type: 'button', class: 'btn btn-primary', id: 'ts-extra-save', onclick: async () => {
+        const save = h('button', { type: 'button', class: 'btn btn-primary', onclick: async () => {
             clear(message);
             const res = await saveExtra();
             if (!res.ok) return clear(message, res.node);
@@ -211,7 +211,7 @@ export function renderTripSheetCard(app, access, id) {
                 + ': ' + (doc.cancelled_reason || '—') + '. Номер не використовується повторно.', 'error') : null,
             ...viewSections(doc, editable),
             editable ? editBlocks(doc) : stageView(doc),
-            h('div', { id: 'ts-related' }),
+            h('div', { class: 'kpts-related-box' }),
             access.isOwner && issued ? h('div', { class: 'card kpd-danger' }, h('h3', null, 'Анулювання'),
                 h('p', { class: 'small muted' }, 'Лист не видаляється: він лишається в списку з позначкою «Анульовано», номер не повторюється. Закритий лист анулювати не можна.'),
                 cancelControl(app, { ...doc, kind: 'trip_sheet', number_text: docNumberText(doc) }, load)) : null);

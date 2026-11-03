@@ -32,6 +32,13 @@ function append(el, children) {
     }
 }
 
+// Унікальний id для пар label[for] / поле в картках, що можуть бути відкриті кількома вікнами одночасно (id мають бути унікальні в DOM).
+let idCounter = 0;
+export function uniqueId(prefix) {
+    idCounter += 1;
+    return prefix + '-' + idCounter;
+}
+
 export function clear(el, ...children) {
     el.replaceChildren();
     append(el, children);

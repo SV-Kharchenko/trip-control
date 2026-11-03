@@ -15784,7 +15784,49 @@
             showToast(String((e && e.message) || '').indexOf('FORBIDDEN') >= 0 ? 'Немає прав змінювати оплату документів.' : 'Не вдалося змінити оплату. Спробуйте ще раз.', 4200, 'error');
         }
     }
+    // Контроль+ (PR 3): клік по рядку реєстру відкриває заявку ВІКНОМ над розділом (hash #/requests/<id>; вікна малює застосунок Контроль+).
+    // Вікон немає (вузький екран, сайт) — заявка відкривається, як раніше, у калькуляторі.
+    function kpRequestRow(id) {
+        const fromRegistry = (registryState.rows || []).find(function (item) { return item.id === id; });
+        if (fromRegistry) return fromRegistry;
+        try {
+            return registryLocalRows({ from: '', to: '', status: '', user: '', vehicle: '', client: '', q: '' }).find(function (item) { return item.id === id; }) || null;
+        } catch (e) { return null; }
+    }
+    // Дані для вікна «Заявка …»: ті самі поля, що в рядку реєстру, документи, оплата й доступні дії (registryRowCan / registryDocActions).
+    async function kpRequestInfo(id) {
+        if (!isKP()) return null;
+        let row = kpRequestRow(id);
+        if (!row) {
+            try { await loadSavedCalculations(); } catch (e) { /* без історії заявку не знайти */ }
+            row = kpRequestRow(id);
+        }
+        if (!row) return null;
+        try { await registryLoadDocs([id]); } catch (e) { /* документи не обов'язкові для огляду */ }
+        const info = registryDocs[id] || { docs: [] };
+        const money = function (n) { return n === null || n === undefined ? '—' : displayMinus(formatMoney(n)); };
+        const fact = registryCellValue(row, 'fact');
+        const plan = registryCellValue(row, 'profit');
+        const km = registryCellValue(row, 'km');
+        const state = registryPayState(info);
+        const can = registryRowCan(row);
+        return {
+            id: id, registry_no: row.registry_no || '', route: registryRouteLabel(row), client: row.client_name || '', vehicles: registryVehicleLabel(row),
+            user: currentWorkMode === 'team' ? savedAuthorLabel(row.user_id) : '', date: formatHistoryDate(registryCellValue(row, 'date')),
+            status: row.status, statusLabel: REGISTRY_STATUS_LABELS[row.status] || row.status, km: km === null ? '' : formatHistoryNum(km, 0),
+            revenue: money(registryCellValue(row, 'revenue')), profit: money(plan), fact: fact === null ? (plan === null ? '' : money(plan) + ' (за планом)') : money(fact),
+            factState: fact === null ? 'plan' : (plan !== null && fact < plan ? 'low' : 'ok'),
+            cancelReason: row.status === 'cancelled' ? (row.cancel_reason || 'без причини') : '',
+            contract: info.contract_no || '', client_id: info.client_id || '', docs: info.docs || [],
+            payState: state, payLabel: state ? REGISTRY_PAY_LABELS[state] : '',
+            can: { complete: !!can.complete, cancel: !!can.cancel }, actions: registryDocActions(row)
+        };
+    }
     function openRegistryRow(id) {
+        if (isKP() && REGISTRY_UUID.test(String(id)) && typeof window.kpWindowsOn === 'function' && window.kpWindowsOn()) {
+            location.hash = '#/requests/' + id;
+            return;
+        }
         const row = savedCalculations.find(function (item) { return item.id === id; });
         if (row) { openSaved(id); return; }
         loadSavedCalculations().then(function () {

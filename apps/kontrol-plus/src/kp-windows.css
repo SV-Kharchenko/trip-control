@@ -1,0 +1,72 @@
+/* Вікна поверх розділу й панель задач (PR 3 з 5). Діють лише в Контроль+ (body.kp-shell-on, каркас PR 1); на сайті цього файлу немає.
+   Ширше 900px; вужче вікон і панелі задач немає (документ відкривається на всю сторінку, як раніше). */
+
+body.kp-shell-on .kp-win, body.kp-shell-on .kp-taskbar { display: none; }
+
+@media (min-width: 900px) {
+    body.kp-shell-on .kp-win {
+        position: fixed; display: flex; flex-direction: column; box-sizing: border-box; min-width: 320px; min-height: 220px; overflow: hidden;
+        background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; font-family: var(--kp-font, inherit);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+    }
+    body.kp-shell-on .kp-win[hidden] { display: none; }
+    body.kp-shell-on .kp-win.is-active { border-color: var(--kp-side-gold, #B08A4C); box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32); }
+    body.kp-shell-on .kp-win.is-max {
+        left: var(--kp-side-w, 0px); top: calc(var(--kp-strip-h, 0px) + var(--kp-top-h, 52px)); right: 0; bottom: 32px; width: auto; height: auto; border-radius: 0;
+    }
+
+    body.kp-shell-on .kp-win-head {
+        display: flex; align-items: center; gap: 8px; flex: none; height: 36px; padding: 0 6px 0 12px; box-sizing: border-box; cursor: move; user-select: none; touch-action: none;
+        background: var(--kp-side-bg, #0D2A29); color: #F4EFE5;
+    }
+    body.kp-shell-on .kp-win.is-max .kp-win-head { cursor: default; }
+    body.kp-shell-on .kp-win-ic, body.kp-shell-on .kp-task-ic { display: inline-flex; flex: none; width: 16px; height: 16px; }
+    body.kp-shell-on .kp-win-ic .ic, body.kp-shell-on .kp-task-ic .ic { display: inline-flex; width: 16px; height: 16px; }
+    body.kp-shell-on .kp-win-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.86rem; font-weight: 700; }
+    body.kp-shell-on .kp-win-btns { display: inline-flex; gap: 2px; flex: none; }
+    body.kp-shell-on .kp-win-btn {
+        width: 28px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px;
+        background: transparent; color: #F4EFE5; font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
+    }
+    body.kp-shell-on .kp-win-btn:hover { background: rgba(244, 239, 229, 0.14); }
+    body.kp-shell-on .kp-win-btn.is-close:hover { background: #B3261E; }
+    body.kp-shell-on .kp-win-btn:focus-visible { outline: 2px solid var(--kp-side-gold, #B08A4C); outline-offset: -2px; }
+    body.kp-shell-on .kp-win-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px 18px 18px; }
+    body.kp-shell-on .kp-win-body .page, body.kp-shell-on .kp-win-body .page.narrow { padding: 0; max-width: none; margin: 0; }
+    body.kp-shell-on .kp-win-error { color: var(--kp-bad, #B3261E); }
+
+    /* Панель задач */
+    body.kp-shell-on .kp-taskbar {
+        position: fixed; z-index: 3095; left: var(--kp-side-w, 0px); right: 0; bottom: 0; height: 32px; box-sizing: border-box;
+        display: flex; align-items: center; gap: 4px; padding: 0 8px; overflow-x: auto; background: var(--surface); border-top: 1px solid var(--border); font-family: var(--kp-font, inherit);
+    }
+    body.kp-shell-on .kp-taskbar[hidden] { display: none; }
+    body.kp-shell-on .kp-task {
+        display: inline-flex; align-items: center; gap: 6px; flex: 0 1 180px; min-width: 70px; height: 24px; padding: 0 10px; box-sizing: border-box;
+        border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer;
+    }
+    body.kp-shell-on .kp-task:hover { background: color-mix(in srgb, var(--border-soft) 60%, transparent); }
+    body.kp-shell-on .kp-task.on { background: var(--kp-side-bg, #0D2A29); border-color: var(--kp-side-bg, #0D2A29); color: #F4EFE5; }
+    body.kp-shell-on .kp-task.is-min { opacity: 0.65; font-style: italic; }
+    body.kp-shell-on .kp-task-lb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    body.kp-shell-on.kp-win-open #main-app { padding-bottom: 72px !important; }
+
+    /* Вікно «Заявка» */
+    body.kp-shell-on .kp-req-grid, body.kp-shell-on .kp-req-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; margin: 12px 0; }
+    body.kp-shell-on .kp-req-docs { padding-top: 10px; border-top: 1px solid var(--border-soft); }
+    body.kp-shell-on .kp-req-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    body.kp-shell-on .kp-req-fact small { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+    body.kp-shell-on .kp-req-fact b { font-size: 0.92rem; }
+    body.kp-shell-on .kp-req .kp-mono { font-family: var(--kp-mono, 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace); font-variant-numeric: tabular-nums; }
+    body.kp-shell-on .kp-req .kp-fact.is-ok { color: var(--kp-ok, #1E7F4F); }
+    body.kp-shell-on .kp-req .kp-fact.is-low { color: var(--kp-bad, #B3261E); }
+    body.kp-shell-on .kp-req-cancel { color: var(--kp-bad, #B3261E); font-size: 0.85rem; }
+    body.kp-shell-on .kp-req-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+}
+
+@media (max-width: 899px) {
+    body.kp-shell-on .kp-win, body.kp-shell-on .kp-taskbar { display: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.kp-shell-on .kp-win { transition: none; }
+}

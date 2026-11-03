@@ -1,7 +1,7 @@
 // Розділ «Договори» в картці контрагента: реєстр (номер, дата, предмет, строк, статус), скан у приватному сховищі (доступ лише
 // через підписані посилання на 10 хв), підпис зображеннями підпису й печатки АБО КЕП (.p7s), відправка контрагенту.
 // Права («Договори», «Підпис і печатка») перевіряє сервер; тут лише повідомлення про відмову. Кнопки — за розміром тексту.
-import { h, clear, spinner, notice, toast } from '../ui.js';
+import { h, clear, spinner, notice, toast, uniqueId } from '../ui.js';
 import { fmtDate } from '../lib/format.js';
 import { callKpApi } from '../lib/gps-client.js';
 import {
@@ -34,11 +34,12 @@ export function renderContracts(app, client) {
     }
 
     function form(c) {
+        const pfx = uniqueId('kpc'); // картка клієнта може бути відкрита кількома вікнами: id унікальні
         const f = {
-            number: h('input', { type: 'text', id: 'kpc-number', maxlength: 100, value: c ? c.number : '' }),
-            date: h('input', { type: 'date', id: 'kpc-date', value: c ? c.contract_date : '' }),
-            subject: h('input', { type: 'text', id: 'kpc-subject', maxlength: 500, value: (c && c.subject) || '' }),
-            valid: h('input', { type: 'date', id: 'kpc-valid', value: (c && c.valid_until) || '' }),
+            number: h('input', { type: 'text', id: pfx + '-number', maxlength: 100, value: c ? c.number : '' }),
+            date: h('input', { type: 'date', id: pfx + '-date', value: c ? c.contract_date : '' }),
+            subject: h('input', { type: 'text', id: pfx + '-subject', maxlength: 500, value: (c && c.subject) || '' }),
+            valid: h('input', { type: 'date', id: pfx + '-valid', value: (c && c.valid_until) || '' }),
         };
         const status = h('div', { 'aria-live': 'polite' });
         const field = (label, id, control) => h('div', { class: 'field' }, h('label', { for: id }, label), control);
@@ -57,8 +58,8 @@ export function renderContracts(app, client) {
             load();
         };
         return h('div', { class: 'card kpk-form' }, h('h3', null, c ? 'Змінити договір' : 'Новий договір'),
-            h('div', { class: 'form' }, field('Номер', 'kpc-number', f.number), field('Дата', 'kpc-date', f.date),
-                field('Предмет', 'kpc-subject', f.subject), field('Діє до', 'kpc-valid', f.valid), status,
+            h('div', { class: 'form' }, field('Номер', pfx + '-number', f.number), field('Дата', pfx + '-date', f.date),
+                field('Предмет', pfx + '-subject', f.subject), field('Діє до', pfx + '-valid', f.valid), status,
                 h('div', { class: 'actions' }, save, h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { editing = null; load(); } }, 'Скасувати'))));
     }
 

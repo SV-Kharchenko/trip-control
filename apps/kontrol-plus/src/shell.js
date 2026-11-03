@@ -4,6 +4,7 @@
 import { h } from './ui.js';
 import { SHELL_GROUPS, SITE_BUTTONS, activeKey, counterText, isEditableTarget, parseCount, refreshesUnpaid, parseSidebarPref, roleLabel, sidebarKey } from './shell-menu.js';
 import { shellIcon } from './shell-icons.js';
+import { parseCrmHash, windowSpecOf } from './lib/route.js';
 
 export function isKpApp(doc) {
     const d = doc || (typeof document !== 'undefined' ? document : null);
@@ -188,6 +189,8 @@ export function mountShell(env = {}) {
     }
 
     function paintActive() {
+        // Hash вікна (картка документа, клієнт, заявка) не міняє розділ під ним: підсвітка лишається як була.
+        if (windowSpecOf(parseCrmHash(win.location.hash), win.location.hash)) return;
         const cabTab = doc.querySelector('#cabinet-screen .cab-tab.active');
         const key = activeKey({
             hash: win.location.hash,
