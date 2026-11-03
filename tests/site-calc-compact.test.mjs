@@ -21,7 +21,7 @@ test('компактний CSS є в index.html і не залежить від 
 
 test('висота карти не використовує --tc-map-h; нових зашитих кольорів у блоці немає', () => {
     assert.equal(/height:[^;]*--tc-map-h/.test(block), false);
-    assert.match(block, /height: calc\(100vh - var\(--kpc-off\)[^;]*!important/);
+    assert.match(block, /height: min\(calc\(100vh - var\(--kpc-off\)[^;]*var\(--cc-room, 100vh\)\)[^;]*!important/);
     assert.equal(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/.test(block.replace(/\/\*[\s\S]*?\*\//g, '').replace(/#(tc-|route-|swap-|studio-|podacha-|vehicle-|demo)[\w-]*/g, '')), false, 'лише змінні тем');
 });
 

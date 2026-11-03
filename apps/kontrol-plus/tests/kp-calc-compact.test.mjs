@@ -108,6 +108,6 @@ test('KPI-рядок ≈60px: padding 11px, підпис над значення
     assert.match(css, /\.tc-kb-m \{[^}]*flex-direction: column/);
     assert.match(css, /\.tc-kb-m b \{[^}]*font-family: var\(--font-mono[^}]*font-size: 18px; font-weight: 700/);
     assert.match(css, /\.tc-kb-detail \{[^}]*height: 28px;[^}]*align-self: center/);
-    assert.match(css, /height: calc\(100vh - var\(--kpc-off\)[^;]*!important/);
+    assert.match(css, /height: min\(calc\(100vh - var\(--kpc-off\)[^;]*var\(--cc-room, 100vh\)\)[^;]*!important/);
     assert.equal(/height:[^;]*--tc-map-h/.test(css), false, 'висота карти не використовує --tc-map-h');
 });
