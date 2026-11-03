@@ -909,7 +909,7 @@ async function tripFactRequest(req, res) {
         const built = buildTripFact(calc.inputs || {}, body.fact, stored);
         if (built.status) {
             const message = built.code === 'NO_INPUTS'
-                ? 'У рейсі немає збережених даних калькулятора. Новий факт порахувати не можна.'
+                ? 'У рейсі немає збережених даних розрахунку рейсу. Новий факт порахувати не можна.'
                 : built.error;
             return fail(built.status, built.code, message, built.fields ? { fields: built.fields } : null);
         }

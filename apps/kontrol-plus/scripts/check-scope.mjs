@@ -39,6 +39,10 @@ export const SCOPE_ALLOWLIST = [
     /^tests\/pwa\.test\.mjs$/,
     /^tests\/weekly-report\.test\.mjs$/,
     /^tests\/site-calc-compact\.test\.mjs$/,
+    // api/calculate.js — тільки текст повідомлення (NO_INPUTS «розрахунку рейсу»); логіка, коди помилок і ключі не змінюються.
+    /^api\/calculate\.js$/,
+    // Картка Open Graph, яку перегенерував scripts/gen-og-image.mjs з новим підписом.
+    /^assets\/brand\/og-1200x630\.png$/,
 ];
 
 export function isAllowedOutside(file) {

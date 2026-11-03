@@ -53,7 +53,7 @@ function walk(dir, out = []) {
 }
 
 test('у видимих текстах немає слова «калькулятор»: сайт, лендинг, листи, KP', () => {
-    const files = ['index.html', 'landing/kontrol-plus.html', 'lib/weekly-report.js', 'site.webmanifest', 'scripts/gen-og-image.mjs',
+    const files = ['index.html', 'landing/kontrol-plus.html', 'lib/weekly-report.js', 'api/calculate.js', 'site.webmanifest', 'scripts/gen-og-image.mjs',
         ...walk('apps/kontrol-plus/src')];
     const bad = [];
     for (const f of files) {

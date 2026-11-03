@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 28);
+    assert.equal(SCOPE_ALLOWLIST.length, 30);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -18,7 +18,7 @@ test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () =
         'supabase/tests/gps_integrations.sql.orig',
         'docs/SECRETS.md',
         '404.html',
-        'api/calculate.js',
+        'api/team.js',
         'vercel.json',
         'package.json',
         'apps/other/x.js',
@@ -104,7 +104,7 @@ test('check-scope allowlist: exactly two more patterns for documents (4a), neigh
         'supabase/tests/x/kp_documents.sql',
         'supabase/migrations/20261008_week2_admin_auth_audit.sql',
         'supabase/migrations/20261022091000_kontrol_plus_clients_reports.sql',
-        'api/calculate.js',
+        'api/team.js',
         'vercel.json',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
     assert.deepEqual(outsideScope(['apps/kontrol-plus/api/docs/rate.js', 'supabase/tests/kp_documents.sql', 'lib/trip-fact.js']), ['lib/trip-fact.js']);
@@ -141,7 +141,7 @@ test('check-scope allowlist: exactly four more patterns for waybills (4b), neigh
         'supabase/migrations/20261026130623_docs_ttn.sql',
         'supabase/tests/kp_docs_ttn.sql.orig',
         'supabase/migrations/20261012240000_fleet_vehicles.sql',
-        'api/calculate.js',
+        'api/team.js',
         'lib/trip-fact.js',
         'vercel.json',
         '404.html',
@@ -165,7 +165,7 @@ test('check-scope allowlist: trip-history tab (index.html + its root test), neig
         'tests/calc-golden.test.mjs',
         'tests/header-menu.test.mjs.bak',
         'tests/x/header-menu.test.mjs',
-        'api/calculate.js',
+        'api/team.js',
         'vercel.json',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });
@@ -180,7 +180,7 @@ test('check-scope allowlist: one-page calculator (index.html + its root test), n
         'tests/calc-onepage-extra.test.mjs',
         'tests/calc-stepper.test.mjs',
         'tests/calc-golden.test.mjs',
-        'api/calculate.js',
+        'api/team.js',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });
 
@@ -207,7 +207,7 @@ test('check-scope allowlist: exactly one more root test for the windows (PR 3), 
     }
 });
 
-test('check-scope allowlist: exactly ten more patterns for the compact «Розрахунок рейсу» on the site (visible texts and their tests), neighbours refused', () => {
+test('check-scope allowlist: exactly twelve more patterns for the compact «Розрахунок рейсу» on the site (visible texts and their tests), neighbours refused', () => {
     assert.deepEqual(SCOPE_ALLOWLIST.slice(18).map(String), [
     '/^landing\\/kontrol-plus\\.html$/',
     '/^lib\\/weekly-report\\.js$/',
@@ -219,9 +219,11 @@ test('check-scope allowlist: exactly ten more patterns for the compact «Роз�
     '/^tests\\/pwa\\.test\\.mjs$/',
     '/^tests\\/weekly-report\\.test\\.mjs$/',
     '/^tests\\/site-calc-compact\\.test\\.mjs$/',
+    '/^api\\/calculate\\.js$/',
+    '/^assets\\/brand\\/og-1200x630\\.png$/',
     ]);
-    for (const ok of ["landing/kontrol-plus.html","lib/weekly-report.js","scripts/gen-og-image.mjs","site.webmanifest","tests/empty-costs-warning.test.mjs","tests/calc-defaults.test.mjs","tests/landing.test.mjs","tests/pwa.test.mjs","tests/weekly-report.test.mjs","tests/site-calc-compact.test.mjs"]) assert.equal(isAllowedOutside(ok), true, ok);
-    for (const bad of ['api/calculate.js.bak', 'api/admin.js', 'lib/weekly-report.mjs', 'landing/index.html', 'site.webmanifest.json', 'tests/pwa.test.mjs.bak', 'tests/x/pwa.test.mjs', 'scripts/gen-og-image.js']) {
+    for (const ok of ["landing/kontrol-plus.html","lib/weekly-report.js","scripts/gen-og-image.mjs","site.webmanifest","tests/empty-costs-warning.test.mjs","tests/calc-defaults.test.mjs","tests/landing.test.mjs","tests/pwa.test.mjs","tests/weekly-report.test.mjs","tests/site-calc-compact.test.mjs","api/calculate.js","assets/brand/og-1200x630.png"]) assert.equal(isAllowedOutside(ok), true, ok);
+    for (const bad of ['api/calculate.js.bak', 'api/calculate.mjs', 'api/team.js', 'assets/brand/og-1200x630.png.bak', 'assets/brand/og-1200x630.jpg', 'assets/og-image.png', 'api/admin.js', 'lib/weekly-report.mjs', 'landing/index.html', 'site.webmanifest.json', 'tests/pwa.test.mjs.bak', 'tests/x/pwa.test.mjs', 'scripts/gen-og-image.js']) {
         assert.equal(isAllowedOutside(bad), false, bad);
     }
 });
