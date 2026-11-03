@@ -225,3 +225,13 @@ SELECT id, provider, 'refunded', 'manual', '{}'::jsonb FROM public.payments WHER
 UPDATE public.org_subscriptions SET paid_until = '<нова дата>', updated_at = now() WHERE org_id = '<org id>';
 ```
 
+
+## Тріал 7 днів (нові компанії)
+
+Міграція `20261117090000_trial_7d.sql` (застосовується вручну). Нова компанія отримує `org_subscriptions.trial_ends_at` = кінець 7-го дня за Києвом
+(день реєстрації — 1-й); наявні компанії тріалу не мають. Один тріал на email (нормалізований: регістр, `+тег`, крапки gmail) та на ЄДРПОУ/ІПН
+(`trial_claims`). Під час тріалу повний доступ (`current_is_approved()`); після кінця без оплати — «лише читання»: INSERT/UPDATE у `calculations`,
+`kp_documents`, `kp_document_lines`, `kp_contracts`, `kp_doc_ttn`, `kp_other_docs` дають `42501 TRIAL_EXPIRED`, `/api/calculate` і зміна статусу заявки
+в `/api/team` — 403 `TRIAL_EXPIRED`; SELECT, CSV і дані не чіпаються. Оплата (`paid_until > now()`) знімає обмеження одразу.
+`/api/billing/cron` на 5-й і 7-й день шле сповіщення директору (`org_notifications`: `trial_day5` / `trial_day7`) і лист власникам; позначки
+`trial_notified_d5` / `trial_notified_d7` проти дублів. `/api/billing/summary` повертає `trial_ends_at`, `trial_active`, `trial_days_left`, `read_only`.

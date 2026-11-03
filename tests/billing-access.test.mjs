@@ -103,7 +103,7 @@ test('client: «Тариф і оплата» screen, owner / logist, consent, no
     assert.match(html, /if \(!consent \|\| !consent\.checked\) \{\n\s+setBillingMessage\('Потрібна згода з Публічною офертою та Політикою конфіденційності\.', 'error'\);/);
     assert.match(html, /location\.href = res\.url;/);
     // isDemo for the UI.
-    assert.match(html, /isDemo = !\(profile\.is_approved \|\| billingPaidActive\(billingPaidUntil\)\);/);
+    assert.match(html, /isDemo = !\(profile\.is_approved \|\| billingPaidActive\(billingPaidUntil\) \|\| billingTrial\(\)\.active\);/);
     // Return: poll /status every 3 s up to 60 s; ?billing=pay opens the screen.
     assert.match(html, /while \(Date\.now\(\) - started <= 60000\)/);
     assert.match(html, /setTimeout\(resolve, 3000\)/);
