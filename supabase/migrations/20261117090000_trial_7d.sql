@@ -17,11 +17,17 @@
 --    (звичайне демо, як було). Тригер на org_company_profiles.edrpou: ЄДРПОУ/ІПН (8 або 10 цифр), уже зайнятий іншою компанією,
 --    скасовує ще не оплачений тріал цієї компанії (trial_ends_at = NULL).
 --  * Під час тріалу current_is_approved() = true (повний доступ без демо-лімітів).
---  * Після тріалу без оплати (і без is_approved) org_readonly(org) = true: тригер trg_trial_readonly (BEFORE INSERT OR UPDATE OR DELETE) на таблицях
+--  * Після тріалу без оплати (і без is_approved) org_readonly(org) = true: тригер _trial_readonly (BEFORE INSERT OR UPDATE OR DELETE) на таблицях
 --    розрахунків, заявок, документів (рахунки, акти, платежі, підписи, договори, ТТН, подорожні листи, інші), клієнтів, автопарку й водіїв, шаблонів
 --    маршрутів, факту рейсу, ремонтів і запчастин (список — у DO-блоці нижче) блокує зміни (42501 TRIAL_EXPIRED). SELECT, експорт CSV, налаштування
 --    профілю/компанії й оплата не блокуються; нічого не видаляється системою. Оплата (paid_until > now()) знімає блок одразу. Запити service_role
 --    (сервер) тригер пропускає: сервер перевіряє те саме в api/calculate.js та api/team.js (lib/billing/access.js, isOrgReadOnly).
+--    Службові таблиці НЕ блокуються свідомо: regular_removals (черга зняття регулярок WayForPay), weekly_reports (звіти пише cron), gps_integrations /
+--    gps_vehicles / gps_positions (синхронізація з провайдерами GPS), а також payments, org_subscriptions, org_notifications, org_invites, kp_doc_counters,
+--    calc_registry_counters, kp_leads, legal_consents, api_rate_limits, poi_cache — їх пише сервер або вони потрібні для оплати.
+--    accept_org_invite доступна лише service_role (IS NOT service_role → помилка), тож видалення тимчасової компанії запрошеного логіста тригер
+--    і так пропускає (service_role і каскади в тій самій сесії); прапорець app.trial_bypass не потрібен. Прямий DELETE користувачем блокується.
+--  * kp_maintenance_seed_defaults() у режимі «лише читання» нічого не засіває й не падає (повертає наявні типи).
 --  * Оплата під час тріалу: apply_payment_success рахує paid_until від greatest(now(), paid_until, trial_ends_at) — залишок тріалу не згорає.
 --  * current_org_readonly() — той самий org_readonly для компанії користувача (банер UI); GRANT SELECT (trial_ends_at) для authenticated.
 --  * org_notifications.kind: + trial_day5, trial_day7 (надсилає /api/billing/cron, позначки trial_notified_d5 / _d7 проти дублів).
@@ -35,7 +41,7 @@
 --   BEGIN
 --     FOREACH v_table IN ARRAY ARRAY['calculations', 'calc_vehicles', 'calculation_clients', 'trip_actuals', 'route_templates', 'trailer_presets', 'clients', 'fleet_vehicles', 'fleet_trailers', 'kp_documents', 'kp_document_lines', 'kp_document_payments', 'kp_document_signatures', 'kp_doc_emails', 'kp_contracts', 'kp_doc_ttn', 'kp_doc_ttn_lines', 'kp_doc_trip_sheet', 'kp_trip_sheet_stages', 'kp_trip_sheet_refuels', 'kp_other_docs', 'kp_drivers', 'kp_driver_details', 'repairs', 'repair_maintenance', 'parts', 'part_receipts', 'part_writeoffs', 'stock_adjustments', 'maintenance_types', 'vehicle_maintenance_overrides', 'vehicle_odometer_readings'] LOOP
 --       IF to_regclass('public.' || v_table) IS NOT NULL THEN
---         EXECUTE format('DROP TRIGGER IF EXISTS trg_trial_readonly ON public.%I', v_table);
+--         EXECUTE format('DROP TRIGGER IF EXISTS _trial_readonly ON public.%I', v_table);
 --       END IF;
 --     END LOOP;
 --   END $rb$;
@@ -45,6 +51,27 @@
 --   DROP FUNCTION IF EXISTS public.trial_start_guard();
 --   DROP FUNCTION IF EXISTS public.trial_tax_claim_guard();
 --   DROP FUNCTION IF EXISTS public.current_org_readonly();
+--   CREATE OR REPLACE FUNCTION public.kp_maintenance_seed_defaults()
+--   RETURNS SETOF public.maintenance_types
+--   LANGUAGE plpgsql
+--   SECURITY DEFINER
+--   SET search_path = public
+--   AS $$
+--   DECLARE
+--     v_org uuid := public.kp_repairs_require_write();
+--   BEGIN
+--     PERFORM 1 FROM public.organizations WHERE id = v_org FOR UPDATE;
+--     IF NOT EXISTS (SELECT 1 FROM public.maintenance_types AS t WHERE t.org_id = v_org) THEN
+--       INSERT INTO public.maintenance_types (org_id, name, interval_km, interval_months, sort, created_by)
+--       VALUES (v_org, 'Масло двигуна', 15000, 12, 10, auth.uid()),
+--              (v_org, 'Фільтри (масляний, паливний, повітряний)', 15000, 12, 20, auth.uid()),
+--              (v_org, 'Гальма (колодки)', 40000, 24, 30, auth.uid()),
+--              (v_org, 'Трансмісія/мости', 60000, 24, 40, auth.uid()),
+--              (v_org, 'Охолоджувальна рідина', 100000, 24, 50, auth.uid());
+--     END IF;
+--     RETURN QUERY SELECT * FROM public.kp_maintenance_types_of(v_org);
+--   END;
+--   $$;
 --   REVOKE SELECT (trial_ends_at) ON public.org_subscriptions FROM authenticated;
 --   CREATE OR REPLACE FUNCTION public.apply_payment_success(p_payment uuid, p_modified timestamptz)
 --   RETURNS jsonb
@@ -446,8 +473,8 @@ DECLARE
 BEGIN
   FOREACH v_table IN ARRAY ARRAY['calculations', 'calc_vehicles', 'calculation_clients', 'trip_actuals', 'route_templates', 'trailer_presets', 'clients', 'fleet_vehicles', 'fleet_trailers', 'kp_documents', 'kp_document_lines', 'kp_document_payments', 'kp_document_signatures', 'kp_doc_emails', 'kp_contracts', 'kp_doc_ttn', 'kp_doc_ttn_lines', 'kp_doc_trip_sheet', 'kp_trip_sheet_stages', 'kp_trip_sheet_refuels', 'kp_other_docs', 'kp_drivers', 'kp_driver_details', 'repairs', 'repair_maintenance', 'parts', 'part_receipts', 'part_writeoffs', 'stock_adjustments', 'maintenance_types', 'vehicle_maintenance_overrides', 'vehicle_odometer_readings'] LOOP
     IF to_regclass('public.' || v_table) IS NOT NULL THEN
-      EXECUTE format('DROP TRIGGER IF EXISTS trg_trial_readonly ON public.%I', v_table);
-      EXECUTE format('CREATE TRIGGER trg_trial_readonly BEFORE INSERT OR UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.trial_readonly_guard()', v_table);
+      EXECUTE format('DROP TRIGGER IF EXISTS _trial_readonly ON public.%I', v_table);
+      EXECUTE format('CREATE TRIGGER _trial_readonly BEFORE INSERT OR UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.trial_readonly_guard()', v_table);
     END IF;
   END LOOP;
 END $$;
@@ -464,6 +491,33 @@ AS $$
 $$;
 REVOKE ALL ON FUNCTION public.current_org_readonly() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.current_org_readonly() TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.kp_maintenance_seed_defaults()
+RETURNS SETOF public.maintenance_types
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_org uuid := public.kp_repairs_require_write();
+BEGIN
+  -- «Лише читання» після тріалу: нічого не засіваємо й не падаємо — сторінка показує наявне (або порожній список).
+  IF public.org_readonly(v_org) THEN
+    RETURN QUERY SELECT * FROM public.kp_maintenance_types_of(v_org);
+    RETURN;
+  END IF;
+  PERFORM 1 FROM public.organizations WHERE id = v_org FOR UPDATE;
+  IF NOT EXISTS (SELECT 1 FROM public.maintenance_types AS t WHERE t.org_id = v_org) THEN
+    INSERT INTO public.maintenance_types (org_id, name, interval_km, interval_months, sort, created_by)
+    VALUES (v_org, 'Масло двигуна', 15000, 12, 10, auth.uid()),
+           (v_org, 'Фільтри (масляний, паливний, повітряний)', 15000, 12, 20, auth.uid()),
+           (v_org, 'Гальма (колодки)', 40000, 24, 30, auth.uid()),
+           (v_org, 'Трансмісія/мости', 60000, 24, 40, auth.uid()),
+           (v_org, 'Охолоджувальна рідина', 100000, 24, 50, auth.uid());
+  END IF;
+  RETURN QUERY SELECT * FROM public.kp_maintenance_types_of(v_org);
+END;
+$$;
 
 -- Клієнти читають лише дозволені колонки org_subscriptions (20261020200000_auto_renew.sql): додаємо trial_ends_at для банера.
 GRANT SELECT (trial_ends_at) ON public.org_subscriptions TO authenticated;

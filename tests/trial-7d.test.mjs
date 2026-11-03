@@ -291,13 +291,13 @@ test('міграція: колонки, trial_claims, тригери, читан
     assert.equal(/DELETE FROM|DROP TABLE|TRUNCATE/.test(body), false, 'нічого не видаляється');
     assert.equal(/BEFORE INSERT OR UPDATE OR DELETE ON public\.%I/.test(body), true, 'DELETE теж блокується');
     const head = migration.slice(migration.indexOf('-- РУЧНИЙ ВІДКАТ'), migration.indexOf('\nBEGIN;\n'));
-    for (const part of ['DROP TRIGGER IF EXISTS trg_trial_readonly ON public.%I', 'DROP TRIGGER IF EXISTS trg_trial_start', 'DROP FUNCTION IF EXISTS public.org_readonly(uuid)',
+    for (const part of ['DROP TRIGGER IF EXISTS _trial_readonly ON public.%I', 'DROP TRIGGER IF EXISTS trg_trial_start', 'DROP FUNCTION IF EXISTS public.org_readonly(uuid)',
         'DROP TABLE IF EXISTS public.trial_claims', 'DROP COLUMN IF EXISTS trial_ends_at', "'approval_decided')"]) assert.ok(head.includes(part), part);
     assert.ok(head.indexOf('CREATE OR REPLACE FUNCTION public.current_is_approved()') < head.indexOf('DROP FUNCTION IF EXISTS public.org_trial_active(uuid)'), 'функція повертається до оригіналу до видалення хелперів');
-    assert.ok(head.indexOf('DROP TRIGGER IF EXISTS trg_trial_readonly') < head.indexOf('DROP FUNCTION IF EXISTS public.trial_readonly_guard()'));
+    assert.ok(head.indexOf('DROP TRIGGER IF EXISTS _trial_readonly') < head.indexOf('DROP FUNCTION IF EXISTS public.trial_readonly_guard()'));
     const tap = read('supabase/tests/trial_7d.sql');
-    assert.ok(tap.includes('SELECT plan(21);'));
-    assert.equal(tap.split('\n').filter((l) => /^SELECT (is|ok|like)\(/.test(l)).length, 21);
+    assert.ok(tap.includes('SELECT plan(26);'));
+    assert.equal(tap.split('\n').filter((l) => /^SELECT (is|ok|like)\(/.test(l)).length, 26);
 });
 
 const GUARDED = ['calculations', 'calc_vehicles', 'calculation_clients', 'trip_actuals', 'route_templates', 'trailer_presets', 'clients', 'fleet_vehicles', 'fleet_trailers',
@@ -367,4 +367,24 @@ test('банер: «лише читання» за правилом БД (curren
     assert.equal(vm.runInContext('billingReadOnly()', fallback.ctx), true);
     assert.ok(html.includes("supabaseClient.rpc('current_org_readonly')"));
     assert.ok(html.includes('if (billingPaidActive(paidUntil)) billingOrgReadOnly = false;'), 'після оплати прапорець знімається одразу');
+});
+
+test('міграція: _trial_readonly (спрацьовує першим), seed обслуговування в режимі лише читання, службові таблиці не блокуються', () => {
+    const body = migration.slice(migration.lastIndexOf('BEGIN;'));
+    assert.ok(body.includes("CREATE TRIGGER _trial_readonly BEFORE INSERT OR UPDATE OR DELETE ON public.%I"));
+    assert.equal(/trg_trial_readonly/.test(migration), false, 'стара назва тригера ніде не лишилась (ні в міграції, ні у відкаті)');
+    const head = migration.slice(migration.indexOf('-- РУЧНИЙ ВІДКАТ'), migration.lastIndexOf('BEGIN;'));
+    assert.ok(head.includes("EXECUTE format('DROP TRIGGER IF EXISTS _trial_readonly ON public.%I', v_table);"), 'відкат прибирає тригер з новою назвою');
+    // seed: у режимі лише читання — без INSERT і без винятку; оригінальний seed відновлюється відкатом.
+    const seed = body.slice(body.indexOf('CREATE OR REPLACE FUNCTION public.kp_maintenance_seed_defaults()'));
+    const readonlyBranch = seed.slice(seed.indexOf('IF public.org_readonly(v_org) THEN'), seed.indexOf('END IF;'));
+    assert.ok(readonlyBranch.includes('RETURN QUERY SELECT * FROM public.kp_maintenance_types_of(v_org);') && readonlyBranch.includes('RETURN;'));
+    assert.equal(/INSERT|RAISE/.test(readonlyBranch), false);
+    assert.ok(seed.indexOf('IF public.org_readonly(v_org) THEN') < seed.indexOf('INSERT INTO public.maintenance_types'));
+    assert.ok(head.includes('CREATE OR REPLACE FUNCTION public.kp_maintenance_seed_defaults()') && !head.slice(head.indexOf('kp_maintenance_seed_defaults')).split('$$;')[0].includes('org_readonly'));
+    for (const service of ['regular_removals', 'weekly_reports', 'gps_integrations', 'gps_vehicles', 'gps_positions']) {
+        assert.ok(migration.slice(0, migration.indexOf('-- РУЧНИЙ ВІДКАТ')).includes(service), service + ' згадано в коментарі як службова');
+        assert.equal(GUARDED.includes(service), false, service + ' не блокується');
+    }
+    assert.ok(read('supabase/migrations/20261017090000_invite_flow.sql').includes('IF NOT public.is_service_role() THEN'), 'accept_org_invite — лише service_role, тригер її пропускає');
 });
