@@ -1,0 +1,119 @@
+/* Компактний «Розрахунок» і адаптив під ноутбук (redesign, PR kp-calc-compact). Діє лише в Контроль+: файл підключає site-bridge.js
+   (на сайті trip-control.com його немає), а кожен селектор починається з body.kp-shell-on. Розмітку калькулятора й формули не чіпаємо:
+   пари полів, KPI-рядок і розкладка робляться лише стилями поверх тієї розмітки, яку будує index.html.
+   Нижче 901px нічого не міняємо (мобільна версія — PR 5). */
+
+@media (min-width: 901px) {
+    body.kp-shell-on.layout-studio {
+        --tc-fs: 13px;
+        --tc-fs-s: 12px;
+        --tc-h: 30px;
+        --kpc-off: calc(var(--kp-strip-h, 0px) + var(--kp-top-h, 52px));
+        --kpc-kpi-h: var(--tc-strip-h, 49px); /* виміряна висота KPI-рядка: index.html (opSyncStickyTop + ResizeObserver) пише її в --tc-strip-h */
+        --kpc-gap: 8px;
+    }
+
+    /* Поля, підписи, кнопки */
+    body.kp-shell-on.layout-studio #tc-op { font-size: 13px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-in { height: 30px; border-radius: 8px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-in > input,
+    body.kp-shell-on.layout-studio #tc-op .tc-in > select { padding: 0 8px; font-size: 13px; }
+    body.kp-shell-on.layout-studio #tc-op .form-row > label,
+    body.kp-shell-on.layout-studio #tc-op .tc-f-lab { font-size: 12px; color: var(--muted); }
+    body.kp-shell-on.layout-studio #tc-op .tc-f { gap: 3px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body { gap: 6px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sg { gap: 6px 8px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-panel-head { padding: 8px 12px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-head { min-height: 34px; padding: 6px 12px; gap: 8px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-n { width: 20px; height: 20px; font-size: 11px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-body { padding: 2px 12px 10px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-acc-body .tc-fuel-compact { gap: 6px; }
+    body.kp-shell-on.layout-studio #tc-op .btn,
+    body.kp-shell-on.layout-studio #tc-op button.btn-ghost,
+    body.kp-shell-on.layout-studio #tc-op .tc-panel-clear,
+    body.kp-shell-on.layout-studio #tc-op .preset-btn { min-height: 28px; height: 28px; padding-block: 0; font-size: 12px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-f-truck .tc-segment { height: 30px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-f-truck #vehicle-face { min-height: 28px; margin-top: 4px; }
+    body.kp-shell-on.layout-studio #tc-op #podacha-info { font-size: 12px !important; }
+
+    /* Крок 1: двоколонкова сітка. Групи розмітки розчиняємо, щоб осередки ставали у пари; усе широке — на всю ширину. */
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) {
+        display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; align-items: start;
+    }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg { display: contents; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > .form-row { order: 1; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-podacha { order: 2; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-a { order: 3; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-b { order: 4; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > #route-fields-slot { order: 5; grid-column: 1 / -1; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-dist { order: 6; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-weight { order: 7; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-rate { order: 8; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { order: 9; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-truck { order: 10; grid-column: 1 / -1; }
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-vehicle-more,
+    body.kp-shell-on.layout-studio #tc-op .tc-sec-body:has(.tc-f-podacha) > #tc-demo-fields-note { order: 11; grid-column: 1 / -1; }
+    body.kp-shell-on.layout-studio #tc-op #route-fields-slot #route-calc-btn { width: 100%; }
+    body.kp-shell-on.layout-studio #tc-op :is(#route-fields-slot, #route-fields-slot .form-row, #route-fields-slot .tc-osm-box, #route-fields-slot .tc-maps-box, .tc-sec-body, .tc-sg, .tc-f, .form-row) { min-width: 0; box-sizing: border-box; max-width: 100%; }
+
+    /* Рядок «+ Проміжна зупинка» | «A ↔ B»: один flex-рядок у межах колонки; flex у кнопок inline, тому тут !important */
+    body.kp-shell-on.layout-studio #tc-op #route-fields-slot div:has(> #swap-ab-btn) { display: flex; flex-wrap: nowrap; gap: 6px; width: 100%; min-width: 0; box-sizing: border-box; margin-bottom: 4px; }
+    body.kp-shell-on.layout-studio #tc-op #route-fields-slot div:has(> #swap-ab-btn) > .preset-btn:not(#swap-ab-btn) {
+        flex: 1 1 0 !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    body.kp-shell-on.layout-studio #tc-op #route-fields-slot #swap-ab-btn { flex: 0 0 auto !important; min-width: 0; padding-inline: 10px; white-space: nowrap; }
+
+    /* Пари полів: підпис над полем на всю ширину комірки (nowrap + ellipsis), поле на всю ширину, суфікс не з'їдає поле.
+       Сайтове правило v3 (#tc-op .form-row:has(> .tc-in > input[type=number])) ставить підпис збоку, тому перебиваємо тією ж умовою з вищою специфічністю. */
+    body.kp-shell-on.layout-studio #tc-op .form-row:has(> .tc-in > input[type="number"]) {
+        display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; align-items: start; justify-content: stretch; min-height: 0;
+    }
+    body.kp-shell-on.layout-studio #tc-op .form-row:has(> .tc-in > input[type="number"]) > label,
+    body.kp-shell-on.layout-studio #tc-op .tc-op-sub .form-row > label {
+        display: block; width: 100%; min-width: 0; min-height: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        color: var(--muted); font-size: 12px;
+    }
+    body.kp-shell-on.layout-studio #tc-op .form-row:has(> .tc-in > input[type="number"]) > .tc-in,
+    body.kp-shell-on.layout-studio #tc-op .tc-f-rate .form-row > .tc-in { width: 100%; min-width: 0; flex: none; }
+    body.kp-shell-on.layout-studio #tc-op .tc-in > input { min-width: 0; }
+    body.kp-shell-on.layout-studio #tc-op .tc-f-rate .tc-in > input[type="number"] { min-width: 0; }
+    body.kp-shell-on.layout-studio #tc-op .tc-in > .unit { flex: none; padding-right: 8px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-in > select.cur { flex: none; width: auto; min-width: 0; max-width: 40%; padding: 0 4px; }
+
+    /* Поля Google Places («Подача (стоянка)», A, B): сайт ставить min-height 34px і padding у ::part(input) з !important, тому тут теж !important */
+    body.kp-shell-on.layout-studio #tc-op .tc-place-field { min-height: 30px; }
+    body.kp-shell-on.layout-studio #tc-op .tc-place-field gmp-place-autocomplete { min-height: 30px !important; font-size: 13px !important; }
+    body.kp-shell-on.layout-studio #tc-op .tc-place-field gmp-place-autocomplete::part(input) { padding: 0 8px; min-height: 28px; font-size: 13px; }
+
+    /* KPI: рядок ≈56–60px (картка з вертикальним padding ≈10px), підпис 12px над значенням 18px; висоту міряє index.html (--tc-strip-h) */
+    body.kp-shell-on.layout-studio[data-studio-view="calc"] .tc-kpi-bar {
+        top: var(--kpc-off); padding-block: 11px; align-items: center; gap: 4px 16px;
+    }
+    body.kp-shell-on.layout-studio[data-studio-view="calc"] .tc-kpi-bar::before { inset: 4px var(--tc-pad); box-shadow: none; }
+    body.kp-shell-on.layout-studio .tc-kb-m { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+    body.kp-shell-on.layout-studio .tc-kb-m :is(small, b) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    body.kp-shell-on.layout-studio .tc-kb-m small { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); }
+    body.kp-shell-on.layout-studio .tc-kb-m b { font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace); font-size: 18px; font-weight: 700; line-height: 1.3; }
+    body.kp-shell-on.layout-studio .tc-kb-main b { font-size: 18px; }
+    body.kp-shell-on.layout-studio .tc-kb-detail { height: 28px; min-height: 28px; padding-block: 0; font-size: 12px; align-self: center; }
+
+    /* Розкладка: форма clamp(380, 34vw, 480), решта — карта; карта sticky на всю видиму висоту */
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+        grid-template-columns: clamp(380px, 34vw, 480px) minmax(0, 1fr); gap: 12px; padding-bottom: 12px;
+    }
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
+        top: calc(var(--kpc-off) + var(--kpc-kpi-h) + var(--kpc-gap));
+        height: calc(100vh - var(--kpc-off) - var(--kpc-kpi-h) - 2 * var(--kpc-gap)) !important;
+        min-height: 360px !important;
+    }
+}
+
+/* 901–1200px: карта під формою, висота ≈45vh */
+@media (min-width: 901px) and (max-width: 1200px) {
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+        display: flex; flex-direction: column;
+    }
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
+        position: relative; top: auto; height: 45vh !important; min-height: 320px !important;
+    }
+}

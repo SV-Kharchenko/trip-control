@@ -3,7 +3,7 @@
 // ТЗ, причіп з fleet_trailers, водій (лише ПІБ і посвідчення), вантаж, строк дії з дати рейсу, план пального як «видано».
 // КОЖНЕ підставлене поле редагується до видачі; біля зміненого — позначка «змінено» і кнопка повернути значення із заявки.
 // Після видачі документ — знімок: подальші зміни заявки на нього не впливають (kp_trip_sheet_create копіює дані).
-import { h, clear, spinner, notice, toast } from '../ui.js';
+import { h, clear, spinner, notice, toast, uniqueId } from '../ui.js';
 import { kyivDate } from '../lib/format.js';
 import { docsAccess } from '../lib/docs.js';
 import {
@@ -162,7 +162,7 @@ function build(app, route, pre, today, vehicles, trailers, drivers, access) {
     // Галочки допуску: «допущений до рейсу» (медогляд) і «автомобіль справний, виїзд дозволено» (механік).
     function okChecks() {
         const check = (path, text) => {
-            const input = h('input', { type: 'checkbox', id: 'ts-' + path.replace(/./g, '-'), checked: Boolean(getPath(d, path)) });
+            const input = h('input', { type: 'checkbox', id: uniqueId('ts-ok'), checked: Boolean(getPath(d, path)) });
             input.addEventListener('change', () => setPath(d, path, input.checked));
             return h('div', { class: 'field kpc-row' }, h('label', { class: 'kpts-check', for: input.id }, input, ' ', text));
         };

@@ -4,6 +4,9 @@ import './cabinet-slot.css';
 import './kp-shell.css';
 import './kp-registry.css';
 import './kp-windows.css';
+import './kp-calc.css';
 import { startBridge } from './bridge.js';
+import { watchCalcMap } from './kp-calc.js';
 
 startBridge();
+watchCalcMap();
