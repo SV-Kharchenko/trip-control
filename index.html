@@ -15028,12 +15028,12 @@
             chunk.forEach(function (id) { registryDocs[id] = got[id] || { calculation_id: id, docs: [] }; });
         }
     }
-    // Хто може ставити оплату (дзеркало registry_doc_set_paid): директор, директор КП, логіст із правом на документи (can_acts).
+    // Хто може ставити оплату (дзеркало registry_doc_set_paid): директор КП та owner / logist (kp_can_write, як створення документів).
     function registryCanMarkPaid() {
         if (!isKP()) return false;
         if (kpDirectorActive() || currentOrgRole === 'owner') return true;
         const me = (teamState.members || []).find(function (item) { return item.id === currentUserId; });
-        return currentOrgRole === 'logist' && Boolean(me && me.permissions && me.permissions.acts);
+        return currentOrgRole === 'logist';
     }
     // Кнопки документів рядка: «Створити …» (наявна форма заявки) або «Відкрити …», якщо документ уже є; оплата — для тих, хто може.
     function registryDocActions(row) {

@@ -11,12 +11,15 @@
 -- ЩО ДОДАНО:
 --  * kp_documents.paid_at / paid_by — позначка «оплачено» для рахунку й акта (окрема від журналу часткових оплат kp_document_payments;
 --    журнал не змінюється й не синхронізується). kp_documents_guard дозволяє змінювати лише ці два поля (разом зі статусом/анулюванням).
---  * registry_doc_set_paid(doc, paid) — ОДНА атомарна RPC: рахунок і всі його акти (parent_id) стають оплаченими/неоплаченими разом; акт
---    тягне свій рахунок і всі акти того ж рахунку. Анульовані документи не чіпаються. Тригерів немає, тож рекурсії немає; рядки блокуються
---    в порядку id. Доступ: директор (owner), директор КП (org_directors) і логіст із правом на документи (kp_can_write + member_can('acts'));
---    чужа організація / чужий документ — 42501 DOC_FORBIDDEN.
+--  * registry_doc_set_paid(doc, paid) — ОДНА атомарна RPC. Група оплати = усі чинні рахунки й акти ОДНІЄЇ заявки (рядки kp_document_lines.calculation_id)
+--    плюс ланцюжок через parent_id (в обидва боки, якщо заповнений; на проді він порожній). Позначили будь-який документ групи — оплачуються всі,
+--    зняли — знімається з усіх. Документ без заявки: група за parent_id; немає і його — лише сам документ. Анульовані документи не чіпаються.
+--    Склад групи визначається ПІСЛЯ блокування (SELECT … FOR UPDATE по заявках, а без заявки — по документу), далі блокується сама група
+--    в порядку id. Тригерів немає, тож рекурсії немає. Доступ: директор КП (org_directors, control_plus — рішення, лишається), owner / logist —
+--    за правами створення документів (kp_can_write(), без member_can('acts')); чужа організація / чужий документ — 42501.
 --  * registry_documents(calcs[]) — для сторінки реєстру: договір клієнта заявки (чинний на дату рейсу), рахунки й акти заявки з номером,
 --    статусом і ознакою оплати.
+--  * registry_pay_chain(org, seeds[]) — внутрішній хелпер: розширює набір документів ланцюжком parent_id (без EXECUTE для клієнтів).
 --  * Чому SECURITY DEFINER, а не INVOKER: таблиці документів закриті від authenticated (REVOKE ALL, без політик); INVOKER вимагав би
 --    відкрити їх (GRANT UPDATE + RLS-політики), що суперечить «RLS документів не розширювати». Як і всі kp_* RPC, функції самі перевіряють
 --    доступ (kp_docs_org, kp_role, can_view_org, kp_trip_visible), а не довіряють виклику.
@@ -25,6 +28,7 @@
 --   BEGIN;
 --   DROP FUNCTION IF EXISTS public.registry_doc_set_paid(uuid, boolean);
 --   DROP FUNCTION IF EXISTS public.registry_documents(uuid[]);
+--   DROP FUNCTION IF EXISTS public.registry_pay_chain(uuid, uuid[]);
 --   -- Оригінальне тіло kp_documents_guard(): виконати CREATE OR REPLACE FUNCTION public.kp_documents_guard() з
 --   -- 20261026072759_kp_documents.sql (дозволяє змінювати лише status / cancelled_*).
 --   ALTER TABLE public.kp_documents DROP COLUMN IF EXISTS paid_by, DROP COLUMN IF EXISTS paid_at;
@@ -56,8 +60,28 @@ BEGIN
 END;
 $$;
 
+-- Внутрішній хелпер: чинні рахунки й акти організації з p_seeds + їхній ланцюжок parent_id (вгору і вниз).
+CREATE OR REPLACE FUNCTION public.registry_pay_chain(p_org uuid, p_seeds uuid[])
+RETURNS uuid[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH RECURSIVE grp (id) AS (
+    SELECT d.id FROM public.kp_documents AS d
+    WHERE d.org_id = p_org AND d.status = 'issued' AND d.kind IN ('invoice', 'act') AND d.id = ANY (p_seeds)
+    UNION
+    SELECT n.id FROM grp AS g
+    JOIN public.kp_documents AS x ON x.id = g.id
+    JOIN public.kp_documents AS n ON n.id = x.parent_id OR n.parent_id = x.id
+    WHERE n.org_id = p_org AND n.status = 'issued' AND n.kind IN ('invoice', 'act')
+  )
+  SELECT coalesce(array_agg(id ORDER BY id), '{}'::uuid[]) FROM grp;
+$$;
+
 -- ---------------------------------------------------------------------------
--- Оплата: рахунок і всі його акти — разом, в обидва боки
+-- Оплата: уся група документів заявки — разом, в обидва боки
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.registry_doc_set_paid(p_doc uuid, p_paid boolean)
 RETURNS jsonb
@@ -69,25 +93,22 @@ DECLARE
   v_org uuid;
   v_role text;
   v_doc public.kp_documents%ROWTYPE;
-  v_root uuid;
+  v_calcs uuid[];
+  v_seeds uuid[];
   v_ids uuid[];
   v_changed integer;
 BEGIN
+  -- Доступ — першим рядком: Контроль+ (control_plus), роль owner / logist / director.
+  v_org := public.kp_docs_org('read');
+  v_role := public.kp_role();
   IF p_doc IS NULL OR p_paid IS NULL THEN
     RAISE EXCEPTION 'BAD_ARGS' USING ERRCODE = 'P0001';
   END IF;
-  -- Контроль+ (control_plus), роль owner / logist / director; заблокований користувач не проходить.
-  v_org := public.kp_docs_org('read');
-  v_role := public.kp_role();
   IF public.is_user_blocked() OR NOT public.can_view_org(v_org) THEN
     RAISE EXCEPTION 'KP_FORBIDDEN' USING ERRCODE = '42501';
   END IF;
-  IF v_role = 'logist' THEN
-    -- Логіст: може працювати з документами (kp_can_write) і має право на акти.
-    IF NOT public.kp_can_write() OR NOT public.member_can('acts') THEN
-      RAISE EXCEPTION 'PAYMENT_FORBIDDEN' USING ERRCODE = '42501';
-    END IF;
-  ELSIF v_role = 'owner' THEN
+  -- Директор КП читає й може ставити оплату (рішення). owner / logist — як для створення документів: kp_can_write().
+  IF v_role IN ('owner', 'logist') THEN
     IF NOT public.kp_can_write() THEN
       RAISE EXCEPTION 'PAYMENT_FORBIDDEN' USING ERRCODE = '42501';
     END IF;
@@ -102,21 +123,29 @@ BEGIN
   IF v_doc.kind NOT IN ('invoice', 'act') THEN
     RAISE EXCEPTION 'PAID_BAD_KIND' USING ERRCODE = 'P0001';
   END IF;
+
+  -- Спершу блокування: заявки документа (стабільний порядок), а без заявки — сам документ. Група збирається лише після нього.
+  SELECT coalesce(array_agg(DISTINCT l.calculation_id), '{}') INTO v_calcs
+  FROM public.kp_document_lines AS l WHERE l.doc_id = p_doc AND l.calculation_id IS NOT NULL;
+  IF cardinality(v_calcs) > 0 THEN
+    PERFORM 1 FROM public.calculations WHERE id = ANY (v_calcs) AND org_id = v_org ORDER BY id FOR UPDATE;
+  ELSE
+    PERFORM 1 FROM public.kp_documents WHERE id = p_doc FOR UPDATE;
+  END IF;
+
+  SELECT * INTO v_doc FROM public.kp_documents WHERE id = p_doc;
   IF v_doc.status <> 'issued' THEN
     RAISE EXCEPTION 'DOC_CANCELLED' USING ERRCODE = 'P0001';
   END IF;
 
-  -- Група: рахунок (корінь) + усі його акти; акт без рахунку — лише він сам.
-  v_root := CASE WHEN v_doc.kind = 'invoice' THEN v_doc.id ELSE v_doc.parent_id END;
-  IF v_root IS NULL THEN
-    v_ids := ARRAY[v_doc.id];
-  ELSE
-    SELECT array_agg(d.id ORDER BY d.id) INTO v_ids
-    FROM public.kp_documents AS d
-    WHERE d.org_id = v_org AND d.status = 'issued' AND (d.id = v_root OR d.parent_id = v_root);
-  END IF;
+  -- Група: документ + усі документи його заявок + ланцюжок parent_id; лише чинні рахунки й акти цієї організації.
+  SELECT array_agg(DISTINCT x.id) INTO v_seeds FROM (
+    SELECT p_doc AS id
+    UNION
+    SELECT l.doc_id FROM public.kp_document_lines AS l WHERE l.calculation_id = ANY (v_calcs)
+  ) AS x;
+  v_ids := public.registry_pay_chain(v_org, v_seeds);
 
-  -- Блокування в стабільному порядку (паралельні виклики не стають у взаємну чергу), потім один UPDATE на всю групу.
   PERFORM 1 FROM public.kp_documents WHERE id = ANY (v_ids) ORDER BY id FOR UPDATE;
   UPDATE public.kp_documents
   SET paid_at = CASE WHEN p_paid THEN coalesce(paid_at, now()) END,
@@ -158,7 +187,9 @@ BEGIN
                   ) ORDER BY d.kind, d.doc_date, d.number)
            FROM public.kp_documents AS d
            WHERE d.org_id = v_org AND d.kind IN ('invoice', 'act')
-             AND EXISTS (SELECT 1 FROM public.kp_document_lines AS l WHERE l.doc_id = d.id AND l.calculation_id = c.id)
+             AND (EXISTS (SELECT 1 FROM public.kp_document_lines AS l WHERE l.doc_id = d.id AND l.calculation_id = c.id)
+                  OR d.id = ANY (public.registry_pay_chain(v_org, ARRAY(
+                       SELECT l2.doc_id FROM public.kp_document_lines AS l2 WHERE l2.calculation_id = c.id))))
          ), '[]'::jsonb)
   FROM public.calculations AS c
   LEFT JOIN public.calculation_clients AS cc ON cc.calculation_id = c.id
@@ -174,6 +205,7 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.registry_pay_chain(uuid, uuid[]) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.registry_doc_set_paid(uuid, boolean) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.registry_documents(uuid[]) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.registry_doc_set_paid(uuid, boolean) TO authenticated, service_role;

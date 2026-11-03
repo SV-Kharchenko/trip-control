@@ -114,10 +114,10 @@ test('дії рядка: «Створити рахунок / акт» або «�
     const director = world({ window: { tcKpRole: 'director' }, currentOrgRole: 'logist', teamState: { members: [] } });
     withDocs(director, [doc('invoice', 1, false)]);
     assert.deepEqual(labels(director), ['Відкрити рахунок', 'Позначити оплаченим']);
-    // Логіст: оплата лише з правом на документи (can_acts).
+    // Логіст: як і створення документів — kp_can_write, окремого права can_acts не треба.
     const logist = (acts) => { const c = world({ currentOrgRole: 'logist', teamState: { members: [{ id: 'u1', permissions: { acts } }] } }); withDocs(c, [doc('invoice', 1, false)]); return c; };
     assert.equal(labels(logist(true)).includes('Позначити оплаченим'), true);
-    assert.equal(labels(logist(false)).includes('Позначити оплаченим'), false);
+    assert.equal(labels(logist(false)).includes('Позначити оплаченим'), true);
     assert.equal(vm.runInContext('registryCanMarkPaid()', world({ currentOrgRole: 'owner' })), true);
     // «Створити» веде в наявну форму документа заявки, «Відкрити» — в картку документа.
     assert.ok(html.includes("openCalcDoc(\\'' + a.docKind + '\\', \\'' + id + '\\')"));
@@ -144,17 +144,24 @@ test('міграція: paid_at / paid_by, guard, registry_doc_set_paid (ато�
     assert.ok(migration.startsWith('-- Apply manually after review. This file is not applied to production by the agent.'));
     for (const part of ['ADD COLUMN IF NOT EXISTS paid_at timestamptz NULL', 'ADD COLUMN IF NOT EXISTS paid_by uuid NULL REFERENCES auth.users (id) ON DELETE SET NULL',
         "ARRAY['status', 'cancelled_at', 'cancelled_by', 'cancelled_reason', 'paid_at', 'paid_by']",
-        'CREATE OR REPLACE FUNCTION public.registry_doc_set_paid(p_doc uuid, p_paid boolean)', "v_root := CASE WHEN v_doc.kind = 'invoice' THEN v_doc.id ELSE v_doc.parent_id END;",
-        '(d.id = v_root OR d.parent_id = v_root)', "d.status = 'issued'", 'FOR UPDATE', 'WHERE id = ANY (v_ids);', "RAISE EXCEPTION 'DOC_FORBIDDEN' USING ERRCODE = '42501';",
-        "RAISE EXCEPTION 'PAYMENT_FORBIDDEN' USING ERRCODE = '42501';", "public.member_can('acts')", "v_role IS DISTINCT FROM 'director'", 'public.can_view_org(v_org)', "public.kp_docs_org('read')",
+        'CREATE OR REPLACE FUNCTION public.registry_doc_set_paid(p_doc uuid, p_paid boolean)', 'CREATE OR REPLACE FUNCTION public.registry_pay_chain(p_org uuid, p_seeds uuid[])', 'n.id = x.parent_id OR n.parent_id = x.id', "d.status = 'issued'",
+        'l.calculation_id = ANY (v_calcs)', 'v_ids := public.registry_pay_chain(v_org, v_seeds);', 'FROM public.calculations WHERE id = ANY (v_calcs)', 'FOR UPDATE', 'WHERE id = ANY (v_ids);',
+        'REVOKE ALL ON FUNCTION public.registry_pay_chain(uuid, uuid[]) FROM PUBLIC, anon, authenticated;', "RAISE EXCEPTION 'DOC_FORBIDDEN' USING ERRCODE = '42501';",
+        "RAISE EXCEPTION 'PAYMENT_FORBIDDEN' USING ERRCODE = '42501';", "IF NOT public.kp_can_write() THEN", "v_role IS DISTINCT FROM 'director'", 'public.can_view_org(v_org)', "public.kp_docs_org('read')",
         'CREATE OR REPLACE FUNCTION public.registry_documents(p_calcs uuid[])', 'public.kp_trip_visible(c.user_id)', 'x.cancelled_at IS NULL',
         'GRANT EXECUTE ON FUNCTION public.registry_doc_set_paid(uuid, boolean) TO authenticated, service_role;']) assert.ok(migration.includes(part), part);
     assert.equal(/CREATE (OR REPLACE )?TRIGGER|CREATE POLICY|GRANT (UPDATE|INSERT|DELETE|ALL)/.test(migration.slice(migration.indexOf('\nBEGIN;\n'))), false, 'без тригерів (рекурсії немає) і без розширення RLS / прав таблиць');
+    const body = migration.slice(migration.lastIndexOf('BEGIN;'));
+    assert.equal(body.includes("member_can('acts')"), false, 'оплата не вимагає can_acts');
+    assert.ok(body.indexOf("v_org := public.kp_docs_org('read');") < body.indexOf('FOR UPDATE'), 'доступ раніше за блокування');
+    assert.ok(body.indexOf('FROM public.calculations WHERE id = ANY (v_calcs)') < body.indexOf('v_ids := public.registry_pay_chain'), 'група збирається після блокування');
+    assert.ok(body.includes('SECURITY DEFINER'), 'SECURITY DEFINER');
+    assert.ok(body.includes('SET search_path = public'), 'search_path');
     const head = migration.slice(migration.indexOf('-- РУЧНИЙ ВІДКАТ'), migration.indexOf('\nBEGIN;\n'));
     const at = (t) => { const i = head.indexOf(t); assert.ok(i >= 0, t); return i; };
     assert.ok(at('DROP FUNCTION IF EXISTS public.registry_doc_set_paid') < at('kp_documents_guard()'));
     assert.ok(at('kp_documents_guard()') < at('DROP COLUMN IF EXISTS paid_by'));
     const tap = read('supabase/tests/registry_documents.sql');
-    assert.match(tap, /SELECT plan\(19\)/);
-    assert.equal(tap.split('\n').filter((l) => /^SELECT is\(/.test(l)).length, 19);
+    assert.ok(tap.includes("SELECT plan(25);"));
+    assert.equal(tap.split('\n').filter((l) => /^SELECT is\(/.test(l)).length, 25);
 });
