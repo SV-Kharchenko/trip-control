@@ -2,6 +2,7 @@
 import './crm.css';
 import './cabinet-slot.css';
 import './kp-shell.css';
+import './kp-registry.css';
 import { startBridge } from './bridge.js';
 
 startBridge();

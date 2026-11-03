@@ -15251,8 +15251,10 @@
         const plan = registryCellValue(row, 'profit');
         return plan === null ? '—' : '<span class="tc-registry-fact-plan" title="за планом">' + escHtml(money(plan)) + '</span>';
     }
-    function registryCsv(rows) {
-        const columns = registryColumns();
+    // mode (лише Контроль+): 'screen' — тільки видимі колонки, 'all' — усі; без аргумента береться вибір зі стану «Колонки». На сайті завжди всі.
+    function registryCsv(rows, mode) {
+        const allColumns = registryColumns();
+        const columns = isKP() && (mode || registryColsState().csv) !== 'all' ? registryVisibleColumns(allColumns) : allColumns;
         // «Прибуток факт» — лише внесений факт (без підстановки плану); поруч «Факт внесено» так/ні.
         const headers = [];
         columns.forEach(function (c) { headers.push(c.title); if (c.key === 'fact') headers.push('Факт внесено'); });
@@ -15266,6 +15268,194 @@
             lines.push(cells.concat([row.status === 'cancelled' ? (row.cancel_reason || '') : '']).map(historyCsvCell).join(';'));
         });
         return '﻿' + lines.join('\r\n');
+    }
+
+    // ===== Реєстр у CRM-стилі (лише Контроль+ / isKP(); стилі — у застосунку Контроль+, apps/kontrol-plus) =====
+    // Колонки: меню «Колонки», стан у localStorage tc_kp_registry_cols:<org>:<user>; CSV — «як на екрані» або «усі». Дані й логіка
+    // фільтрів ті самі (registry_list / registry_totals); тут лише вигляд. Сайт цього коду не виконує (усе за isKP()).
+    const KP_REGISTRY_COLS_KEY = 'tc_kp_registry_cols';
+    const KP_REGISTRY_COL_KEYS = ['no', 'date', 'route', 'client', 'vehicles', 'user', 'status', 'km', 'revenue', 'profit', 'fact', 'contract', 'invoice', 'act', 'pay'];
+    let registryKpCols = null;
+    function registryColsStorageKey() {
+        return KP_REGISTRY_COLS_KEY + ':' + (typeof currentOrgId !== 'undefined' && currentOrgId ? currentOrgId : '-') + ':' + (typeof currentUserId !== 'undefined' && currentUserId ? currentUserId : '-');
+    }
+    function registryColsState() {
+        if (registryKpCols) return registryKpCols;
+        let raw = null;
+        try { raw = JSON.parse(localStorage.getItem(registryColsStorageKey()) || 'null'); } catch (e) { raw = null; }
+        registryKpCols = {
+            // «№ реєстру» сховати не можна: у ньому підсумковий рядок.
+            hidden: Array.isArray(raw && raw.hidden) ? raw.hidden.filter(function (k) { return KP_REGISTRY_COL_KEYS.indexOf(k) >= 0 && k !== 'no'; }) : [],
+            csv: raw && raw.csv === 'all' ? 'all' : 'screen'
+        };
+        return registryKpCols;
+    }
+    function registryColsSave() {
+        try { localStorage.setItem(registryColsStorageKey(), JSON.stringify(registryColsState())); } catch (e) { /* без збереження колонки працюють у межах сторінки */ }
+    }
+    function registryVisibleColumns(columns) {
+        if (!isKP()) return columns;
+        const hidden = registryColsState().hidden;
+        return columns.filter(function (c) { return hidden.indexOf(c.key) < 0; });
+    }
+    function registryToggleCol(key, visible) {
+        const state = registryColsState();
+        if (key === 'no' || KP_REGISTRY_COL_KEYS.indexOf(key) < 0) return;
+        state.hidden = state.hidden.filter(function (k) { return k !== key; });
+        if (!visible) state.hidden.push(key);
+        registryColsSave();
+        registryRender();
+    }
+    function registrySetCsvMode(mode) {
+        registryColsState().csv = mode === 'all' ? 'all' : 'screen';
+        registryColsSave();
+    }
+    function registryResetCols() {
+        registryColsState().hidden = [];
+        registryColsSave();
+        registryColsPaint();
+        registryRender();
+    }
+    // Документи рядка — посиланнями (рахунок / акт ведуть у картку документа, договір — у картку клієнта), відсутні — «—».
+    function registryDocLinks(info, kind) {
+        const docs = ((info && info.docs) || []).filter(function (d) { return d.kind === kind; });
+        if (!docs.length) return '<span class="kp-reg-none">—</span>';
+        return docs.map(function (d) {
+            return '<a class="kp-reg-doc" href="#/docs/' + encodeURIComponent(d.id) + '" onclick="event.stopPropagation()">' + escHtml(d.number) + '</a>' +
+                '<small class="kp-reg-doc-st' + (d.status === 'cancelled' ? ' is-cancelled' : '') + '">' + escHtml(REGISTRY_DOC_STATUS[d.status] || d.status) + '</small>';
+        }).join(', ');
+    }
+    function registryContractLink(info) {
+        if (!info || !info.contract_no) return '<span class="kp-reg-none">—</span>';
+        const text = escHtml(info.contract_no);
+        return info.client_id ? '<a class="kp-reg-doc" href="#/clients/' + encodeURIComponent(info.client_id) + '" onclick="event.stopPropagation()">' + text + '</a>' : text;
+    }
+    // Комірка рядка в CRM-вигляді: номери, суми й держномери — моноширинним шрифтом (клас kp-mono), суми праворуч; прибуток план — сірий
+    // курсив, факт — жирний: зелений, якщо не менше плану, червоний, якщо менше.
+    function registryKpCell(row, c, money, money0) {
+        const value = registryCellValue(row, c.key);
+        const attr = ' data-col="' + c.key + '"';
+        if (c.key === 'no') return '<td class="is-num kp-mono"' + attr + '><b>' + escHtml(value || '—') + '</b></td>';
+        if (c.key === 'route') {
+            return '<td class="tc-history-route"' + attr + '><b>' + escHtml(value) + '</b>' +
+                (row.status === 'cancelled' ? '<small class="tc-history-reason">Скасовано: ' + escHtml(row.cancel_reason || 'без причини') + '</small>' : '') + '</td>';
+        }
+        if (c.key === 'status') return '<td' + attr + '><span class="tc-status is-' + escHtml(row.status) + '">' + escHtml(value) + '</span></td>';
+        if (c.key === 'date') return '<td class="kp-mono"' + attr + '>' + escHtml(formatHistoryDate(value)) + '</td>';
+        if (c.key === 'vehicles') return '<td class="kp-mono"' + attr + '>' + escHtml(value || '—') + '</td>';
+        if (c.key === 'km') return '<td class="is-num kp-mono"' + attr + '>' + (value === null ? '—' : escHtml(formatHistoryNum(value, 0))) + '</td>';
+        if (c.key === 'revenue') return '<td class="is-num kp-mono"' + attr + '>' + escHtml(money0(value)) + '</td>';
+        if (c.key === 'profit') return '<td class="is-num kp-mono kp-plan"' + attr + '>' + escHtml(money0(value)) + '</td>';
+        if (c.key === 'fact') {
+            const fact = registryCellValue(row, 'fact');
+            const plan = registryCellValue(row, 'profit');
+            if (fact === null) return '<td class="is-num kp-mono"' + attr + '>' + registryFactHtml(row, money) + '</td>';
+            const low = plan !== null && fact < plan;
+            return '<td class="is-num kp-mono kp-fact ' + (low ? 'is-low' : 'is-ok') + '"' + attr + '>' + escHtml(money(fact)) + '</td>';
+        }
+        const info = registryDocs[row.id];
+        if (c.key === 'contract') return '<td class="kp-mono"' + attr + '>' + registryContractLink(info) + '</td>';
+        if (c.key === 'invoice' || c.key === 'act') return '<td class="kp-mono"' + attr + '>' + registryDocLinks(info, c.key) + '</td>';
+        if (c.key === 'pay') {
+            const state = registryPayState(info);
+            return '<td' + attr + '>' + (state ? '<span class="kp-pay is-' + state + '">' + escHtml(REGISTRY_PAY_LABELS[state]) + '</span>' : '<span class="kp-reg-none">—</span>') + '</td>';
+        }
+        return '<td' + attr + '>' + escHtml(value || '—') + '</td>';
+    }
+    // Підсумковий рядок (липкий унизу таблиці): ті самі значення, що registry_totals у registryState.totals; «факт у N з M».
+    function registryKpTfoot(columns, t, money) {
+        const table = document.getElementById('registry-table');
+        if (!table) return;
+        let foot = table.tFoot;
+        if (!t) { if (foot) foot.remove(); return; }
+        if (!foot) foot = table.createTFoot();
+        foot.id = 'registry-tfoot';
+        const cell = function (c) {
+            if (c.key === 'no') return '<td class="is-num kp-mono" data-col="no"><b>Разом: ' + escHtml(String(t.count)) + '</b>' + (t.cancelled ? '<small>скасованих: ' + escHtml(String(t.cancelled)) + '</small>' : '') + '</td>';
+            if (c.key === 'km') return '<td class="is-num kp-mono" data-col="km"><b>' + escHtml(formatHistoryNum(t.distance, 0)) + '</b></td>';
+            if (c.key === 'revenue') return '<td class="is-num kp-mono" data-col="revenue"><b>' + escHtml(money(t.revenue)) + '</b></td>';
+            if (c.key === 'profit') return '<td class="is-num kp-mono kp-plan" data-col="profit"><b>' + escHtml(money(t.profit_plan)) + '</b></td>';
+            if (c.key === 'fact') return '<td class="is-num kp-mono" data-col="fact"><b>' + escHtml(money(t.profit_fact)) + '</b><small>факт у ' + escHtml(String(t.fact_count)) + ' з ' + escHtml(String(t.count)) + '</small></td>';
+            return '<td data-col="' + c.key + '"></td>';
+        };
+        foot.innerHTML = '<tr class="kp-reg-total">' + columns.map(cell).join('') + '<td></td></tr>';
+    }
+    // Швидкі кнопки статусів над таблицею: пишуть у наявний select #registry-status і викликають наявний registryFilterChanged().
+    const KP_REGISTRY_QUICK = [['', 'Усі'], ['accepted', 'Активні'], ['done', 'Виконані'], ['cancelled', 'Скасовані']];
+    function registryQuickStatus(value) {
+        const el = document.getElementById('registry-status');
+        if (!el) return;
+        el.value = value;
+        registryFilterChanged();
+    }
+    function registryKpSyncQuick() {
+        const current = (registryFilters && registryFilters.status) || '';
+        document.querySelectorAll('#registry-quick button').forEach(function (btn) {
+            const on = btn.getAttribute('data-status') === current;
+            btn.classList.toggle('on', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+    }
+    function registryColsPaint() {
+        const menu = document.getElementById('registry-cols-menu');
+        if (!menu) return;
+        const hidden = registryColsState().hidden;
+        menu.innerHTML = registryColumns().map(function (c) {
+            return '<label><input type="checkbox" data-col="' + c.key + '"' + (hidden.indexOf(c.key) < 0 ? ' checked' : '') + (c.key === 'no' ? ' disabled' : '') +
+                ' onchange="registryToggleCol(\'' + c.key + '\', this.checked)"><span>' + escHtml(c.title) + '</span></label>';
+        }).join('') + '<button type="button" class="kp-reg-cols-reset" onclick="registryResetCols()">Показати всі</button>';
+    }
+    function registryColsMenuToggle(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('registry-cols-menu');
+        const btn = document.getElementById('registry-cols-btn');
+        if (!menu || !btn) return;
+        const open = menu.hidden;
+        if (open) registryColsPaint();
+        menu.hidden = !open;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    // Один раз за життя сторінки: швидкі статуси, «Колонки», вибір режиму CSV; позначка kp-reg на секції вмикає CRM-стилі.
+    function registryKpEnhance() {
+        const section = document.getElementById('registry-section');
+        if (!section || section.classList.contains('kp-reg')) return;
+        section.classList.add('kp-reg');
+        const filters = document.getElementById('registry-filters');
+        if (filters) {
+            const quick = document.createElement('div');
+            quick.id = 'registry-quick';
+            quick.className = 'kp-reg-quick';
+            quick.setAttribute('role', 'group');
+            quick.setAttribute('aria-label', 'Статус');
+            quick.innerHTML = KP_REGISTRY_QUICK.map(function (q) {
+                return '<button type="button" data-status="' + q[0] + '" aria-pressed="false" onclick="registryQuickStatus(\'' + q[0] + '\')">' + q[1] + '</button>';
+            }).join('');
+            filters.insertBefore(quick, filters.firstChild);
+            const cols = document.createElement('div');
+            cols.className = 'kp-reg-cols';
+            cols.innerHTML = '<button type="button" id="registry-cols-btn" aria-haspopup="true" aria-expanded="false" onclick="registryColsMenuToggle(event)">Колонки</button>' +
+                '<div id="registry-cols-menu" class="kp-reg-cols-menu" hidden></div>';
+            filters.appendChild(cols);
+        }
+        const exportBox = section.querySelector('.tc-history-export');
+        if (exportBox) {
+            const mode = document.createElement('select');
+            mode.id = 'registry-csv-mode';
+            mode.className = 'kp-reg-csv-mode';
+            mode.setAttribute('aria-label', 'Колонки CSV');
+            mode.innerHTML = '<option value="screen">CSV: як на екрані</option><option value="all">CSV: усі колонки</option>';
+            mode.value = registryColsState().csv;
+            mode.addEventListener('change', function () { registrySetCsvMode(mode.value); });
+            exportBox.insertBefore(mode, exportBox.firstChild);
+        }
+        document.addEventListener('click', function (event) {
+            const menu = document.getElementById('registry-cols-menu');
+            if (menu && !menu.hidden && !event.target.closest('.kp-reg-cols')) { menu.hidden = true; document.getElementById('registry-cols-btn').setAttribute('aria-expanded', 'false'); }
+        });
+        document.addEventListener('keydown', function (event) {
+            const menu = document.getElementById('registry-cols-menu');
+            if (event.key === 'Escape' && menu && !menu.hidden) { menu.hidden = true; document.getElementById('registry-cols-btn').setAttribute('aria-expanded', 'false'); }
+        });
     }
 
     // Фільтри окремі для кожної пари компанія + користувач: tc_registry_filters:<org_id>:<user_id>.
@@ -15444,6 +15634,7 @@
         registryCache = null;
         registryDocs = {};
         ['registry-contract', 'registry-pay'].forEach(function (id) { const el = document.getElementById(id); if (el) el.hidden = !isKP(); });
+        if (isKP()) registryKpEnhance();
         registryPopulateSelects();
         registryApplyControls();
         registryLoad();
@@ -15481,9 +15672,9 @@
         const tbody = document.getElementById('registry-tbody');
         const cards = document.getElementById('registry-cards');
         if (!thead || !tbody) return;
-        const columns = registryColumns();
+        const columns = registryVisibleColumns(registryColumns());
         const team = currentWorkMode === 'team';
-        thead.innerHTML = '<tr>' + columns.map(function (c) { return '<th' + (c.num ? ' class="is-num"' : '') + '>' + escHtml(c.title) + '</th>'; }).join('') + '<th>Дії</th></tr>';
+        thead.innerHTML = '<tr>' + columns.map(function (c) { return '<th' + (c.num ? ' class="is-num"' : '') + (isKP() ? ' data-col="' + c.key + '"' : '') + '>' + escHtml(c.title) + '</th>'; }).join('') + '<th>Дії</th></tr>';
         const countEl = document.getElementById('registry-count');
         const totalsEl = document.getElementById('registry-totals');
         const warnEl = document.getElementById('registry-warning');
@@ -15494,6 +15685,10 @@
         const t = registryState.totals;
         if (countEl) countEl.textContent = registryState.loaded ? String(registryState.total) + ' шт' : '';
         const money = function (n) { return displayMinus(formatMoney(n)); };
+        if (isKP()) {
+            registryKpSyncQuick();
+            registryKpTfoot(columns, registryState.error || !registryState.rows.length ? null : t, money);
+        }
         if (totalsEl) {
             totalsEl.innerHTML = t ? [
                 ['Заявок', String(t.count), t.cancelled ? 'скасованих: ' + t.cancelled + ' (не в сумах)' : 'без скасованих'],
@@ -15516,6 +15711,7 @@
         }
         const money0 = function (n) { return n === null ? '—' : money(n); };
         const cell = function (row, c) {
+            if (isKP()) return registryKpCell(row, c, money, money0);
             const value = registryCellValue(row, c.key);
             if (c.key === 'route') {
                 return '<td class="tc-history-route"><b>' + escHtml(value) + '</b>' +
