@@ -1,7 +1,7 @@
 // «Надіслати на пошту»: невелика форма (кому, тема, текст, галочки PDF документів) і журнал відправок документа.
 // Лист відправляє сервер (/api/docs/send, Resend): тут лише форма. Ключів у браузері немає. Без налаштованої пошти кнопка
 // відправки вимкнена з підписом «Пошта не налаштована».
-import { h, clear, notice, toast } from '../ui.js';
+import { h, clear, notice, toast, uniqueId } from '../ui.js';
 import { fmtDate } from '../lib/format.js';
 import { callKpApi } from '../lib/gps-client.js';
 import { DOC_TITLES, docNumberText } from '../lib/docs.js';
@@ -63,12 +63,13 @@ export function emailControl(app, { docs = [], contract = null, to = '', clientN
     }, label);
 
     function draw(configured) {
-        const picks = contract ? [] : docs.map((d) => ({ doc: d, box: h('input', { type: 'checkbox', checked: d.checked !== false, id: 'kpe-doc-' + d.id }) }));
+        const pfx = uniqueId('kpe'); // картки з листом можуть бути відкриті кількома вікнами
+        const picks = contract ? [] : docs.map((d) => ({ doc: d, box: h('input', { type: 'checkbox', checked: d.checked !== false }) }));
         const selected = () => picks.filter((p) => p.box.checked).map((p) => p.doc);
         // Антиспам: за замовчуванням лише пошта контрагента з картки (поле тільки для читання). Інша адреса — після явного підтвердження.
         const cardEmail = String(to || '').trim();
-        const toInput = h('input', { type: 'email', id: 'kpe-to', value: cardEmail, maxlength: 254, autocomplete: 'off', placeholder: 'client@example.com', readonly: Boolean(cardEmail) });
-        const otherBox = h('input', { type: 'checkbox', id: 'kpe-other' });
+        const toInput = h('input', { type: 'email', id: pfx + '-to', value: cardEmail, maxlength: 254, autocomplete: 'off', placeholder: 'client@example.com', readonly: Boolean(cardEmail) });
+        const otherBox = h('input', { type: 'checkbox', id: pfx + '-other' });
         otherBox.onchange = () => {
             toInput.readOnly = !otherBox.checked;
             if (!otherBox.checked) toInput.value = cardEmail;
@@ -76,8 +77,8 @@ export function emailControl(app, { docs = [], contract = null, to = '', clientN
         };
         if (!cardEmail) otherBox.checked = true;
         const subjectDocs = () => (selected().length ? selected() : docs);
-        const subject = h('input', { type: 'text', id: 'kpe-subject', maxlength: 200, value: contract ? contract.label + (orgName ? ' — ' + orgName : '') : defaultSubject(subjectDocs(), orgName) });
-        const text = h('textarea', { id: 'kpe-text', rows: 5, maxlength: 5000 }, contract ? 'Добрий день' + (clientName ? ', ' + clientName : '') + '!\n\nУ вкладенні: ' + contract.label + '.\n\nЗ повагою.' : defaultText(subjectDocs(), clientName));
+        const subject = h('input', { type: 'text', id: pfx + '-subject', maxlength: 200, value: contract ? contract.label + (orgName ? ' — ' + orgName : '') : defaultSubject(subjectDocs(), orgName) });
+        const text = h('textarea', { id: pfx + '-text', rows: 5, maxlength: 5000 }, contract ? 'Добрий день' + (clientName ? ', ' + clientName : '') + '!\n\nУ вкладенні: ' + contract.label + '.\n\nЗ повагою.' : defaultText(subjectDocs(), clientName));
         const status = h('div', { 'aria-live': 'polite' });
         const send = h('button', { type: 'button', class: 'btn btn-primary', disabled: configured !== true }, 'Надіслати');
         send.onclick = async () => {
@@ -103,11 +104,11 @@ export function emailControl(app, { docs = [], contract = null, to = '', clientN
             h('h3', null, 'Надіслати на пошту'),
             configured === true ? null : notice(configured === false ? 'Пошта не налаштована.' : 'Не вдалося перевірити пошту. Спробуйте ще раз.', 'info'),
             h('div', { class: 'form kpd-email-form' },
-                field('Кому', 'kpe-to', toInput),
-                h('div', { class: 'field' }, h('label', { for: 'kpe-other' }, 'Інша адреса'),
-                    h('label', { class: 'kpd-email-pick', for: 'kpe-other' }, otherBox, ' Надіслати на іншу адресу? Лист піде не на пошту з картки контрагента.')),
-                field('Тема', 'kpe-subject', subject),
-                field('Текст', 'kpe-text', text),
+                field('Кому', pfx + '-to', toInput),
+                h('div', { class: 'field' }, h('label', { for: pfx + '-other' }, 'Інша адреса'),
+                    h('label', { class: 'kpd-email-pick' }, otherBox, ' Надіслати на іншу адресу? Лист піде не на пошту з картки контрагента.')),
+                field('Тема', pfx + '-subject', subject),
+                field('Текст', pfx + '-text', text),
                 h('div', { class: 'field' }, h('label', null, contract ? 'Вкладення' : 'PDF'),
                     h('div', { class: 'kpd-email-docs' }, contract
                         ? (contract.files || []).map((name) => h('span', { class: 'kpd-email-pick' }, name))

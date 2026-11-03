@@ -1,7 +1,7 @@
 // Подорожній лист, зворотний бік: редактор етапів (таблиця; на телефоні кожен рядок — картка) і редактор відміток
 // (медогляд до / після рейсу, механік на виїзді й при поверненні, диспетчер). т·км рахується автоматично (км × т) і не редагується.
 // Кнопки — за розміром вмісту. Зберігає картка листа (kp_trip_sheet_extra_save), поки лист «Видано».
-import { h, clear } from '../ui.js';
+import { h, clear, uniqueId } from '../ui.js';
 import {
     MARK_LABELS, PRETRIP_FIELDS, STAGE_LABELS, addStage, emptyStage, moveStage, removeStage, stageTkm, validateStages,
 } from '../lib/trip-sheet-stages.js';
@@ -77,22 +77,23 @@ const FIELD_ATTRS = { maxlength: 200 };
 
 // Відмітки: рядки «ПІБ · дата й час · галочка». m — об'єкт marksFromDoc (змінюється на місці).
 export function marksEditor(m, onChange, { locked = false } = {}) {
+    const pfx = uniqueId('ts-m'); // кілька відкритих вікон — id унікальні
     const row = (title, by, at, ok) => {
         const frozen = locked && PRETRIP_FIELDS.includes(by);
         const text = (key, attrs, wide) => {
-            const input = h('input', Object.assign({ type: 'text', id: 'ts-m-' + key, autocomplete: 'off', 'aria-label': MARK_LABELS[key], disabled: frozen }, attrs));
+            const input = h('input', Object.assign({ type: 'text', id: pfx + '-' + key, autocomplete: 'off', 'aria-label': MARK_LABELS[key], disabled: frozen }, attrs));
             input.value = m[key] || '';
             input.addEventListener('input', () => { m[key] = input.value; onChange(); });
             return h('span', { class: 'kpc-box ' + (wide ? 'kpc-w-l' : 'kpc-w-m') }, input);
         };
-        const check = h('input', { type: 'checkbox', id: 'ts-m-' + ok, checked: m[ok] === true, disabled: frozen });
+        const check = h('input', { type: 'checkbox', id: pfx + '-' + ok, checked: m[ok] === true, disabled: frozen });
         check.addEventListener('change', () => { m[ok] = check.checked; onChange(); });
         return h('div', { class: 'field kpc-row kpts-mark' },
-            h('label', { for: 'ts-m-' + by }, title),
+            h('label', { for: pfx + '-' + by }, title),
             text(by, FIELD_ATTRS, true), text(at, { type: 'datetime-local' }, false),
-            h('label', { class: 'kpts-check', for: 'ts-m-' + ok }, check, ' ', MARK_LABELS[ok]));
+            h('label', { class: 'kpts-check', for: pfx + '-' + ok }, check, ' ', MARK_LABELS[ok]));
     };
-    const dispatcher = h('input', { type: 'text', id: 'ts-m-dispatcher_name', maxlength: 200, autocomplete: 'off', 'aria-label': MARK_LABELS.dispatcher_name });
+    const dispatcher = h('input', { type: 'text', id: pfx + '-dispatcher_name', maxlength: 200, autocomplete: 'off', 'aria-label': MARK_LABELS.dispatcher_name });
     dispatcher.value = m.dispatcher_name || '';
     dispatcher.addEventListener('input', () => { m.dispatcher_name = dispatcher.value; onChange(); });
     return h('div', { class: 'kpts-marks' },
@@ -101,7 +102,7 @@ export function marksEditor(m, onChange, { locked = false } = {}) {
         row('Механік на виїзді', 'tech_by', 'tech_at', 'tech_ok'),
         row('Медогляд після рейсу', 'medical_post_by', 'medical_post_at', 'medical_post_ok'),
         row('Механік при поверненні', 'mech_return_by', 'mech_return_at', 'mech_return_accepted'),
-        h('div', { class: 'field kpc-row' }, h('label', { for: 'ts-m-dispatcher_name' }, 'Диспетчер'), h('span', { class: 'kpc-box kpc-w-l' }, dispatcher)));
+        h('div', { class: 'field kpc-row' }, h('label', { for: pfx + '-dispatcher_name' }, 'Диспетчер'), h('span', { class: 'kpc-box kpc-w-l' }, dispatcher)));
 }
 
 export { emptyStage };

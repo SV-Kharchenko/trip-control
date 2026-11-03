@@ -108,3 +108,81 @@ test('посилання з реєстру (PR #114) — hash-маршрути, 
     // Вікно заявки малює застосунок без innerHTML: текст лише через textContent.
     assert.equal(/innerHTML/.test(read('apps/kontrol-plus/src/views/request-window.js')), false);
 });
+
+// ---- Дві картки ТТН в одному DOM (вікна): без дублів id, label другої картки перемикає саме її чекбокс ----
+class FNode {}
+class FEl extends FNode {
+    constructor(tag) {
+        super();
+        this.tagName = String(tag).toUpperCase(); this.attrs = {}; this.children = []; this.dataset = {}; this.className = ''; this.checked = false; this.listeners = {};
+        this.parent = null; this.id = ''; this.style = {};
+        this.classList = { add() {}, remove() {}, toggle() {}, contains: () => false };
+    }
+    setAttribute(k, v) { this.attrs[k] = String(v); if (k === 'id') this.id = String(v); }
+    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; }
+    removeAttribute(k) { delete this.attrs[k]; }
+    addEventListener(t, fn) { (this.listeners[t] = this.listeners[t] || []).push(fn); }
+    append(...nodes) { for (const n of nodes) { if (Array.isArray(n)) { this.append(...n); continue; } if (n instanceof FNode) { n.parent = this; this.children.push(n); } else this.children.push({ text: String(n) }); } }
+    replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
+    walk(fn) { for (const c of this.children) if (c instanceof FEl) { fn(c); c.walk(fn); } }
+    byTag(tag) { const out = []; this.walk((e) => { if (e.tagName === tag) out.push(e); }); return out; }
+    // Як у браузері: клік по label активує його елемент керування — за for (id в документі), інакше перший вкладений input.
+    clickLabel(doc) {
+        const forId = this.getAttribute('for');
+        let target = null;
+        if (forId) doc.walk((e) => { if (!target && e.id === forId) target = e; });
+        else this.walk((e) => { if (!target && e.tagName === 'INPUT') target = e; });
+        if (target && target.attrs.type === 'checkbox') target.checked = !target.checked;
+    }
+}
+
+test('дві картки ТТН в одному DOM: id не дублюються, клік по label другої картки перемикає саме її чекбокс', async () => {
+    const saved = { document: Object.getOwnPropertyDescriptor(globalThis, 'document'), Node: Object.getOwnPropertyDescriptor(globalThis, 'Node') };
+    Object.defineProperty(globalThis, 'document', { value: { createElement: (t) => new FEl(t), createTextNode: (t) => ({ text: t }) }, configurable: true, writable: true });
+    Object.defineProperty(globalThis, 'Node', { value: FNode, configurable: true, writable: true });
+    try {
+        const { renderTtnCard } = await import('../apps/kontrol-plus/src/views/docs-ttn-card.js');
+        const ttn = { id: 't1', status: 'issued', number: 1, doc_date: '2026-11-12', client_id: 'c1', client_name: 'ТОВ А', lines: [], calculation_id: null };
+        const app = { supabase: { rpc: async () => ({ data: ttn, error: null }), from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }, context: {} };
+        const access = { canWrite: true, isOwner: false };
+        const first = renderTtnCard(app, access, 't1');
+        const second = renderTtnCard(app, access, 't2');
+        await new Promise((r) => setTimeout(r, 30));
+        const page = new FEl('body');
+        page.append(first, second);
+        const ids = [];
+        page.walk((e) => { if (e.id) ids.push(e.id); });
+        assert.equal(new Set(ids).size, ids.length, 'id у DOM унікальні: ' + ids.join(', '));
+        assert.equal(ids.includes('ttn-copies'), false);
+        const labels = page.byTag('LABEL').filter((l) => /kpt-copies/.test(l.className));
+        assert.equal(labels.length, 2, 'у кожній картці є «3 примірники»');
+        for (const label of labels) {
+            assert.equal(label.getAttribute('for'), null, 'без for');
+            assert.equal(label.byTag('INPUT').length, 1, 'input лежить усередині label');
+        }
+        const boxes = labels.map((l) => l.byTag('INPUT')[0]);
+        labels[1].clickLabel(page);
+        assert.deepEqual(boxes.map((b) => b.checked), [false, true], 'клік по label другої картки перемикає чекбокс другої, а не першої');
+        labels[0].clickLabel(page);
+        assert.deepEqual(boxes.map((b) => b.checked), [true, true]);
+        labels[1].clickLabel(page);
+        assert.deepEqual(boxes.map((b) => b.checked), [true, false]);
+    } finally {
+        for (const [key, desc] of Object.entries(saved)) { if (desc) Object.defineProperty(globalThis, key, desc); else delete globalThis[key]; }
+    }
+});
+
+test('картки документів у вікнах (рахунок / акт, ТТН, подорожній лист, клієнт) не мають статичних id; пари label[for] — унікальні через uniqueId', () => {
+    const src = (f) => read('apps/kontrol-plus/src/views/' + f);
+    for (const file of ['docs-card.js', 'docs-ttn-card.js', 'docs-ts-card.js', 'client-card.js']) {
+        assert.equal(/\bid: '|\bfor: '/.test(src(file)), false, file + ': статичних id / for немає');
+    }
+    assert.equal(/ttn-copies/.test(src('docs-ttn-card.js')), false);
+    // Спільні шматки карток: лист на пошту, відмітки подорожнього листа, договір клієнта — id з унікальним префіксом екземпляра.
+    for (const file of ['doc-email.js', 'docs-ts-stages.js', 'contracts.js']) {
+        assert.equal(/\bid: '[a-z]/.test(src(file).replace(/id: pfx/g, '')), false, file + ': лише унікальні id');
+        assert.match(src(file), /uniqueId\('(kpe|ts-m|kpc)'\)/);
+    }
+    assert.match(read('apps/kontrol-plus/src/ui.js'), /export function uniqueId\(prefix\)/);
+    assert.match(src('docs-ts-card.js'), /querySelector\('\.kpts-related-box'\)/, 'контейнер пов’язаних документів — клас, не id');
+});

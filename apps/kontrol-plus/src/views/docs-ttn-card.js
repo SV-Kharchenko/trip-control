@@ -24,7 +24,7 @@ export function renderTtnCard(app, access, id) {
 
     function draw(doc, calcStatus) {
         const active = doc.status === 'issued';
-        const copies = h('input', { type: 'checkbox', id: 'ttn-copies' });
+        const copies = h('input', { type: 'checkbox' });
         const used = new Set((doc.lines || []).flatMap((l) => [l.owner_price ? 'owner' : null, l.bulk ? 'bulk' : null]).filter(Boolean));
         clear(box,
             h('a', { class: 'back', href: docsBackHash('ttn') }, '← До документів'),
@@ -36,7 +36,7 @@ export function renderTtnCard(app, access, id) {
                 h('div', { class: 'actions' },
                     pdfButton(app, doc.id, 'Завантажити PDF', 'btn btn-primary', 'ttn', () => (copies.checked ? 3 : 1)),
                     excelButton(app, doc.id, 'ttn', 'Excel', 'btn'),
-                    h('label', { class: 'check kpt-copies', for: 'ttn-copies' }, copies, ' 3 примірники'),
+                    h('label', { class: 'check kpt-copies' }, copies, ' 3 примірники'),
                     active && access.canWrite && doc.calculation_id
                         ? (calcAccepted(calcStatus)
                             ? h('a', { class: 'btn', href: '#/docs/new/ttn/' + doc.client_id + '/' + doc.calculation_id }, 'Ще одна ТТН на рейс')
