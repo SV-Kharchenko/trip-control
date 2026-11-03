@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import {
-    DASHBOARD_RPCS, MAX_CUSTOM_DAYS, PERIOD_KEY, aggregateByDay, chartGeometry, dashboardAccess, delta, docGaps, fmtDelta, fmtShort, mainCurrency, niceCeil,
+    DASHBOARD_RPCS, MAX_CUSTOM_DAYS, clampToToday, fmtSum, PERIOD_KEY, aggregateByDay, chartGeometry, dashboardAccess, delta, docGaps, fmtDelta, fmtShort, mainCurrency, niceCeil,
     normalizePeriod, overdueDebts, periodRange, prevRange, readPeriod, recentRequests, registryFilters, rowDay, sumDebts, writePeriod,
 } from '../src/lib/dashboard.js';
 import { parseCrmHash, tabOf, windowSpecOf } from '../src/lib/route.js';
@@ -71,26 +71,47 @@ test('виручка по днях: межі періоду включно, дн
         { status: 'accepted', trip_date: null, decided_at: '2026-11-13T22:30:00Z', revenue: 300 }, // 14.11 за Києвом
         { status: 'accepted', trip_date: '2026-11-11', revenue: null },
     ];
-    const agg = aggregateByDay(rows, range);
+    const agg = aggregateByDay(rows, range, '2026-12-31');
     assert.deepEqual(agg.days.map((d) => d.date), ['2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13', '2026-11-14']);
     assert.deepEqual(agg.days.map((d) => d.revenue), [1500, 0, 0, 0, 2300]);
     assert.deepEqual(agg.days.map((d) => d.count), [2, 1, 0, 0, 2]);
     assert.equal(agg.total, 3800);
     assert.equal(agg.count, 5);
     assert.equal(agg.weekly, false);
-    assert.equal(aggregateByDay([], range).total, 0);
-    assert.equal(aggregateByDay(null, range).days.length, 5);
-    assert.deepEqual(aggregateByDay([{ status: 'done', trip_date: '2026-11-18', revenue: 5 }], { from: '2026-11-18', to: '2026-11-18' }).days, [{ date: '2026-11-18', revenue: 5, count: 1 }]);
+    assert.equal(aggregateByDay([], range, '2026-12-31').total, 0);
+    assert.equal(aggregateByDay(null, range, '2026-12-31').days.length, 5);
+    assert.deepEqual(aggregateByDay([{ status: 'done', trip_date: '2026-11-18', revenue: 5 }], { from: '2026-11-18', to: '2026-11-18' }, '2026-12-31').days, [{ date: '2026-11-18', revenue: 5, count: 1 }]);
 });
 
 test('довгий період (>92 днів) групується по тижнях з понеділка', () => {
     const range = { from: '2026-01-01', to: '2026-06-30' };
-    const agg = aggregateByDay([{ status: 'done', trip_date: '2026-03-04', revenue: 10 }, { status: 'done', trip_date: '2026-03-06', revenue: 5 }], range);
+    const agg = aggregateByDay([{ status: 'done', trip_date: '2026-03-04', revenue: 10 }, { status: 'done', trip_date: '2026-03-06', revenue: 5 }], range, '2026-12-31');
     assert.equal(agg.weekly, true);
     const week = agg.days.find((d) => d.date === '2026-03-02');
     assert.deepEqual(week, { date: '2026-03-02', revenue: 15, count: 2 });
     assert.ok(agg.days.every((d) => new Date(d.date + 'T00:00:00Z').getUTCDay() === 1), 'усі ключі — понеділки');
     assert.equal(agg.total, 15);
+});
+
+test('єдиний формат сум: як у KPI — пробіли тисяч, без копійок, «₴»; інша валюта з кодом', () => {
+    const nb = (s) => s.replace(/\s/g, ' ');
+    assert.equal(nb(fmtSum(396000)), '396 000 ₴');
+    assert.equal(nb(fmtSum(70000, 'UAH')), '70 000 ₴');
+    assert.equal(nb(fmtSum('45000.00')), '45 000 ₴');
+    assert.equal(nb(fmtSum(1234.56, 'USD')), '1 235 USD');
+    assert.equal(fmtSum(null), '—');
+});
+
+test('вісь графіка не йде за сьогодні (Київ): майбутні дні відрізані, нулі в минулому лишаються', () => {
+    const rows = [{ status: 'done', trip_date: '2026-11-18', revenue: 100 }, { status: 'done', trip_date: '2026-11-19', revenue: 999 }];
+    const agg = aggregateByDay(rows, { from: '2026-11-16', to: '2026-11-22' }, '2026-11-18');
+    assert.deepEqual(agg.days.map((d) => d.date), ['2026-11-16', '2026-11-17', '2026-11-18']);
+    assert.deepEqual(agg.days.map((d) => d.revenue), [0, 0, 100]);
+    assert.equal(agg.total, 100);
+    assert.equal(aggregateByDay(rows, { from: '2026-11-16', to: '2026-11-18' }, '2026-11-18').days.length, 3, 'до сьогодні включно — без змін');
+    assert.deepEqual(aggregateByDay(rows, { from: '2026-11-19', to: '2026-11-22' }, '2026-11-18').days, []);
+    assert.deepEqual(clampToToday({ from: '2026-11-01', to: '2026-11-30' }, '2026-11-18'), { from: '2026-11-01', to: '2026-11-18' });
+    assert.equal(clampToToday({ from: '2026-11-19', to: '2026-11-30' }, '2026-11-18'), null);
 });
 
 test('порівняння з попереднім періодом: ▲ ▼, без бази (0 / невідомо) — нічого', () => {
@@ -224,7 +245,11 @@ test('швидкі дії й рядки списків відкривають в
     assert.match(src, /href: '#\/requests\/' \+ encodeURIComponent\(r\.id\)/);
     assert.match(src, /href: '#\/clients\/' \+ encodeURIComponent\(r\.client_id\)/);
     assert.match(src, /id: 'kpd-new-invoice', href: '#\/docs\/new\/invoice'/);
-    assert.match(src, /id: 'kpd-new-request', onclick: openSite\('calc'\)/);
+    assert.match(src, /id: 'kpd-calc', onclick: openSite\('calc'\)/);
+    assert.doesNotMatch(src, new RegExp('Нова заявка|kpd-new' + '-request'), 'окремого створення заявки немає — кнопки-дубля теж');
+    const targets = [...src.matchAll(/id: '(kpd-[a-z-]+)', (?:onclick: openSite\('([a-z]+)'\)|href: '([^']+)')/g)].map((m) => m[2] || m[3]);
+    assert.equal(new Set(targets).size, targets.length, 'усі швидкі дії ведуть у різні місця: ' + targets);
+    assert.doesNotMatch(src, /fmtMoney|fmtAmount/, 'суми лише через fmtSum');
     assert.match(src, /id: 'kpd-registry', onclick: openSite\('registry'\)/);
     assert.match(src, /fin && canWrite \? h\('a'/, '«Новий рахунок» лише тим, хто може створювати');
     assert.match(src, /disabled: true, title: READ_ONLY_HINT/, 'без прав кнопки disabled з підказкою');
@@ -291,7 +316,7 @@ window.__calls = fx.calls;
 const nav = [];
 const app = { supabase: { rpc: fx.rpc }, context: fx.context, openSite: (v) => nav.push(v), onCleanup() {}, onPlanLost() { nav.push('plan-lost'); } };
 window.__nav = nav;
-const store = new Map();
+const store = new Map(); if (q.get('custom')) { const [f, t] = q.get('custom').split(','); store.set('kp.dashboard.period', JSON.stringify({ kind: 'custom', from: f, to: t })); }
 document.getElementById('kp-crm').append(renderDashboard(app, { today: () => '2026-11-18', storage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) } }));
 window.__store = store;
 window.__ready = true;
@@ -407,8 +432,8 @@ test('браузер: помилка однієї RPC — тиха картка,
         await page.goto(base + '?role=director');
         await page.waitForFunction(() => document.querySelectorAll('[aria-busy="true"]').length === 0);
         assert.equal(await page.locator('[data-kpi="debt"]').count(), 1);
-        assert.equal(await page.locator('#kpd-new-request').isDisabled(), true);
-        assert.match(await page.locator('#kpd-new-request').getAttribute('title'), /Лише перегляд/);
+        assert.equal(await page.locator('#kpd-calc').isDisabled(), true);
+        assert.match(await page.locator('#kpd-calc').getAttribute('title'), /Лише перегляд/);
         assert.equal(await page.locator('#kpd-new-invoice').count(), 0);
         assert.ok((await page.evaluate(() => window.__calls)).some((c) => c.name === 'registry_totals' && c.args.p_filters.org_id), 'директор читає компанію явним org_id');
         await page.close();
@@ -417,7 +442,7 @@ test('браузер: помилка однієї RPC — тиха картка,
         page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
         await page.goto(base);
         await page.waitForFunction(() => document.querySelectorAll('[aria-busy="true"]').length === 0);
-        assert.equal(await page.locator('#kpd-new-request').isDisabled(), false);
+        assert.equal(await page.locator('#kpd-calc').isDisabled(), false);
         assert.equal(await page.locator('#kpd-new-invoice').getAttribute('href'), '#/docs/new/invoice');
         await page.locator('#kpd-registry').click();
         await page.getByRole('button', { name: 'Детальний огляд →' }).click();
@@ -430,9 +455,26 @@ test('браузер: помилка однієї RPC — тиха картка,
         await page.goto(base + '?plan=0');
         await page.waitForFunction(() => document.querySelectorAll('[aria-busy="true"]').length === 0);
         assert.equal(await page.locator('[data-kpi="debt"]').count(), 0);
-        assert.equal(await page.locator('#kpd-new-request').isDisabled(), true);
+        assert.equal(await page.locator('#kpd-calc').isDisabled(), true);
         const names = (await page.evaluate(() => window.__calls)).map((c) => c.name);
         assert.ok(!names.some((n) => n.startsWith('kp_') || n === 'registry_documents'), 'фінансові RPC не викликались: ' + names);
+        await page.close();
+    });
+});
+
+test('браузер: усі суми в одному форматі; свій період у майбутнє — графік до сьогодні', async (t) => {
+    await withDashboard(t, async (browser, base) => {
+        const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+        await page.goto(base + '?custom=2026-11-10,2026-11-25');
+        await page.waitForFunction(() => document.querySelectorAll('[aria-busy="true"]').length === 0);
+        const text = await page.evaluate(() => document.querySelector('.kpd').innerText);
+        assert.doesNotMatch(text, /грн|\d,\d\d\b/, 'без «грн» і копійок');
+        const sums = await page.evaluate(() => [...document.querySelectorAll('.kpd-kpi-value, .kpd-row-side .kpd-mono, .kpd-kpi-sub .kpd-mono')].map((e) => e.textContent.replace(/\s/g, ' ')));
+        assert.ok(sums.length >= 8);
+        for (const s of sums) assert.match(s, /^[\d ]+ ₴( \+ інші валюти)?$|^\d+$/, 'формат: ' + s);
+        const fonts = await page.evaluate(() => [...document.querySelectorAll('.kpd-kpi-value .kpd-mono, .kpd-row-side .kpd-mono')].every((e) => /JetBrains Mono/.test(getComputedStyle(e).fontFamily) && /tabular-nums/.test(getComputedStyle(e).fontVariantNumeric)));
+        assert.equal(fonts, true, 'JetBrains Mono + tabular-nums');
+        assert.equal(await page.locator('.kpd-bar').count(), 9, '10–18.11 включно, без 19–25');
         await page.close();
     });
 });

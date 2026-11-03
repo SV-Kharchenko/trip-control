@@ -2,11 +2,11 @@
 // Лише наявні RPC під RLS (DASHBOARD_RPCS у lib/dashboard.js); нових міграцій і функцій немає. Текст — лише через h() / textContent.
 // Кожна картка вантажиться окремо: помилка однієї RPC не валить сторінку. Права рахує сервер (RLS / kp_org_id): що повернув — те й показуємо.
 import { h, svgEl, clear, uniqueId } from '../ui.js';
-import { fmtDate, fmtMoney, kyivDate, STATUS_LABELS, daysBetween } from '../lib/format.js';
-import { fmtAmount, isMissingFeature } from '../lib/docs.js';
+import { fmtDate, kyivDate, STATUS_LABELS, daysBetween } from '../lib/format.js';
+import { isMissingFeature } from '../lib/docs.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import {
-    LIST_ROWS, MAX_CUSTOM_DAYS, MAX_PAGES, PAGE_SIZE, PERIODS, aggregateByDay, chartGeometry, dashboardAccess, delta, docGaps, fmtDelta, fmtShort, mainCurrency,
+    LIST_ROWS, MAX_CUSTOM_DAYS, MAX_PAGES, PAGE_SIZE, PERIODS, aggregateByDay, chartGeometry, fmtSum, dashboardAccess, delta, docGaps, fmtDelta, fmtShort, mainCurrency,
     overdueDebts, periodRange, prevRange, readPeriod, recentRequests, registryFilters, sumDebts, writePeriod,
 } from '../lib/dashboard.js';
 
@@ -101,8 +101,8 @@ export function renderDashboard(app, deps = {}) {
     // --- швидкі дії (вікна PR 3 відкриває hash-маршрут; на вузькому екрані — звичайний перехід, як і раніше) ---
     const disabledAttrs = canWrite ? {} : { disabled: true, title: READ_ONLY_HINT, 'aria-disabled': 'true' };
     const quick = h('div', { class: 'kpd-quick', role: 'group', 'aria-label': 'Швидкі дії' },
-        h('button', { type: 'button', class: 'btn btn-primary btn-sm', id: 'kpd-new-request', onclick: openSite('calc'), ...disabledAttrs }, 'Нова заявка'),
-        h('button', { type: 'button', class: 'btn btn-sm', id: 'kpd-calc', onclick: openSite('calc') }, 'Розрахунок рейсу'),
+        // Окремого створення заявки в Контроль+ немає: заявка народжується з розрахунку рейсу, тож одна кнопка.
+        h('button', { type: 'button', class: 'btn btn-primary btn-sm', id: 'kpd-calc', onclick: openSite('calc'), ...disabledAttrs }, 'Розрахунок рейсу'),
         h('button', { type: 'button', class: 'btn btn-sm', id: 'kpd-registry', onclick: openSite('registry') }, 'Відкрити реєстр'),
         fin && canWrite ? h('a', { class: 'btn btn-sm', id: 'kpd-new-invoice', href: '#/docs/new/invoice' }, 'Новий рахунок') : null);
 
@@ -173,7 +173,7 @@ export function renderDashboard(app, deps = {}) {
         const g = chartGeometry(agg.days, { width, height: width < 480 ? 170 : 210 });
         const show = (b) => {
             tip.hidden = false;
-            clear(tip, h('b', { class: 'kpd-mono' }, fmtMoney(b.revenue)), h('small', null, (agg.weekly ? 'Тиждень з ' : '') + fmtDate(b.date) + ' · заявок: ' + b.count));
+            clear(tip, h('b', { class: 'kpd-mono' }, fmtSum(b.revenue)), h('small', null, (agg.weekly ? 'Тиждень з ' : '') + fmtDate(b.date) + ' · заявок: ' + b.count));
             const left = Math.min(Math.max(b.cx / g.width, 0.12), 0.88);
             tip.style.left = (left * 100) + '%';
         };
@@ -185,7 +185,7 @@ export function renderDashboard(app, deps = {}) {
                 svgEl('text', { class: 'kpd-axis', x: g.padLeft - 6, y: t.y + 3, 'text-anchor': 'end' }, fmtShort(t.value)),
             ]),
             g.bars.map((b) => {
-                const label = fmtDate(b.date) + ': ' + fmtMoney(b.revenue) + ', заявок ' + b.count;
+                const label = fmtDate(b.date) + ': ' + fmtSum(b.revenue) + ', заявок ' + b.count;
                 const rect = svgEl('rect', {
                     class: 'kpd-bar' + (b.revenue > 0 ? '' : ' is-zero'), x: b.x, y: b.revenue > 0 ? Math.min(b.y, g.axisY - 1) : g.axisY - 1, width: b.w, height: Math.max(b.revenue > 0 ? b.h : 1, 1),
                     tabindex: '0', role: 'img', 'aria-label': label, rx: 2,
@@ -211,7 +211,7 @@ export function renderDashboard(app, deps = {}) {
         clear(chartCard.body, chartWrap, chartNote);
         chartNote.textContent = info.truncated
             ? 'Агреговано за перші ' + info.fetched + ' із ' + info.total + ' заявок періоду (новіші першими). Точніше — серверна агрегація (див. опції в описі PR).'
-            : 'План виручки без скасованих заявок; день — дата рейсу (за Києвом). Разом: ' + fmtMoney(agg.total) + '.';
+            : 'План виручки без скасованих заявок; день — дата рейсу (за Києвом). Разом: ' + fmtSum(agg.total) + '.';
         drawChart();
     }
 
@@ -220,7 +220,7 @@ export function renderDashboard(app, deps = {}) {
         return h('li', null, h('a', { class: 'kpd-row', href: '#/requests/' + encodeURIComponent(r.id) },
             mono(r.registry_no || '—', 'kpd-no'),
             h('span', { class: 'kpd-row-main' }, h('b', null, r.client_name || r.name || '—'), h('small', null, [r.route_from, r.route_to].filter(Boolean).join(' → ') || fmtDate(r.trip_date))),
-            h('span', { class: 'kpd-row-side' }, mono(fmtMoney(r.revenue)), h('small', null, STATUS_LABELS[r.status] || r.status))));
+            h('span', { class: 'kpd-row-side' }, mono(fmtSum(r.revenue)), h('small', null, STATUS_LABELS[r.status] || r.status))));
     }
     function paintRecent(rows) {
         recentCard.el.removeAttribute('aria-busy');
@@ -232,7 +232,7 @@ export function renderDashboard(app, deps = {}) {
         const list = overdueDebts(rows);
         clear(debtsCard.body, list.length ? h('ul', { class: 'kpd-list' }, list.map((r) => h('li', null, h('a', { class: 'kpd-row', href: '#/clients/' + encodeURIComponent(r.client_id) },
             h('span', { class: 'kpd-row-main' }, h('b', null, r.client_name), h('small', null, r.oldest_due ? 'від ' + fmtDate(r.oldest_due) : '')),
-            h('span', { class: 'kpd-row-side' }, mono(fmtAmount(r.overdue, r.currency), 'is-bad'), h('small', null, (r.overdue_days || 0) + ' дн.'))))))
+            h('span', { class: 'kpd-row-side' }, mono(fmtSum(r.overdue, r.currency), 'is-bad'), h('small', null, (r.overdue_days || 0) + ' дн.'))))))
             : empty('Прострочених оплат немає.'));
     }
     function paintGaps(gaps) {
@@ -293,11 +293,11 @@ export function renderDashboard(app, deps = {}) {
             const err = curT.error || new Error('empty');
             ['revenue', 'margin', 'requests'].forEach((key) => paint(key, { error: err }));
         } else {
-            paint('revenue', { value: fmtMoney(t.revenue), sub: t.fact_count !== undefined ? 'план по заявках' : '', d: p ? delta(t.revenue, fact(p, 'revenue')) : null });
+            paint('revenue', { value: fmtSum(t.revenue), sub: t.fact_count !== undefined ? 'план по заявках' : '', d: p ? delta(t.revenue, fact(p, 'revenue')) : null });
             const pctOfRevenue = Number(t.revenue) > 0 ? String(Math.round((Number(t.profit_fact) / Number(t.revenue)) * 1000) / 10).replace('.', ',') + '% від виручки' : '';
             paint('margin', {
-                value: fmtMoney(t.profit_fact),
-                sub: h('span', null, 'план ', mono(fmtMoney(t.profit_plan)), pctOfRevenue ? ' · ' + pctOfRevenue : ''),
+                value: fmtSum(t.profit_fact),
+                sub: h('span', null, 'план ', mono(fmtSum(t.profit_plan)), pctOfRevenue ? ' · ' + pctOfRevenue : ''),
                 d: p ? delta(t.profit_fact, fact(p, 'profit_fact')) : null,
             });
             paint('requests', {
@@ -321,8 +321,8 @@ export function renderDashboard(app, deps = {}) {
                 const unpaidN = !unpaid.error && unpaid.data !== null ? Number(unpaid.data) : null;
                 const other = Object.keys(sums).length > 1 ? ' + інші валюти' : '';
                 paint('debt', {
-                    value: fmtAmount(slot.debt, cur || 'UAH') + other,
-                    sub: h('span', null, 'прострочено ', mono(fmtAmount(slot.overdue, cur || 'UAH'), slot.overdue > 0 ? 'is-bad' : ''), unpaidN !== null ? ' · неоплачених рахунків: ' + unpaidN : ''),
+                    value: fmtSum(slot.debt, cur || 'UAH') + other,
+                    sub: h('span', null, 'прострочено ', mono(fmtSum(slot.overdue, cur || 'UAH'), slot.overdue > 0 ? 'is-bad' : ''), unpaidN !== null ? ' · неоплачених рахунків: ' + unpaidN : ''),
                     d: prevSlot ? delta(slot.debt, prevSlot.debt) : null,
                     invert: true,
                 });
@@ -338,7 +338,7 @@ export function renderDashboard(app, deps = {}) {
             if (docsCard) failCard(docsCard, rowsRes.error);
         } else {
             const rows = rowsRes.rows;
-            paintChart(aggregateByDay(rows, range), { truncated: rowsRes.total > rows.length, fetched: rows.length, total: rowsRes.total });
+            paintChart(aggregateByDay(rows, range, today()), { truncated: rowsRes.total > rows.length, fetched: rows.length, total: rowsRes.total });
             paintRecent(rows);
             if (fin) {
                 const ids = rows.filter((r) => r.status !== 'cancelled').slice(0, PAGE_SIZE).map((r) => r.id);

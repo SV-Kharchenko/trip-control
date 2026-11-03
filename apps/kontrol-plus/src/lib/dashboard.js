@@ -1,6 +1,6 @@
 // Дашборд «Контроль+» (PR 4 з 5): чисті функції без DOM — період, попередній період, агрегація виручки по днях (Київ),
 // порівняння, списки «останні заявки» й «документи без акта / підпису». Малює це views/dashboard.js.
-import { daysBetween, kyivDate, shiftDate } from './format.js';
+import { daysBetween, fmtMoney, kyivDate, shiftDate } from './format.js';
 import { docsAccess } from './docs.js';
 import { crmPermissions } from './gate.js';
 
@@ -63,6 +63,18 @@ export function prevRange(range) {
     return { from: shiftDate(range.from, -n), to: shiftDate(range.from, -1) };
 }
 
+// Вісь графіка не йде далі за сьогодні (Київ): майбутніх днів немає. null — період цілком у майбутньому.
+export function clampToToday(range, today = kyivDate()) {
+    if (range.from > today) return null;
+    return { from: range.from, to: range.to > today ? today : range.to };
+}
+
+// Єдиний формат сум дашборда: як у KPI — пробіли тисяч, без копійок, «₴»; інша валюта — той самий формат із кодом.
+export function fmtSum(value, currency = 'UAH') {
+    const base = fmtMoney(value);
+    return !currency || currency === 'UAH' ? base : base.replace(/\s*₴$/, '') + ' ' + currency;
+}
+
 // День заявки: той самий вираз, що в registry_list на сервері — дата рейсу, інакше дата рішення, інакше створення (за Києвом).
 export function rowDay(row) {
     if (!row) return null;
@@ -81,7 +93,9 @@ const money = (v) => {
 
 // Виручка по днях: скасовані не рахуються, дні без заявок — нулі. Понад 92 дні — тижні (з понеділка). Значення — план виручки
 // (поле revenue), тому сума збігається з registry_totals.revenue. Повертає { days: [{ date, label, revenue, count }], total, count }.
-export function aggregateByDay(rows, range) {
+export function aggregateByDay(rows, fullRange, today = kyivDate()) {
+    const range = clampToToday(fullRange, today);
+    if (!range) return { days: [], total: 0, count: 0, weekly: false };
     const span = daysBetween(range.from, range.to) + 1;
     const weekly = span > 92;
     const startOf = (iso) => {
