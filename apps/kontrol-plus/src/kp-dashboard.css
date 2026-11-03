@@ -1,0 +1,99 @@
+/* Дашборд Контроль+ (PR 4 з 5). Лише #kp-crm .kpd. Кольори — тільки змінні тем (світла / темна палітра #kp-crm у crm.css):
+   жодних власних hex / rgb, щоб white-label міняв тему в одному місці. Числа — var(--font-mono), tabular-nums. */
+
+.kpd { display: block; max-width: 100%; min-width: 0; font-size: 13px; }
+.kpd, .kpd * { box-sizing: border-box; }
+.kpd h1 { font-size: 18px; margin: 0; font-weight: 700; }
+.kpd h2 { font-size: 13px; margin: 0; font-weight: 700; }
+.kpd-mono { font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; }
+
+/* Шапка: період */
+.kpd-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 10px; }
+.kpd-periods { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.kpd-chip { appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+.kpd-chip:hover { color: var(--text); }
+.kpd-chip.is-on { background: var(--accent); color: var(--on-accent); }
+.kpd-chip:focus-visible, .kpd-link:focus-visible, .kpd-all:focus-visible, .kpd-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kpd-custom { display: inline-flex; align-items: center; gap: 4px; }
+.kpd-custom[hidden] { display: none; }
+.kpd-date { height: 28px; padding: 0 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); color: var(--text); }
+.kpd-range { font-size: 12px; color: var(--muted); }
+.kpd-link { margin-left: auto; appearance: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
+.kpd-link:hover { color: var(--text); }
+
+/* Швидкі дії */
+.kpd-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.kpd-quick .btn { height: 30px; padding: 0 12px; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; }
+.kpd-quick .btn[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+/* KPI */
+.kpd-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.kpd-kpi { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.kpd-kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.kpd-kpi-value { margin: 4px 0 2px; font-size: 18px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.kpd-kpi-value .kpd-mono { font-size: 18px; }
+.kpd-kpi-sub { font-size: 11.5px; color: var(--muted); min-height: 14px; overflow-wrap: anywhere; }
+.kpd-kpi-delta { font-size: 11px; color: var(--muted); min-height: 14px; }
+.kpd-delta { font-size: 12px; font-weight: 600; }
+.kpd-delta.is-good, .kpd-mono.is-good { color: var(--positive); }
+.kpd-delta.is-bad, .kpd-mono.is-bad { color: var(--negative); }
+
+/* Картки */
+.kpd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.kpd-card { min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.kpd-card-chart { grid-column: 1 / -1; }
+.kpd-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+#kp-crm .kpd-all { appearance: none; border: 0; background: transparent; font: inherit; font-size: 12px; color: var(--muted); text-decoration: none; cursor: pointer; }
+#kp-crm .kpd-all:hover { color: var(--text); text-decoration: underline; }
+.kpd-note { margin: 6px 0 0; font-size: 11.5px; color: var(--muted); }
+.kpd-soft-error { margin: 0; font-size: 12px; color: var(--muted); }
+.kpd-soft-error[hidden] { display: none; }
+.kpd-empty { padding: 10px 0; color: var(--muted); }
+.kpd-empty p { margin: 0 0 8px; }
+
+/* Skeleton */
+.kpd-skel { display: grid; gap: 6px; }
+.kpd-skel i { display: block; height: 12px; border-radius: 4px; background: var(--border-soft); animation: kpd-pulse 1.2s ease-in-out infinite; }
+.kpd-skel i:nth-child(2) { width: 80%; }
+.kpd-skel i:nth-child(3) { width: 60%; }
+@keyframes kpd-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .kpd-skel i { animation: none; } }
+
+/* Графік */
+.kpd-chart { position: relative; width: 100%; min-width: 0; }
+.kpd-svg { display: block; width: 100%; height: auto; max-width: 100%; overflow: visible; }
+.kpd-grid-line { stroke: var(--border-soft); stroke-width: 1; }
+.kpd-axis { fill: var(--muted); font-size: 10px; font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); }
+.kpd-bar { fill: var(--accent); opacity: 0.85; cursor: default; }
+.kpd-bar:hover, .kpd-bar:focus { opacity: 1; }
+.kpd-bar.is-zero { fill: var(--border); opacity: 1; }
+.kpd-tip { position: absolute; top: 0; transform: translateX(-50%); z-index: 2; display: grid; gap: 2px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); font-size: 12px; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 8px var(--border-soft); }
+.kpd-tip[hidden] { display: none; }
+.kpd-tip small { color: var(--muted); font-size: 11px; }
+
+/* Списки */
+.kpd-list { list-style: none; margin: 0; padding: 0; }
+.kpd-list li + li { border-top: 1px solid var(--border-soft); }
+#kp-crm .kpd-row { display: flex; align-items: center; gap: 8px; padding: 6px 2px; color: var(--text); text-decoration: none; min-width: 0; }
+#kp-crm .kpd-row:hover { background: var(--row-hover); }
+.kpd-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.kpd-no { flex: 0 0 auto; font-size: 11.5px; color: var(--muted); min-width: 52px; }
+.kpd-row-main { flex: 1 1 auto; min-width: 0; display: grid; }
+.kpd-row-main b, .kpd-row-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpd-row-main b { font-weight: 600; }
+.kpd-row small, .kpd-row-side small { color: var(--muted); font-size: 11px; }
+.kpd-row-side { flex: 0 0 auto; display: grid; justify-items: end; text-align: right; }
+
+/* Адаптив: ≥1200 — 5 KPI в ряд, у два стовпці; 901–1200 — 3+2; ≤900 — один стовпець */
+@media (max-width: 1200px) {
+    .kpd-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .kpd-kpi { grid-column: span 2; }
+    .kpd-kpi:nth-child(n + 4) { grid-column: span 3; }
+}
+@media (max-width: 900px) {
+    .kpd-kpis, .kpd-grid { grid-template-columns: minmax(0, 1fr); }
+    .kpd-kpi, .kpd-kpi:nth-child(n + 4) { grid-column: auto; }
+    .kpd-link { margin-left: 0; }
+    .kpd-head { align-items: flex-start; }
+}

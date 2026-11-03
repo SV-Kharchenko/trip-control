@@ -6,11 +6,11 @@
 // `access` — id старої кнопки меню (#kp-nav-<key>): пункт зникає й з'являється разом із нею (доступ, тариф, роль рахує bridge.js).
 import { DOC_TABS, parseCrmHash } from './lib/route.js';
 
-// «Огляд» — це вже наявний «Огляд компанії» (KPI, тижні, автопарк, простої, автори): по суті дашборд, тому він стоїть на місці
-// заглушки «Дашборд» (окремого пункту «скоро» немає).
+// «Огляд» у Контроль+ веде на дашборд (#/dashboard, PR 4); сайтовий «Огляд компанії» лишається на сайті й відкривається
+// посиланням «Детальний огляд» з дашборда (SITE_BUTTONS.overview).
 export const SHELL_GROUPS = [
     { key: 'work', label: 'Робота', items: [
-        { key: 'overview', label: 'Огляд', icon: 'overview', kind: 'site', site: 'overview', access: 'overview' },
+        { key: 'overview', label: 'Огляд', icon: 'overview', kind: 'hash', hash: '#/dashboard', access: 'overview' },
         { key: 'registry', label: 'Реєстр заявок', icon: 'registry', kind: 'site', site: 'registry', counter: 'registry', access: 'calc' },
         { key: 'history', label: 'Заявки', icon: 'history', kind: 'site', site: 'history', access: 'calc' },
         { key: 'calc', label: 'Розрахунок', icon: 'calc', kind: 'site', site: 'calc', access: 'calc' },
@@ -101,6 +101,7 @@ export function activeKey({ hash, studioView, cabinetOpen, cabinetTab }) {
     const route = parseCrmHash(hash);
     if (route) {
         if (route.view === 'docs') return DOC_TABS.includes(route.tab) && route.tab !== 'other' ? route.tab : cardTab(route);
+        if (route.view === 'dashboard') return 'overview';
         if (['report', 'gps', 'repairs', 'fleet', 'drivers'].includes(route.view)) return route.view;
         return 'clients';
     }

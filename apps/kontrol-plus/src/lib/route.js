@@ -1,6 +1,6 @@
 // Маршрути вкладок Контроль+ усередині сторінки сайту: #/clients, #/clients/new, #/clients/<id>, #/clients/<id>/edit, #/report, #/gps,
 // #/repairs, #/repairs/new, #/repairs/stock, #/repairs/handlers, #/repairs/maintenance, #/repairs/cost,
-// #/fleet, #/fleet/trailers, #/drivers, #/report/debts,
+// #/fleet, #/fleet/trailers, #/drivers, #/report/debts, #/dashboard,
 // #/docs, #/docs/tab/<contracts|ttn|acts|invoices|trip_sheets|other>, #/docs/new/<invoice|act|ttn>[/<клієнт>[/<рейс>]], #/docs/<id документа>, #/docs/ttn/<id ТТН>.
 // Старі #/docs/fleet, #/docs/debts ведуть на нові розділи (legacyRedirect). «Реквізити компанії» (#/company, #/docs/requisites) і
 // «Статистика» (#/stats) переїхали у вкладки «Особистого кабінету» сайту: ці адреси веде туди сам сайт (#/cabinet/requisites, #/cabinet/stats),
@@ -43,6 +43,8 @@ export function parseCrmHash(hash) {
     if (parts[0] === 'docs') return parseDocsHash(parts);
     // Заявка у вікні (PR 3): #/requests/<id> — реєстр відкриває її вікном над розділом.
     if (parts[0] === 'requests' && parts.length === 2 && UUID.test(parts[1])) return { view: 'request', id: parts[1] };
+    // Дашборд Контроль+ (PR 4): #/dashboard — на місці пункту меню «Огляд»; «Огляд компанії» сайту лишається в самому сайті.
+    if (parts[0] === 'dashboard' && parts.length === 1) return { view: 'dashboard' };
     if (parts[0] === 'report' && parts.length === 1) return { view: 'report', sub: 'main' };
     if (parts[0] === 'report' && parts.length === 2 && parts[1] === 'debts') return { view: 'report', sub: 'debts' };
     if (parts[0] === 'fleet' && parts.length === 1) return { view: 'fleet', sub: 'cars' };
@@ -61,7 +63,7 @@ export function parseCrmHash(hash) {
 
 export function tabOf(route) {
     if (!route) return null;
-    if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers'].includes(route.view)) return route.view;
+    if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers', 'dashboard'].includes(route.view)) return route.view;
     return 'clients';
 }
 
