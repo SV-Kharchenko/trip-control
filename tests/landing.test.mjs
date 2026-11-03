@@ -159,7 +159,7 @@ test('try panel fields: no value="0"; real defaults only in «ТО та шини
     }
     assert.match(panel, /<option value="разовий" selected>/);
     assert.equal(/<option value="циклічний" selected>/.test(panel), false);
-    assert.match(landing, /💾 Дані зберігаються в цьому браузері\. Після реєстрації підставимо їх у калькулятор\./);
+    assert.match(landing, /💾 Дані зберігаються в цьому браузері\. Після реєстрації підставимо їх у розрахунок рейсу./);
     // Validation like the app: > 0, volume is not needed for a one-off trip.
     const full = { dist: '542', volume: '60', 'norm-weight': '20', 'cars-count': '3', 'days-per-trip': '2', rate: '1500',
         'fuel-load': '37', 'fuel-empty': '32', 'fuel-price': '57', 'total-fleet': '1', 'to-period': '50000', 'tire-mileage': '150000' };

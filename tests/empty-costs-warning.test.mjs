@@ -176,7 +176,7 @@ test('п.2: «Не заповнено» без кнопки в кабінет; �
         const ui = warningUi({ role, accFields: ['overhead-amort', 'overhead-fin'] });
         ui.render({ warnings: OVERHEAD_WARNINGS });
         assert.equal(ui.full().children[0].textContent, WARNING_TEXT);
-        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в розрахунку рейсу']);
         ui.buttons()[0].click();
         assert.deepEqual(ui.accCalls, ['overhead-amort'], 'розгортає рядок «Витрати і накладні»');
         assert.equal(ui.inputs['overhead-amort'].focused, true);
@@ -188,7 +188,7 @@ test('trip-only warnings focus the calculator field instead of the cabinet', () 
     for (const role of ['owner', 'logist']) {
         const ui = warningUi({ role, fields: { 'ref-fuel-rate': 4, 'ref-hours': 4 } });
         ui.render({ warnings: REEF_WARNINGS });
-        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в розрахунку рейсу']);
         assert.equal(ui.full().textContent.includes('Попросіть власника'), false);
         ui.buttons()[0].click();
         assert.deepEqual(ui.calls, ['step:4']);
@@ -201,7 +201,7 @@ test('tank with empty wash: the button focuses wash-cost on step 4', () => {
     for (const role of ['owner', 'logist']) {
         const ui = warningUi({ role, fields: { 'wash-cost': 4, 'wash-freq': 4 } });
         ui.render({ warnings: [{ key: 'washCost', label: 'Вартість промивки цистерни' }, { key: 'washFreq', label: 'Промивок на рік' }] });
-        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в розрахунку рейсу']);
         ui.buttons()[0].click();
         assert.deepEqual(ui.calls, ['step:4']);
         assert.equal(ui.inputs['wash-cost'].focused, true);
@@ -241,7 +241,7 @@ test('mixed warnings: only the calculator button, no cabinet button or note', ()
     for (const role of ['owner', 'logist']) {
         const ui = warningUi({ role, fields: { 'wash-cost': 4, 'wash-freq': 4 } });
         ui.render({ warnings: MIXED_WARNINGS });
-        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в калькуляторі']);
+        assert.deepEqual(ui.buttons().map((b) => b.textContent), ['Заповнити в розрахунку рейсу']);
         assert.equal(ui.full().textContent.includes('Попросіть власника'), false);
         ui.buttons()[0].click();
         assert.deepEqual(ui.calls, ['step:4']);

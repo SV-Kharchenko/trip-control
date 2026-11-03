@@ -143,7 +143,7 @@ paint(circle(endX, endY, 8), hex('#d8c3a0'));
 const title = 'TRIP-CONTROL';
 const tw = textWidth(bold, title, 92, 10);
 text(bold, title, (W - tw) / 2, 330 + 120, 92, 10, hex('#f2ede4'));
-const sub = 'Калькулятор прибутковості вантажних рейсів';
+const sub = 'Розрахунок прибутковості вантажних рейсів';
 const sw = textWidth(regular, sub, 36, 1);
 text(regular, sub, (W - sw) / 2, 330 + 120 + 70, 36, 1, hex('#d8c3a0'));
 const url = 'trip-control.com';

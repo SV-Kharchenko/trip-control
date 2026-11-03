@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 18);
+    assert.equal(SCOPE_ALLOWLIST.length, 28);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -200,9 +200,28 @@ test('check-scope allowlist: exactly two root tests for the request registry, ne
 });
 
 test('check-scope allowlist: exactly one more root test for the windows (PR 3), neighbours refused', () => {
-    assert.deepEqual(SCOPE_ALLOWLIST.slice(17).map(String), ['/^tests\\/kp-windows\\.test\\.mjs$/']);
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(17, 18).map(String), ['/^tests\\/kp-windows\\.test\\.mjs$/']);
     assert.equal(isAllowedOutside('tests/kp-windows.test.mjs'), true);
     for (const bad of ['tests/kp-windows.test.mjs.bak', 'tests/x/kp-windows.test.mjs', 'tests/kp-windows.test.js', 'tests/kp-windows-extra.test.mjs', 'tests/kp-shell.test.mjs']) {
+        assert.equal(isAllowedOutside(bad), false, bad);
+    }
+});
+
+test('check-scope allowlist: exactly ten more patterns for the compact «Розрахунок рейсу» on the site (visible texts and their tests), neighbours refused', () => {
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(18).map(String), [
+    '/^landing\\/kontrol-plus\\.html$/',
+    '/^lib\\/weekly-report\\.js$/',
+    '/^scripts\\/gen-og-image\\.mjs$/',
+    '/^site\\.webmanifest$/',
+    '/^tests\\/empty-costs-warning\\.test\\.mjs$/',
+    '/^tests\\/calc-defaults\\.test\\.mjs$/',
+    '/^tests\\/landing\\.test\\.mjs$/',
+    '/^tests\\/pwa\\.test\\.mjs$/',
+    '/^tests\\/weekly-report\\.test\\.mjs$/',
+    '/^tests\\/site-calc-compact\\.test\\.mjs$/',
+    ]);
+    for (const ok of ["landing/kontrol-plus.html","lib/weekly-report.js","scripts/gen-og-image.mjs","site.webmanifest","tests/empty-costs-warning.test.mjs","tests/calc-defaults.test.mjs","tests/landing.test.mjs","tests/pwa.test.mjs","tests/weekly-report.test.mjs","tests/site-calc-compact.test.mjs"]) assert.equal(isAllowedOutside(ok), true, ok);
+    for (const bad of ['api/calculate.js.bak', 'api/admin.js', 'lib/weekly-report.mjs', 'landing/index.html', 'site.webmanifest.json', 'tests/pwa.test.mjs.bak', 'tests/x/pwa.test.mjs', 'scripts/gen-og-image.js']) {
         assert.equal(isAllowedOutside(bad), false, bad);
     }
 });

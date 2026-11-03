@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TRIP-CONTROL · калькулятор прибутковості вантажних рейсів</title>
+    <title>TRIP-CONTROL · розрахунок рейсу: прибутковість вантажних перевезень</title>
     <meta name="description" content="Порахуй, чи вигідний рейс, ще до того, як погодився. Пальне, AdBlue, водій, ТО, шини й податки. Демо безкоштовно: 5 розрахунків на добу.">
     <link rel="canonical" href="https://trip-control.com/">
     <meta property="og:type" content="website">
     <meta property="og:locale" content="uk_UA">
     <meta property="og:site_name" content="TRIP-CONTROL">
-    <meta property="og:title" content="TRIP-CONTROL · калькулятор прибутковості вантажних рейсів">
+    <meta property="og:title" content="TRIP-CONTROL · розрахунок рейсу: прибутковість вантажних перевезень">
     <meta property="og:description" content="Порахуй, чи вигідний рейс, ще до того, як погодився. Пальне, AdBlue, водій, ТО, шини й податки. Демо безкоштовно: 5 розрахунків на добу.">
     <meta property="og:url" content="https://trip-control.com/">
     <meta property="og:image" content="https://trip-control.com/assets/brand/og-1200x630.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="TRIP-CONTROL — калькулятор прибутковості вантажних рейсів">
+    <meta property="og:image:alt" content="TRIP-CONTROL — розрахунок рейсу: прибутковість вантажних перевезень">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="TRIP-CONTROL · калькулятор прибутковості вантажних рейсів">
+    <meta name="twitter:title" content="TRIP-CONTROL · розрахунок рейсу: прибутковість вантажних перевезень">
     <meta name="twitter:description" content="Порахуй, чи вигідний рейс, ще до того, як погодився. Пальне, AdBlue, водій, ТО, шини й податки. Демо безкоштовно: 5 розрахунків на добу.">
     <meta name="twitter:image" content="https://trip-control.com/assets/brand/og-1200x630.png">
     <meta name="theme-color" content="#F4EFE4">
@@ -4338,6 +4338,126 @@
         /* v3: приховані .dynamic-field (реф / промивка) не мають перебиватися правилом «підпис ↔ поле» */
         #tc-op .form-row.dynamic-field:not(.active) { display: none !important; }
         #tc-result-actions:not(:has(#tc-send-approval:not([hidden]), #tc-accept-own:not([hidden]))) > .btn-success { grid-column: 1 / -1; }
+        /*TC-COMPACT-START*/
+        /* ===== Компактний «Розрахунок рейсу» (спільний CSS сайту й Контроль+). Лише наявні змінні тем (--muted, --font-mono, --tc-*), своїх кольорів немає.
+           Префікс body.layout-studio[data-theme] має ту саму специфічність, що й раніше префікс Контроль+ у kp-calc.css, тому Контроль+ виглядає так само;
+           різниця між сайтом і Контроль+ — лише --cc-off (верхній відступ: на сайті шапка з табами, у Контроль+ верхня панель). Висоту карти не обмежуємо через --tc-map-h.
+           Нижче 901px нічого не міняємо. ===== */
+        @media (min-width: 901px) {
+            body.layout-studio[data-theme][data-studio-view="calc"] {
+                --tc-fs: 13px;
+                --tc-fs-s: 12px;
+                --tc-h: 30px;
+                --kpc-off: var(--cc-off, var(--tc-sticky-h, 0px)); /* сайт: низ липкої шапки з табами; Контроль+ задає --cc-off у kp-calc.css */
+                --kpc-kpi-h: var(--tc-strip-h, 49px); /* виміряна висота KPI-рядка: opSyncStickyTop + ResizeObserver пишуть її в --tc-strip-h */
+                --kpc-gap: 8px;
+            }
+
+            /* Поля, підписи, кнопки */
+            body.layout-studio[data-theme] #tc-op { font-size: 13px; }
+            body.layout-studio[data-theme] #tc-op .tc-in { height: 30px; border-radius: 8px; }
+            body.layout-studio[data-theme] #tc-op .tc-in > input,
+            body.layout-studio[data-theme] #tc-op .tc-in > select { padding: 0 8px; font-size: 13px; }
+            body.layout-studio[data-theme] #tc-op .form-row > label,
+            body.layout-studio[data-theme] #tc-op .tc-f-lab { font-size: 12px; color: var(--muted); }
+            body.layout-studio[data-theme] #tc-op .tc-f { gap: 3px; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body { gap: 6px; }
+            body.layout-studio[data-theme] #tc-op .tc-sg { gap: 6px 8px; }
+            body.layout-studio[data-theme] #tc-op .tc-panel-head { padding: 8px 12px; }
+            body.layout-studio[data-theme] #tc-op .tc-acc-head { min-height: 34px; padding: 6px 12px; gap: 8px; }
+            body.layout-studio[data-theme] #tc-op .tc-acc-n { width: 20px; height: 20px; font-size: 11px; }
+            body.layout-studio[data-theme] #tc-op .tc-acc-body { padding: 2px 12px 10px; }
+            body.layout-studio[data-theme] #tc-op .tc-acc-body .tc-fuel-compact { gap: 6px; }
+            body.layout-studio[data-theme] #tc-op .btn,
+            body.layout-studio[data-theme] #tc-op button.btn-ghost,
+            body.layout-studio[data-theme] #tc-op .tc-panel-clear,
+            body.layout-studio[data-theme] #tc-op .preset-btn { min-height: 28px; height: 28px; padding-block: 0; font-size: 12px; }
+            body.layout-studio[data-theme] #tc-op .tc-f-truck .tc-segment { height: 30px; }
+            body.layout-studio[data-theme] #tc-op .tc-f-truck #vehicle-face { min-height: 28px; margin-top: 4px; }
+            body.layout-studio[data-theme] #tc-op #podacha-info { font-size: 12px !important; }
+
+            /* Крок 1: двоколонкова сітка. Групи розмітки розчиняємо, щоб осередки ставали у пари; усе широке — на всю ширину. */
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) {
+                display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; align-items: start;
+            }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg { display: contents; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .form-row { order: 1; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-podacha { order: 2; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-a { order: 3; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-b { order: 4; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > #route-fields-slot { order: 5; grid-column: 1 / -1; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-dist { order: 6; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-weight { order: 7; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-rate { order: 8; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { order: 9; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-truck { order: 10; grid-column: 1 / -1; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-vehicle-more,
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > #tc-demo-fields-note { order: 11; grid-column: 1 / -1; }
+            body.layout-studio[data-theme] #tc-op #route-fields-slot #route-calc-btn { width: 100%; }
+            body.layout-studio[data-theme] #tc-op :is(#route-fields-slot, #route-fields-slot .form-row, #route-fields-slot .tc-osm-box, #route-fields-slot .tc-maps-box, .tc-sec-body, .tc-sg, .tc-f, .form-row) { min-width: 0; box-sizing: border-box; max-width: 100%; }
+
+            /* Рядок «+ Проміжна зупинка» | «A ↔ B»: один flex-рядок у межах колонки; flex у кнопок inline, тому тут !important */
+            body.layout-studio[data-theme] #tc-op #route-fields-slot div:has(> #swap-ab-btn) { display: flex; flex-wrap: nowrap; gap: 6px; width: 100%; min-width: 0; box-sizing: border-box; margin-bottom: 4px; }
+            body.layout-studio[data-theme] #tc-op #route-fields-slot div:has(> #swap-ab-btn) > .preset-btn:not(#swap-ab-btn) {
+                flex: 1 1 0 !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            }
+            body.layout-studio[data-theme] #tc-op #route-fields-slot #swap-ab-btn { flex: 0 0 auto !important; min-width: 0; padding-inline: 10px; white-space: nowrap; }
+
+            /* Пари полів: підпис над полем на всю ширину комірки (nowrap + ellipsis), поле на всю ширину, суфікс не з'їдає поле.
+               Сайтове правило v3 (#tc-op .form-row:has(> .tc-in > input[type=number])) ставить підпис збоку, тому перебиваємо тією ж умовою з вищою специфічністю. */
+            body.layout-studio[data-theme] #tc-op .form-row:has(> .tc-in > input[type="number"]) {
+                display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; align-items: start; justify-content: stretch; min-height: 0;
+            }
+            body.layout-studio[data-theme] #tc-op .form-row:has(> .tc-in > input[type="number"]) > label,
+            body.layout-studio[data-theme] #tc-op .tc-op-sub .form-row > label {
+                display: block; width: 100%; min-width: 0; min-height: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                color: var(--muted); font-size: 12px;
+            }
+            body.layout-studio[data-theme] #tc-op .form-row:has(> .tc-in > input[type="number"]) > .tc-in,
+            body.layout-studio[data-theme] #tc-op .tc-f-rate .form-row > .tc-in { width: 100%; min-width: 0; flex: none; }
+            body.layout-studio[data-theme] #tc-op .tc-in > input { min-width: 0; }
+            body.layout-studio[data-theme] #tc-op .tc-f-rate .tc-in > input[type="number"] { min-width: 0; }
+            body.layout-studio[data-theme] #tc-op .tc-in > .unit { flex: none; padding-right: 8px; }
+            body.layout-studio[data-theme] #tc-op .tc-in > select.cur { flex: none; width: auto; min-width: 0; max-width: 40%; padding: 0 4px; }
+
+            /* Поля Google Places («Подача (стоянка)», A, B): сайт ставить min-height 34px і padding у ::part(input) з !important, тому тут теж !important */
+            body.layout-studio[data-theme] #tc-op .tc-place-field { min-height: 30px; }
+            body.layout-studio[data-theme] #tc-op .tc-place-field gmp-place-autocomplete { min-height: 30px !important; font-size: 13px !important; }
+            body.layout-studio[data-theme] #tc-op .tc-place-field gmp-place-autocomplete::part(input) { padding: 0 8px; min-height: 28px; font-size: 13px; }
+
+            /* KPI: рядок ≈56–60px (картка з вертикальним padding ≈10px), підпис 12px над значенням 18px; висоту міряє index.html (--tc-strip-h) */
+            body.layout-studio[data-theme][data-studio-view="calc"] .tc-kpi-bar {
+                top: var(--kpc-off); padding-block: 11px; align-items: center; gap: 4px 16px;
+            }
+            body.layout-studio[data-theme][data-studio-view="calc"] .tc-kpi-bar::before { inset: 4px var(--tc-pad); box-shadow: none; }
+            body.layout-studio[data-theme] .tc-kb-m { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
+            body.layout-studio[data-theme] .tc-kb-m :is(small, b) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            body.layout-studio[data-theme] .tc-kb-m small { display: block; font-size: 12px; line-height: 1.3; color: var(--muted); }
+            body.layout-studio[data-theme] .tc-kb-m b { font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace); font-size: 18px; font-weight: 700; line-height: 1.3; }
+            body.layout-studio[data-theme] .tc-kb-main b { font-size: 18px; }
+            body.layout-studio[data-theme] .tc-kb-detail { height: 28px; min-height: 28px; padding-block: 0; font-size: 12px; align-self: center; }
+
+            /* Розкладка: форма clamp(380, 34vw, 480), решта — карта; карта sticky на всю видиму висоту */
+            body.layout-studio[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+                grid-template-columns: clamp(380px, 34vw, 480px) minmax(0, 1fr); gap: 12px; padding-bottom: 12px;
+            }
+            body.layout-studio[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
+                top: calc(var(--kpc-off) + var(--kpc-kpi-h) + var(--kpc-gap));
+                height: calc(100vh - var(--kpc-off) - var(--kpc-kpi-h) - 2 * var(--kpc-gap)) !important;
+                min-height: 360px !important;
+            }
+        }
+
+        /* 901–1200px: карта під формою, висота ≈45vh */
+        @media (min-width: 901px) and (max-width: 1200px) {
+            body.layout-studio[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+                display: flex; flex-direction: column;
+            }
+            body.layout-studio[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
+                position: relative; top: auto; height: 45vh !important; min-height: 320px !important;
+            }
+        }
+        /*TC-COMPACT-END*/
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
@@ -4430,7 +4550,7 @@
 <section class="lp-hero">
   <div class="lp-wrap lp-hero-grid">
     <div>
-      <div class="lp-kicker">Калькулятор прибутковості вантажних рейсів</div>
+      <div class="lp-kicker">Розрахунок прибутковості вантажних рейсів</div>
       <h1>Порахуй, чи вигідний рейс, <em>ще до того, як погодився</em></h1>
       <p class="lp-lead">Вводиш ставку, відстань і тоннаж. <span style="white-space:nowrap">TRIP-CONTROL</span> віднімає пальне, AdBlue, зарплату водія, ТО, шини й податки та показує чистий прибуток рейсу і ставку беззбитковості за тонну.</p>
       <div class="lp-hero-ctas">
@@ -4951,7 +5071,7 @@
           <button type="button" class="lp-btn lp-btn-primary" id="t-next">Далі →</button>
           <button type="submit" class="lp-btn lp-btn-primary" id="t-calc" hidden>▶ Розрахувати</button>
         </div>
-        <p class="lp-t-draft" id="t-draft">💾 Дані зберігаються в цьому браузері. Після реєстрації підставимо їх у калькулятор.</p>
+        <p class="lp-t-draft" id="t-draft">💾 Дані зберігаються в цьому браузері. Після реєстрації підставимо їх у розрахунок рейсу.</p>
       </form>
       <section class="lp-try-res lp-card" id="try-res" aria-live="polite">
         <div class="lp-res-empty" id="res-empty">
@@ -5146,7 +5266,7 @@
             </a>
             <div class="tc-nav-panel" id="tc-nav-panel">
             <nav class="tc-studio-nav" aria-label="Розділи">
-                <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Калькулятор</button>
+                <button type="button" id="studio-nav-calc" class="on" onclick="setStudioView('calc')">Розрахунок рейсу</button>
                 <button type="button" id="studio-nav-overview" onclick="setStudioView('overview')">Огляд</button>
                 <button type="button" id="studio-nav-history" onclick="setStudioView('history')">Заявки</button>
                 <button type="button" id="studio-nav-registry" onclick="setStudioView('registry')">Реєстр заявок</button>
@@ -5950,7 +6070,7 @@
                 </label>
             </div>
             <div id="fact-manual" class="tc-fact-form" hidden>
-                <p class="tc-fact-fixed">У рейсі немає даних калькулятора, тож доби й пробіг не перерахувати. Факт вноситься вручну.</p>
+                <p class="tc-fact-fixed">У рейсі немає збережених даних розрахунку, тож доби й пробіг не перерахувати. Факт вноситься вручну.</p>
                 <label>Фактичний дохід, грн
                     <input type="number" id="fact-revenue" min="0" step="1" inputmode="decimal" oninput="refreshFactMath()">
                 </label>
@@ -6024,8 +6144,8 @@
         </div>
         <div class="card tc-ov-card tc-ov-empty" id="overview-empty" hidden>
             <h3>Ще немає збережених розрахунків</h3>
-            <p class="tc-ov-note">Порахуйте рейс у калькуляторі й натисніть «Зберегти» — тут з’являться рейси, дохід, прибуток по тижнях, логісти й простої.</p>
-            <button type="button" class="btn" onclick="setStudioView('calc')">До калькулятора</button>
+            <p class="tc-ov-note">Порахуйте рейс у «Розрахунку рейсу» й натисніть «Зберегти» — тут з’являться рейси, дохід, прибуток по тижнях, логісти й простої.</p>
+            <button type="button" class="btn" onclick="setStudioView('calc')">До розрахунку рейсу</button>
         </div>
         <div id="overview-body">
             <div class="tc-ov-kpis" id="overview-kpis"></div>
@@ -6946,7 +7066,7 @@
 
         const head = document.createElement('div');
         head.className = 'tc-panel-head';
-        head.innerHTML = '<div><div class="tc-panel-eyebrow">Калькулятор рейсу</div><h2 class="tc-panel-title">Параметри заявки</h2></div>'
+        head.innerHTML = '<div><div class="tc-panel-eyebrow">Розрахунок рейсу</div><h2 class="tc-panel-title">Параметри заявки</h2></div>'
             + '<button type="button" class="btn tc-panel-clear" id="tc-clear" onclick="clearCalcForm()">Очистити</button>';
 
         const bar = document.createElement('div');
@@ -11399,7 +11519,7 @@
         { title: 'Накладні', note: 'Річні суми на весь парк. Порожньо = 0 у розрахунку.', sum: true, fields: [
             ['totalFleet'], ['amort', 'Амортизація', 'грн/рік'], ['admin', 'Адміністративні', 'грн/рік'], ['otherOperating', 'Інші операційні', 'грн/рік'],
             ['otherExpenses', 'Інші витрати', 'грн/рік'], ['repair', 'Ремонти та інші оп.', 'грн/рік'], ['fin', 'Фінансові (кредити)', 'грн/рік']] },
-        { title: 'Пальне', note: 'Середня витрата компанії. Якщо в картці авто є своя витрата — для цього авто діє вона. Ціни дизпалива й AdBlue вводяться в калькуляторі.', fields: [
+        { title: 'Пальне', note: 'Середня витрата компанії. Якщо в картці авто є своя витрата — для цього авто діє вона. Ціни дизпалива й AdBlue вводяться в розрахунку рейсу.', fields: [
             ['fuelLoad', 'Середня витрата з вантажем'], ['fuelEmpty', 'Середня витрата порожнім'], ['adblueEnable'], ['adblueConsumption']] }
     ];
     const COST_SHOW_IF = {
@@ -11547,7 +11667,7 @@
             (!isKP() ? '<p class="cab-note cab-kp-demo">Потрібна CRM для автопарку? <a href="/kontrol-plus" target="_blank" rel="noopener">Замовити демо</a></p>' : '') +
             '<div class="cab-card tc-mode-box">' +
             '<div class="cab-card-head"><h3>Режим роботи</h3></div>' +
-            '<div class="tc-mode-row"><div class="cab-field"><label for="cab-work-mode">Хто працює з калькулятором</label>' +
+            '<div class="tc-mode-row"><div class="cab-field"><label for="cab-work-mode">Хто працює з розрахунком рейсу</label>' +
             '<select id="cab-work-mode" onchange="resetWorkModeConfirmation()"><option value="solo">Сам</option><option value="team">Є логісти / диспетчери</option></select>' +
             '<p class="cab-note">Режим керує командними розділами. Дані при перемиканні не видаляються.</p></div>' +
             '<button type="button" class="btn" id="cab-mode-btn" onclick="saveWorkMode()">Змінити режим</button>' +
@@ -11562,7 +11682,7 @@
             '</div>' +
             '<div id="weekly-report-box" class="cab-card tc-report-box">' +
             '<div class="cab-card-head"><h3>Тижневий звіт</h3></div>' +
-            '<p>За попередній тиждень (понеділок–неділя, Київ). Якщо «Пошта для звітів» заповнена — лист іде туди, інакше на пошту реєстрації. Цифри зі збереженої історії, калькулятор рейси не перераховує.</p>' +
+            '<p>За попередній тиждень (понеділок–неділя, Київ). Якщо «Пошта для звітів» заповнена — лист іде туди, інакше на пошту реєстрації. Цифри зі збереженої історії, рейси не перераховуються заново.</p>' +
             '<div class="tc-report-actions">' +
             '<button type="button" class="btn" id="weekly-report-preview-btn" onclick="previewWeeklyReport()">Переглянути</button>' +
             '<button type="button" class="btn btn-success" id="weekly-report-send-btn" onclick="sendWeeklyReport()">Надіслати зараз</button>' +
@@ -11584,7 +11704,7 @@
         }
         if (isOwner) html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
             '<div class="cab-card-head"><h3>Автопарк</h3><span class="cab-autosave" id="fleet-summary"></span></div>' +
-            '<p class="tc-fleet-note">Якщо ці дані заповнені і в розрахунку обране це авто або кілька, вони впливають на розрахунок. Якщо поле порожнє або авто не обране — розрахунок іде із загального шаблону кабінету. Марка, держномер, рік і номер причепа на суму не впливають. Кілька авто: тоннаж ділиться між ними, пальне і AdBlue рахуються окремо за нормою кожного, сума по авто дорівнює підсумку. Дати документів калькулятор не читає.</p>' +
+            '<p class="tc-fleet-note">Якщо ці дані заповнені і в розрахунку обране це авто або кілька, вони впливають на розрахунок. Якщо поле порожнє або авто не обране — розрахунок іде із загального шаблону кабінету. Марка, держномер, рік і номер причепа на суму не впливають. Кілька авто: тоннаж ділиться між ними, пальне і AdBlue рахуються окремо за нормою кожного, сума по авто дорівнює підсумку. Дати документів розрахунок рейсу не читає.</p>' +
             '<label id="fleet-warn-label" for="fleet-warn-days">Попереджати за, днів ' +
             '<input type="number" id="fleet-warn-days" min="1" max="180" step="1" value="30" onchange="saveFleetWarnDays()"></label>' +
             '<div class="tc-fleet-add" id="fleet-add">' +
@@ -13271,7 +13391,7 @@
         const actions = [];
         // Статті витратної частини змінює лише власник (логіст бачить попередження без кнопки).
         if (target && (!target.cabinet || currentOrgRole === 'owner')) {
-            actions.push({ label: target.cabinet ? 'Заповнити у витратній частині' : 'Заповнити в калькуляторі', run: function () { focusCalcWarningField(target); } });
+            actions.push({ label: target.cabinet ? 'Заповнити у витратній частині' : 'Заповнити в розрахунку рейсу', run: function () { focusCalcWarningField(target); } });
         }
         actions.forEach(function (action) {
             const button = document.createElement('button');
@@ -15002,7 +15122,7 @@
             '<div class="tc-review-map"><div class="tc-map-alts" id="tc-review-alts" aria-label="Варіанти маршруту"></div><div id="tc-review-map" hidden></div></div>' +
             '<div class="tc-review-sum" id="tc-review-sum"></div>' +
             '<div class="tc-modal-actions">' +
-            '<button type="button" class="btn" data-act="open">У калькулятор</button>' +
+            '<button type="button" class="btn" data-act="open">До розрахунку рейсу</button>' +
             '<button type="button" class="btn btn-danger" data-act="reject">Відхилити</button>' +
             '<button type="button" class="btn btn-success" id="tc-review-ok" data-act="ok">Погодити</button>' +
             '</div></div>';
@@ -18106,6 +18226,26 @@
         }
         checkUserAccess();
     };
+</script>
+<script>
+// Розрахунок рейсу: після зміни розміру рамки мапи просимо Google Maps перемалюватись (window resize). У Контроль+ те саме робить kp-calc.js.
+(function () {
+    if (!window.ResizeObserver || document.documentElement.getAttribute('data-app') === 'kp') return;
+    var raf = 0;
+    var ro = new ResizeObserver(function () {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(function () { window.dispatchEvent(new Event('resize')); });
+    });
+    function attach() {
+        var frame = document.querySelector('#studio-right > .tc-map-frame');
+        if (frame && !frame.getAttribute('data-cc-watched')) { frame.setAttribute('data-cc-watched', '1'); ro.observe(frame); }
+        return !!frame;
+    }
+    if (!attach()) {
+        var mo = new MutationObserver(function () { if (attach()) mo.disconnect(); });
+        mo.observe(document.body, { childList: true, subtree: true });
+    }
+})();
 </script>
 </body>
 </html>

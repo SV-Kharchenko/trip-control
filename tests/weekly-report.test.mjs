@@ -89,7 +89,7 @@ test('the digest uses saved plan and fact, and flags the same 10% gap', () => {
     assert.match(report.text, /Умань → Ізмаїл/);
     assert.match(report.text, /Київ → Львів/);
     assert.match(report.text, /відхилення/);
-    assert.match(report.text, /Калькулятор рейси не перераховував/);
+    assert.match(report.text, /Рейси заново не перераховувались/);
     assert.equal(report.text.includes('/api/calculate'), false);
     assert.equal(report.html.includes('<script'), false);
 });

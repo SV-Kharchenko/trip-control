@@ -18,7 +18,7 @@ function docLinks(docs, kind) {
 export function drawRequest(info, ctl, redraw) {
     const buttons = [];
     const act = (label, onclick, cls) => buttons.push(h('button', { type: 'button', class: 'btn ' + (cls || ''), onclick }, label));
-    act('Відкрити в калькуляторі', () => { ctl.close({ force: true }).then(() => call('openSaved', info.id)); }, 'btn-primary');
+    act('Відкрити в розрахунку рейсу', () => { ctl.close({ force: true }).then(() => call('openSaved', info.id)); }, 'btn-primary');
     if (info.can && info.can.complete) act('Виконана', async () => { await call('registryComplete', info.id); redraw(); }, '');
     if (info.can && info.can.cancel) act('Скасувати', async () => { await call('registryCancel', info.id); redraw(); }, 'btn-danger');
     for (const a of info.actions || []) {

@@ -1,13 +1,15 @@
-// Компактний «Розрахунок» (kp-calc.css): лише Контроль+, сайт і розмітка калькулятора без змін, id галочок допуску унікальні.
+// Компактний «Розрахунок рейсу»: правила спільні для сайту й Контроль+ (блок TC-COMPACT в index.html), kp-calc.css лишає лише різницю Контроль+.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const site = (path) => readFileSync(new URL('../../../' + path, import.meta.url), 'utf8');
-const css = read('src/kp-calc.css');
+const html = site('index.html');
+const kpCss = read('src/kp-calc.css');
+const css = html.slice(html.indexOf('/*TC-COMPACT-START*/'), html.indexOf('/*TC-COMPACT-END*/'));
 
-// Селектори правил: текст перед «{» без коментарів і без @media-обгорток.
+// Селектори правил: текст перед «{» без коментарів і без @media-обгорток; кома рахується лише на верхньому рівні.
 function selectors(source) {
     const clean = source.replace(/\/\*[\s\S]*?\*\//g, '');
     const out = [];
@@ -24,21 +26,21 @@ function selectors(source) {
     return out;
 }
 
-test('kp-calc.css підключає тільки site-bridge.js (збірка Контроль+); сайт його не знає', () => {
+test('kp-calc.css підключає site-bridge.js (збірка Контроль+); він лишає лише різницю: усі селектори з body.kp-shell-on', () => {
     assert.match(read('src/site-bridge.js'), /import '\.\/kp-calc\.css';/);
     assert.match(read('src/site-bridge.js'), /watchCalcMap\(\);/);
-    for (const file of ['index.html', 'vercel.json', 'sitemap.xml']) {
-        assert.equal(/kp-calc/.test(site(file)), false, file + ': сайт kp-calc не підключає');
-    }
+    for (const s of selectors(kpCss)) assert.match(s, /^body\.kp-shell-on[.\s[:]/, s);
+    assert.match(kpCss, /--cc-off: calc\(var\(--kp-strip-h, 0px\) \+ var\(--kp-top-h, 52px\)\)/);
+    assert.equal(/max-width:\s*900px/.test(kpCss), false);
 });
 
-test('кожен селектор kp-calc.css починається з body.kp-shell-on', () => {
+test('спільні правила: кожен селектор від body.layout-studio[data-theme], лише від 901px', () => {
     const list = selectors(css);
     assert.ok(list.length > 20);
-    for (const s of list) assert.match(s, /^body\.kp-shell-on[.\s[:]/, s);
-    // Мобільну версію (≤900px) не чіпаємо: усі правила лише від 901px.
+    for (const s of list) assert.match(s, /^body\.layout-studio\[data-theme\][.\s[:]/, s);
     assert.equal(/max-width:\s*900px/.test(css), false);
     assert.equal(/@media\s*\(min-width:\s*901px\)/.test(css), true);
+    assert.equal(/kp-shell/.test(css), false, 'у спільному блоці немає прив’язки до Контроль+');
 });
 
 test('розкладка: форма clamp(380px, 34vw, 480px), карта sticky мінімум 360px, 901–1200px — карта під формою ≈45vh', () => {
@@ -50,13 +52,12 @@ test('розкладка: форма clamp(380px, 34vw, 480px), карта stick
 });
 
 test('розмітка калькулятора на сайті не змінилась: ті самі групи, id і пари полів', () => {
-    const html = site('index.html');
     for (const frag of ["opCell('tc-f-podacha', 'Подача авто'", "opCell('tc-f-a', 'Звідки'", "opCell('tc-f-b', 'Куди'",
         "opCell('tc-f-dist', 'Відстань'", "opCell('tc-f-weight', 'Вага вантажу'", "opCell('tc-f-return', 'Повернення'",
-        "opCell('tc-f-truck', 'ТЗ (транспортний засіб)'", "opCell('tc-f-rate', 'Тариф'", 'id="kb-be"', 'id="kb-margin"', 'id="kb-detail"']) {
+        "opCell('tc-f-truck', 'ТЗ (транспортний засіб)'", "opCell('tc-f-rate', 'Тариф'", 'id="kb-be"', 'id="kb-margin"', 'id="kb-detail"',
+        'id="swap-ab-btn"', 'id="route-calc-btn"']) {
         assert.ok(html.includes(frag), frag);
     }
-    assert.equal(/kp-shell-on/.test(css.replace(/body\.kp-shell-on/g, '')), false);
 });
 
 test('docs-ts-form: id галочок допуску унікальні (uniqueId), label for збігається з id', () => {
@@ -65,7 +66,6 @@ test('docs-ts-form: id галочок допуску унікальні (uniqueI
     assert.match(src, /import \{[^}]*\buniqueId\b[^}]*\} from '\.\.\/ui\.js'/);
     assert.match(src, /id: uniqueId\('ts-ok'\)/);
     assert.match(src, /h\('label', \{ class: 'kpts-check', for: input\.id \}, input/);
-    // Статичні id лишились унікальними між собою.
     const ids = [...src.matchAll(/\bid: '([^']+)'/g)].map((m) => m[1]);
     assert.equal(new Set(ids).size, ids.length, 'дублів id немає: ' + ids.join(', '));
 });
@@ -87,9 +87,8 @@ test('watchCalcMap: ResizeObserver на карту шле window resize (Google 
 });
 
 test('--kpc-kpi-h не зашита константою: береться з виміряної --tc-strip-h; відступи карти рахуються від неї', () => {
-    assert.match(css, /--kpc-kpi-h: var\(--tc-strip-h, \d+px\)/);
     assert.equal(/--kpc-kpi-h: \d+px/.test(css), false, 'константи 40px немає');
-    assert.match(site('index.html'), /setProperty\('--tc-strip-h'/, 'index.html ставить --tc-strip-h з виміру KPI-рядка');
+    assert.match(html, /setProperty\('--tc-strip-h'/, 'index.html ставить --tc-strip-h з виміру KPI-рядка');
     assert.equal((css.match(/var\(--kpc-kpi-h\)/g) || []).length >= 2, true);
 });
 
@@ -104,7 +103,7 @@ test('рядок проміжної зупинки і пари полів: min-w
     assert.match(rule(/\.tc-place-field gmp-place-autocomplete \{[^}]*\}/), /min-height: 30px !important/);
 });
 
-test('KPI-рядок ≈56–60px: підпис над значенням 18px (mono), кнопка 28px по центру; висота мапи без --tc-map-h', () => {
+test('KPI-рядок ≈60px: padding 11px, підпис над значенням 18px (mono), кнопка 28px по центру; висота мапи без --tc-map-h', () => {
     assert.match(css, /\.tc-kpi-bar \{[^}]*padding-block: 11px/);
     assert.match(css, /\.tc-kb-m \{[^}]*flex-direction: column/);
     assert.match(css, /\.tc-kb-m b \{[^}]*font-family: var\(--font-mono[^}]*font-size: 18px; font-weight: 700/);

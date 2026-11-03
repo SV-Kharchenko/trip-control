@@ -28,6 +28,17 @@ export const SCOPE_ALLOWLIST = [
     /^tests\/registry-docs\.test\.mjs$/,
     /^tests\/registry-crm\.test\.mjs$/,
     /^tests\/kp-windows\.test\.mjs$/,
+    // Сайт: компактний і перейменований «Розрахунок рейсу» (feat/site-calc-compact): видимі тексти та їхні тести.
+    /^landing\/kontrol-plus\.html$/,
+    /^lib\/weekly-report\.js$/,
+    /^scripts\/gen-og-image\.mjs$/,
+    /^site\.webmanifest$/,
+    /^tests\/empty-costs-warning\.test\.mjs$/,
+    /^tests\/calc-defaults\.test\.mjs$/,
+    /^tests\/landing\.test\.mjs$/,
+    /^tests\/pwa\.test\.mjs$/,
+    /^tests\/weekly-report\.test\.mjs$/,
+    /^tests\/site-calc-compact\.test\.mjs$/,
 ];
 
 export function isAllowedOutside(file) {
