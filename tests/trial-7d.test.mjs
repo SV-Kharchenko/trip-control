@@ -191,7 +191,7 @@ function bannerWorld(extra = {}) {
         Date: FixedDate, Intl, Number, Math, window: { open: (url) => opened.urls.push(url) },
         document: { getElementById: (id) => els[id] || null, body: els.body },
         isKP: () => false, kpDirectorActive: () => false, currentOrgRole: 'owner',
-        billingTrialEndsAt: null, billingExpiredShown: false, billingManualAccess: false, billingPaidUntil: null, billingEnabled: true, billingAutoRenewOn: false,
+        billingTrialEndsAt: null, billingOrgReadOnly: null, billingExpiredShown: false, billingManualAccess: false, billingPaidUntil: null, billingEnabled: true, billingAutoRenewOn: false,
         openBillingModal: () => { opened.billing += 1; }, billingDate: () => '01.01.2027', ...extra,
     });
     vm.runInContext(['billingPaidActive', 'billingKyivDay', 'billingTrial', 'billingReadOnly', 'billingDaysText', 'openTrialContract', 'syncTrialBanner', 'syncBillingBanner'].map(fnSource).join('\n'), ctx);
@@ -283,19 +283,88 @@ test('міграція: колонки, trial_claims, тригери, читан
     for (const part of ['ADD COLUMN IF NOT EXISTS trial_ends_at timestamptz NULL', 'trial_notified_d5', 'trial_notified_d7', 'CREATE TABLE IF NOT EXISTS public.trial_claims',
         'REFERENCES public.organizations (id) ON DELETE CASCADE', 'ALTER TABLE public.trial_claims ENABLE ROW LEVEL SECURITY', "'Europe/Kyiv'", "interval '7 days'",
         'CREATE OR REPLACE FUNCTION public.org_readonly(p_org uuid)', 'CREATE OR REPLACE FUNCTION public.current_is_approved()', 'org_trial_active(public.current_org_id())',
-        "RAISE EXCEPTION 'TRIAL_EXPIRED' USING ERRCODE = '42501'", 'BEFORE INSERT OR UPDATE ON public.%I', "ARRAY['calculations', 'kp_documents', 'kp_document_lines', 'kp_contracts', 'kp_doc_ttn', 'kp_other_docs']",
+        "RAISE EXCEPTION 'TRIAL_EXPIRED' USING ERRCODE = '42501'", 'BEFORE INSERT OR UPDATE OR DELETE ON public.%I', 'FOREACH v_table IN ARRAY ARRAY[\'calculations\', \'calc_vehicles\'',
         "'trial_day5', 'trial_day7'", 'trg_trial_start', 'trg_trial_tax_claim', 'CREATE OR REPLACE FUNCTION public.org_has_user_data(']) assert.ok(migration.includes(part), part);
     const body = migration.slice(migration.lastIndexOf('BEGIN;'));
     assert.equal(/UPDATE public\.org_subscriptions\s+SET trial_ends_at = (?!NULL)/.test(body), false, 'наявним компаніям тріал не виставляється');
     assert.equal(/INSERT INTO public\.org_subscriptions[^;]*SELECT/i.test(body), false, 'без backfill тріалу для наявних компаній');
     assert.equal(/DELETE FROM|DROP TABLE|TRUNCATE/.test(body), false, 'нічого не видаляється');
-    assert.equal(/BEFORE (INSERT OR UPDATE OR DELETE|DELETE)/.test(body), false, 'DELETE не блокується');
+    assert.equal(/BEFORE INSERT OR UPDATE OR DELETE ON public\.%I/.test(body), true, 'DELETE теж блокується');
     const head = migration.slice(migration.indexOf('-- РУЧНИЙ ВІДКАТ'), migration.indexOf('\nBEGIN;\n'));
-    for (const part of ['DROP TRIGGER IF EXISTS trg_trial_readonly ON public.calculations', 'DROP TRIGGER IF EXISTS trg_trial_start', 'DROP FUNCTION IF EXISTS public.org_readonly(uuid)',
+    for (const part of ['DROP TRIGGER IF EXISTS trg_trial_readonly ON public.%I', 'DROP TRIGGER IF EXISTS trg_trial_start', 'DROP FUNCTION IF EXISTS public.org_readonly(uuid)',
         'DROP TABLE IF EXISTS public.trial_claims', 'DROP COLUMN IF EXISTS trial_ends_at', "'approval_decided')"]) assert.ok(head.includes(part), part);
     assert.ok(head.indexOf('CREATE OR REPLACE FUNCTION public.current_is_approved()') < head.indexOf('DROP FUNCTION IF EXISTS public.org_trial_active(uuid)'), 'функція повертається до оригіналу до видалення хелперів');
     assert.ok(head.indexOf('DROP TRIGGER IF EXISTS trg_trial_readonly') < head.indexOf('DROP FUNCTION IF EXISTS public.trial_readonly_guard()'));
     const tap = read('supabase/tests/trial_7d.sql');
-    assert.ok(tap.includes('SELECT plan(14);'));
-    assert.equal(tap.split('\n').filter((l) => /^SELECT (is|ok|like)\(/.test(l)).length, 14);
+    assert.ok(tap.includes('SELECT plan(21);'));
+    assert.equal(tap.split('\n').filter((l) => /^SELECT (is|ok|like)\(/.test(l)).length, 21);
+});
+
+const GUARDED = ['calculations', 'calc_vehicles', 'calculation_clients', 'trip_actuals', 'route_templates', 'trailer_presets', 'clients', 'fleet_vehicles', 'fleet_trailers',
+    'kp_documents', 'kp_document_lines', 'kp_document_payments', 'kp_document_signatures', 'kp_doc_emails', 'kp_contracts', 'kp_doc_ttn', 'kp_doc_ttn_lines', 'kp_doc_trip_sheet',
+    'kp_trip_sheet_stages', 'kp_trip_sheet_refuels', 'kp_other_docs', 'kp_drivers', 'kp_driver_details',
+    'repairs', 'repair_maintenance', 'parts', 'part_receipts', 'part_writeoffs', 'stock_adjustments', 'maintenance_types', 'vehicle_maintenance_overrides', 'vehicle_odometer_readings'];
+
+test('міграція: «лише читання» на всіх таблицях даних компанії, відкат повний (тригери, функції, колонки, грант, типи сповіщень)', () => {
+    const list = "ARRAY[" + GUARDED.map((t) => "'" + t + "'").join(', ') + "]";
+    const body = migration.slice(migration.lastIndexOf('BEGIN;'));
+    assert.ok(body.includes('FOREACH v_table IN ARRAY ' + list), 'DO-блок із повним списком таблиць');
+    const head = migration.slice(migration.indexOf('-- РУЧНИЙ ВІДКАТ'), migration.lastIndexOf('BEGIN;'));
+    assert.ok(head.includes(list), 'відкат знімає тригер з тих самих таблиць');
+    for (const other of ['org_company_profiles', 'company_settings', 'org_subscriptions', 'payments', 'org_notifications', 'org_invites']) {
+        assert.equal(GUARDED.includes(other), false, other + ' не блокується (налаштування й оплата)');
+    }
+    for (const part of ['DROP FUNCTION IF EXISTS public.current_org_readonly()', 'REVOKE SELECT (trial_ends_at) ON public.org_subscriptions FROM authenticated',
+        'CREATE OR REPLACE FUNCTION public.apply_payment_success(p_payment uuid, p_modified timestamptz)', 'CREATE OR REPLACE FUNCTION public.org_has_user_data(p_org_id uuid, p_user_id uuid)',
+        "'payments', 'org_subscriptions'", 'DROP TRIGGER IF EXISTS trg_trial_start', 'DROP TRIGGER IF EXISTS trg_trial_tax_claim', 'DROP FUNCTION IF EXISTS public.trial_start_guard()',
+        'DROP FUNCTION IF EXISTS public.trial_tax_claim_guard()', 'DROP FUNCTION IF EXISTS public.trial_readonly_guard()', "DELETE FROM public.org_notifications WHERE kind IN ('trial_day5', 'trial_day7')"]) {
+        assert.ok(head.includes(part), 'rollback: ' + part);
+    }
+    assert.equal(head.includes('v_trial'), false, 'у відкаті apply_payment_success — оригінал без тріалу');
+    assert.ok(body.includes('GRANT SELECT (trial_ends_at) ON public.org_subscriptions TO authenticated;'), 'клієнт читає лише дозволені колонки: trial_ends_at додано');
+    assert.ok(body.includes('v_base := greatest(now(), coalesce(v_until, now()), coalesce(v_trial, now()));'));
+});
+
+test('оплата під час тріалу: новий paid_until = max(зараз, paid_until, trial_ends_at) + період; залишок тріалу не згорає', async () => {
+    const { extendPaidUntil } = await import('../lib/billing/plans.js');
+    const trialEnd = '2026-10-20T21:00:00.000Z'; // 3 дні від NOW
+    const r = extendPaidUntil(null, 'month', NOW, trialEnd);
+    assert.equal(r.from.toISOString(), trialEnd);
+    assert.equal(r.to.toISOString(), '2026-11-20T21:00:00.000Z');
+    assert.equal(extendPaidUntil(null, 'year', NOW, trialEnd).to.toISOString(), '2027-10-20T21:00:00.000Z');
+    assert.equal(extendPaidUntil(null, 'month', NOW, '2026-10-10T21:00:00.000Z').from.toISOString(), new Date(NOW).toISOString(), 'тріал уже скінчився — від now');
+    assert.equal(extendPaidUntil('2026-12-01T00:00:00.000Z', 'month', NOW, trialEnd).from.toISOString(), '2026-12-01T00:00:00.000Z', 'оплачений період довший за тріал');
+});
+
+test('cron: лист тріалу — власники й директори (org_directors) без дублів адрес; повторний прогін листів не множить', async () => {
+    const w = cronWorld();
+    w.store.db.subs[ORG] = { org_id: ORG, paid_until: null, trial_ends_at: TRIAL_END };
+    w.store.db.directors = { [ORG]: ['director@kp.ua', 'OWNER@agro.ua', 'director@kp.ua'] };
+    await w.cron();
+    const to = w.mails().map((m) => m.to[0]).sort();
+    assert.deepEqual(to, ['director@kp.ua', 'owner@agro.ua'], 'owner + директор, адреса не дублюються');
+    await w.cron();
+    assert.equal(w.mails().length, 2, 'без дублів');
+});
+
+test('банер: «лише читання» за правилом БД (current_org_readonly), а не за профілем користувача', () => {
+    const readOnlyByOrg = bannerWorld({ currentOrgRole: 'logist', billingOrgReadOnly: true });
+    readOnlyByOrg.ctx.billingTrialEndsAt = '2026-10-17T21:00:00.000Z';
+    readOnlyByOrg.ctx.billingManualAccess = true; // профіль цього користувача схвалений, але org_readonly каже інше
+    readOnlyByOrg.sync();
+    assert.equal(readOnlyByOrg.els['billing-banner'].hidden, false);
+    assert.match(readOnlyByOrg.els['billing-banner-text'].textContent, /^Тріал закінчився, зверніться до директора/);
+    // Інший учасник компанії має ручний доступ → org_readonly = false: тріал скінчився, але банера немає.
+    const approvedElsewhere = bannerWorld({ billingOrgReadOnly: false });
+    approvedElsewhere.ctx.billingTrialEndsAt = '2026-10-17T21:00:00.000Z';
+    approvedElsewhere.sync();
+    assert.equal(approvedElsewhere.els['billing-banner'].hidden, true);
+    assert.equal(vm.runInContext('billingReadOnly()', approvedElsewhere.ctx), false);
+    assert.equal(approvedElsewhere.opened.billing, 0, 'модалка не відкривається');
+    // Без відповіді RPC (null) — локальна формула, як раніше.
+    const fallback = bannerWorld({ billingOrgReadOnly: null });
+    fallback.ctx.billingTrialEndsAt = '2026-10-17T21:00:00.000Z';
+    assert.equal(vm.runInContext('billingReadOnly()', fallback.ctx), true);
+    assert.ok(html.includes("supabaseClient.rpc('current_org_readonly')"));
+    assert.ok(html.includes('if (billingPaidActive(paidUntil)) billingOrgReadOnly = false;'), 'після оплати прапорець знімається одразу');
 });

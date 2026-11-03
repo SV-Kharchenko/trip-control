@@ -17,31 +17,196 @@
 --    (звичайне демо, як було). Тригер на org_company_profiles.edrpou: ЄДРПОУ/ІПН (8 або 10 цифр), уже зайнятий іншою компанією,
 --    скасовує ще не оплачений тріал цієї компанії (trial_ends_at = NULL).
 --  * Під час тріалу current_is_approved() = true (повний доступ без демо-лімітів).
---  * Після тріалу без оплати (і без is_approved) org_readonly(org) = true: тригер trg_trial_readonly на calculations, kp_documents,
---    kp_document_lines, kp_contracts, kp_doc_ttn, kp_other_docs блокує INSERT і UPDATE (42501 TRIAL_EXPIRED). SELECT, експорт CSV, DELETE-політики
---    не змінено; нічого не видаляється. Оплата (paid_until > now()) знімає блок одразу. Запити service_role (сервер) тригер пропускає:
---    сервер перевіряє те саме в api/calculate.js та api/team.js (lib/billing/access.js, isOrgReadOnly).
+--  * Після тріалу без оплати (і без is_approved) org_readonly(org) = true: тригер trg_trial_readonly (BEFORE INSERT OR UPDATE OR DELETE) на таблицях
+--    розрахунків, заявок, документів (рахунки, акти, платежі, підписи, договори, ТТН, подорожні листи, інші), клієнтів, автопарку й водіїв, шаблонів
+--    маршрутів, факту рейсу, ремонтів і запчастин (список — у DO-блоці нижче) блокує зміни (42501 TRIAL_EXPIRED). SELECT, експорт CSV, налаштування
+--    профілю/компанії й оплата не блокуються; нічого не видаляється системою. Оплата (paid_until > now()) знімає блок одразу. Запити service_role
+--    (сервер) тригер пропускає: сервер перевіряє те саме в api/calculate.js та api/team.js (lib/billing/access.js, isOrgReadOnly).
+--  * Оплата під час тріалу: apply_payment_success рахує paid_until від greatest(now(), paid_until, trial_ends_at) — залишок тріалу не згорає.
+--  * current_org_readonly() — той самий org_readonly для компанії користувача (банер UI); GRANT SELECT (trial_ends_at) для authenticated.
 --  * org_notifications.kind: + trial_day5, trial_day7 (надсилає /api/billing/cron, позначки trial_notified_d5 / _d7 проти дублів).
 --
--- РУЧНИЙ ВІДКАТ (SQL editor, однією транзакцією; дані trial_* буде втрачено):
+-- РУЧНИЙ ВІДКАТ (SQL editor, однією транзакцією; дані trial_* буде втрачено). Тіла функцій нижче — ті, що були ДО цієї міграції (взято з
+-- репозиторію, 20261018190000_payments.sql). ПЕРЕД відкатом на проді звірте їх з pg_get_functiondef() (public.apply_payment_success,
+-- public.org_has_user_data, public.current_is_approved) і за потреби замініть на прод-версію.
 --   BEGIN;
---   DROP TRIGGER IF EXISTS trg_trial_readonly ON public.calculations;
---   DROP TRIGGER IF EXISTS trg_trial_readonly ON public.kp_documents;
---   DROP TRIGGER IF EXISTS trg_trial_readonly ON public.kp_document_lines;
---   DROP TRIGGER IF EXISTS trg_trial_readonly ON public.kp_contracts;
---   DROP TRIGGER IF EXISTS trg_trial_readonly ON public.kp_doc_ttn;
---   DROP TRIGGER IF EXISTS trg_trial_readonly ON public.kp_other_docs;
+--   DO $rb$
+--   DECLARE v_table text;
+--   BEGIN
+--     FOREACH v_table IN ARRAY ARRAY['calculations', 'calc_vehicles', 'calculation_clients', 'trip_actuals', 'route_templates', 'trailer_presets', 'clients', 'fleet_vehicles', 'fleet_trailers', 'kp_documents', 'kp_document_lines', 'kp_document_payments', 'kp_document_signatures', 'kp_doc_emails', 'kp_contracts', 'kp_doc_ttn', 'kp_doc_ttn_lines', 'kp_doc_trip_sheet', 'kp_trip_sheet_stages', 'kp_trip_sheet_refuels', 'kp_other_docs', 'kp_drivers', 'kp_driver_details', 'repairs', 'repair_maintenance', 'parts', 'part_receipts', 'part_writeoffs', 'stock_adjustments', 'maintenance_types', 'vehicle_maintenance_overrides', 'vehicle_odometer_readings'] LOOP
+--       IF to_regclass('public.' || v_table) IS NOT NULL THEN
+--         EXECUTE format('DROP TRIGGER IF EXISTS trg_trial_readonly ON public.%I', v_table);
+--       END IF;
+--     END LOOP;
+--   END $rb$;
 --   DROP TRIGGER IF EXISTS trg_trial_start ON public.profiles;
 --   DROP TRIGGER IF EXISTS trg_trial_tax_claim ON public.org_company_profiles;
 --   DROP FUNCTION IF EXISTS public.trial_readonly_guard();
 --   DROP FUNCTION IF EXISTS public.trial_start_guard();
 --   DROP FUNCTION IF EXISTS public.trial_tax_claim_guard();
---   -- Оригінальне тіло current_is_approved(): CREATE OR REPLACE із 20261018190000_payments.sql (без org_trial_active).
+--   DROP FUNCTION IF EXISTS public.current_org_readonly();
+--   REVOKE SELECT (trial_ends_at) ON public.org_subscriptions FROM authenticated;
+--   CREATE OR REPLACE FUNCTION public.apply_payment_success(p_payment uuid, p_modified timestamptz)
+--   RETURNS jsonb
+--   LANGUAGE plpgsql
+--   SECURITY DEFINER
+--   SET search_path = public
+--   AS $$
+--   DECLARE
+--     v_payment public.payments%ROWTYPE;
+--     v_until timestamptz;
+--     v_base timestamptz;
+--     v_new timestamptz;
+--   BEGIN
+--     SELECT * INTO v_payment FROM public.payments WHERE id = p_payment FOR UPDATE;
+--     IF NOT FOUND THEN
+--       RAISE EXCEPTION 'PAYMENT_NOT_FOUND' USING ERRCODE = 'P0001';
+--     END IF;
+--   
+--     -- Already credited: a repeated webhook or status check changes nothing.
+--     IF v_payment.credited_at IS NOT NULL THEN
+--       SELECT s.paid_until INTO v_until FROM public.org_subscriptions AS s WHERE s.org_id = v_payment.org_id;
+--       RETURN jsonb_build_object(
+--         'credited', false,
+--         'already_credited', true,
+--         'paid_until', v_until,
+--         'period_from', v_payment.period_from,
+--         'period_to', v_payment.period_to
+--       );
+--     END IF;
+--   
+--     -- An older notification after a newer one (e.g. success after reversed) is ignored.
+--     IF p_modified IS NOT NULL AND v_payment.provider_modified_at IS NOT NULL
+--        AND p_modified < v_payment.provider_modified_at THEN
+--       SELECT s.paid_until INTO v_until FROM public.org_subscriptions AS s WHERE s.org_id = v_payment.org_id;
+--       RETURN jsonb_build_object('credited', false, 'already_credited', false, 'stale', true, 'paid_until', v_until);
+--     END IF;
+--   
+--     INSERT INTO public.org_subscriptions (org_id) VALUES (v_payment.org_id)
+--     ON CONFLICT (org_id) DO NOTHING;
+--   
+--     SELECT s.paid_until INTO v_until
+--     FROM public.org_subscriptions AS s
+--     WHERE s.org_id = v_payment.org_id
+--     FOR UPDATE;
+--   
+--     v_base := greatest(now(), coalesce(v_until, now()));
+--     v_new := v_base + CASE v_payment.plan WHEN 'year' THEN interval '1 year' ELSE interval '1 month' END;
+--   
+--     UPDATE public.org_subscriptions
+--     SET paid_until = v_new,
+--         last_plan = v_payment.plan,
+--         reminder_sent_for = NULL,
+--         updated_at = now()
+--     WHERE org_id = v_payment.org_id;
+--   
+--     UPDATE public.payments
+--     SET status = 'success',
+--         credited_at = now(),
+--         period_from = v_base,
+--         period_to = v_new,
+--         provider_modified_at = coalesce(p_modified, provider_modified_at),
+--         updated_at = now()
+--     WHERE id = p_payment;
+--   
+--     RETURN jsonb_build_object(
+--       'credited', true,
+--       'already_credited', false,
+--       'paid_until', v_new,
+--       'period_from', v_base,
+--       'period_to', v_new
+--     );
+--   END;
+--   $$;
+--   REVOKE ALL ON FUNCTION public.apply_payment_success(uuid, timestamptz) FROM PUBLIC, anon, authenticated;
+--   GRANT EXECUTE ON FUNCTION public.apply_payment_success(uuid, timestamptz) TO service_role;
+--   CREATE OR REPLACE FUNCTION public.org_has_user_data(p_org_id uuid, p_user_id uuid)
+--   RETURNS boolean
+--   LANGUAGE plpgsql
+--   STABLE
+--   SECURITY DEFINER
+--   SET search_path = public
+--   AS $$
+--   DECLARE
+--     v_table text;
+--     v_found boolean;
+--     v_settings jsonb;
+--     -- Current STARTER_SETTINGS in index.html (same values).
+--     v_starter_current constant jsonb := jsonb_build_object(
+--       'totalFleet', 1, 'fuelLoad', 38, 'fuelEmpty', 32, 'fuelPrice', 95,
+--       'adblueEnable', 'on', 'adblueConsumption', 2.85, 'adbluePrice', 18,
+--       'driverPayMode', 'km', 'driverRateLoad', 4.03, 'driverRateEmpty', 2.3,
+--       'driverPctVal', 12, 'perDiem', 500, 'toCost', 18000, 'toPeriod', 50000,
+--       'tireCost', 16500, 'tireCount', 14, 'tireMileage', 150000
+--     );
+--   BEGIN
+--     IF p_org_id IS NULL THEN
+--       RETURN false;
+--     END IF;
+--   
+--     IF EXISTS (
+--       SELECT 1 FROM public.profiles AS p
+--       WHERE p.org_id = p_org_id AND p.id IS DISTINCT FROM p_user_id
+--     ) THEN
+--       RETURN true;
+--     END IF;
+--   
+--     FOREACH v_table IN ARRAY ARRAY[
+--       'calculations', 'calc_vehicles', 'trip_actuals', 'route_templates',
+--       'fleet_vehicles', 'trailer_presets', 'weekly_reports',
+--       -- A company that paid or has a subscription row is kept (payments outlive nothing silently).
+--       'payments', 'org_subscriptions'
+--     ] LOOP
+--       IF EXISTS (
+--         SELECT 1 FROM information_schema.columns AS c
+--         WHERE c.table_schema = 'public' AND c.table_name = v_table AND c.column_name = 'org_id'
+--       ) THEN
+--         EXECUTE format('SELECT EXISTS (SELECT 1 FROM public.%I WHERE org_id = $1)', v_table)
+--           INTO v_found
+--           USING p_org_id;
+--         IF v_found THEN
+--           RETURN true;
+--         END IF;
+--       END IF;
+--     END LOOP;
+--   
+--     -- Signup writes {"logists_see_all": false}; the first sign-in autosaves the
+--     -- current starter template. Neither is user data.
+--     SELECT coalesce((
+--       SELECT jsonb_object_agg(e.key, e.value)
+--       FROM jsonb_each(coalesce(s.settings, '{}'::jsonb) - 'logists_see_all') AS e
+--       WHERE e.value NOT IN ('null'::jsonb, '""'::jsonb)
+--     ), '{}'::jsonb)
+--     INTO v_settings
+--     FROM public.company_settings AS s
+--     WHERE s.org_id = p_org_id;
+--   
+--     IF v_settings IS NOT NULL
+--        AND NOT (v_starter_current @> v_settings)
+--     THEN
+--       RETURN true;
+--     END IF;
+--   
+--     -- Signup fills only ownership; EDRPOU, phone, address and the rest come from the cabinet.
+--     IF EXISTS (
+--       SELECT 1
+--       FROM public.org_company_profiles AS ocp,
+--            jsonb_each(to_jsonb(ocp) - ARRAY['org_id', 'ownership', 'lang', 'updated_at', 'updated_by', 'created_at']) AS f
+--       WHERE ocp.org_id = p_org_id
+--         AND f.value NOT IN ('null'::jsonb, '""'::jsonb)
+--     ) THEN
+--       RETURN true;
+--     END IF;
+--   
+--     RETURN false;
+--   END;
+--   $$;
+--   REVOKE ALL ON FUNCTION public.org_has_user_data(uuid, uuid) FROM PUBLIC, anon, authenticated;
+--   GRANT EXECUTE ON FUNCTION public.org_has_user_data(uuid, uuid) TO service_role;
 --   CREATE OR REPLACE FUNCTION public.current_is_approved() RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $f$
 --     SELECT coalesce((SELECT p.is_approved OR coalesce(public.org_has_paid_access(public.current_org_id()), false)
 --                      FROM public.profiles AS p WHERE p.id = auth.uid() LIMIT 1), false);
 --   $f$;
---   -- Оригінальне тіло org_has_user_data(): CREATE OR REPLACE із 20261018190000_payments.sql (рядок org_subscriptions рахується даними).
 --   DROP FUNCTION IF EXISTS public.org_readonly(uuid);
 --   DROP FUNCTION IF EXISTS public.org_trial_active(uuid);
 --   DROP FUNCTION IF EXISTS public.trial_end_for(timestamptz);
@@ -261,14 +426,15 @@ DECLARE
 BEGIN
   -- Сервер (service_role) і системні операції без користувача пропускаємо; сервер перевіряє сам (isOrgReadOnly).
   IF coalesce(auth.jwt() ->> 'role', '') = 'service_role' OR auth.uid() IS NULL THEN
-    RETURN NEW;
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
   END IF;
-  v_org := coalesce(NEW.org_id, public.current_org_id());
+  -- Компанія — з рядка (org_id), інакше компанія користувача (таблиці-діти без org_id).
+  v_org := coalesce(nullif((CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END) ->> 'org_id', '')::uuid, public.current_org_id());
   IF v_org IS NOT NULL AND public.org_readonly(v_org) THEN
     RAISE EXCEPTION 'TRIAL_EXPIRED' USING ERRCODE = '42501',
-      DETAIL = 'Тріал закінчився: акаунт у режимі «лише читання». Оплатіть тариф, щоб створювати розрахунки й документи.';
+      DETAIL = 'Тріал закінчився: акаунт у режимі «лише читання». Оплатіть тариф, щоб створювати й змінювати дані.';
   END IF;
-  RETURN NEW;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;
 $$;
 
@@ -278,13 +444,107 @@ DO $$
 DECLARE
   v_table text;
 BEGIN
-  FOREACH v_table IN ARRAY ARRAY['calculations', 'kp_documents', 'kp_document_lines', 'kp_contracts', 'kp_doc_ttn', 'kp_other_docs'] LOOP
+  FOREACH v_table IN ARRAY ARRAY['calculations', 'calc_vehicles', 'calculation_clients', 'trip_actuals', 'route_templates', 'trailer_presets', 'clients', 'fleet_vehicles', 'fleet_trailers', 'kp_documents', 'kp_document_lines', 'kp_document_payments', 'kp_document_signatures', 'kp_doc_emails', 'kp_contracts', 'kp_doc_ttn', 'kp_doc_ttn_lines', 'kp_doc_trip_sheet', 'kp_trip_sheet_stages', 'kp_trip_sheet_refuels', 'kp_other_docs', 'kp_drivers', 'kp_driver_details', 'repairs', 'repair_maintenance', 'parts', 'part_receipts', 'part_writeoffs', 'stock_adjustments', 'maintenance_types', 'vehicle_maintenance_overrides', 'vehicle_odometer_readings'] LOOP
     IF to_regclass('public.' || v_table) IS NOT NULL THEN
       EXECUTE format('DROP TRIGGER IF EXISTS trg_trial_readonly ON public.%I', v_table);
-      EXECUTE format('CREATE TRIGGER trg_trial_readonly BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.trial_readonly_guard()', v_table);
+      EXECUTE format('CREATE TRIGGER trg_trial_readonly BEFORE INSERT OR UPDATE OR DELETE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.trial_readonly_guard()', v_table);
     END IF;
   END LOOP;
 END $$;
+
+-- Той самий org_readonly для компанії користувача — для банера в UI (без доступу до чужих компаній).
+CREATE OR REPLACE FUNCTION public.current_org_readonly()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT coalesce(public.org_readonly(public.current_org_id()), false);
+$$;
+REVOKE ALL ON FUNCTION public.current_org_readonly() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.current_org_readonly() TO authenticated, service_role;
+
+-- Клієнти читають лише дозволені колонки org_subscriptions (20261020200000_auto_renew.sql): додаємо trial_ends_at для банера.
+GRANT SELECT (trial_ends_at) ON public.org_subscriptions TO authenticated;
+
+-- Оплата під час тріалу: залишок тріалу не згорає — новий paid_until від greatest(now(), paid_until, trial_ends_at).
+CREATE OR REPLACE FUNCTION public.apply_payment_success(p_payment uuid, p_modified timestamptz)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_payment public.payments%ROWTYPE;
+  v_until timestamptz;
+  v_trial timestamptz;
+  v_base timestamptz;
+  v_new timestamptz;
+BEGIN
+  SELECT * INTO v_payment FROM public.payments WHERE id = p_payment FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PAYMENT_NOT_FOUND' USING ERRCODE = 'P0001';
+  END IF;
+
+  -- Already credited: a repeated webhook or status check changes nothing.
+  IF v_payment.credited_at IS NOT NULL THEN
+    SELECT s.paid_until INTO v_until FROM public.org_subscriptions AS s WHERE s.org_id = v_payment.org_id;
+    RETURN jsonb_build_object(
+      'credited', false,
+      'already_credited', true,
+      'paid_until', v_until,
+      'period_from', v_payment.period_from,
+      'period_to', v_payment.period_to
+    );
+  END IF;
+
+  -- An older notification after a newer one (e.g. success after reversed) is ignored.
+  IF p_modified IS NOT NULL AND v_payment.provider_modified_at IS NOT NULL
+     AND p_modified < v_payment.provider_modified_at THEN
+    SELECT s.paid_until INTO v_until FROM public.org_subscriptions AS s WHERE s.org_id = v_payment.org_id;
+    RETURN jsonb_build_object('credited', false, 'already_credited', false, 'stale', true, 'paid_until', v_until);
+  END IF;
+
+  INSERT INTO public.org_subscriptions (org_id) VALUES (v_payment.org_id)
+  ON CONFLICT (org_id) DO NOTHING;
+
+  SELECT s.paid_until, s.trial_ends_at INTO v_until, v_trial
+  FROM public.org_subscriptions AS s
+  WHERE s.org_id = v_payment.org_id
+  FOR UPDATE;
+
+  v_base := greatest(now(), coalesce(v_until, now()), coalesce(v_trial, now()));
+  v_new := v_base + CASE v_payment.plan WHEN 'year' THEN interval '1 year' ELSE interval '1 month' END;
+
+  UPDATE public.org_subscriptions
+  SET paid_until = v_new,
+      last_plan = v_payment.plan,
+      reminder_sent_for = NULL,
+      updated_at = now()
+  WHERE org_id = v_payment.org_id;
+
+  UPDATE public.payments
+  SET status = 'success',
+      credited_at = now(),
+      period_from = v_base,
+      period_to = v_new,
+      provider_modified_at = coalesce(p_modified, provider_modified_at),
+      updated_at = now()
+  WHERE id = p_payment;
+
+  RETURN jsonb_build_object(
+    'credited', true,
+    'already_credited', false,
+    'paid_until', v_new,
+    'period_from', v_base,
+    'period_to', v_new
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.apply_payment_success(uuid, timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_payment_success(uuid, timestamptz) TO service_role;
 
 -- ---------------------------------------------------------------------------
 -- org_has_user_data: рядок org_subscriptions лише з тріалом — це не дані користувача (інакше тимчасова компанія запрошеного

@@ -208,6 +208,11 @@ export function memoryStore(clock) {
             sub[key] = atIso;
             return true;
         },
+        // Власники + директори (org_directors): db.directors = { [orgId]: [email] }.
+        async trialRecipients(orgId) {
+            const owners = Object.values(db.profiles).filter((p) => p.org_id === orgId && p.org_role === 'owner' && p.member_status === 'active').map((p) => p.email);
+            const seen = new Set(); return [...owners, ...((db.directors || {})[orgId] || [])].filter((e) => { const k = String(e || '').toLowerCase(); if (!k || seen.has(k)) return false; seen.add(k); return true; });
+        },
         async unmarkTrialNotified(orgId, day) {
             if (db.subs[orgId]) db.subs[orgId][day === 5 ? 'trial_notified_d5' : 'trial_notified_d7'] = null;
         },

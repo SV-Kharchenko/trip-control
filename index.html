@@ -8742,6 +8742,7 @@
     let billingPaidUntil = null;
     let billingTrialEndsAt = null;   // тріал 7 днів (org_subscriptions.trial_ends_at); null — тріалу немає
     let billingExpiredShown = false;
+    let billingOrgReadOnly = null;   // current_org_readonly(): те саме правило, що в БД (org_readonly по компанії); null — ще не відомо
     let billingManualAccess = false;
     let billingSummary = null;
     let billingReturnFocus = null;
@@ -8778,6 +8779,7 @@
     }
     // «Лише читання»: тріал скінчився, оплати й ручного доступу немає. Сервер і БД перевіряють самі (42501 TRIAL_EXPIRED).
     function billingReadOnly() {
+        if (billingOrgReadOnly !== null) return billingOrgReadOnly;
         return !billingManualAccess && billingTrial().expired && !billingPaidActive(billingPaidUntil);
     }
     function billingDaysText(n) {
@@ -8800,6 +8802,11 @@
             if (res.error) res = await supabaseClient.from('org_subscriptions').select('paid_until').eq('org_id', orgId).maybeSingle();
             if (res.error || !res.data) return null;
             billingTrialEndsAt = res.data.trial_ends_at || null;
+            // «Лише читання» рахує БД (org_readonly по компанії, ручний доступ будь-кого з компанії теж): не лише профіль цього користувача.
+            try {
+                const ro = await supabaseClient.rpc('current_org_readonly');
+                billingOrgReadOnly = ro.error ? null : !!ro.data;
+            } catch (e) { billingOrgReadOnly = null; }
             return res.data.paid_until || null;
         } catch (e) {
             return null;
@@ -9079,6 +9086,7 @@
     }
     function applyPaidAccess(paidUntil) {
         billingPaidUntil = paidUntil;
+        if (billingPaidActive(paidUntil)) billingOrgReadOnly = false;
         const wasDemo = isDemo;
         isDemo = !(billingManualAccess || billingPaidActive(billingPaidUntil) || billingTrial().active);
         document.body.classList.toggle('demo-mode', isDemo);
@@ -9140,20 +9148,25 @@
     }
     function syncTrialBanner(banner) {
         const trial = billingTrial();
+        const readOnly = billingReadOnly();
         const director = currentOrgRole === 'owner' || kpDirectorActive();
         const text = document.getElementById('billing-banner-text');
         const btn = document.getElementById('billing-banner-btn');
         banner.classList.toggle('is-warn', trial.last);
-        banner.classList.toggle('is-expired', trial.expired);
-        document.body.classList.toggle('trial-readonly', trial.expired);
+        banner.classList.toggle('is-expired', readOnly);
+        document.body.classList.toggle('trial-readonly', readOnly);
+        if (!trial.active && !readOnly) {
+            banner.hidden = true; // тріал скінчився, але компанія має доступ (оплата / ручне схвалення)
+            return;
+        }
         if (!director) {
-            banner.hidden = !trial.expired;
+            banner.hidden = !readOnly;
             text.textContent = 'Тріал закінчився, зверніться до директора. Акаунт у режимі «лише читання».';
             btn.hidden = true;
             return;
         }
         banner.hidden = false;
-        text.textContent = trial.expired
+        text.textContent = readOnly
             ? 'Тріал закінчився. Акаунт у режимі «лише читання»: дані й експорт CSV доступні, нові розрахунки, заявки й документи створювати не можна.'
             : (trial.last ? 'Тріал: сьогодні останній день.' : 'Тріал: ' + billingDaysText(trial.days) + '.');
         if (isKP()) {
@@ -9164,7 +9177,7 @@
             btn.hidden = !billingEnabled;
             btn.textContent = 'Оплатити';
             btn.onclick = openBillingModal;
-            if (trial.expired && billingEnabled && !billingExpiredShown) {
+            if (readOnly && billingEnabled && !billingExpiredShown) {
                 billingExpiredShown = true;
                 openBillingModal();
             }
@@ -9174,7 +9187,7 @@
         const banner = document.getElementById('billing-banner');
         if (!banner) return;
         const trial = billingTrial();
-        if (!billingManualAccess && trial.has && !billingPaidActive(billingPaidUntil)) {
+        if (trial.has && !billingPaidActive(billingPaidUntil) && (!billingManualAccess || billingReadOnly())) {
             syncTrialBanner(banner);
             return;
         }

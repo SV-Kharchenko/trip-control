@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(14);
+SELECT plan(21);
 
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
@@ -23,7 +23,8 @@ CREATE TEMP TABLE orgs AS SELECT
   pg_temp.signup('00000000-0000-0000-0000-0000000000b1', 'new.trial@example.com') AS a,
   pg_temp.signup('00000000-0000-0000-0000-0000000000b2', 'New.Trial+second@Example.com') AS repeat_email,
   pg_temp.signup('00000000-0000-0000-0000-0000000000b3', 'other.trial@example.com') AS b,
-  pg_temp.signup('00000000-0000-0000-0000-0000000000b4', 'approved.trial@example.com') AS approved;
+  pg_temp.signup('00000000-0000-0000-0000-0000000000b4', 'approved.trial@example.com') AS approved,
+  pg_temp.signup('00000000-0000-0000-0000-0000000000b6', 'pay.trial@example.com') AS payer;
 GRANT SELECT ON orgs TO authenticated;
 
 -- Наявна компанія (створена до міграції): рядок організації без тригера тріалу й без підписки.
@@ -47,6 +48,20 @@ BEGIN
     v := SQLSTATE || ':' || SQLERRM;
   END;
   EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  RETURN v;
+END;
+$$;
+CREATE FUNCTION pg_temp.as_claims(p_uid uuid, p_sql text) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE
+  v text;
+BEGIN
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+  BEGIN
+    EXECUTE p_sql INTO v;
+  EXCEPTION WHEN others THEN
+    v := SQLSTATE || ':' || SQLERRM;
+  END;
   PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
   RETURN v;
 END;
@@ -77,21 +92,59 @@ SELECT ok((SELECT trial_ends_at IS NULL FROM public.org_subscriptions WHERE org_
 -- ---------------------------------------------------------------------------
 SELECT is(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b1'), 'ok', '6: під час тріалу розрахунок створюється');
 SELECT ok(pg_temp.as_user('00000000-0000-0000-0000-0000000000b1', 'SELECT public.current_is_approved()::text') = 'true', '7: під час тріалу повний доступ (не демо)');
+INSERT INTO public.clients (id, org_id, name) VALUES ('7d000000-0000-0000-0000-000000000001', (SELECT a FROM orgs), 'Клієнт');
+INSERT INTO public.fleet_vehicles (id, org_id, label) VALUES ('7d000000-0000-0000-0000-000000000002', (SELECT a FROM orgs), 'AA0001AA');
 
+-- ---------------------------------------------------------------------------
+-- Після закінчення тріалу: усе закрито, читання лишається
+-- ---------------------------------------------------------------------------
 UPDATE public.org_subscriptions SET trial_ends_at = now() - interval '1 hour' WHERE org_id = (SELECT a FROM orgs);
-SELECT like(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b1'), '42501:TRIAL_EXPIRED%', '8: після закінчення INSERT блокується (42501 TRIAL_EXPIRED)');
-SELECT like(pg_temp.as_user('00000000-0000-0000-0000-0000000000b1', $q$UPDATE public.calculations SET name = 'changed' WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), '42501:TRIAL_EXPIRED%',
-  '9: після закінчення UPDATE блокується');
-SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000b1', 'SELECT count(*)::text FROM public.calculations'), '1', '10: SELECT працює, дані не видалені');
-SELECT ok((SELECT count(*) = 6 FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
-           WHERE t.tgname = 'trg_trial_readonly' AND c.relname IN ('calculations', 'kp_documents', 'kp_document_lines', 'kp_contracts', 'kp_doc_ttn', 'kp_other_docs')),
-  '11: блокування стоїть на розрахунках, документах, договорах, ТТН та інших документах');
+SELECT like(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b1'), '42501:TRIAL_EXPIRED%', '8: INSERT розрахунку блокується (42501 TRIAL_EXPIRED)');
+SELECT is(
+  (SELECT string_agg(r, ',' ORDER BY r) FROM (
+    SELECT left(pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', $q$UPDATE public.calculations SET name = 'changed' WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), 20) AS r
+    UNION ALL SELECT left(pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', $q$DELETE FROM public.calculations WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), 20)
+    UNION ALL SELECT left(pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', $q$UPDATE public.clients SET name = 'x' WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), 20)
+    UNION ALL SELECT left(pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', $q$DELETE FROM public.clients WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), 20)
+    UNION ALL SELECT left(pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', $q$UPDATE public.fleet_vehicles SET label = 'x' WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), 20)
+    UNION ALL SELECT left(pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', $q$DELETE FROM public.fleet_vehicles WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), 20)
+  ) AS x),
+  '42501:TRIAL_EXPIRED,42501:TRIAL_EXPIRED,42501:TRIAL_EXPIRED,42501:TRIAL_EXPIRED,42501:TRIAL_EXPIRED,42501:TRIAL_EXPIRED',
+  '9: UPDATE і DELETE блокуються на розрахунках, клієнтах і автопарку');
+CREATE TEMP TABLE guarded AS
+  SELECT c.relname::text AS t, t.tgtype FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+  WHERE t.tgname = 'trg_trial_readonly' AND NOT t.tgisinternal;
+SELECT is((SELECT count(*)::int FROM guarded WHERE tgtype = 31), 32,
+  '10: trg_trial_readonly (ROW, BEFORE, INSERT+UPDATE+DELETE) стоїть на всіх 32 таблицях: розрахунки, документи, платежі, підписи, ТТН, подорожні листи, клієнти, автопарк, водії, шаблони, факт, ремонти');
+SELECT is((SELECT count(*)::int FROM guarded WHERE pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', format('INSERT INTO public.%I DEFAULT VALUES', t)) LIKE '42501:TRIAL_EXPIRED%'), 32,
+  '11: INSERT на кожній із цих таблиць дає 42501 TRIAL_EXPIRED (тригер спрацьовує до решти перевірок)');
+SELECT is(pg_temp.as_user('00000000-0000-0000-0000-0000000000b1', 'SELECT count(*)::text FROM public.calculations'), '1', '12: SELECT працює, дані не видалені');
+SELECT is(pg_temp.as_claims('00000000-0000-0000-0000-0000000000b1', $q$UPDATE public.org_company_profiles SET ownership = 'tov' WHERE org_id = (SELECT a FROM orgs) RETURNING 'ok'$q$), 'ok',
+  '13: налаштування профілю компанії не блокуються');
+SELECT ok(pg_temp.as_user('00000000-0000-0000-0000-0000000000b1', 'SELECT public.current_org_readonly()::text') = 'true'
+          AND has_column_privilege('authenticated', 'public.org_subscriptions', 'trial_ends_at', 'SELECT'),
+  '14: current_org_readonly() = true після тріалу; клієнт може читати trial_ends_at');
 
 UPDATE public.org_subscriptions SET paid_until = now() + interval '30 days' WHERE org_id = (SELECT a FROM orgs);
-SELECT is(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b1'), 'ok', '12: оплата одразу знімає обмеження');
-SELECT is(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b5'), 'ok', '13: наявна компанія без тріалу працює як раніше');
+SELECT is(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b1'), 'ok', '15: оплата (paid_until) одразу знімає обмеження');
+SELECT is(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b5'), 'ok', '16: наявна компанія без trial_ends_at працює як раніше');
 UPDATE public.org_subscriptions SET trial_ends_at = now() - interval '1 hour' WHERE org_id = (SELECT approved FROM orgs);
-SELECT is(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b4'), 'ok', '14: ручний повний доступ (is_approved) тріал не обмежує');
+SELECT is(pg_temp.add_calc('00000000-0000-0000-0000-0000000000b4'), 'ok', '17: ручний повний доступ (is_approved) знімає блок');
+
+-- ---------------------------------------------------------------------------
+-- Оплата під час тріалу: залишок тріалу не згорає
+-- ---------------------------------------------------------------------------
+INSERT INTO public.payments (id, org_id, created_by, provider, plan, amount_minor, provider_order_id)
+VALUES ('7e000000-0000-0000-0000-000000000001', (SELECT payer FROM orgs), '00000000-0000-0000-0000-0000000000b6', 'mono', 'month', 25000, 'trial-pay-1');
+CREATE TEMP TABLE before_pay AS SELECT trial_ends_at AS t FROM public.org_subscriptions WHERE org_id = (SELECT payer FROM orgs);
+SELECT public.apply_payment_success('7e000000-0000-0000-0000-000000000001', NULL);
+SELECT is((SELECT s.paid_until FROM public.org_subscriptions s WHERE s.org_id = (SELECT payer FROM orgs)), (SELECT t + interval '1 month' FROM before_pay),
+  '18: оплата під час тріалу: paid_until = кінець тріалу + 1 місяць');
+SELECT ok((SELECT s.paid_until > now() + interval '35 days' FROM public.org_subscriptions s WHERE s.org_id = (SELECT payer FROM orgs)) AND (SELECT t > now() + interval '6 days' FROM before_pay),
+  '19: залишок тріалу (понад 6 днів) додається до оплаченого місяця');
+SELECT ok(NOT public.org_readonly((SELECT payer FROM orgs)) AND public.org_trial_active((SELECT payer FROM orgs)), '20: після оплати компанія не в режимі лише читання');
+UPDATE public.org_subscriptions SET trial_ends_at = now() - interval '2 days', paid_until = now() - interval '1 day' WHERE org_id = (SELECT payer FROM orgs);
+SELECT ok(public.org_readonly((SELECT payer FROM orgs)), '21: оплата й тріал скінчились — знову лише читання');
 
 SELECT * FROM finish();
 ROLLBACK;
