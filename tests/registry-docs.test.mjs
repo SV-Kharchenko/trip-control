@@ -31,7 +31,7 @@ function world(extra = {}) {
         isKP: () => true, window: {}, currentOrgRole: 'owner', currentUserId: 'u1', currentWorkMode: 'solo', uiView: 'director', teamState: { members: [] },
         savedCalculations: [], historyTripVehicles: () => [], savedAuthorLabel: (id) => 'user:' + id, calls: [], console, ...extra,
     });
-    vm.runInContext(['REGISTRY_STATUS_LABELS', 'REGISTRY_PAY_LABELS', 'REGISTRY_DOC_STATUS', 'KP_REGISTRY_COLS_KEY', 'KP_REGISTRY_COL_KEYS'].map(constLine).join('\n') + '\nlet registryDocs = {}; let registryKpCols = null;\n'
+    vm.runInContext(['REGISTRY_STATUS_LABELS', 'REGISTRY_PAY_LABELS', 'REGISTRY_DOC_STATUS', 'KP_REGISTRY_COLS_KEY', 'KP_REGISTRY_COL_KEYS'].map(constLine).join('\n') + '\nlet registryDocs = {}; let registryKpCols = null; let registryKpColsKey = null;\n'
         + SYNC.map((n) => fnSource(n)).join('\n') + '\n' + fnSource('registryLoadDocs', true), ctx);
     return ctx;
 }

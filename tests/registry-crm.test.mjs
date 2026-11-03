@@ -41,7 +41,7 @@ function world({ kp = true, team = false, extra = {} } = {}) {
         formatHistoryDate: (v) => String(v), formatHistoryNum: (v, d) => Number(v).toFixed(d), registryRender: () => { ctx.renders = (ctx.renders || 0) + 1; }, ...extra,
     });
     vm.runInContext(['REGISTRY_STATUS_LABELS', 'REGISTRY_PAY_LABELS', 'REGISTRY_DOC_STATUS', 'KP_REGISTRY_COLS_KEY', 'KP_REGISTRY_COL_KEYS'].map(constLine).join('\n')
-        + '\nlet registryDocs = {}; let registryKpCols = null;\n' + FUNCS.map((n) => fnSource(n)).join('\n'), ctx);
+        + '\nlet registryDocs = {}; let registryKpCols = null; let registryKpColsKey = null;\n' + FUNCS.map((n) => fnSource(n)).join('\n'), ctx);
     return ctx;
 }
 const run = (ctx, code) => JSON.parse(vm.runInContext('JSON.stringify(' + code + ')', ctx));
@@ -65,7 +65,7 @@ test('сайт: реєстр без змін — колонки, CSV, розмі
     assert.match(render, /if \(isKP\(\)\) \{\s+registryKpSyncQuick\(\);/);
     assert.match(render, /if \(isKP\(\)\) return registryKpCell\(row, c, money, money0\);/);
     assert.match(render, /\(isKP\(\) \? ' data-col="' \+ c\.key \+ '"' : ''\)/);
-    assert.match(fnSource('registryOpen', true), /if \(isKP\(\)\) registryKpEnhance\(\);/);
+    assert.match(fnSource('registryOpen', true), /if \(isKP\(\)\) \{\s+registryKpEnhance\(\);/);
     assert.match(fnSource('registryVisibleColumns'), /if \(!isKP\(\)\) return columns;/);
     assert.match(fnSource('registryCsv'), /isKP\(\) && \(mode \|\| registryColsState\(\)\.csv\) !== 'all'/);
 });
@@ -189,4 +189,66 @@ test('ліміт 5000 і мобільні картки не зачеплені',
     assert.match(constLine('REGISTRY_WARNING'), /5000/);
     assert.ok(html.includes('#registry-section .comparison-table { display: none; }'), 'мобільні правила сайту на місці');
     assert.ok(css.includes('@media (max-width: 720px)'));
+});
+
+test('колонки читаються під актуальним ключем: зміна компанії / користувача й повторне відкриття реєстру скидають registryKpCols і режим CSV', () => {
+    const ctx = world();
+    ctx.store.set('tc_kp_registry_cols:org1:u1', JSON.stringify({ hidden: ['km'], csv: 'all' }));
+    ctx.store.set('tc_kp_registry_cols:org2:u1', JSON.stringify({ hidden: ['pay', 'act'], csv: 'screen' }));
+    ctx.store.set('tc_kp_registry_cols:org1:u2', JSON.stringify({ hidden: ['revenue'], csv: 'screen' }));
+    assert.deepEqual(run(ctx, 'registryColsState()'), { hidden: ['km'], csv: 'all' });
+    // Інша компанія в тій самій сторінці → стан іншого ключа, а не кеш попередньої.
+    ctx.currentOrgId = 'org2';
+    assert.deepEqual(run(ctx, 'registryColsState()'), { hidden: ['pay', 'act'], csv: 'screen' });
+    assert.equal(run(ctx, 'registryColsStorageKey()'), 'tc_kp_registry_cols:org2:u1');
+    // Інший користувач.
+    ctx.currentOrgId = 'org1';
+    ctx.currentUserId = 'u2';
+    assert.deepEqual(run(ctx, 'registryColsState()'), { hidden: ['revenue'], csv: 'screen' });
+    // Нова пара без збереженого стану → типовий стан (усі колонки, CSV як на екрані), а не стан попередньої пари.
+    ctx.currentUserId = 'u3';
+    assert.deepEqual(run(ctx, 'registryColsState()'), { hidden: [], csv: 'screen' });
+    // Зміна колонок пишеться під ключем поточної пари й не чіпає чужі.
+    vm.runInContext('registryToggleCol("act", false)', ctx);
+    assert.deepEqual(JSON.parse(ctx.store.get('tc_kp_registry_cols:org1:u3')), { hidden: ['act'], csv: 'screen' });
+    assert.deepEqual(JSON.parse(ctx.store.get('tc_kp_registry_cols:org2:u1')), { hidden: ['pay', 'act'], csv: 'screen' });
+    // CSV використовує колонки поточної пари.
+    const head = vm.runInContext('registryCsv([' + JSON.stringify(ROW) + '])', ctx).replace('﻿', '').split('\r\n')[0].split(';');
+    assert.equal(head.includes('Акт'), false);
+    ctx.currentUserId = 'u2';
+    assert.equal(vm.runInContext('registryCsv([' + JSON.stringify(ROW) + '])', ctx).replace('﻿', '').split('\r\n')[0].split(';').includes('Виручка'), false, 'u2 ховав виручку');
+    // Повторне відкриття реєстру (там же, де registryCache = null) обнуляє registryKpCols і підтягує режим CSV у select.
+    const open = fnSource('registryOpen', true);
+    assert.ok(open.indexOf('registryCache = null;') < open.indexOf('registryKpCols = null;'), 'скидання колонок поруч зі скиданням кешу');
+    assert.match(open, /registryKpCols = null;[^\n]*\n/);
+    assert.match(open, /csvMode\.value = registryColsState\(\)\.csv;/);
+    // Ключ, під яким прочитано стан, зберігається; без нього кеш не відрізнив би пари.
+    assert.match(fnSource('registryColsState'), /registryKpCols && registryKpColsKey === key/);
+});
+
+test('JetBrains Mono: self-host woff2 лише для КП (400 і 600), font-display: swap, резервні моноширинні шрифти; на сайті не вантажиться', () => {
+    const faces = css.match(/@font-face \{[^}]*\}/g) || [];
+    assert.equal(faces.length, 4, 'latin і cyrillic × 400 і 600');
+    assert.deepEqual([...new Set(faces.map((f) => /font-weight: (\d+)/.exec(f)[1]))].sort(), ['400', '600'], 'лише ваги 400 і 600');
+    for (const face of faces) {
+        assert.match(face, /font-family: 'JetBrains Mono'/);
+        assert.match(face, /font-display: swap/);
+        assert.match(face, /src: url\('\/fonts\/JetBrainsMono-(latin|cyrillic)-(400|600)\.woff2'\) format\('woff2'\)/);
+        assert.match(face, /unicode-range:/);
+    }
+    for (const name of ['latin-400', 'latin-600', 'cyrillic-400', 'cyrillic-600']) {
+        const file = new URL('../apps/kontrol-plus/public/fonts/JetBrainsMono-' + name + '.woff2', import.meta.url);
+        const bytes = readFileSync(file);
+        assert.equal(bytes.subarray(0, 4).toString('latin1'), 'wOF2', name + ' — справжній woff2');
+        assert.ok(bytes.length > 3000 && bytes.length < 40000, name + ' розмір');
+    }
+    assert.match(readFileSync(new URL('../apps/kontrol-plus/public/fonts/JetBrainsMono-OFL.txt', import.meta.url), 'utf8'), /SIL Open Font License/);
+    // Резервні шрифти лишилися.
+    assert.match(read('apps/kontrol-plus/src/kp-shell.css'), /--kp-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;/);
+    assert.match(css, /font-family: var\(--kp-mono, 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace\)/);
+    // Сайт self-host шрифт не підключає: ні @font-face, ні файлів /fonts/JetBrainsMono-* в index.html, sw.js і vercel.json кореня
+    // (власне підключення шрифту сайтом через Google Fonts не змінено).
+    assert.equal(/@font-face[^}]*JetBrains|JetBrainsMono-/.test(html), false, 'index.html сайту без self-host JetBrains Mono');
+    assert.equal(/JetBrainsMono/.test(read('vercel.json') + read('sw.js')), false);
+    assert.ok(html.includes('family=JetBrains+Mono:wght@400;500;600;700'), 'підключення шрифту сайтом не чіпали');
 });

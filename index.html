@@ -15276,13 +15276,16 @@
     const KP_REGISTRY_COLS_KEY = 'tc_kp_registry_cols';
     const KP_REGISTRY_COL_KEYS = ['no', 'date', 'route', 'client', 'vehicles', 'user', 'status', 'km', 'revenue', 'profit', 'fact', 'contract', 'invoice', 'act', 'pay'];
     let registryKpCols = null;
+    let registryKpColsKey = null; // ключ localStorage, під яким registryKpCols прочитано: інша компанія / користувач → читаємо заново
     function registryColsStorageKey() {
         return KP_REGISTRY_COLS_KEY + ':' + (typeof currentOrgId !== 'undefined' && currentOrgId ? currentOrgId : '-') + ':' + (typeof currentUserId !== 'undefined' && currentUserId ? currentUserId : '-');
     }
     function registryColsState() {
-        if (registryKpCols) return registryKpCols;
+        const key = registryColsStorageKey();
+        if (registryKpCols && registryKpColsKey === key) return registryKpCols;
         let raw = null;
-        try { raw = JSON.parse(localStorage.getItem(registryColsStorageKey()) || 'null'); } catch (e) { raw = null; }
+        try { raw = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { raw = null; }
+        registryKpColsKey = key;
         registryKpCols = {
             // «№ реєстру» сховати не можна: у ньому підсумковий рядок.
             hidden: Array.isArray(raw && raw.hidden) ? raw.hidden.filter(function (k) { return KP_REGISTRY_COL_KEYS.indexOf(k) >= 0 && k !== 'no'; }) : [],
@@ -15633,8 +15636,13 @@
         registrySaveFilters();
         registryCache = null;
         registryDocs = {};
+        registryKpCols = null; // колонки й режим CSV читаються під актуальним ключем tc_kp_registry_cols:<org>:<user>
         ['registry-contract', 'registry-pay'].forEach(function (id) { const el = document.getElementById(id); if (el) el.hidden = !isKP(); });
-        if (isKP()) registryKpEnhance();
+        if (isKP()) {
+            registryKpEnhance();
+            const csvMode = document.getElementById('registry-csv-mode');
+            if (csvMode) csvMode.value = registryColsState().csv;
+        }
         registryPopulateSelects();
         registryApplyControls();
         registryLoad();

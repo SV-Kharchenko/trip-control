@@ -2,6 +2,7 @@
 // Винятки — вузький явний allowlist нижче: міграції етапів 2a (GPS), 3a (ремонти і склад), 3b (ТО і вартість на км),
 // 4a (документи), 4b (ТТН) та їхні pgTAP; для 4b ще index.html (лише картка авто / автопарк: нові поля ТЗ і згортуваний
 // блок ТО / страхування — рішення Свята від 26.10) і один корінний тест цієї картки; для вкладки «Історія рейсів» — той самий index.html і корінний tests/trip-history-tab.test.mjs. Для калькулятора на одній сторінці — той самий index.html і корінний tests/calc-onepage.test.mjs. Інші файли сайту закриті.
+// Реєстр заявок (документи й оплати; CRM-вигляд) — той самий index.html і корінні tests/registry-docs.test.mjs та tests/registry-crm.test.mjs.
 //   npm run check:scope [-- <база, за замовчуванням origin/main або main>]
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,8 @@ export const SCOPE_ALLOWLIST = [
     /^tests\/trip-history-tab\.test\.mjs$/,
     /^tests\/header-menu\.test\.mjs$/,
     /^tests\/calc-onepage\.test\.mjs$/,
+    /^tests\/registry-docs\.test\.mjs$/,
+    /^tests\/registry-crm\.test\.mjs$/,
 ];
 
 export function isAllowedOutside(file) {
