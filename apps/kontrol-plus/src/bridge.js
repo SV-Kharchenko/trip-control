@@ -59,6 +59,8 @@ function app() {
         user: state.session && state.session.user,
         ...crmPermissions(state.context),
         go: (hash) => { location.hash = hash; },
+        // Розділи сайту (калькулятор, реєстр, «Огляд компанії») для дашборда: ті самі кнопки, що й меню (leave() + setStudioView).
+        openSite: (view) => openSite(view)(),
         repairs: state.repairs,
         // Бейдж ТО на вкладці «Ремонти»: з рядків, що вже завантажив розділ «ТО», або новим запитом.
         onMaintenance: (rows) => paintRepairsBadge(tabs.repairs, rows),
@@ -85,7 +87,7 @@ function openSite(view) {
 }
 // [ключ, підпис, обробник, схований до перевірки доступу]
 export const NAV_ITEMS = [
-    ['overview', 'Огляд', openSite('overview'), false],
+    ['overview', 'Огляд', go('#/dashboard'), false],
     ['calc', 'Розрахунки', openSite('calc'), false],
     ['clients', 'Клієнти', go('#/clients'), false],
     ['fleet', 'Автопарк', go('#/fleet'), true],
@@ -122,7 +124,7 @@ function syncNav() {
     else document.body.removeAttribute('data-kp-view');
     // Поза розділами Контроль+ підсвічуємо сайт: «Огляд» або «Розрахунки» (калькулятор з історією заявок).
     const siteView = document.body.getAttribute('data-studio-view');
-    const active = tab || (siteView === 'overview' ? 'overview' : 'calc');
+    const active = tab === 'dashboard' ? 'overview' : tab || (siteView === 'overview' ? 'overview' : 'calc');
     const historyTab = document.getElementById('kp-calc-tab-history');
     const calcTab = document.getElementById('kp-calc-tab-calc');
     const registryTab = document.getElementById('kp-calc-tab-registry');
@@ -408,6 +410,7 @@ async function render() {
     runCleanups();
     let view;
     if (route.view === 'repairs') view = h('section', { class: 'page' }, notice('Розділ «Ремонти» ще не ввімкнено для вашої компанії.', 'info'));
+    else if (route.view === 'dashboard') view = lazyView(() => import('./views/dashboard.js').then((m) => m.renderDashboard(app())));
     else if (route.view === 'docs') view = lazyView(() => import('./views/docs.js').then((m) => m.renderDocs(app(), route)));
     else if (route.view === 'report') {
         view = renderReport(app(), route.sub, route.sub === 'debts'

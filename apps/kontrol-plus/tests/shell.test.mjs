@@ -39,7 +39,7 @@ test('кожен пункт веде на наявний розділ через
             const route = parseCrmHash(item.hash);
             assert.ok(route, item.key + ': hash ' + item.hash + ' є маршрутом Контроль+');
             const view = route.view;
-            assert.ok(['docs', 'clients', 'fleet', 'repairs', 'report', 'drivers', 'gps'].includes(view), item.key + ': розділ ' + view);
+            assert.ok(['docs', 'clients', 'fleet', 'repairs', 'report', 'drivers', 'gps', 'dashboard'].includes(view), item.key + ': розділ ' + view);
             assert.ok(bridge.includes("route.view === '" + view + "'") || view === 'clients' || view === 'docs' || view === 'report', item.key + ' малює bridge.js');
         } else if (item.kind === 'site') {
             const id = SITE_BUTTONS[item.site];
