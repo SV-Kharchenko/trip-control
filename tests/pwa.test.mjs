@@ -143,7 +143,7 @@ test('manifest: Chrome / PWABuilder fields, icons (any + maskable) and screensho
     const m = JSON.parse(read('site.webmanifest'));
     assert.deepEqual([m.id, m.name, m.short_name, m.lang, m.start_url, m.scope, m.display], ['/', 'Trip Control', 'TripControl', 'uk', '/?source=pwa', '/', 'standalone']);
     assert.deepEqual(m.display_override, ['window-controls-overlay', 'standalone']);
-    assert.match(m.description, /^Калькулятор прибутковості вантажних рейсів/);
+    assert.match(m.description, /^Розрахунок рейсу і прибутковість вантажних рейсів/);
     // Колір першого екрана (світла тема, «Ocean» мігрує в неї) — без білого спалаху.
     assert.equal(m.background_color, '#F4EFE4');
     assert.equal(m.theme_color, '#F4EFE4');

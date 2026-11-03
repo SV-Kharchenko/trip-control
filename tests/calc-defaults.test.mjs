@@ -371,7 +371,7 @@ test('structure: block 4 left the calculator for a compact line; the tab is in t
 test('the empty-cost warning leads the owner to the costs tab (the logist gets the text without a button)', () => {
     assert.match(fnSource('calcWarningField'), /closest\('#main-sync-fields'\)\) return \{ input: input, step: 0, cabinet: true \}/);
     assert.match(fnSource('focusCalcWarningField'), /if \(target\.cabinet\) \{ openCabinetTab\('costs'\); return; \}/);
-    assert.match(fnSource('renderCostWarnings'), /target\.cabinet \? 'Заповнити у витратній частині' : 'Заповнити в калькуляторі'/);
+    assert.match(fnSource('renderCostWarnings'), /target\.cabinet \? 'Заповнити у витратній частині' : 'Заповнити в розрахунку рейсу'/);
     assert.match(fnSource('renderCostWarnings'), /!target\.cabinet \|\| currentOrgRole === 'owner'/);
 });
 
