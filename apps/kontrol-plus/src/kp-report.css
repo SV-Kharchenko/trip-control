@@ -4,7 +4,7 @@
 #kp-crm .kp-report { min-width: 0; max-width: 100%; font-size: 13px; }
 #kp-crm .kp-report .kpr-tabs { margin: 0 0 10px; gap: 0; }
 #kp-crm .kp-report .kpr-tab { padding: 6px 12px; font-size: 13px; }
-#kp-crm .kp-report .kpq-groups { margin: 0 0 12px; }
+#kp-crm .kp-report .kpq-groups { margin: 0 0 12px; border: 0; background: transparent; padding: 0; }
 .kpq-mono { font-family: var(--font-mono, 'JetBrains Mono', ui-monospace, monospace); font-variant-numeric: tabular-nums; }
 
 /* Картки: одна база — рейси з фактом */
@@ -30,6 +30,14 @@
 #kp-crm .kp-report .kpq-exp:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 #kp-crm .kp-report .kpq tr.kpq-detail td { text-align: left; white-space: normal; background: var(--bg); color: var(--muted); font-size: 12px; }
 #kp-crm .kp-report .kpq tr.kpq-detail[hidden] { display: none; }
+
+/* Перша колонка липка на широких (≥721px) */
+@media (min-width: 721px) {
+    #kp-crm .kp-report .kpq tr > :first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+    #kp-crm .kp-report .kpq thead tr:first-child > :first-child { z-index: 2; background: var(--bg); }
+    #kp-crm .kp-report .kpq tfoot tr > :first-child { background: var(--bg); }
+    #kp-crm .kp-report .kpq tr.kpq-detail > :first-child { position: static; }
+}
 
 /* Середні ширини: лишаються пріоритетні колонки (група, рейси, план з фактом, факт, відхилення, %) */
 @media (max-width: 1100px) {

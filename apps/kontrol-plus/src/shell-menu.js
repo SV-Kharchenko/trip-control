@@ -5,6 +5,7 @@
 //   kind 'cabinet' — вкладка «Особистого кабінету» сайту (openCabinetTab / openCabinet з index.html).
 // `access` — id старої кнопки меню (#kp-nav-<key>): пункт зникає й з'являється разом із нею (доступ, тариф, роль рахує bridge.js).
 import { DOC_TABS, parseCrmHash } from './lib/route.js';
+import { ROLE_LABELS } from './lib/gate.js';
 
 // «Огляд» у Контроль+ веде на дашборд (#/dashboard, PR 4); сайтовий «Огляд компанії» лишається на сайті й відкривається
 // посиланням «Детальний огляд» з дашборда (SITE_BUTTONS.overview).
@@ -66,11 +67,9 @@ export function parseSidebarPref(raw) {
     return raw === 'collapsed' ? 'collapsed' : 'expanded';
 }
 
-// owner у коді — «Директор» в інтерфейсі, так само директор КП (org_directors); логіст — «Логіст».
+// Підписи ролей — одне джерело, ROLE_LABELS (lib/gate.js): owner — «Директор», director (org_directors, лише перегляд) — «Перегляд», logist — «Логіст».
 export function roleLabel(kpRole, fallback) {
-    if (kpRole === 'owner' || kpRole === 'director') return 'Директор';
-    if (kpRole === 'logist') return 'Логіст';
-    return fallback || '';
+    return ROLE_LABELS[kpRole] || fallback || '';
 }
 
 // «12 заявок» → 12; порожньо / без цифр → null.
