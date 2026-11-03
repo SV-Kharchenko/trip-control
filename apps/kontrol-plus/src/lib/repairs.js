@@ -2,11 +2,12 @@
 // тексти помилок і статусів. Права однаково перевіряє база (kp_repairs_can_write і функції запису).
 import { num } from './format.js';
 import { odometerErrorText } from './errors.js';
+import { ROLE_LABELS } from './gate.js';
 
 export const REPAIR_ROLE_LABELS = {
-    owner: 'Власник',
-    director: 'Директор',
-    logist: 'Логіст',
+    owner: ROLE_LABELS.owner,
+    director: ROLE_LABELS.director,
+    logist: ROLE_LABELS.logist,
     repair_manager: 'Менеджер з ремонтів',
 };
 

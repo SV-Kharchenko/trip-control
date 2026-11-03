@@ -83,9 +83,9 @@ test('підсвітка активного пункту: hash-маршрути,
     assert.equal(at({ hash: '#/cabinet/team' }), 'calc', '#/cabinet/* не маршрут Контроль+: його відкриває сайт');
 });
 
-test('верхня панель: роль «Директор» для owner і директора КП, «Логіст» для логіста; лічильники; стан меню', () => {
+test('верхня панель: роль «Директор» для owner, «Менеджер» для director КП, «Логіст» для логіста; лічильники; стан меню', () => {
     assert.equal(roleLabel('owner'), 'Директор');
-    assert.equal(roleLabel('director'), 'Директор');
+    assert.equal(roleLabel('director'), 'Менеджер');
     assert.equal(roleLabel('logist'), 'Логіст');
     assert.equal(roleLabel(null, 'Директор'), 'Директор');
     assert.equal(roleLabel(undefined), '');

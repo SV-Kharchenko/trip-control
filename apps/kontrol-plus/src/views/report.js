@@ -1,6 +1,7 @@
 import { h, clear, spinner, notice, download } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
-import { toCsv, csvFileName } from '../lib/csv.js';
+import { csvFileName } from '../lib/csv.js';
+import { COLUMNS, columnTitle, directionHint, noFactNote, reportCards, reportCsv, showTotal, totals } from '../lib/report.js';
 import { fmtMoney, fmtPct, num, kyivDate, monthRange, daysBetween } from '../lib/format.js';
 
 export const GROUPS = [
@@ -10,33 +11,7 @@ export const GROUPS = [
     { value: 'direction', label: 'Напрямки (шаблони)' },
 ];
 
-const COLUMNS = [
-    { key: 'trips', label: 'Рейсів', type: 'int' },
-    { key: 'trips_with_fact', label: 'З фактом', type: 'int' },
-    { key: 'plan_revenue', label: 'План: дохід' },
-    { key: 'plan_costs', label: 'План: витрати' },
-    { key: 'plan_profit', label: 'План: прибуток' },
-    { key: 'fact_revenue', label: 'Факт: дохід' },
-    { key: 'fact_costs', label: 'Факт: витрати' },
-    { key: 'fact_profit', label: 'Факт: прибуток' },
-    { key: 'deviation_profit', label: 'Відхилення прибутку' },
-    { key: 'deviation_pct', label: 'Відхилення, %', type: 'pct' },
-];
-
-// Підсумок: суми; відсоток — від плану рейсів, що мають факт (як у рядках на сервері).
-export function totals(rows) {
-    const total = { group_label: 'Разом' };
-    for (const c of COLUMNS) if (c.type !== 'pct') total[c.key] = rows.reduce((s, r) => s + (num(r[c.key]) || 0), 0);
-    const base = rows.reduce((s, r) => s + (num(r.plan_profit_with_fact) || 0), 0);
-    total.deviation_pct = total.trips_with_fact && base !== 0 ? Math.round((total.deviation_profit / Math.abs(base)) * 1000) / 10 : null;
-    return total;
-}
-
-export function reportCsv(rows, groupLabel) {
-    const header = [groupLabel, ...COLUMNS.map((c) => c.label)];
-    const line = (r) => [r.group_label, ...COLUMNS.map((c) => num(r[c.key]))];
-    return toCsv(header, [...rows.map(line), line(totals(rows))]);
-}
+export { totals, reportCsv };
 
 export const REPORT_TABS = [
     { sub: 'main', hash: '#/report', label: 'План/факт' },
@@ -60,7 +35,7 @@ export function renderReport(app, sub = 'main', debtsView = null) {
     const range = monthRange(kyivDate());
     const from = h('input', { type: 'date', id: 'r-from', value: saved.from || range.from });
     const to = h('input', { type: 'date', id: 'r-to', value: saved.to || range.to });
-    const group = h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Групування' });
+    const group = h('div', { class: 'kpd-periods kpq-groups', role: 'radiogroup', 'aria-label': 'Групування' });
     let current = GROUPS.some((g) => g.value === saved.group) ? saved.group : 'logist';
     const result = h('div', null);
     const exportBtn = h('button', { type: 'button', class: 'btn btn-ghost', disabled: true }, 'Експорт CSV');
@@ -69,7 +44,7 @@ export function renderReport(app, sub = 'main', debtsView = null) {
     function drawGroups() {
         clear(group, GROUPS.map((g) => h('button', {
             type: 'button', role: 'radio', 'aria-checked': String(g.value === current),
-            class: g.value === current ? 'is-on' : '',
+            class: 'kpd-chip' + (g.value === current ? ' is-on' : ''),
             onclick: () => { current = g.value; drawGroups(); load(); },
         }, g.label)));
     }
@@ -114,27 +89,60 @@ export function renderReport(app, sub = 'main', debtsView = null) {
         }
         exportBtn.disabled = false;
         const total = totals(rows);
-        const cellFor = (r, c) => {
-            const v = r[c.key];
-            if (c.type === 'int') return h('td', null, String(num(v) || 0));
-            if (c.type === 'pct') return h('td', { class: signClass(v) }, fmtPct(v));
-            const cls = c.key === 'deviation_profit' ? signClass(r.trips_with_fact ? v : null) : null;
-            return h('td', { class: cls }, c.key.startsWith('fact_') && !num(r.trips_with_fact) ? '—' : fmtMoney(v));
+        const cards = reportCards(total);
+        const note = noFactNote(cards, fmtMoney);
+        const dash = () => h('b', { class: 'kpq-mono' }, '—');
+        const card = (label, value, cls) => h('div', { class: 'stat kpq-card' }, h('div', { class: 'stat-label' }, label),
+            h('div', { class: 'stat-value kpq-mono' + (cls ? ' ' + cls : '') }, value));
+        const cell = (c, r) => {
+            const v = c.value(r);
+            const label = columnTitle(c);
+            if (v === null || v === undefined) return h('td', { 'data-label': label, class: 'kpq-mono' + (c.optional ? ' kpq-all' : '') }, '—');
+            if (c.kind === 'text') return h('td', { 'data-label': label, class: 'kpq-mono' }, v);
+            const text = c.kind === 'pct' ? fmtPct(v) : c.kind === 'signed' && v > 0 ? '+' + fmtMoney(v) : fmtMoney(v);
+            const sign = c.kind === 'signed' || c.kind === 'pct' ? signClass(v) : null;
+            return h('td', { 'data-label': label, class: 'kpq-mono' + (c.optional ? ' kpq-all' : '') + (sign ? ' ' + sign : '') }, text);
         };
+        const body = [];
+        for (const r of rows) {
+            const factual = num(r.trips_with_fact) > 0;
+            const detail = h('tr', { class: 'kpq-detail', hidden: true },
+                h('td', { colspan: COLUMNS.length + 1 }, 'Факт по рейсах з фактом: дохід ', h('b', { class: 'kpq-mono' }, fmtMoney(r.fact_revenue)),
+                    ' · витрати ', h('b', { class: 'kpq-mono' }, fmtMoney(r.fact_costs)), ' (включно із запланованими накладними)'));
+            const toggle = factual ? h('button', {
+                type: 'button', class: 'kpq-exp', 'aria-expanded': 'false', 'aria-label': 'Показати дохід і витрати факту',
+                onclick: (e) => { const open = detail.hidden; detail.hidden = !open; e.currentTarget.setAttribute('aria-expanded', String(open)); },
+            }, '▸') : null;
+            body.push(h('tr', { class: r.group_key === 'none' ? 'is-none' : '' },
+                h('th', { scope: 'row', class: 'text', 'data-label': groupLabel }, toggle, h('span', { class: 'kpq-name' }, r.group_label)),
+                COLUMNS.map((c) => cell(c, r))), detail);
+        }
+        const groups = [];
+        for (const c of COLUMNS) {
+            const last = groups[groups.length - 1];
+            if (c.group && last && last.group === c.group) last.span += 1;
+            else groups.push({ group: c.group || null, span: 1, optional: Boolean(c.optional), plain: c.group ? null : c });
+        }
+        const head1 = h('tr', null, h('th', { class: 'text', rowspan: 2, scope: 'col' }, groupLabel),
+            groups.map((g) => (g.group ? h('th', { colspan: g.span, scope: 'colgroup', class: 'kpq-grp' + (g.optional ? ' kpq-all' : '') }, g.group)
+                : h('th', { rowspan: 2, scope: 'col' }, g.plain.label))));
+        const head2 = h('tr', null, COLUMNS.filter((c) => c.group).map((c) => h('th', { scope: 'col', class: c.optional ? 'kpq-all' : '' }, c.label)));
+        const foot = showTotal(rows) ? h('tfoot', null, h('tr', null, h('th', { scope: 'row', class: 'text', 'data-label': groupLabel }, 'Разом'), COLUMNS.map((c) => cell(c, total)))) : null;
+        const dirHint = directionHint(current, rows);
         clear(result,
-            h('div', { class: 'stats' },
-                stat('Рейсів', `${total.trips} (з фактом ${total.trips_with_fact})`),
-                stat('План: прибуток', fmtMoney(total.plan_profit)),
-                stat('Факт: прибуток', total.trips_with_fact ? fmtMoney(total.fact_profit) : '—'),
-                stat('Відхилення', total.trips_with_fact ? fmtMoney(total.deviation_profit) + ' · ' + fmtPct(total.deviation_pct) : '—')),
-            h('div', { class: 'table-wrap' }, h('table', { class: 'table table-num report' },
-                h('thead', null, h('tr', null, h('th', { class: 'text' }, groupLabel), COLUMNS.map((c) => h('th', null, c.label)))),
-                h('tbody', null, rows.map((r) => h('tr', { class: r.group_key === 'none' ? 'is-none' : '' },
-                    h('th', { scope: 'row', class: 'text' }, r.group_label), COLUMNS.map((c) => cellFor(r, c))))),
-                h('tfoot', null, h('tr', null, h('th', { scope: 'row', class: 'text' }, 'Разом'), COLUMNS.map((c) => cellFor(total, c)))))),
+            h('div', { class: 'kpq-cards' },
+                card('План (рейси з фактом)', cards.hasFacts ? fmtMoney(cards.plan) : dash()),
+                card('Факт', cards.hasFacts ? fmtMoney(cards.fact) : dash()),
+                card('Відхилення', cards.hasFacts ? h('span', null, (cards.deviation > 0 ? '+' : '') + fmtMoney(cards.deviation), ' · ', fmtPct(cards.pct)) : dash(),
+                    cards.hasFacts ? signClass(cards.deviation) : null)),
+            cards.hasFacts ? null : h('p', { class: 'muted small kpq-note' }, cards.hint),
+            note ? h('p', { class: 'muted small kpq-note' }, note) : null,
+            dirHint ? h('p', { class: 'notice notice-info kpq-hint' }, dirHint) : null,
+            h('div', { class: 'table-wrap kpq-wrap' }, h('table', { class: 'table table-num report kpq' },
+                h('thead', null, head1, head2), h('tbody', null, body), foot)),
             h('p', { class: 'muted small' },
-                'Рейси зі статусом «Прийнято» або «Виконано» з датою рейсу в періоді. Відхилення — лише по рейсах з внесеним фактом: ',
-                'факт прибутку мінус план цих же рейсів. Витрати факту включають заплановані накладні.',
+                'План і факт порівнюються лише по рейсах «Прийнято» / «Виконано» з внесеним фактом; план решти рейсів — окремо, у колонці «Усі рейси». ',
+                'Відхилення = факт мінус план цих же рейсів. Витрати факту включають заплановані накладні. Дохід і витрати факту — у розгортанні рядка (▸).',
                 current === 'vehicle' ? ' Рейс з кількома авто ділиться між ними пропорційно тоннажу (без тоннажу — порівну).' : '',
                 current === 'direction' ? ' Напрямок — шаблон маршруту з такою ж назвою, як у рейсу (копії рейсів теж); інші — «Без шаблону».' : ''));
     }
@@ -159,10 +167,6 @@ export function renderReport(app, sub = 'main', debtsView = null) {
                 h('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => setPeriod('year') }, 'З початку року'))),
         group,
         result);
-}
-
-function stat(label, value) {
-    return h('div', { class: 'stat' }, h('div', { class: 'stat-label' }, label), h('div', { class: 'stat-value' }, String(value)));
 }
 
 function signClass(value) {

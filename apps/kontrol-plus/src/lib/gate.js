@@ -1,6 +1,6 @@
 // Гейт вкладок Контроль+ за відповіддю kp_context(). Лише підказка інтерфейсу: справжня перевірка — RLS і функції БД
 // (CONTROL_PLUS_REQUIRED для org без plan = 'control_plus').
-export const ROLE_LABELS = { owner: 'Власник', logist: 'Логіст', director: 'Директор (перегляд)' };
+export const ROLE_LABELS = { owner: 'Директор', logist: 'Логіст', director: 'Менеджер' };
 
 export function crmAccess(context) {
     if (!context) return 'paywall';
