@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 15);
+    assert.equal(SCOPE_ALLOWLIST.length, 17);
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -181,5 +181,20 @@ test('check-scope allowlist: one-page calculator (index.html + its root test), n
         'tests/calc-stepper.test.mjs',
         'tests/calc-golden.test.mjs',
         'api/calculate.js',
+    ]) assert.equal(isAllowedOutside(bad), false, bad);
+});
+
+test('check-scope allowlist: exactly two root tests for the request registry, neighbours refused', () => {
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(15).map(String), ['/^tests\\/registry-docs\\.test\\.mjs$/', '/^tests\\/registry-crm\\.test\\.mjs$/']);
+    assert.equal(isAllowedOutside('tests/registry-docs.test.mjs'), true);
+    assert.equal(isAllowedOutside('tests/registry-crm.test.mjs'), true);
+    for (const bad of [
+        'tests/registry-docs.test.mjs.bak',
+        'tests/x/registry-docs.test.mjs',
+        'tests/registry-crm.test.js',
+        'tests/registry-crm-extra.test.mjs',
+        'tests/registry-ui.test.mjs',
+        'tests/request-registry.test.mjs',
+        'supabase/migrations/20261116090000_registry_documents.sql',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });

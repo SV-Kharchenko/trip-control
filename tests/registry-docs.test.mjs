@@ -24,13 +24,14 @@ const constLine = (name) => {
     return html.slice(start, html.indexOf(';\n', start) + 1);
 };
 const SYNC = ['historyCsvCell', 'kpDirectorActive', 'registryDocText', 'registryPayState', 'registryDocMatches', 'registryCanMarkPaid', 'registryDocActions', 'registryNeedsLocal',
-    'registryNormalizeFilters', 'registryDefaultFilters', 'registryMonthRange', 'registryColumns', 'registryCellValue', 'registryCsv', 'registryRouteLabel', 'registryVehicleLabel'];
+    'registryNormalizeFilters', 'registryDefaultFilters', 'registryMonthRange', 'registryColumns', 'registryCellValue', 'registryCsv', 'registryRouteLabel', 'registryVehicleLabel',
+    'registryColsStorageKey', 'registryColsState', 'registryVisibleColumns'];
 function world(extra = {}) {
     const ctx = vm.createContext({
         isKP: () => true, window: {}, currentOrgRole: 'owner', currentUserId: 'u1', currentWorkMode: 'solo', uiView: 'director', teamState: { members: [] },
         savedCalculations: [], historyTripVehicles: () => [], savedAuthorLabel: (id) => 'user:' + id, calls: [], console, ...extra,
     });
-    vm.runInContext(['REGISTRY_STATUS_LABELS', 'REGISTRY_PAY_LABELS', 'REGISTRY_DOC_STATUS'].map(constLine).join('\n') + '\nlet registryDocs = {};\n'
+    vm.runInContext(['REGISTRY_STATUS_LABELS', 'REGISTRY_PAY_LABELS', 'REGISTRY_DOC_STATUS', 'KP_REGISTRY_COLS_KEY', 'KP_REGISTRY_COL_KEYS'].map(constLine).join('\n') + '\nlet registryDocs = {}; let registryKpCols = null; let registryKpColsKey = null;\n'
         + SYNC.map((n) => fnSource(n)).join('\n') + '\n' + fnSource('registryLoadDocs', true), ctx);
     return ctx;
 }
