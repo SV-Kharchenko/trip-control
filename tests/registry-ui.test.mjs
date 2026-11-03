@@ -24,22 +24,27 @@ const constLine = (name) => {
 };
 const SYNC = ['registryMonthRange', 'registryDefaultFilters', 'registryNormalizeFilters', 'registryFiltersToJson', 'registryNeedsLocal', 'registryRouteLabel',
     'registryRowMatches', 'registryTotalsOf', 'registryTotalsFromRpc', 'registryRowCan', 'canCancelStatus', 'approvalRole', 'registryVehicleLabel', 'registryColumns',
-    'registryCellValue', 'registryCsv', 'historyCsvCell'];
-const ASYNC = ['registryRpcPage', 'registryFetchAll', 'registryLoad'];
+    'registryCellValue', 'registryCsv', 'historyCsvCell', 'registryStorageKey', 'registryReadStored', 'registrySaveFilters', 'registrySelectOptions', 'registrySanitizeFilters'];
+const ASYNC = ['registryRpcPage', 'registryFetchAllRows', 'registryFetchAll', 'registryLoad'];
 
+function memoryStorage(initial = {}) {
+    const data = { ...initial };
+    return { getItem: (k) => (k in data ? data[k] : null), setItem: (k, v) => { data[k] = String(v); }, removeItem: (k) => { delete data[k]; }, data };
+}
 function world(extra = {}) {
     const calls = [];
     const ctx = vm.createContext({
         currentWorkMode: 'team', currentOrgRole: 'owner', currentUserId: 'u-owner', uiView: 'director', uiPreview: false,
         teamState: { members: [], approval_mode: 'owner_only' }, savedCalculations: [], tripActuals: {},
+        currentOrgId: 'org-1', fleetVehicles: [], localStorage: memoryStorage(), tcModal: async () => ({ ok: true }), showToast() {},
         historyTripVehicles: () => [], savedAuthorLabel: (id) => 'user:' + id,
         document: { getElementById: () => null }, console, calls,
         supabaseClient: { rpc: async (name, args) => { calls.push({ name, args }); return { data: [], error: null }; } },
         ...extra,
     });
-    vm.runInContext(['REGISTRY_PAGE_SIZE', 'REGISTRY_FETCH_ALL_LIMIT', 'REGISTRY_STATUS_LABELS', 'REGISTRY_UUID'].map(constLine).join('\n')
+    vm.runInContext(['REGISTRY_PAGE_SIZE', 'REGISTRY_FETCH_ALL_LIMIT', 'REGISTRY_STATUS_LABELS', 'REGISTRY_UUID', 'REGISTRY_LEGACY_STORAGE_KEY', 'REGISTRY_WARNING'].map(constLine).join('\n')
         + '\nlet registryState = { rows: [], total: 0, page: 0, totals: null, loaded: false, loading: false, error: "", focusId: "" };'
-        + '\nlet registryFilters = null;\nfunction registryRender() {}\n'
+        + '\nlet registryFilters = null;\nlet registryCache = null;\nfunction registryRender() {}\n'
         + SYNC.map((n) => fnSource(n)).join('\n') + '\n' + ASYNC.map((n) => fnSource(n, true)).join('\n'), ctx);
     return ctx;
 }
@@ -63,8 +68,11 @@ test('фільтри збираються в правильний filters jsonb 
 
 test('період за замовчуванням — поточний місяць; скинутий користувачем період лишається порожнім', () => {
     const ctx = world();
-    assert.deepEqual(run(ctx, 'registryMonthRange(new Date(2026, 1, 10))'), { from: '2026-02-01', to: '2026-02-28' });
-    assert.deepEqual(run(ctx, 'registryMonthRange(new Date(2028, 1, 10))'), { from: '2028-02-01', to: '2028-02-29' });
+    assert.deepEqual(run(ctx, 'registryMonthRange(new Date("2026-02-10T12:00:00Z"))'), { from: '2026-02-01', to: '2026-02-28' });
+    assert.deepEqual(run(ctx, 'registryMonthRange(new Date("2028-02-10T12:00:00Z"))'), { from: '2028-02-01', to: '2028-02-29' });
+    // Київ, а не час пристрою: 31.10 22:30 UTC — це вже 1 листопада за Києвом (EET, UTC+2).
+    assert.deepEqual(run(ctx, 'registryMonthRange(new Date("2026-10-31T22:30:00Z"))'), { from: '2026-11-01', to: '2026-11-30' });
+    assert.deepEqual(run(ctx, 'registryMonthRange(new Date("2026-06-30T21:30:00Z"))'), { from: '2026-07-01', to: '2026-07-31' }, 'літній час UTC+3');
     const month = run(ctx, 'registryMonthRange()');
     assert.deepEqual(run(ctx, 'registryNormalizeFilters(null)'), { from: month.from, to: month.to, status: '', user: '', vehicle: '', client: '', q: '' });
     assert.deepEqual(run(ctx, 'registryNormalizeFilters({ from: "", to: "" })').from, '');
@@ -153,8 +161,8 @@ test('розмітка: вкладка поруч із «Заявками», ф�
         'registry-totals', 'registry-table', 'registry-cards', 'registry-pager', 'registry-filter-toggle']) assert.ok(html.includes('id="' + id + '"'), id);
     assert.ok(html.includes('<label class="team-feature" for="registry-user">Логіст'), 'фільтр логіста лише в team (клас team-feature)');
     for (const label of ['Усі статуси', 'Активні', 'Виконані', 'Скасовані']) assert.ok(html.includes(label), label);
-    assert.ok(html.includes("const REGISTRY_STORAGE_KEY = 'tc_registry_filters';"));
-    assert.match(fnSource('registrySaveFilters'), /localStorage\.setItem\(REGISTRY_STORAGE_KEY/);
+    assert.ok(html.includes("const REGISTRY_LEGACY_STORAGE_KEY = 'tc_registry_filters';"));
+    assert.match(fnSource('registrySaveFilters'), /localStorage\.setItem\(registryStorageKey\(\)/);
     assert.match(fnSource('registryOpen'), /registryReadStored\(\)/, 'після оновлення фільтри відновлюються');
     assert.match(fnSource('setStudioView'), /registryOpen\(\)/);
     assert.ok(html.includes('#registry-section .comparison-table { display: none; }'), 'на ≤720px таблиця → картки');
@@ -185,4 +193,94 @@ test('тексти реєстру не вживають слово «власн�
     const code = html.slice(html.indexOf('// ===== Реєстр заявок: статуси'), html.indexOf('async function exportHistory('));
     assert.equal(/власник/i.test(markup), false);
     assert.equal(/власник/i.test(code.replace(/\/\/[^\n]*/g, '')), false);
+});
+
+test('ключ фільтрів: tc_registry_filters:<org>:<user>; старий спільний ключ видаляється при першому читанні; фільтри різних користувачів не змішуються', () => {
+    const ctx = world();
+    ctx.localStorage.setItem('tc_registry_filters', JSON.stringify({ status: 'done' }));
+    ctx.localStorage.setItem('tc_registry_filters:org-1:u-other', JSON.stringify({ status: 'cancelled' }));
+    assert.equal(vm.runInContext('registryStorageKey()', ctx), 'tc_registry_filters:org-1:u-owner');
+    assert.equal(vm.runInContext('registryReadStored()', ctx), null, 'старе значення не підхоплюється');
+    assert.equal(ctx.localStorage.getItem('tc_registry_filters'), null, 'старий ключ видалено');
+    vm.runInContext('registryFilters = registryNormalizeFilters({ status: "accepted", from: "", to: "" }); registrySaveFilters();', ctx);
+    assert.deepEqual(JSON.parse(ctx.localStorage.getItem('tc_registry_filters:org-1:u-owner')).status, 'accepted');
+    assert.equal(JSON.parse(ctx.localStorage.getItem('tc_registry_filters:org-1:u-other')).status, 'cancelled', 'чужий ключ не зачеплено');
+    assert.equal(run(ctx, 'registryReadStored().status'), 'accepted');
+    const other = world({ currentUserId: 'u-other', localStorage: ctx.localStorage });
+    assert.equal(run(other, 'registryReadStored().status'), 'cancelled');
+});
+
+test('відновлення: збережені user / vehicle / client без відповідної опції скидаються на «Усі»', () => {
+    const ctx = world({
+        fleetVehicles: [{ id: V1, label: 'AA0001KA' }],
+        teamState: { members: [{ id: U1, email: 'l@x.test' }], approval_mode: 'owner_only' },
+        savedCalculations: [{ id: 'a', clientName: 'ТОВ А' }],
+    });
+    const stored = { from: '2026-11-01', to: '2026-11-30', status: 'done', user: U1, vehicle: V1, client: 'ТОВ А', q: 'x' };
+    assert.deepEqual(run(ctx, 'registrySanitizeFilters(registryNormalizeFilters(' + JSON.stringify(stored) + '), registrySelectOptions())'), stored);
+    const stale = { ...stored, user: '99999999-9999-4999-8999-999999999999', vehicle: '88888888-8888-4888-8888-888888888888', client: 'Видалений клієнт' };
+    assert.deepEqual(run(ctx, 'registrySanitizeFilters(registryNormalizeFilters(' + JSON.stringify(stale) + '), registrySelectOptions())'), { ...stored, user: '', vehicle: '', client: '' });
+    const solo = world({ currentWorkMode: 'solo', teamState: { members: [{ id: U1 }] } });
+    assert.equal(run(solo, 'registrySanitizeFilters(registryNormalizeFilters({ user: "' + U1 + '", from: "", to: "" }), registrySelectOptions()).user'), '', 'у solo логіста немає');
+});
+
+test('ліміт 5000: попередження над підсумками й у CSV перед завантаженням; точно до ліміту не ставиться, якщо сторінка коротка', async () => {
+    const full = world({ supabaseClient: { rpc: async (name, args) => { full.calls.push({ name, args }); return { data: Array.from({ length: 200 }, (_, i) => ({ id: 'x' + args.p_offset + '-' + i, registry_no: 'x-' + i, status: 'accepted' })), error: null }; } } });
+    vm.runInContext('registryFilters = registryNormalizeFilters({ from: "", to: "", q: "x" });', full);
+    await vm.runInContext('registryLoad()', full);
+    assert.equal(full.calls.length, 25, '25 сторінок по 200 = ліміт 5000');
+    assert.equal(run(full, 'registryState.truncated'), true);
+    assert.equal(run(full, 'registryState.total'), 5000);
+    const short = world({ supabaseClient: { rpc: async (name, args) => { short.calls.push({ name, args }); return { data: [{ id: 'y', status: 'accepted' }], error: null }; } } });
+    vm.runInContext('registryFilters = registryNormalizeFilters({ from: "", to: "", q: "" , client: "К"});', short);
+    await vm.runInContext('registryLoad()', short);
+    assert.equal(run(short, 'registryState.truncated'), false);
+    assert.ok(html.includes("const REGISTRY_WARNING = 'Показано перші 5000 записів, звузь період або фільтри';"));
+    assert.ok(html.includes('id="registry-warning"'));
+    assert.match(fnSource('registryRender'), /warnEl\.textContent = registryState\.truncated \? REGISTRY_WARNING/);
+    const exportSrc = fnSource('registryExportCsv', true);
+    assert.ok(exportSrc.indexOf('registryState.truncated') < exportSrc.indexOf('downloadHistoryFile('), 'попередження — до завантаження');
+    assert.match(exportSrc, /tcModal\(\{ title: 'Експорт неповний', text: REGISTRY_WARNING/);
+});
+
+test('кеш повної вибірки: пошук і клієнт фільтруються по кешу без нових RPC; зміна періоду чи статусу — новий запит', async () => {
+    const data = [
+        { id: '1', registry_no: '2026-0001', status: 'accepted', route_from: 'Київ', route_to: 'Львів', client_name: 'А' },
+        { id: '2', registry_no: '2026-0002', status: 'done', route_from: 'Умань', route_to: 'Одеса', client_name: 'Б' },
+    ];
+    const ctx = world({ supabaseClient: { rpc: async (name, args) => { ctx.calls.push({ name, args }); return { data, error: null }; } } });
+    const load = async (filters) => { vm.runInContext('registryFilters = registryNormalizeFilters(' + JSON.stringify(filters) + ');', ctx); await vm.runInContext('registryLoad()', ctx); };
+    await load({ from: '2026-11-01', to: '2026-11-30', q: 'київ' });
+    assert.equal(ctx.calls.length, 1);
+    assert.deepEqual(run(ctx, 'registryState.rows.map(r => r.id)'), ['1']);
+    await load({ from: '2026-11-01', to: '2026-11-30', q: 'одеса' });
+    await load({ from: '2026-11-01', to: '2026-11-30', q: '', client: 'Б' });
+    await load({ from: '2026-11-01', to: '2026-11-30', q: '2026-0002' });
+    assert.equal(ctx.calls.length, 1, 'пошук і клієнт — без нових RPC');
+    assert.deepEqual(run(ctx, 'registryState.rows.map(r => r.id)'), ['2']);
+    await load({ from: '2026-10-01', to: '2026-11-30', q: 'київ' });
+    assert.equal(ctx.calls.length, 2, 'інший період — новий запит');
+    await load({ from: '2026-10-01', to: '2026-11-30', q: 'київ', status: 'done' });
+    assert.equal(ctx.calls.length, 3, 'інший статус — новий запит');
+    vm.runInContext('registryCache = null;', ctx);
+    await load({ from: '2026-10-01', to: '2026-11-30', q: 'київ', status: 'done' });
+    assert.equal(ctx.calls.length, 4, 'скинутий кеш (дія, скидання фільтрів, повторне відкриття) — новий запит');
+});
+
+test('CSV: значення з \\t і \\r на початку отримують префікс апострофа (формули не виконуються), решта екранування без змін', () => {
+    const ctx = world();
+    const cell = (v) => vm.runInContext('historyCsvCell(' + JSON.stringify(v) + ')', ctx);
+    for (const lead of ['=', '+', '-', '@']) assert.equal(cell(lead + 'SUM(A1)'), "'" + lead + 'SUM(A1)');
+    assert.equal(cell('\tcmd'), "'\tcmd");
+    assert.equal(cell('\rcmd'), '"\'\rcmd"');
+    assert.equal(cell('a;b'), '"a;b"');
+    assert.equal(cell('звичайний'), 'звичайний');
+    const csv = vm.runInContext('registryCsv(' + JSON.stringify([{ id: 'a', registry_no: '2026-0001', status: 'cancelled', user_id: 'u', name: '=HYPERLINK("x")', cancel_reason: '\tшкідливо', trip_date: '2026-11-01' }]) + ')', ctx);
+    assert.ok(csv.includes("'=HYPERLINK") && csv.includes("'\tшкідливо"));
+});
+
+test('мобільні картки реєстру: другим рядком клієнт, авто й км', () => {
+    const cards = html.slice(html.indexOf("cards.innerHTML = registryState.rows.map"), html.indexOf('function openRegistryRow('));
+    assert.ok(cards.includes("registryCellValue(row, 'client'), registryCellValue(row, 'vehicles')"));
+    assert.ok(cards.includes("+ ' км'"));
 });

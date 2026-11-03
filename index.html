@@ -5818,6 +5818,7 @@
             </label>
             <button type="button" class="btn tc-registry-reset" onclick="registryResetFilters()">Скинути</button>
         </div>
+        <p class="tc-history-reason" id="registry-warning" role="status" hidden></p>
         <div class="tc-registry-totals" id="registry-totals"></div>
         <div class="comparison-table">
             <table id="registry-table">
@@ -14673,7 +14674,7 @@
             return String(value);
         }
         let text = String(value);
-        if (/^[=+\-@]/.test(text)) text = "'" + text;
+        if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
         if (/[;"\n\r]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
         return text;
     }
@@ -14916,19 +14917,24 @@
     // ===== Реєстр заявок: статуси accepted | done | cancelled (RPC registry_list / registry_totals) =====
     const REGISTRY_PAGE_SIZE = 50;
     const REGISTRY_FETCH_ALL_LIMIT = 5000;
-    const REGISTRY_STORAGE_KEY = 'tc_registry_filters';
+    const REGISTRY_LEGACY_STORAGE_KEY = 'tc_registry_filters';
+    const REGISTRY_WARNING = 'Показано перші 5000 записів, звузь період або фільтри';
     const REGISTRY_STATUS_LABELS = { accepted: 'Активна', done: 'Виконана', cancelled: 'Скасована' };
     const REGISTRY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    let registryState = { rows: [], total: 0, page: 0, totals: null, loaded: false, loading: false, error: '', focusId: '' };
+    let registryState = { rows: [], total: 0, page: 0, totals: null, loaded: false, loading: false, error: '', focusId: '', truncated: false };
     let registryFilters = null;
     let registryTimer = null;
+    // Повна вибірка локального режиму: тримається, поки не змінились період, статус, логіст, авто; q і клієнт фільтруються по кешу.
+    let registryCache = null;
 
+    // Поточний місяць за київським часом (а не часом пристрою): межі періоду збігаються з trip_date на сервері.
     function registryMonthRange(date) {
-        const d = date || new Date();
+        const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv', year: 'numeric', month: '2-digit' }).formatToParts(date || new Date());
+        const year = Number(parts.find(function (p) { return p.type === 'year'; }).value);
+        const month = Number(parts.find(function (p) { return p.type === 'month'; }).value);
         const pad = function (n) { return String(n).padStart(2, '0'); };
-        const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-        const ym = d.getFullYear() + '-' + pad(d.getMonth() + 1);
-        return { from: ym + '-01', to: ym + '-' + pad(last) };
+        const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+        return { from: year + '-' + pad(month) + '-01', to: year + '-' + pad(month) + '-' + pad(last) };
     }
     function registryDefaultFilters() {
         const month = registryMonthRange();
@@ -15054,11 +15060,37 @@
         return '﻿' + lines.join('\r\n');
     }
 
+    // Фільтри окремі для кожної пари компанія + користувач: tc_registry_filters:<org_id>:<user_id>.
+    function registryStorageKey() {
+        return REGISTRY_LEGACY_STORAGE_KEY + ':' + (currentOrgId || '-') + ':' + (currentUserId || '-');
+    }
     function registryReadStored() {
-        try { return JSON.parse(localStorage.getItem(REGISTRY_STORAGE_KEY) || 'null'); } catch (e) { return null; }
+        try {
+            localStorage.removeItem(REGISTRY_LEGACY_STORAGE_KEY);
+            return JSON.parse(localStorage.getItem(registryStorageKey()) || 'null');
+        } catch (e) { return null; }
     }
     function registrySaveFilters() {
-        try { localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(registryFilters)); } catch (e) { /* без збереження фільтри працюють у сесії */ }
+        try { localStorage.setItem(registryStorageKey(), JSON.stringify(registryFilters)); } catch (e) { /* без збереження фільтри працюють у сесії */ }
+    }
+    // Варіанти селектів: авто з автопарку, клієнти зі збережених заявок, учасники команди (лише team).
+    function registrySelectOptions() {
+        const names = {};
+        savedCalculations.forEach(function (row) { if (row.clientName) names[row.clientName] = true; });
+        return {
+            vehicle: (fleetVehicles || []).filter(function (v) { return v && v.id; }).map(function (v) { return [String(v.id), v.label || 'Авто']; }),
+            client: Object.keys(names).sort().map(function (n) { return [n, n]; }),
+            user: currentWorkMode === 'team' ? (teamState.members || []).map(function (m) { return [m.id, m.email || String(m.id).slice(0, 8)]; }) : []
+        };
+    }
+    // Збережені user / vehicle / client, яких немає серед варіантів, скидаються на «Усі».
+    function registrySanitizeFilters(f, options) {
+        const has = function (list, value) { return !value || list.some(function (o) { return o[0] === value; }); };
+        return Object.assign({}, f, {
+            user: has(options.user, f.user) ? f.user : '',
+            vehicle: has(options.vehicle, f.vehicle) ? f.vehicle : '',
+            client: has(options.client, f.client) ? f.client : ''
+        });
     }
     function registryReadControls() {
         const value = function (id) { const el = document.getElementById(id); return el ? el.value : ''; };
@@ -15083,11 +15115,10 @@
             el.value = options.some(function (o) { return o[0] === keep; }) ? keep : '';
         };
         const f = registryFilters;
-        fill('registry-vehicle', 'Усі авто', (fleetVehicles || []).filter(function (v) { return v && v.id; }).map(function (v) { return [String(v.id), v.label || 'Авто']; }), f.vehicle);
-        const names = {};
-        savedCalculations.forEach(function (row) { if (row.clientName) names[row.clientName] = true; });
-        fill('registry-client', 'Усі клієнти', Object.keys(names).sort().map(function (n) { return [n, n]; }), f.client);
-        fill('registry-user', 'Усі учасники', (teamState.members || []).map(function (m) { return [m.id, m.email || String(m.id).slice(0, 8)]; }), f.user);
+        const options = registrySelectOptions();
+        fill('registry-vehicle', 'Усі авто', options.vehicle, f.vehicle);
+        fill('registry-client', 'Усі клієнти', options.client, f.client);
+        fill('registry-user', 'Усі учасники', options.user, f.user);
     }
 
     // Рядки у форматі registry_list з локальних збережених заявок (режим перегляду без бази, ?preview=1).
@@ -15122,22 +15153,37 @@
         if (error) throw error;
         return data || [];
     }
-    // Усі рядки за фільтром (для експорту, пошуку й клієнтського фільтра): сторінками по 200, без обмеження сторінки таблиці.
-    async function registryFetchAll(f) {
-        if (uiPreview) return registryLocalRows(f).filter(function (row) { return registryRowMatches(row, f); });
+    // Усі рядки за серверними фільтрами (для експорту, пошуку й клієнтського фільтра): сторінками по 200 до REGISTRY_FETCH_ALL_LIMIT.
+    // truncated = дійшли до ліміту, частину записів не завантажено.
+    async function registryFetchAllRows(f) {
         const json = registryFiltersToJson(f);
+        const key = JSON.stringify([uiPreview, json]);
+        if (registryCache && registryCache.key === key) return registryCache;
         let all = [];
-        for (let offset = 0; offset < REGISTRY_FETCH_ALL_LIMIT; offset += 200) {
-            const part = await registryRpcPage(json, 200, offset);
-            all = all.concat(part);
-            if (part.length < 200) break;
+        let truncated = false;
+        if (uiPreview) {
+            all = registryLocalRows(f);
+        } else {
+            truncated = true;
+            for (let offset = 0; offset < REGISTRY_FETCH_ALL_LIMIT; offset += 200) {
+                const part = await registryRpcPage(json, 200, offset);
+                all = all.concat(part);
+                if (part.length < 200) { truncated = false; break; }
+            }
         }
-        return all.filter(function (row) { return registryRowMatches(row, f); });
+        registryCache = { key: key, rows: all, truncated: truncated };
+        return registryCache;
+    }
+    async function registryFetchAll(f) {
+        const full = await registryFetchAllRows(f);
+        registryState.truncated = full.truncated;
+        return full.rows.filter(function (row) { return registryRowMatches(row, f); });
     }
     async function registryLoad() {
         if (!registryFilters) return;
         registryState.loading = true;
         registryState.error = '';
+        registryState.truncated = false;
         registryRender();
         const f = registryFilters;
         try {
@@ -15171,6 +15217,9 @@
     }
     function registryOpen() {
         if (!registryFilters) registryFilters = registryNormalizeFilters(registryReadStored());
+        registryFilters = registrySanitizeFilters(registryFilters, registrySelectOptions());
+        registrySaveFilters();
+        registryCache = null;
         registryPopulateSelects();
         registryApplyControls();
         registryLoad();
@@ -15184,6 +15233,7 @@
         else registryLoad();
     }
     function registryResetFilters() {
+        registryCache = null;
         registryFilters = registryDefaultFilters();
         registrySaveFilters();
         registryState.page = 0;
@@ -15212,6 +15262,11 @@
         thead.innerHTML = '<tr>' + columns.map(function (c) { return '<th' + (c.num ? ' class="is-num"' : '') + '>' + escHtml(c.title) + '</th>'; }).join('') + '<th>Дії</th></tr>';
         const countEl = document.getElementById('registry-count');
         const totalsEl = document.getElementById('registry-totals');
+        const warnEl = document.getElementById('registry-warning');
+        if (warnEl) {
+            warnEl.hidden = !registryState.truncated;
+            warnEl.textContent = registryState.truncated ? REGISTRY_WARNING : '';
+        }
         const t = registryState.totals;
         if (countEl) countEl.textContent = registryState.loaded ? String(registryState.total) + ' шт' : '';
         const money = function (n) { return displayMinus(formatMoney(n)); };
@@ -15268,6 +15323,8 @@
                     '<b>' + escHtml((row.registry_no || '—') + ' · ' + registryRouteLabel(row)) + '</b>' +
                     '<div class="tc-history-meta">' + escHtml(formatHistoryDate(registryCellValue(row, 'date'))) + (team ? ' · ' + escHtml(savedAuthorLabel(row.user_id)) : '') +
                     ' · <span class="tc-status is-' + escHtml(row.status) + '">' + escHtml(registryCellValue(row, 'status')) + '</span></div>' +
+                    '<div class="tc-history-meta">' + escHtml([registryCellValue(row, 'client'), registryCellValue(row, 'vehicles'),
+                        registryCellValue(row, 'km') === null ? '' : formatHistoryNum(registryCellValue(row, 'km'), 0) + ' км'].filter(Boolean).join(' · ') || '—') + '</div>' +
                     (row.status === 'cancelled' ? '<div class="tc-history-meta tc-history-reason">Скасовано: ' + escHtml(row.cancel_reason || 'без причини') + '</div>' : '') +
                     '<div class="tc-history-meta">Виручка ' + escHtml(money0(registryCellValue(row, 'revenue'))) + ' · Прибуток ' + escHtml(money0(registryCellValue(row, 'profit'))) + '</div>' +
                     actions(row) + '</article>';
@@ -15301,6 +15358,7 @@
                 renderSavedTable();
             }
             showToast(okText, 2400, 'ok');
+            registryCache = null;
             await registryLoad();
         } catch (e) {
             showToast(approvalErrorText(e), 4200, 'error');
@@ -15324,6 +15382,10 @@
         try {
             const rows = await registryFetchAll(registryFilters || registryDefaultFilters());
             if (!rows.length) { showToast('За цим фільтром немає заявок.'); return; }
+            if (registryState.truncated) {
+                const answer = await tcModal({ title: 'Експорт неповний', text: REGISTRY_WARNING, confirmText: 'Завантажити все одно' });
+                if (!answer.ok) return;
+            }
             const f = registryFilters || {};
             const period = (f.from || f.to) ? '_' + (f.from || 'початок') + '_' + (f.to || 'кінець') : '';
             downloadHistoryFile('TripControl_реєстр' + period + '.csv', registryCsv(rows), 'text/csv;charset=utf-8');
