@@ -58,10 +58,12 @@ test('заголовок звіту — «План/факт» (як у меню)
 });
 
 test('шапка сайту в кабінеті: без «Калькулятор» / «Заявки» / «Огляд»; вони — у лівому меню і вкладках «Розрахунків»', () => {
-    assert.match(css, /body\.kp-nav-on #studio-nav-calc, body\.kp-nav-on #studio-nav-overview, body\.kp-nav-on #studio-nav-history, body\.kp-nav-on \.tc-studio-nav \{ display: none !important; \}/);
+    assert.match(css, /body\.kp-nav-on #studio-nav-calc, body\.kp-nav-on #studio-nav-overview, body\.kp-nav-on #studio-nav-history, body\.kp-nav-on #studio-nav-registry, body\.kp-nav-on \.tc-studio-nav \{ display: none !important; \}/);
     assert.match(css, /@media \(min-width: 901px\) \{\s+body\.kp-nav-on\.layout-studio \.tc-topbar \{ flex-wrap: nowrap; \}/);
     assert.match(bridge, /id: 'kp-calc-tab-calc', onclick: openSite\('calc'\) \}, 'Розрахунок'\)/);
     assert.match(bridge, /id: 'kp-calc-tab-history', onclick: openSite\('history'\) \}, 'Заявки'\)/);
+    assert.match(bridge, /id: 'kp-calc-tab-registry', onclick: openSite\('registry'\) \}, 'Реєстр заявок'\)/);
+    assert.match(css, /body\.kp-nav-on\[data-studio-view="registry"\]:not\(\[data-kp-view\]\) \.kp-calc-tabs/);
     assert.match(css, /\.kp-calc-tabs \{ display: none;/);
     assert.match(css, /body\.kp-nav-on\[data-studio-view="history"\]:not\(\[data-kp-view\]\) \.kp-calc-tabs/);
 });

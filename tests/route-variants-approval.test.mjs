@@ -115,7 +115,7 @@ test('п.4: «Погодити» в огляді передає вибраний
     assert.ok(html.includes('if (Number.isInteger(variantIndex)) body.variantIndex = variantIndex;'));
     assert.ok(html.includes("button('Відкрити', reviewing ? 'openApprovalReview' : 'openSaved')"));
     assert.ok(html.includes("'Погодити варіант ' + (selected.index + 1)"));
-    assert.ok(html.includes("select(fullColumns + ', approved_variant')"), 'до міграції колонки читаємо без approved_variant');
+    assert.ok(html.includes("select(fullColumns + ', approved_variant, registry_no, cancel_reason, cancelled_at')"), 'до міграції колонки читаємо без approved_variant');
     assert.ok(html.includes("tc-map-alt' + (v.index === selected.index ? ' active' : '')"), 'ті самі перемикачі, що й у калькуляторі');
 });
 

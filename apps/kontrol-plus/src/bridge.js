@@ -122,9 +122,11 @@ function syncNav() {
     const active = tab || (siteView === 'overview' ? 'overview' : 'calc');
     const historyTab = document.getElementById('kp-calc-tab-history');
     const calcTab = document.getElementById('kp-calc-tab-calc');
+    const registryTab = document.getElementById('kp-calc-tab-registry');
     if (historyTab && calcTab) {
         historyTab.classList.toggle('on', siteView === 'history');
-        calcTab.classList.toggle('on', siteView !== 'history');
+        calcTab.classList.toggle('on', siteView !== 'history' && siteView !== 'registry');
+        if (registryTab) registryTab.classList.toggle('on', siteView === 'registry');
     }
     for (const [name, button] of Object.entries(tabs)) {
         button.classList.toggle('on', name === active);
@@ -132,7 +134,7 @@ function syncNav() {
         else button.removeAttribute('aria-current');
     }
     if (!tab) return;
-    for (const id of ['studio-nav-calc', 'studio-nav-overview', 'studio-nav-history']) {
+    for (const id of ['studio-nav-calc', 'studio-nav-overview', 'studio-nav-history', 'studio-nav-registry']) {
         const button = document.getElementById(id);
         if (button && button.classList.contains('on')) button.classList.remove('on');
     }
@@ -508,7 +510,8 @@ function mount() {
     // «Розрахунок» і «Заявки» — вкладки всередині «Розрахунків» (кнопки з верхньої шапки сайту прибрано, щоб не дублювати меню).
     const calcTabs = h('nav', { id: 'kp-calc-tabs', class: 'kp-calc-tabs', 'aria-label': 'Розрахунки' },
         h('button', { type: 'button', id: 'kp-calc-tab-calc', onclick: openSite('calc') }, 'Розрахунок'),
-        h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Заявки'));
+        h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Заявки'),
+        h('button', { type: 'button', id: 'kp-calc-tab-registry', onclick: openSite('registry') }, 'Реєстр заявок'));
     // Одразу під шапкою, над калькулятором (#studio-columns сайт перебудовує, тому прив'язуємось до шапки, а не до нього).
     insertAfterHeader(main, calcTabs, document.getElementById('sticky-top'), root);
     // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
