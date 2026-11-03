@@ -90,7 +90,10 @@ test('смоук: каркас монтується, ховає/показує �
         assert.equal(items.calc.attrs['aria-current'], 'page');
         assert.equal(items.fleet.hidden, true, 'Автопарк схований, поки схована стара кнопка (доступ рахує bridge.js)');
         assert.equal(items.contracts.hidden, false);
-        assert.equal(items.dashboard.attrs['aria-disabled'], 'true');
+        assert.equal(items.dashboard, undefined, 'заглушки «Дашборд» немає');
+        assert.equal(items.overview.hidden, false);
+        assert.equal(items.drivers.hidden, true);
+        assert.equal(items.gps.hidden, true);
         // Імʼя, роль, компанія, лічильник реєстру, дзвіночок.
         const text = (cls) => env.byId['kp-shell-top'].all(cls)[0].textContent;
         assert.equal(text('kp-shell-who-name'), 'Іван Петренко');
@@ -105,8 +108,6 @@ test('смоук: каркас монтується, ховає/показує �
         assert.equal(env.byId['kp-calc-tab-registry'].clicks, 1);
         items.team.click();
         assert.equal(env.win.opened, 'team');
-        items.dashboard.click();
-        assert.equal(env.win.location.hash, '#/docs/tab/invoices', 'заглушка нічого не відкриває');
         // Кабінет відкрито: перехід в інший розділ спершу закриває кабінет, hash ставиться після нього.
         env.byId['cabinet-screen'].style.display = 'block';
         items.clients.click();
@@ -133,4 +134,104 @@ test('смоук: каркас монтується, ховає/показує �
             else delete globalThis[key];
         }
     }
+});
+
+function withFakeDom(fn) {
+    const saved = { document: Object.getOwnPropertyDescriptor(globalThis, 'document'), Node: Object.getOwnPropertyDescriptor(globalThis, 'Node') };
+    Object.defineProperty(globalThis, 'document', { value: { createElement: (t) => new FEl(t), createTextNode: (t) => ({ text: t }) }, configurable: true, writable: true });
+    Object.defineProperty(globalThis, 'Node', { value: FNode, configurable: true, writable: true });
+    try {
+        return fn();
+    } finally {
+        for (const [key, desc] of Object.entries(saved)) {
+            if (desc) Object.defineProperty(globalThis, key, desc);
+            else delete globalThis[key];
+        }
+    }
+}
+
+const key = (over) => ({ key: 'k', ctrlKey: true, shiftKey: false, altKey: false, prevented: false, preventDefault() { this.prevented = true; }, ...over });
+
+test('Ctrl+K: у input / textarea / select / contenteditable не перехоплюється; без поля пошуку нічого не робить; з полем — фокус і preventDefault', () => {
+    const env = shellEnv();
+    withFakeDom(() => {
+        mountShell(env.options);
+        const press = (e) => { env.options.document.listeners.keydown.forEach((fn) => fn(e)); return e; };
+        const search = Object.assign(new FEl('input', 'registry-q'), { offsetParent: {} });
+        search.select = () => { search.selected = true; };
+        const withSearch = () => { env.options.document.querySelector = (sel) => (sel === '#registry-q' ? search : (sel === '.tc-head-end' ? env.headEnd : null)); };
+        // Фокус у полі введення → не перехоплюємо навіть коли пошук є.
+        withSearch();
+        for (const el of [{ tagName: 'INPUT' }, { tagName: 'TEXTAREA' }, { tagName: 'SELECT' }, { tagName: 'DIV', isContentEditable: true }]) {
+            env.options.document.activeElement = el;
+            search.focused = false;
+            const e = press(key({}));
+            assert.equal(e.prevented, false, el.tagName + ': Ctrl+K не гасимо');
+            assert.equal(search.focused, false);
+        }
+        // Фокус не в полі, поле пошуку є → фокус на нього.
+        env.options.document.activeElement = { tagName: 'BODY' };
+        const hit = press(key({}));
+        assert.equal(hit.prevented, true);
+        assert.equal(search.focused, true);
+        // Поля пошуку на розділі немає → нічого не робимо: подію не гасимо, жодних кліків по вкладках (в Реєстр не перекидаємо).
+        env.options.document.querySelector = (sel) => (sel === '.tc-head-end' ? env.headEnd : null);
+        env.flush();
+        const miss = press(key({}));
+        assert.equal(miss.prevented, false);
+        assert.equal(env.byId['kp-calc-tab-registry'].clicks, 0);
+        assert.equal(env.timers.length, 0, 'нічого не заплановано');
+        // Інші комбінації не чіпаємо.
+        assert.equal(press(key({ key: 'j' })).prevented, false);
+        assert.equal(press(key({ ctrlKey: false })).prevented, false);
+    });
+});
+
+test('лічильник рахунків: легка RPC kp_unpaid_invoices_count при вході й після оплати; kp_doc_list не кличеться; update() з debounce', async () => {
+    const env = shellEnv();
+    const calls = [];
+    let unpaid = 3;
+    const supabase = {
+        rpc(name, args) {
+            calls.push(name);
+            const result = name === 'kp_unpaid_invoices_count' ? { data: unpaid, error: null } : { data: [], error: null };
+            const builder = { then: (ok, fail) => Promise.resolve(result).then(ok, fail) };
+            return builder;
+        },
+        auth: { getSession: async () => ({ data: { session: null } }) },
+    };
+    await withFakeDom(async () => {
+        const api = mountShell({ ...env.options, supabase });
+        const count = () => env.byId['kp-shell-side'].all('kp-shell-item').find((b) => b.attrs['data-key'] === 'invoices').all('kp-shell-count')[0];
+        assert.deepEqual(calls, [], 'до входу (немає ролі) RPC не кличемо');
+        // Вхід: подія tc:kp-context → одразу лічильник, без очікування вкладки «Документи».
+        env.win.listeners['tc:kp-context'].forEach((fn) => fn());
+        await new Promise((r) => setImmediate(r));
+        assert.deepEqual(calls, ['kp_unpaid_invoices_count']);
+        assert.equal(count().textContent, '3');
+        assert.equal(count().hidden, false);
+        // Позначка «оплачено» (registry_doc_set_paid) → RPC лічильника ще раз, без таймера.
+        unpaid = 2;
+        await supabase.rpc('registry_doc_set_paid', { p_doc: 'x', p_paid: true });
+        env.flush();
+        await new Promise((r) => setImmediate(r));
+        assert.deepEqual(calls, ['kp_unpaid_invoices_count', 'registry_doc_set_paid', 'kp_unpaid_invoices_count']);
+        assert.equal(count().textContent, '2');
+        // Інші RPC лічильник не чіпають; kp_doc_list не викликається ніколи.
+        await supabase.rpc('kp_context');
+        env.flush();
+        assert.equal(calls.includes('kp_doc_list'), false);
+        assert.equal(calls.filter((c) => c === 'kp_unpaid_invoices_count').length, 2);
+        // Помилка доступу — лічильник лишається як був, без винятку.
+        unpaid = null;
+        await api.refreshUnpaid();
+        assert.equal(count().textContent, '2');
+        // Debounce: десять змін підряд = один запланований update() через 100 мс.
+        env.timers.length = 0;
+        for (let i = 0; i < 10; i += 1) api.scheduleUpdate();
+        assert.equal(env.timers.length, 1, 'один відкладений update() на пачку змін');
+        env.flush();
+        api.scheduleUpdate();
+        assert.equal(env.timers.length, 1, 'після виконання можна планувати знову');
+    });
 });

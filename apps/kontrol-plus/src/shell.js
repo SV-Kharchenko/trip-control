@@ -2,7 +2,7 @@
 // Лише Контроль+ (<html data-app="kp">): на сайті trip-control.com mountShell() нічого не робить і не торкається DOM.
 // Нової логіки розділів тут немає: пункти кличуть наявні перемикачі (див. shell-menu.js), старі вкладки лише ховаються CSS.
 import { h } from './ui.js';
-import { SHELL_GROUPS, SITE_BUTTONS, activeKey, counterText, countUnpaid, parseCount, parseSidebarPref, roleLabel, sidebarKey } from './shell-menu.js';
+import { SHELL_GROUPS, SITE_BUTTONS, activeKey, counterText, isEditableTarget, parseCount, refreshesUnpaid, parseSidebarPref, roleLabel, sidebarKey } from './shell-menu.js';
 import { shellIcon } from './shell-icons.js';
 
 export function isKpApp(doc) {
@@ -106,18 +106,13 @@ export function mountShell(env = {}) {
         win.setTimeout(update, 0);
     }
 
+    // Фокус на наявне поле пошуку поточного розділу. Немає поля — нічого не робимо (в інший розділ не переходимо).
     function focusSearch() {
         const sel = ['#registry-q', '#history-search', '#kp-crm input[type="search"]', '#main-app input[type="search"]'];
         const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
         for (const s of sel) {
             const el = doc.querySelector(s);
             if (visible(el)) { el.focus(); if (typeof el.select === 'function') el.select(); return true; }
-        }
-        // На розділі без пошуку відкриваємо Реєстр заявок і ставимо фокус на його пошук.
-        const reg = $(SITE_BUTTONS.registry);
-        if (reg) {
-            reg.click();
-            win.setTimeout(() => { const el = $('registry-q'); if (el) el.focus(); }, 120);
         }
         return false;
     }
@@ -146,16 +141,34 @@ export function mountShell(env = {}) {
         } catch { /* лишається стан за замовчуванням */ }
     }
 
-    let unpaidAt = 0;
-    async function refreshUnpaid(force) {
-        const docsBtn = $('kp-nav-docs');
-        if (!supabase || !docsBtn || docsBtn.hidden || (!force && Date.now() - unpaidAt < 60000)) return;
-        unpaidAt = Date.now();
+    // Неоплачені рахунки: легка RPC kp_unpaid_invoices_count (один count на сервері, а не вибірка документів). Оновлюється при вході
+    // (подія tc:kp-context) і після дій, що міняють оплату / рахунки (див. refreshesUnpaid у shell-menu.js), без таймера й без залежності від
+    // фонової перевірки вкладки «Документи». Без доступу (не Контроль+, немає ролі) RPC не кличемо.
+    async function refreshUnpaid() {
+        if (!supabase || typeof supabase.rpc !== 'function' || !win.tcKpRole) return;
         try {
-            const to = new Date(Date.now() + 366 * 86400000).toISOString().slice(0, 10);
-            const { data, error } = await supabase.rpc('kp_doc_list', { p_kind: 'invoice', p_from: '2020-01-01', p_to: to, p_client: null, p_status: null });
-            if (!error) { counters.unpaid = countUnpaid(data); paintCounters(); }
+            const { data, error } = await supabase.rpc('kp_unpaid_invoices_count');
+            const n = Number(data);
+            if (!error && data !== null && Number.isFinite(n)) { counters.unpaid = n; paintCounters(); }
         } catch { /* без лічильника */ }
+    }
+
+    // Після успішного виклику RPC зі списку оновлюємо лічильник. Обгортка не виконує запит удруге: вона лише підміняє then() побудовника.
+    function watchRpc() {
+        if (!supabase || typeof supabase.rpc !== 'function' || supabase.kpShellWatched) return;
+        const original = supabase.rpc.bind(supabase);
+        supabase.rpc = function rpc(name, ...rest) {
+            const builder = original(name, ...rest);
+            if (refreshesUnpaid(name) && builder && typeof builder.then === 'function') {
+                const originalThen = builder.then.bind(builder);
+                builder.then = (onFulfilled, onRejected) => originalThen((res) => {
+                    if (!res || !res.error) win.setTimeout(refreshUnpaid, 0);
+                    return onFulfilled ? onFulfilled(res) : res;
+                }, onRejected);
+            }
+            return builder;
+        };
+        supabase.kpShellWatched = true;
     }
 
     function paintCounters() {
@@ -202,6 +215,7 @@ export function mountShell(env = {}) {
     }
 
     function update() {
+        pending = null;
         paintAccess();
         paintActive();
         paintPeople();
@@ -211,20 +225,28 @@ export function mountShell(env = {}) {
         body.classList.toggle('kp-shell-strip-on', !!banner && !banner.hidden);
     }
 
-    win.addEventListener('hashchange', () => { update(); if (/^#\/docs/.test(win.location.hash)) refreshUnpaid(false); });
-    win.addEventListener('tc:cabinet-tab', () => win.setTimeout(update, 0));
-    win.addEventListener('tc:kp-context', () => { loadUser(); update(); refreshUnpaid(true); });
+    // Зміни DOM і кліки приходять пачками: перемальовуємо не частіше ніж раз на ~100 мс.
+    let pending = null;
+    function scheduleUpdate() {
+        if (pending !== null) return;
+        pending = win.setTimeout(update, 100);
+    }
+
+    win.addEventListener('hashchange', update);
+    win.addEventListener('tc:cabinet-tab', scheduleUpdate);
+    win.addEventListener('tc:kp-context', () => { loadUser(); update(); refreshUnpaid(); });
     doc.addEventListener('keydown', (event) => {
         if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && String(event.key).toLowerCase() === 'k') {
-            event.preventDefault();
-            focusSearch();
+            // У полі введення Ctrl+K не перехоплюємо; на розділі без поля пошуку нічого не робимо (і не гасимо звичайну дію браузера).
+            if (isEditableTarget(doc.activeElement)) return;
+            if (focusSearch()) event.preventDefault();
         } else if (event.key === 'Escape' && body.classList.contains('kp-shell-open')) setMobile(false);
     });
-    doc.addEventListener('click', () => win.setTimeout(update, 0));
+    doc.addEventListener('click', scheduleUpdate);
 
     if (typeof win.MutationObserver === 'function' || typeof MutationObserver === 'function') {
         const Observer = win.MutationObserver || MutationObserver;
-        const watch = (node, opts) => { if (node) new Observer(update).observe(node, opts); };
+        const watch = (node, opts) => { if (node) new Observer(scheduleUpdate).observe(node, opts); };
         watch(body, { attributes: true, attributeFilter: ['data-studio-view'] });
         watch($('kp-nav-list'), { attributes: true, subtree: true, attributeFilter: ['hidden'] });
         watch($('cabinet-screen'), { attributes: true, subtree: true, attributeFilter: ['style', 'class'] });
@@ -234,7 +256,8 @@ export function mountShell(env = {}) {
         }
     }
 
+    watchRpc();
     loadUser();
     update();
-    return { update, openItem, focusSearch, setCollapsed };
+    return { update, scheduleUpdate, openItem, focusSearch, setCollapsed, refreshUnpaid };
 }

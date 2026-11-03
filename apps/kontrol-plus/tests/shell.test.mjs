@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import { parseCrmHash } from '../src/lib/route.js';
 import { NAV_ITEMS } from '../src/bridge.js';
 import {
-    CABINET_TABS, SHELL_GROUPS, SHELL_ITEMS, SITE_BUTTONS, activeKey, counterText, countUnpaid, parseCount, parseSidebarPref, roleLabel, sidebarKey,
+    CABINET_TABS, SHELL_GROUPS, SHELL_ITEMS, SITE_BUTTONS, UNPAID_REFRESH_RPCS, refreshesUnpaid, activeKey, counterText, isEditableTarget, parseCount, parseSidebarPref, roleLabel, sidebarKey,
 } from '../src/shell-menu.js';
 import { SHELL_ICON_NAMES } from '../src/shell-icons.js';
 import { isKpApp, mountShell } from '../src/shell.js';
@@ -16,21 +16,18 @@ const bridge = read('src/bridge.js');
 const shell = read('src/shell.js');
 const css = read('src/kp-shell.css');
 
-test('меню: групи й пункти за макетом каркаса, лише наявні розділи', () => {
-    assert.deepEqual(SHELL_GROUPS.slice(0, 3).map((g) => g.label), ['Робота', 'Документи', 'Компанія']);
-    assert.deepEqual(SHELL_GROUPS[0].items.map((i) => i.label), ['Дашборд', 'Реєстр заявок', 'Заявки', 'Розрахунок']);
+test('меню: три групи без «Ще», пункти за макетом, лише наявні розділи', () => {
+    assert.deepEqual(SHELL_GROUPS.map((g) => g.label), ['Робота', 'Документи', 'Компанія'], 'групи «Ще» немає');
+    assert.deepEqual(SHELL_GROUPS[0].items.map((i) => i.label), ['Огляд', 'Реєстр заявок', 'Заявки', 'Розрахунок', 'План/факт']);
     assert.deepEqual(SHELL_GROUPS[1].items.map((i) => i.label), ['Договори', 'Рахунки', 'Акти', 'ТТН', 'Подорожні листи']);
-    assert.deepEqual(SHELL_GROUPS[2].items.map((i) => i.label), ['Клієнти', 'Автопарк', 'Ремонти', 'Команда', 'Статистика', 'Налаштування']);
-    // Розділи, що вже є в Контроль+, але не названі в макеті, не губляться.
-    assert.deepEqual(SHELL_GROUPS[3].items.map((i) => i.label), ['Огляд', 'План/факт', 'Водії', 'GPS']);
+    assert.deepEqual(SHELL_GROUPS[2].items.map((i) => i.label), ['Клієнти', 'Автопарк', 'Водії', 'GPS', 'Ремонти', 'Команда', 'Статистика', 'Налаштування']);
+    assert.equal(SHELL_ITEMS.some((i) => i.label === 'Ще' || i.kind === 'soon'), false, 'заглушки «скоро» немає: Огляд компанії і є дашбордом');
     assert.equal(new Set(SHELL_ITEMS.map((i) => i.key)).size, SHELL_ITEMS.length, 'ключі унікальні');
-    // Дашборд — заглушка «скоро»: нічого не відкриває.
-    const dash = SHELL_ITEMS.find((i) => i.key === 'dashboard');
-    assert.equal(dash.kind, 'soon');
-    assert.match(shell, /if \(item\.kind === 'soon'\) return;/);
     // Лічильники: «Реєстр заявок» і «Рахунки» (неоплачені).
     assert.deepEqual(SHELL_ITEMS.filter((i) => i.counter).map((i) => [i.key, i.counter]), [['registry', 'registry'], ['invoices', 'unpaid']]);
     for (const item of SHELL_ITEMS) assert.ok(SHELL_ICON_NAMES.includes(item.icon), 'іконка для ' + item.key);
+    // Доступ за роллю й тарифом — як було: пункт ховається разом зі старою кнопкою #kp-nav-<access>.
+    assert.deepEqual(SHELL_ITEMS.filter((i) => ['drivers', 'gps', 'fleet', 'repairs'].includes(i.key)).map((i) => i.access), ['fleet', 'drivers', 'gps', 'repairs']);
 });
 
 test('кожен пункт веде на наявний розділ через наявні перемикачі', () => {
@@ -98,10 +95,6 @@ test('верхня панель: роль «Директор» для owner і �
     assert.equal(counterText(0), '');
     assert.equal(counterText(7), '7');
     assert.equal(counterText(150), '99+');
-    assert.equal(countUnpaid([
-        { kind: 'invoice', status: 'issued', debt: '100' }, { kind: 'invoice', status: 'issued', debt: '0' },
-        { kind: 'invoice', status: 'cancelled', debt: '50' }, { kind: 'act', status: 'issued', debt: '10' }, { kind: 'invoice', status: 'issued', debt: 3 },
-    ]), 2);
     assert.equal(sidebarKey('u1'), 'tc_kp_sidebar:u1');
     assert.equal(parseSidebarPref('collapsed'), 'collapsed');
     assert.equal(parseSidebarPref(null), 'expanded');
@@ -111,6 +104,7 @@ test('верхня панель: роль «Директор» для owner і �
     assert.match(shell, /win\.tcKpOrgName \|\| text\('tc-menu-company'\)/);
     assert.match(shell, /openCabinetTab', 'notifications'/, 'дзвіночок веде на наявні сповіщення');
     assert.match(shell, /String\(event\.key\)\.toLowerCase\(\) === 'k'/, 'Ctrl+K');
+    assert.match(shell, /if \(isEditableTarget\(doc\.activeElement\)\) return;/, 'у полі введення Ctrl+K не перехоплюється');
     for (const sel of ['#registry-q', '#history-search', '#kp-crm input[type="search"]']) assert.ok(shell.includes(sel), 'пошук розділу ' + sel);
 });
 
@@ -164,10 +158,48 @@ test('shell.js: наявні вузли сайту переїжджають бе
     assert.match(shell, /body\.classList\.add\('kp-shell-on'\)/);
     assert.match(shell, /body\.classList\.remove\('kp-nav-on'\)/);
     assert.match(shell, /store\.set\(sidebarKey\(userId\)/);
-    assert.match(shell, /kp_doc_list/);
+    assert.match(shell, /kp_unpaid_invoices_count/);
     // Банер тріалу #111 не змінено: сайтові функції syncBillingBanner / syncTrialBanner у index.html на місці й shell їх не чіпає.
     assert.ok(site.includes('function syncTrialBanner(banner)') && site.includes('function syncBillingBanner()'));
     assert.equal(/syncTrialBanner|syncBillingBanner|billingTrial|trial_ends_at/.test(shell), false);
     // Без міграцій і нових Vercel-функцій.
-    assert.equal(/\.rpc\('(?!kp_doc_list)/.test(shell), false, 'shell кличе лише наявну kp_doc_list');
+    assert.equal(/kp_doc_list/.test(shell + read('src/shell-menu.js')), false, 'лічильник не тягне документи через kp_doc_list');
+    assert.deepEqual([...shell.matchAll(/rpc\('([a-z_]+)'/g)].map((m) => m[1]), ['kp_unpaid_invoices_count'], 'shell кличе лише легку RPC-підрахунок');
+});
+
+test('Ctrl+K: isEditableTarget — input, textarea, select, contenteditable; на розділі без пошуку нічого не робимо (без переходу в Реєстр)', () => {
+    for (const tagName of ['INPUT', 'TEXTAREA', 'SELECT', 'input']) assert.equal(isEditableTarget({ tagName }), true, tagName);
+    assert.equal(isEditableTarget({ tagName: 'DIV', isContentEditable: true }), true);
+    assert.equal(isEditableTarget({ tagName: 'DIV', getAttribute: (k) => (k === 'contenteditable' ? '' : null) }), true);
+    assert.equal(isEditableTarget({ tagName: 'DIV', getAttribute: () => 'false' }), false);
+    assert.equal(isEditableTarget({ tagName: 'BUTTON', getAttribute: () => null }), false);
+    assert.equal(isEditableTarget(null), false);
+    const focusFn = shell.slice(shell.indexOf('function focusSearch()'), shell.indexOf('function setMobile('));
+    assert.equal(/click\(\)|SITE_BUTTONS\.registry|reg\./.test(focusFn), false, 'focusSearch не перекидає в інший розділ');
+    assert.match(shell, /if \(focusSearch\(\)\) event\.preventDefault\(\);/, 'без поля пошуку дію браузера не гасимо');
+});
+
+test('лічильник неоплачених: легка RPC, оновлення при вході й після змін оплати, без таймера; update() з debounce', () => {
+    assert.deepEqual(UNPAID_REFRESH_RPCS, ['registry_doc_set_paid', 'kp_doc_create', 'kp_doc_cancel']);
+    for (const name of ['registry_doc_set_paid', 'kp_payment_add', 'kp_payment_void', 'kp_doc_create', 'kp_doc_cancel']) assert.equal(refreshesUnpaid(name), true, name);
+    for (const name of ['kp_context', 'kp_doc_list', 'kp_unpaid_invoices_count', '', null]) assert.equal(refreshesUnpaid(name), false, String(name));
+    assert.equal(/setInterval|unpaidAt|Date\.now\(\) - unpaidAt/.test(shell), false, 'без таймера й тротлінгу');
+    assert.match(shell, /win\.addEventListener\('tc:kp-context', \(\) => \{ loadUser\(\); update\(\); refreshUnpaid\(\); \}\)/);
+    assert.equal(/docsBtn|kp-nav-docs/.test(shell.slice(shell.indexOf('async function refreshUnpaid'), shell.indexOf('function paintCounters'))), false, 'не залежить від фонової вкладки «Документи»');
+    assert.match(shell, /supabase\.kpShellWatched/);
+    assert.match(shell, /builder\.then = \(onFulfilled, onRejected\) => originalThen\(/, 'запит не виконується удруге');
+    // Міграція: SECURITY DEFINER (таблиці документів закриті від authenticated), доступ першим рядком, відкат, pgTAP.
+    const mig = fs.readFileSync(new URL('../../../supabase/migrations/20261118090000_kp_unpaid_invoices_count.sql', import.meta.url), 'utf8');
+    assert.ok(mig.startsWith('-- Apply manually after review. This file is not applied to production by the agent.'));
+    for (const part of ['CREATE OR REPLACE FUNCTION public.kp_unpaid_invoices_count()', 'SECURITY DEFINER', 'SET search_path = public', "v_org uuid := public.kp_docs_org('read');", 'd.paid_at IS NULL',
+        'REVOKE ALL ON FUNCTION public.kp_unpaid_invoices_count() FROM PUBLIC, anon;', 'GRANT EXECUTE ON FUNCTION public.kp_unpaid_invoices_count() TO authenticated, service_role;',
+        'DROP FUNCTION IF EXISTS public.kp_unpaid_invoices_count();']) assert.ok(mig.includes(part), part);
+    const tap = fs.readFileSync(new URL('../../../supabase/tests/kp_unpaid_invoices_count.sql', import.meta.url), 'utf8');
+    assert.ok(tap.includes('SELECT plan(8);'));
+    assert.equal(tap.split('\n').filter((l) => /^SELECT (is|ok)\(/.test(l)).length, 8);
+    // update(): MutationObserver і кліки — через scheduleUpdate (~100 мс), прямий update() лише при монтажі й після явного переходу.
+    assert.match(shell, /pending = win\.setTimeout\(update, 100\);/);
+    assert.match(shell, /doc\.addEventListener\('click', scheduleUpdate\);/);
+    assert.match(shell, /new Observer\(scheduleUpdate\)/);
+    assert.equal(/new Observer\(update\)|addEventListener\('click', \(\) => win\.setTimeout\(update, 0\)\)/.test(shell), false);
 });

@@ -6,12 +6,15 @@
 // `access` — id старої кнопки меню (#kp-nav-<key>): пункт зникає й з'являється разом із нею (доступ, тариф, роль рахує bridge.js).
 import { DOC_TABS, parseCrmHash } from './lib/route.js';
 
+// «Огляд» — це вже наявний «Огляд компанії» (KPI, тижні, автопарк, простої, автори): по суті дашборд, тому він стоїть на місці
+// заглушки «Дашборд» (окремого пункту «скоро» немає).
 export const SHELL_GROUPS = [
     { key: 'work', label: 'Робота', items: [
-        { key: 'dashboard', label: 'Дашборд', icon: 'dashboard', kind: 'soon', access: null },
+        { key: 'overview', label: 'Огляд', icon: 'overview', kind: 'site', site: 'overview', access: 'overview' },
         { key: 'registry', label: 'Реєстр заявок', icon: 'registry', kind: 'site', site: 'registry', counter: 'registry', access: 'calc' },
         { key: 'history', label: 'Заявки', icon: 'history', kind: 'site', site: 'history', access: 'calc' },
         { key: 'calc', label: 'Розрахунок', icon: 'calc', kind: 'site', site: 'calc', access: 'calc' },
+        { key: 'report', label: 'План/факт', icon: 'report', kind: 'hash', hash: '#/report', access: 'report' },
     ] },
     { key: 'docs', label: 'Документи', items: [
         { key: 'contracts', label: 'Договори', icon: 'contracts', kind: 'hash', hash: '#/docs/tab/contracts', access: 'docs' },
@@ -23,19 +26,24 @@ export const SHELL_GROUPS = [
     { key: 'company', label: 'Компанія', items: [
         { key: 'clients', label: 'Клієнти', icon: 'clients', kind: 'hash', hash: '#/clients', access: 'clients' },
         { key: 'fleet', label: 'Автопарк', icon: 'fleet', kind: 'hash', hash: '#/fleet', access: 'fleet' },
+        { key: 'drivers', label: 'Водії', icon: 'drivers', kind: 'hash', hash: '#/drivers', access: 'drivers' },
+        { key: 'gps', label: 'GPS', icon: 'gps', kind: 'hash', hash: '#/gps', access: 'gps' },
         { key: 'repairs', label: 'Ремонти', icon: 'repairs', kind: 'hash', hash: '#/repairs', access: 'repairs' },
         { key: 'team', label: 'Команда', icon: 'team', kind: 'cabinet', tab: 'team', access: 'calc' },
         { key: 'stats', label: 'Статистика', icon: 'stats', kind: 'cabinet', tab: 'stats', access: 'calc' },
         { key: 'settings', label: 'Налаштування', icon: 'settings', kind: 'cabinet', tab: null, access: 'calc' },
     ] },
-    // Розділи, що вже є в Контроль+, але не названі в макеті каркаса: лишаємо доступ до них (нічого не губимо).
-    { key: 'more', label: 'Ще', items: [
-        { key: 'overview', label: 'Огляд', icon: 'overview', kind: 'site', site: 'overview', access: 'overview' },
-        { key: 'report', label: 'План/факт', icon: 'report', kind: 'hash', hash: '#/report', access: 'report' },
-        { key: 'drivers', label: 'Водії', icon: 'drivers', kind: 'hash', hash: '#/drivers', access: 'drivers' },
-        { key: 'gps', label: 'GPS', icon: 'gps', kind: 'hash', hash: '#/gps', access: 'gps' },
-    ] },
 ];
+
+// Чи фокус у полі введення (Ctrl+K тоді не перехоплюємо): input, textarea, select, contenteditable.
+export function isEditableTarget(el) {
+    if (!el) return false;
+    const tag = String(el.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (el.isContentEditable === true) return true;
+    const ce = typeof el.getAttribute === 'function' ? el.getAttribute('contenteditable') : null;
+    return ce !== null && ce !== undefined && String(ce).toLowerCase() !== 'false';
+}
 
 export const SHELL_ITEMS = SHELL_GROUPS.flatMap((group) => group.items);
 
@@ -73,9 +81,13 @@ export function parseCount(text) {
     return Number.isFinite(n) ? n : null;
 }
 
-// Неоплачені рахунки з kp_doc_list: чинний рахунок із боргом.
-export function countUnpaid(rows) {
-    return (rows || []).filter((r) => r && r.kind === 'invoice' && r.status === 'issued' && Number(r.debt) > 0).length;
+// RPC, після успішного виклику яких міняється кількість неоплачених рахунків (позначка «оплачено» з реєстру, журнал оплат, видача / анулювання).
+// Імена оплат (kp_payment_*) беремо за префіксом: назви RPC розділу «Документи» не мають потрапляти в основний бандл (тест docs.test.mjs).
+export const UNPAID_REFRESH_RPCS = ['registry_doc_set_paid', 'kp_doc_create', 'kp_doc_cancel'];
+export const UNPAID_REFRESH_PREFIX = 'kp_payment_';
+export function refreshesUnpaid(name) {
+    const n = String(name || '');
+    return UNPAID_REFRESH_RPCS.includes(n) || n.startsWith(UNPAID_REFRESH_PREFIX);
 }
 
 export function counterText(n) {
