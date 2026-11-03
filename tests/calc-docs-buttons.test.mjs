@@ -28,8 +28,8 @@ test('історія заявок: «Створити ТТН» і «Створи
         const out = owner({ id: 'c1', status });
         assert.match(out, /openCalcDoc\('ttn', 'c1'\)">Створити ТТН</);
         assert.match(out, /openCalcDoc\('trip_sheet', 'c1'\)">Створити подорожній лист</);
-        assert.match(out, /openCalcDoc\('act', 'c1'\)">Створити акт</);
-        assert.match(out, /openCalcDoc\('invoice', 'c1'\)">Створити рахунок</);
+        // Акти й рахунки створюються лише з Реєстру заявок (registryDocActions), у рядку заявки їх немає.
+        assert.doesNotMatch(out, /Створити акт|Створити рахунок|openCalcDoc\('act'|openCalcDoc\('invoice'/);
         assert.match(out, /showCalcDocs\('c1'\)/);
     }
     assert.notEqual(make('logist')({ id: 'c2', status: 'accepted' }), '');
@@ -47,4 +47,16 @@ test('кнопки ведуть у Контроль+ з id заявки; спи�
     const actions = fnSource('historyActions');
     assert.match(actions, /лише перегляд<\/span>' \+ calcDocButtons\(row\)/);
     assert.match(actions, /parts\.push\(calcDocButtons\(row\)\)/);
+});
+
+test('Контроль+: «Створити акт / рахунок» є в Реєстрі заявок (registryDocActions), а в рядку заявки їх немає', () => {
+    const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    const start = html.indexOf('function registryDocActions(');
+    const body = html.slice(start, html.indexOf('function registryRouteLabel(', start));
+    assert.ok(body.includes("parts.push({ kind: 'create', docKind: kind"), 'реєстр створює документи');
+    assert.ok(body.includes("labels = { invoice: 'рахунок', act: 'акт' }"));
+    const cs = html.indexOf('function calcDocButtons(');
+    const row = html.slice(cs, html.indexOf('function openCalcDoc(', cs));
+    assert.equal(/Створити акт|Створити рахунок/.test(row), false);
+    assert.ok(row.includes('Створити ТТН') && row.includes('Створити подорожній лист') && row.includes('Документи заявки'), 'решта кнопок без змін');
 });
