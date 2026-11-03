@@ -1243,6 +1243,7 @@
         .tc-status.is-proposed { color: var(--accent); border-color: var(--accent); }
         .tc-status.is-accepted, .tc-status.is-done { color: var(--success); border-color: var(--success); }
         .tc-status.is-rejected { color: var(--danger); border-color: var(--danger); }
+        .tc-status.is-cancelled { color: var(--text-muted); border-color: var(--text-muted); text-decoration: line-through; }
         .tc-history-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
         .tc-history-num.is-neg { color: var(--negative); font-weight: 700; }
         .tc-fact-alert, .tc-fact-alert small { color: var(--warning); font-weight: 700; }
@@ -5767,6 +5768,7 @@
                 <option value="accepted">Прийнята</option>
                 <option value="rejected">Відхилена</option>
                 <option value="done">Виконана</option>
+                <option value="cancelled">Скасована</option>
             </select>
             <select id="history-plate" aria-label="Авто" onchange="historyPage=0;renderSavedTable()">
                 <option value="">Усі авто</option>
@@ -7876,12 +7878,17 @@
 
     let notesState = { items: [], unread: 0, loaded: false };
     let notesTimer = null;
+    // Сповіщення: директор бачить сповіщення компанії, логіст — адресовані йому рішення за його заявками (approval_decided)
+    // і, якщо має право приймати заявки в режимі logist_can_accept, заявки на погодженні. Що саме віддати, вирішує сервер.
+    function notesAllowed() {
+        return Boolean(currentUserId) && (currentOrgRole === 'owner' || currentOrgRole === 'logist');
+    }
     function paintUnread() {
         const n = notesState.unread || 0;
         const menuBadge = document.getElementById('tc-menu-unread');
         if (menuBadge) {
             menuBadge.textContent = n > 99 ? '99+' : String(n);
-            menuBadge.hidden = n === 0 || currentOrgRole !== 'owner';
+            menuBadge.hidden = n === 0 || !notesAllowed();
         }
         const tabBadge = document.getElementById('cab-tab-unread');
         if (tabBadge) {
@@ -7895,23 +7902,28 @@
         return note.kind === 'signature_used' || note.kind === 'doc_emailed'
             || note.ref_kind === 'document' || note.ref_kind === 'contract' || note.ref_kind === 'ttn';
     }
+    // Логісту директорські типи (підпис і печатка, пошта документів) не показуємо: лише рішення за заявками.
+    function noteForRole(note) {
+        return currentOrgRole === 'owner' || note.kind === 'approval_decided' || note.kind === 'approval_pending';
+    }
     function visibleNotes(items) {
-        return isKP() ? (items || []) : (items || []).filter(function (note) { return !noteKpOnly(note); });
+        const list = (items || []).filter(noteForRole);
+        return isKP() ? list : list.filter(function (note) { return !noteKpOnly(note); });
     }
     async function refreshUnreadNotifications() {
-        if (currentOrgRole !== 'owner' || !currentUserId) return;
+        if (!notesAllowed()) return;
         try {
             const data = await teamApi('POST', { action: 'notifications', limit: 50 });
             const items = visibleNotes(data.items);
             // На сайті бейдж = непрочитані серед показаних (серверний лічильник включає сховані).
-            const unread = isKP() ? (data.unread || 0) : items.filter(function (note) { return !note.read_at; }).length;
+            const unread = (isKP() || currentOrgRole !== 'owner') ? (data.unread || 0) : items.filter(function (note) { return !note.read_at; }).length;
             notesState = { items: items, unread: unread, loaded: true };
             paintUnread();
             renderNotifications();
         } catch (e) { /* без сповіщень сайт працює як є */ }
     }
     function startNotificationPolling() {
-        if (currentOrgRole !== 'owner' || notesTimer) return;
+        if (!notesAllowed() || notesTimer) return;
         refreshUnreadNotifications();
         notesTimer = setInterval(function () { if (!document.hidden) refreshUnreadNotifications(); }, 90000);
         document.addEventListener('visibilitychange', function () { if (!document.hidden) refreshUnreadNotifications(); });
@@ -7950,7 +7962,7 @@
         } else {
             list.innerHTML = items.map(function (note) {
                 const text = (NOTE_KIND_TEXT[note.kind] || function () { return 'Сповіщення'; })(note);
-                const who = note.actor_email ? '<small>Логіст: ' + teamEsc(note.actor_email) + '</small>' : '';
+                const who = note.actor_email ? '<small>' + (note.kind === 'approval_decided' ? 'Вирішив: ' : 'Логіст: ') + teamEsc(note.actor_email) + '</small>' : '';
                 const when = new Date(note.created_at).toLocaleString('uk-UA');
                 const open = note.ref_kind === 'calculation'
                     ? '<button type="button" onclick="openNotification(\'' + teamEsc(note.id) + '\')">Відкрити заявку</button>'
@@ -7965,7 +7977,7 @@
         if (all) all.disabled = !(notesState.unread > 0);
     }
     async function loadNotifications() {
-        if (currentOrgRole !== 'owner') return;
+        if (!notesAllowed()) return;
         renderNotifications();
         await refreshUnreadNotifications();
     }
@@ -7977,7 +7989,7 @@
     }
     async function markAllNotesRead() {
         try {
-            if (isKP()) await teamApi('POST', { action: 'notifications_read', all: true });
+            if (isKP() || currentOrgRole !== 'owner') await teamApi('POST', { action: 'notifications_read', all: true });
             else {
                 // На сайті «Прочитати все» не чіпає сховані сповіщення: лише показані непрочитані.
                 const ids = (notesState.items || []).filter(function (note) { return !note.read_at; }).map(function (note) { return note.id; });
@@ -7996,7 +8008,7 @@
         closeCabinet();
         if (note.ref_kind === 'calculation') {
             setStudioView('history');
-            if (typeof openApprovalReview === 'function') {
+            if (currentOrgRole === 'owner' && typeof openApprovalReview === 'function') {
                 if (!savedCalculations.some(function (row) { return row.id === note.ref_id; }) && typeof loadSavedCalculations === 'function') {
                     try { await loadSavedCalculations(); } catch (e) { /* список лишається як є */ }
                 }
@@ -11287,7 +11299,7 @@
             { id: 'costs', title: 'Витратна частина' }
         ];
         if (isKP()) tabs.splice(1, 0, { id: 'requisites', title: 'Реквізити' });
-        if (isOwner) tabs.push({ id: 'notifications', title: 'Сповіщення', badge: 'cab-tab-unread' });
+        if (isOwner || currentOrgRole === 'logist') tabs.push({ id: 'notifications', title: 'Сповіщення', badge: 'cab-tab-unread' });
         if (isOwner && currentWorkMode === 'team') tabs.push({ id: 'team', title: 'Команда' });
         if (isOwner && isKP()) tabs.push({ id: 'stats', title: 'Статистика' });
         if (isOwner) tabs.push({ id: 'docs', title: 'Автопарк' });
@@ -11357,12 +11369,12 @@
             '<span class="cab-muted">' + (isOwner ? 'Компанія, підпис і печатка для актів, рахунків і ТТН' : 'Лише перегляд — змінює директор') + '</span></div>' +
             '<div id="cab-req-slot" class="cab-slot"><p class="cab-note">Реквізити компанії, підпис і печатка для актів і ТТН доступні в Контроль+.</p></div></div></div>';
         html += costsPanelHtml(esc);
-        if (isOwner) {
-            html += (isKP() ? '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
+        if (isOwner || currentOrgRole === 'logist') {
+            html += (isOwner && isKP() ? '<div class="cab-panel" data-panel="stats"><div class="cab-card"><div class="cab-card-head"><h3>Статистика</h3></div>' +
                 '<div id="cab-stats-slot" class="cab-slot"><p class="cab-note">Статистика за період доступна в Контроль+.</p></div></div></div>' : '') +
                 '<div class="cab-panel" data-panel="notifications"><div class="cab-card">' +
                 '<div class="cab-card-head"><h3>Сповіщення</h3><button type="button" class="btn" id="cab-notes-all" onclick="markAllNotesRead()">Позначити все прочитаним</button></div>' +
-                '<p class="cab-note">Заявки, що чекають погодження' + (isKP() ? ', і кожне використання підпису та печатки логістом' : '') + '.</p>' +
+                '<p class="cab-note">' + (isOwner ? 'Заявки, що чекають погодження' + (isKP() ? ', і кожне використання підпису та печатки логістом' : '') + '.' : 'Рішення за вашими заявками: прийнято, відхилено чи скасовано.') + '</p>' +
                 '<div class="tc-notes-list" id="cab-notes-list"><div class="cab-muted">Завантаження…</div></div></div></div>';
         }
         if (isOwner) html += '<div class="cab-panel" data-panel="docs"><div class="cab-card">' +
@@ -13915,7 +13927,9 @@
             return !!d && d >= from && (!to || d < to);
         });
     }
+    // Скасовані заявки (cancelled) у підсумки огляду не входять.
     function overviewStats(rows) {
+        rows = rows.filter(function (row) { return row.status !== 'cancelled'; });
         const sum = function (key) {
             return rows.reduce(function (acc, row) {
                 const n = Number(row[key]);

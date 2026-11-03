@@ -337,10 +337,10 @@ test('КП-перевірки статусу заявки: усі — білий
     assert.match(read('api/calculate.js'), /calc\.status !== 'accepted' && calc\.status !== 'done'/);
 });
 
-test('pgTAP-тест реєстру: 38 перевірок, матриця ролей × переходів × режимів, нумерація, RLS', () => {
+test('pgTAP-тест реєстру: 44 перевірки, матриця ролей × переходів × режимів, нумерація, RLS', () => {
     const tap = read('supabase/tests/request_registry.sql');
-    assert.match(tap, /SELECT plan\(38\)/);
-    assert.equal(tap.split('\n').filter((line) => /^SELECT (is|ok|results_eq|throws_ok|matches)\(/.test(line)).length, 38);
+    assert.match(tap, /SELECT plan\(44\)/);
+    assert.equal(tap.split('\n').filter((line) => /^SELECT (is|ok|results_eq|throws_ok|matches)\(/.test(line)).length, 44);
     for (const part of ['logist_can_accept', 'owner_only', 'registry_list', 'registry_totals', 'kp_next_registry_no', 'P0001', 'approval_decided']) assert.ok(tap.includes(part), part);
 });
 
@@ -361,7 +361,77 @@ test('index.html: право «Приймати заявки в роботу» �
     const end = html.indexOf('box.innerHTML = html;', gate);
     assert.ok(gate > 0 && gate < mode && mode < end, 'перемикач режиму лише в панелі «Команда» (team), у solo його немає');
     // Тип approval_decided не входить у сховані на сайті КП-типи.
-    const kpOnly = html.slice(html.indexOf('function noteKpOnly(note) {'), html.indexOf('function visibleNotes'));
+    const kpOnly = html.slice(html.indexOf('function noteKpOnly(note) {'), html.indexOf('function noteForRole'));
     assert.equal(kpOnly.includes('approval_decided'), false);
     assert.equal(kpOnly.includes("'calculation'"), false);
+});
+
+// ---- Доробки за рев'ю #106 ----
+test('міграція: логіст з правом змінює лише поля рішення (guard колонок у тригері до fill_history і registry)', () => {
+    const trigger = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.calculations_enforce_approval()'), migration.indexOf('CREATE OR REPLACE FUNCTION public.calculations_registry()'));
+    assert.ok(trigger.includes("ARRAY['status', 'decided_by', 'decided_at', 'reject_reason', 'cancel_reason', 'cancelled_at',"));
+    assert.ok(trigger.includes("'cancelled_by', 'registry_no', 'updated_at']"));
+    assert.ok(trigger.includes('IF NOT v_owner AND NOT v_director AND OLD.user_id IS DISTINCT FROM v_uid AND v_logist'));
+    assert.ok(trigger.includes('(to_jsonb(NEW) - v_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_allowed)'));
+    assert.ok(trigger.includes("CALC_COLUMNS_FORBIDDEN"));
+    // Перевірка — до раннього повернення «статус не змінено», щоб PATCH інших колонок без статусу теж відсікався.
+    assert.ok(trigger.indexOf('CALC_COLUMNS_FORBIDDEN') < trigger.indexOf('IF NEW.status IS NOT DISTINCT FROM OLD.status THEN'));
+    assert.ok('trg_calculations_enforce_approval' < 'trg_calculations_fill_history', 'guard бачить значення клієнта до перерахунку snapshot');
+});
+
+test('міграція: kp_is_org_director враховує control_plus; політика сповіщень; backfill не міняє updated_at; суми без скасованих', () => {
+    const director = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.kp_is_org_director'), migration.indexOf('CREATE OR REPLACE FUNCTION public.calc_logist_accepts'));
+    assert.ok(director.includes("public.org_has_plan(p_org, 'control_plus')"));
+    const policy = migration.slice(migration.indexOf('CREATE POLICY org_notifications_select'), migration.indexOf('CREATE OR REPLACE FUNCTION public.calculations_notify_decided'));
+    for (const part of ['recipient_id = auth.uid()', 'recipient_id IS NULL', 'public.is_org_owner()', 'public.kp_is_org_director(org_id)',
+        "kind = 'approval_pending' AND public.calc_logist_accepts(org_id)"]) assert.ok(policy.includes(part), part);
+    const backfill = migration.slice(migration.indexOf('ALTER TABLE public.calculations DISABLE TRIGGER trg_calculations_fill_history'), migration.lastIndexOf('INSERT INTO public.calc_registry_counters'));
+    assert.ok(backfill.includes('ENABLE TRIGGER trg_calculations_fill_history'));
+    assert.equal(backfill.includes('updated_at'), false, 'backfill не чіпає updated_at');
+    assert.ok(migration.includes("sum(c.revenue) FILTER (WHERE c.status <> 'cancelled')"));
+    assert.ok(migration.includes("sum(ta.profit) FILTER (WHERE c.status <> 'cancelled')"));
+    // Табличного UPDATE у authenticated немає (лише колонкові гранти), тож GRANT UPDATE (cancel_reason) потрібен і лишається.
+    assert.ok(migration.includes('GRANT UPDATE (cancel_reason) ON public.calculations TO authenticated;'));
+});
+
+test('РУЧНИЙ ВІДКАТ: спершу політики й старі тіла функцій, потім DROP нових функцій; гранти повертаються', () => {
+    const head = migration.slice(migration.indexOf('-- РУЧНИЙ ВІДКАТ'), migration.indexOf('\nBEGIN;\n'));
+    const at = (text) => { const i = head.indexOf(text); assert.ok(i >= 0, text); return i; };
+    const policies = ['DROP POLICY IF EXISTS org_notifications_select', 'DROP POLICY IF EXISTS calculations_select_role',
+        'DROP POLICY IF EXISTS calculations_update_role', 'DROP POLICY IF EXISTS calculations_delete_role'].map(at);
+    const oldBodies = at('calculations_enforce_approval() з');
+    const dropFunctions = [at('DROP FUNCTION IF EXISTS public.registry_list'), at('public.calc_logist_accepts(uuid), public.kp_is_org_director(uuid)')];
+    for (const policy of policies) for (const drop of dropFunctions) assert.ok(policy < drop, 'політики раніше DROP FUNCTION');
+    for (const drop of dropFunctions) assert.ok(oldBodies < drop, 'старі тіла функцій раніше DROP FUNCTION');
+    assert.ok(at('BEGIN;') < policies[0] && at('COMMIT;') > dropFunctions[1], 'одна транзакція');
+    assert.ok(at('REVOKE UPDATE (cancel_reason) ON public.calculations FROM authenticated;') < at('DROP COLUMN IF EXISTS registry_no'));
+    assert.ok(head.includes('member_can') && head.includes('EXECUTE лише authenticated, service_role'));
+    assert.ok(head.includes('DROP TABLE IF EXISTS public.calc_registry_counters;'));
+});
+
+test('cancelled у тижневому звіті: у переліку зі статусом «Скасовано», але не в кількості й сумах', async () => {
+    const { buildWeeklyReport } = await import('../lib/weekly-report.js');
+    const trips = [
+        { tripDate: '2026-11-02', routeFrom: 'А', routeTo: 'Б', status: 'accepted', revenue: 1000, profit: 100, actualProfit: 80 },
+        { tripDate: '2026-11-03', routeFrom: 'В', routeTo: 'Г', status: 'cancelled', revenue: 500, profit: 50, actualProfit: 40 },
+        { tripDate: '2026-11-04', routeFrom: 'Д', routeTo: 'Е', status: 'done', revenue: 2000, profit: 300, actualProfit: 250 }
+    ];
+    const report = buildWeeklyReport({ orgName: 'T', periodStart: '2026-11-02', periodEnd: '2026-11-08', trips });
+    assert.deepEqual([report.summary.tripCount, report.summary.plannedRevenue, report.summary.plannedProfit, report.summary.factCount, report.summary.actualProfit],
+        [2, 3000, 400, 2, 330]);
+    assert.ok(report.text.includes('В → Г') && report.text.includes('Скасовано'), 'скасований рейс видно в переліку');
+});
+
+test('cancelled у клієнтських підсумках, експорті й КП: огляд без скасованих; CSV і фільтр статусів показують; КП-звіти — білий список', () => {
+    const html = read('index.html');
+    const overview = html.slice(html.indexOf('function overviewStats(rows) {'), html.indexOf('function ovNum('));
+    assert.ok(overview.includes("row.status !== 'cancelled'"));
+    assert.ok(html.includes('<option value="cancelled">Скасована</option>'), 'фільтр історії');
+    assert.ok(html.includes('.tc-status.is-cancelled'));
+    // historyCsv виводить статус рядка (statusLabel) — скасовані видно як «Скасована»; сум у CSV немає.
+    assert.ok(html.includes('status: statusLabel(fields.status)'));
+    // Звіти й статистика Контроль+ та trip_actuals — білий список accepted | done.
+    assert.match(read('apps/kontrol-plus/src/lib/stats.js'), /COUNTED_STATUSES = \['accepted', 'done'\]/);
+    assert.match(read('supabase/migrations/20261012220000_trip_actuals.sql'), /status NOT IN \('accepted', 'done'\)/);
+    assert.match(read('apps/kontrol-plus/tests/site.test.mjs'), /r\.source !== '\/kontrol-plus'/);
 });

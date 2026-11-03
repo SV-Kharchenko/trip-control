@@ -1375,26 +1375,37 @@ export function createTeamService(deps) {
     }
 
     // Сповіщення директору (пишуться тригерами бази). Список + лічильник непрочитаних.
-    // Чия це черга сповіщень: власник бачить сповіщення компанії (без адресата) і адресовані йому; інший учасник — лише адресовані
-    // йому (approval_decided: заявку прийнято / відхилено / скасовано). Колонки recipient_id ще немає (до міграції реєстру) —
-    // власник бачить усе, як раніше, учасник нічого.
+    // Чия це черга сповіщень: власник бачить сповіщення компанії (без адресата) і адресовані йому; логіст — адресовані йому
+    // (approval_decided: заявку прийнято / відхилено / скасовано) і, якщо може приймати заявки (режим logist_can_accept + право
+    // accept), approval_pending без адресата — як політика org_notifications_select. Колонки recipient_id ще немає (до міграції
+    // реєстру) — власник бачить усе, як раніше, логіст нічого.
     const NOTIFICATION_NO_COLUMN = /recipient_id|42703|PGRST204/;
     const NOTIFICATION_NO_TABLE = /org_notifications|relation|schema cache|42P01|PGRST205/i;
-    function scopeNotifications(query, actor, withRecipient) {
+    function scopeNotifications(query, actor, withRecipient, seesPending = false) {
         const owner = actor.profile.org_role === 'owner';
         if (!withRecipient) return owner ? query : null;
-        return owner ? query.or('recipient_id.is.null,recipient_id.eq.' + actor.user.id) : query.eq('recipient_id', actor.user.id);
+        if (owner) return query.or('recipient_id.is.null,recipient_id.eq.' + actor.user.id);
+        if (seesPending) return query.or('recipient_id.eq.' + actor.user.id + ',and(recipient_id.is.null,kind.eq.approval_pending)');
+        return query.eq('recipient_id', actor.user.id);
+    }
+
+    // Логіст бачить заявки на погодженні лише з правом приймати в режимі logist_can_accept.
+    async function logistSeesPending(actor) {
+        if (actor.profile.org_role !== 'logist') return false;
+        if (await loadApprovalMode(actor.profile.org_id) !== 'logist_can_accept') return false;
+        return loadCanAccept(actor.profile.org_id, actor.user.id);
     }
 
     async function listNotifications(actor, body) {
         const orgId = actor.profile.org_id;
         const limit = Math.max(1, Math.min(NOTIFICATIONS_LIMIT, Number(body && body.limit) || 50));
+        const seesPending = await logistSeesPending(actor);
         const run = async (withRecipient) => {
             const base = supabase
                 .from('org_notifications')
                 .select('id, kind, ref_kind, ref_id, actor_id, meta, created_at, read_at')
                 .eq('org_id', orgId);
-            const scoped = scopeNotifications(base, actor, withRecipient);
+            const scoped = scopeNotifications(base, actor, withRecipient, seesPending);
             if (!scoped) return { data: [], error: null };
             return scoped.order('created_at', { ascending: false }).limit(limit);
         };

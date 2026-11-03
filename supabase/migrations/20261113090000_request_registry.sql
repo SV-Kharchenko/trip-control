@@ -26,30 +26,52 @@
 --
 -- Ідемпотентно. Старі міграції не редагуються.
 --
--- РУЧНИЙ ВІДКАТ (виконати в SQL editor, у такому порядку):
---   DROP FUNCTION IF EXISTS public.registry_list(jsonb, integer, integer), public.registry_totals(jsonb);
+-- РУЧНИЙ ВІДКАТ (SQL editor, однією транзакцією, у цьому порядку; спершу політики й функції, що викликають нові функції,
+-- і лише потім DROP нових функцій):
+--   BEGIN;
+--   -- 1. Тригери нової міграції.
 --   DROP TRIGGER IF EXISTS trg_calculations_notify_decided ON public.calculations;
 --   DROP TRIGGER IF EXISTS trg_calculations_registry ON public.calculations;
+--   -- 2. Політики назад (вони викликають calc_logist_accepts / kp_is_org_director — тому ДО видалення функцій).
+--   DROP POLICY IF EXISTS org_notifications_select ON public.org_notifications;
+--   CREATE POLICY org_notifications_select ON public.org_notifications FOR SELECT TO authenticated
+--     USING (org_id = public.current_org_id() AND public.is_org_owner());
+--   DROP POLICY IF EXISTS calculations_select_role ON public.calculations;
+--   CREATE POLICY calculations_select_role ON public.calculations FOR SELECT TO authenticated
+--     USING (org_id = public.current_org_id() AND (public.is_org_owner() OR user_id = auth.uid() OR public.org_logists_see_all()));
+--   DROP POLICY IF EXISTS calculations_update_role ON public.calculations;
+--   CREATE POLICY calculations_update_role ON public.calculations FOR UPDATE TO authenticated
+--     USING (org_id = public.current_org_id() AND (public.is_org_owner() OR user_id = auth.uid()))
+--     WITH CHECK (org_id = public.current_org_id() AND (public.is_org_owner() OR user_id = auth.uid()));
+--   DROP POLICY IF EXISTS calculations_delete_role ON public.calculations;
+--   CREATE POLICY calculations_delete_role ON public.calculations FOR DELETE TO authenticated
+--     USING (org_id = public.current_org_id() AND status NOT IN ('accepted', 'done') AND (public.is_org_owner() OR user_id = auth.uid()));
+--   -- 3. Старі тіла функцій: виконати CREATE OR REPLACE FUNCTION public.calculations_enforce_approval() з
+--   --    20261027140559_calc_approvals.sql та public.member_can(text) з 20261028155128_director_cabinet.sql
+--   --    (разом з їх REVOKE / GRANT з тих файлів; гранти member_can не змінювались: EXECUTE лише authenticated, service_role).
+--   -- 4. Дані й обмеження.
+--   DELETE FROM public.org_notifications WHERE kind = 'approval_decided';
+--   UPDATE public.calculations SET status = 'done' WHERE status = 'cancelled';   -- або видалити такі рядки за домовленістю
+--   ALTER TABLE public.org_notifications DROP CONSTRAINT IF EXISTS org_notifications_kind_check;
+--   ALTER TABLE public.org_notifications ADD CONSTRAINT org_notifications_kind_check
+--     CHECK (kind IN ('approval_pending', 'signature_used', 'doc_emailed'));
+--   ALTER TABLE public.org_notifications DROP COLUMN IF EXISTS recipient_id;
+--   REVOKE UPDATE (cancel_reason) ON public.calculations FROM authenticated;
+--   ALTER TABLE public.calculations DROP CONSTRAINT IF EXISTS calculations_cancel_reason_ck,
+--     DROP CONSTRAINT IF EXISTS calculations_registry_no_ck, DROP CONSTRAINT IF EXISTS calculations_org_registry_no_key,
+--     DROP CONSTRAINT IF EXISTS calculations_status_check;
+--   ALTER TABLE public.calculations ADD CONSTRAINT calculations_status_check
+--     CHECK (status IN ('draft', 'pending', 'accepted', 'rejected', 'done'));
+--   DROP INDEX IF EXISTS public.calculations_org_registry_idx;
+--   ALTER TABLE public.calculations DROP COLUMN IF EXISTS registry_no, DROP COLUMN IF EXISTS cancelled_at,
+--     DROP COLUMN IF EXISTS cancelled_by, DROP COLUMN IF EXISTS cancel_reason;
+--   ALTER TABLE public.org_member_permissions DROP COLUMN IF EXISTS can_accept;
+--   -- 5. Нові функції й таблиця (уже ніхто на них не посилається). Ключ approval_mode у company_settings.settings можна лишити.
+--   DROP FUNCTION IF EXISTS public.registry_list(jsonb, integer, integer), public.registry_totals(jsonb);
 --   DROP FUNCTION IF EXISTS public.calculations_notify_decided(), public.calculations_registry(), public.kp_next_registry_no(uuid, integer),
 --     public.set_approval_mode(uuid, text), public.calc_logist_accepts(uuid), public.kp_is_org_director(uuid), public.approval_mode_of(uuid);
 --   DROP TABLE IF EXISTS public.calc_registry_counters;
---   DELETE FROM public.org_notifications WHERE kind = 'approval_decided';
---   ALTER TABLE public.org_notifications DROP CONSTRAINT IF EXISTS org_notifications_kind_check;
---   ALTER TABLE public.org_notifications ADD CONSTRAINT org_notifications_kind_check CHECK (kind IN ('approval_pending', 'signature_used', 'doc_emailed'));
---   DROP POLICY IF EXISTS org_notifications_select ON public.org_notifications;
---   CREATE POLICY org_notifications_select ON public.org_notifications FOR SELECT TO authenticated USING (org_id = public.current_org_id() AND public.is_org_owner());
---   ALTER TABLE public.org_notifications DROP COLUMN IF EXISTS recipient_id;
---   UPDATE public.calculations SET status = 'done' WHERE status = 'cancelled';   -- або видалити такі рядки за домовленістю
---   ALTER TABLE public.calculations DROP CONSTRAINT IF EXISTS calculations_cancel_reason_ck, DROP CONSTRAINT IF EXISTS calculations_registry_no_ck,
---     DROP CONSTRAINT IF EXISTS calculations_org_registry_no_key, DROP CONSTRAINT IF EXISTS calculations_status_check;
---   ALTER TABLE public.calculations ADD CONSTRAINT calculations_status_check CHECK (status IN ('draft', 'pending', 'accepted', 'rejected', 'done'));
---   ALTER TABLE public.calculations DROP COLUMN IF EXISTS registry_no, DROP COLUMN IF EXISTS cancelled_at, DROP COLUMN IF EXISTS cancelled_by,
---     DROP COLUMN IF EXISTS cancel_reason;
---   ALTER TABLE public.org_member_permissions DROP COLUMN IF EXISTS can_accept;
---   Потім заново виконати CREATE OR REPLACE FUNCTION public.calculations_enforce_approval() з 20261027140559_calc_approvals.sql,
---   public.member_can(text) з 20261028155128_director_cabinet.sql і політики calculations_select_role / calculations_update_role
---   (20261012161314_owner_logist_team_hardening.sql) та calculations_delete_role (20261027140559_calc_approvals.sql).
---   Ключ approval_mode у company_settings.settings можна лишити (нічого не читає).
+--   COMMIT;
 
 BEGIN;
 
@@ -88,7 +110,8 @@ CREATE INDEX IF NOT EXISTS calculations_org_registry_idx
   ON public.calculations (org_id, registry_no DESC)
   WHERE status IN ('accepted', 'done', 'cancelled');
 
--- Клієнт пише причину скасування разом зі статусом; cancelled_at / cancelled_by / registry_no ставить лише тригер.
+-- У authenticated немає табличного UPDATE на calculations (лише колонкові гранти: name, status, reject_reason), тож без цього
+-- гранта клієнт не передасть причину разом зі статусом cancelled. cancelled_at / cancelled_by / registry_no ставить лише тригер.
 GRANT UPDATE (cancel_reason) ON public.calculations TO authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -190,7 +213,7 @@ AS $$
   );
 $$;
 
--- Поточний користувач — директор цієї організації (org_directors).
+-- Поточний користувач — директор цієї організації (org_directors), а організація — на тарифі control_plus.
 CREATE OR REPLACE FUNCTION public.kp_is_org_director(p_org uuid)
 RETURNS boolean
 LANGUAGE sql
@@ -199,7 +222,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT auth.uid() IS NOT NULL
-     AND EXISTS (SELECT 1 FROM public.org_directors AS d WHERE d.org_id = p_org AND d.user_id = auth.uid());
+     AND EXISTS (SELECT 1 FROM public.org_directors AS d WHERE d.org_id = p_org AND d.user_id = auth.uid())
+     AND public.org_has_plan(p_org, 'control_plus');
 $$;
 
 -- Поточний користувач — активний логіст цієї організації з правом приймати І режим logist_can_accept.
@@ -267,6 +291,9 @@ DECLARE
   v_director boolean;
   v_logist boolean;
   v_solo boolean;
+  -- Єдине, що міняє логіст, який має доступ до чужої заявки лише через право accept (решту колонок він змінювати не може).
+  v_allowed constant text[] := ARRAY['status', 'decided_by', 'decided_at', 'reject_reason', 'cancel_reason', 'cancelled_at',
+                                      'cancelled_by', 'registry_no', 'updated_at'];
 BEGIN
   IF v_uid IS NULL THEN
     RETURN NEW;
@@ -281,6 +308,21 @@ BEGIN
     RETURN NEW;
   END IF;
 
+  v_owner := EXISTS (
+    SELECT 1 FROM public.profiles AS p
+    WHERE p.id = v_uid AND p.org_id = OLD.org_id AND p.org_role = 'owner' AND p.member_status = 'active'
+  );
+  v_director := public.kp_is_org_director(OLD.org_id);
+  v_logist := public.calc_logist_accepts(OLD.org_id);
+
+  -- Логіст, якому чужу заявку відкриває лише calc_logist_accepts, змінює тільки поля рішення (v_allowed); будь-яка інша
+  -- колонка, що відрізняється від OLD, — відмова. Тригер спрацьовує до calculations_fill_history і calculations_registry,
+  -- тож порівнюється те, що надіслав клієнт.
+  IF NOT v_owner AND NOT v_director AND OLD.user_id IS DISTINCT FROM v_uid AND v_logist
+     AND (to_jsonb(NEW) - v_allowed) IS DISTINCT FROM (to_jsonb(OLD) - v_allowed) THEN
+    RAISE EXCEPTION 'CALC_COLUMNS_FORBIDDEN: accept right changes only the decision fields' USING ERRCODE = '42501';
+  END IF;
+
   -- Поля рішення змінюються лише разом зі статусом і лише цим тригером.
   IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
     NEW.submitted_at := OLD.submitted_at;
@@ -289,13 +331,6 @@ BEGIN
     NEW.reject_reason := OLD.reject_reason;
     RETURN NEW;
   END IF;
-
-  v_owner := EXISTS (
-    SELECT 1 FROM public.profiles AS p
-    WHERE p.id = v_uid AND p.org_id = OLD.org_id AND p.org_role = 'owner' AND p.member_status = 'active'
-  );
-  v_director := public.kp_is_org_director(OLD.org_id);
-  v_logist := public.calc_logist_accepts(OLD.org_id);
 
   IF NEW.status = 'pending' AND OLD.status IN ('draft', 'rejected') THEN
     IF OLD.user_id <> v_uid AND NOT v_owner THEN
@@ -460,6 +495,8 @@ CREATE POLICY calculations_update_role ON public.calculations
 -- 6. Backfill: номери наявним accepted / done за decided_at (запасний created_at), по організації і року
 -- ---------------------------------------------------------------------------
 
+ALTER TABLE public.calculations DISABLE TRIGGER trg_calculations_fill_history;
+
 WITH ranked AS (
   SELECT c.id,
          extract(year FROM (coalesce(c.decided_at, c.created_at) AT TIME ZONE 'Europe/Kyiv'))::integer AS y,
@@ -474,6 +511,8 @@ UPDATE public.calculations AS c
 SET registry_no = r.y::text || '-' || CASE WHEN r.n > 9999 THEN r.n::text ELSE lpad(r.n::text, 4, '0') END
 FROM ranked AS r
 WHERE c.id = r.id;
+
+ALTER TABLE public.calculations ENABLE TRIGGER trg_calculations_fill_history;
 
 INSERT INTO public.calc_registry_counters (org_id, year, last_no)
 SELECT c.org_id, substr(c.registry_no, 1, 4)::integer, max(substr(c.registry_no, 6)::integer)
@@ -496,15 +535,20 @@ ALTER TABLE public.org_notifications
   ADD CONSTRAINT org_notifications_kind_check
   CHECK (kind IN ('approval_pending', 'signature_used', 'doc_emailed', 'approval_decided'));
 
--- Директор бачить сповіщення компанії без адресата; адресат (автор заявки) — свої.
+-- Адресат (автор заявки) бачить свої. Сповіщення без адресата бачить owner, директор з org_directors (control_plus) і —
+-- лише approval_pending — логіст з правом accept у режимі logist_can_accept.
 DROP POLICY IF EXISTS org_notifications_select ON public.org_notifications;
 CREATE POLICY org_notifications_select ON public.org_notifications
   FOR SELECT TO authenticated
   USING (
-    org_id = public.current_org_id()
-    AND (
-      (recipient_id IS NULL AND public.is_org_owner())
-      OR recipient_id = auth.uid()
+    recipient_id = auth.uid()
+    OR (
+      recipient_id IS NULL
+      AND (
+        (org_id = public.current_org_id() AND public.is_org_owner())
+        OR public.kp_is_org_director(org_id)
+        OR (kind = 'approval_pending' AND public.calc_logist_accepts(org_id))
+      )
     )
   );
 
@@ -614,7 +658,8 @@ BEGIN
 END;
 $$;
 
--- Ті самі фільтри. Підсумки: кількість, виручка (план), прибуток план, прибуток факт (trip_actuals), км.
+-- Ті самі фільтри. Підсумки: кількість (разом зі скасованими; cancelled_count окремо), виручка (план), прибуток план,
+-- прибуток факт (trip_actuals), км — суми БЕЗ скасованих заявок.
 CREATE OR REPLACE FUNCTION public.registry_totals(p_filters jsonb DEFAULT '{}'::jsonb)
 RETURNS TABLE (
   total_count bigint, cancelled_count bigint, revenue numeric, profit_plan numeric, profit_fact numeric, distance_km numeric
@@ -658,10 +703,10 @@ BEGIN
   RETURN QUERY
   SELECT count(*)::bigint,
          (count(*) FILTER (WHERE c.status = 'cancelled'))::bigint,
-         coalesce(sum(c.revenue), 0)::numeric,
-         coalesce(sum(c.profit), 0)::numeric,
-         coalesce(sum(ta.profit), 0)::numeric,
-         coalesce(sum(c.distance_km), 0)::numeric
+         coalesce(sum(c.revenue) FILTER (WHERE c.status <> 'cancelled'), 0)::numeric,
+         coalesce(sum(c.profit) FILTER (WHERE c.status <> 'cancelled'), 0)::numeric,
+         coalesce(sum(ta.profit) FILTER (WHERE c.status <> 'cancelled'), 0)::numeric,
+         coalesce(sum(c.distance_km) FILTER (WHERE c.status <> 'cancelled'), 0)::numeric
   FROM public.calculations AS c
   LEFT JOIN public.trip_actuals AS ta ON ta.calculation_id = c.id
   WHERE c.org_id = public.current_org_id()

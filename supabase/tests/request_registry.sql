@@ -9,7 +9,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(38);
+SELECT plan(44);
 
 -- ---------------------------------------------------------------------------
 -- Фікстура
@@ -56,14 +56,19 @@ FROM (VALUES
 ) AS m(id, org, role)
 WHERE p.id = m.id::uuid;
 
--- Директор org A: окремий користувач, не учасник організації.
-INSERT INTO public.org_directors (org_id, user_id)
-VALUES ('50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d4');
+SELECT public.set_org_plan('50000000-0000-0000-0000-00000000000a', 'control_plus');
+
+-- Директор org A (control_plus): окремий користувач, не учасник організації. У org B (company) той самий користувач — директор лише
+-- формально: kp_is_org_director враховує тариф.
+INSERT INTO public.org_directors (org_id, user_id) VALUES
+  ('50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d4'),
+  ('50000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000d4');
 
 -- Права логістів: d2 може приймати, d3 — ні.
 INSERT INTO public.org_member_permissions (org_id, user_id, can_accept) VALUES
   ('50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d2', true),
-  ('50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d3', false);
+  ('50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d3', false),
+  ('50000000-0000-0000-0000-00000000000e', '00000000-0000-0000-0000-0000000000d9', true);
 
 -- Стан для перевірок: нова заявка org A / org-параметр, автор d2 (логіст з правом); потім вистава «користувача» і спроба переходу.
 -- Повертає 'ok' або SQLSTATE. Спроба відкочується (підтранзакція), тож кожен виклик починає з чистої заявки.
@@ -107,6 +112,51 @@ BEGIN
   PERFORM set_config('request.jwt.claims', json_build_object('sub', p_actor, 'role', 'authenticated')::text, true);
   UPDATE public.calculations SET status = p_to, cancel_reason = coalesce(p_reason, cancel_reason) WHERE id = p_id;
   PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+END;
+$$;
+
+-- Пряма зміна колонки (SET-фрагмент) логістом/власником на чужій заявці org A; автор заявки — власник (d1).
+CREATE FUNCTION pg_temp.patch(p_actor uuid, p_status text, p_set text) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE
+  v_id uuid := gen_random_uuid();
+BEGIN
+  PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  INSERT INTO public.calculations (id, org_id, user_id, name, inputs, results, status)
+  VALUES (v_id, '50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d1', 'patch', '{}'::jsonb, '{}'::jsonb, p_status);
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', p_actor, 'role', 'authenticated')::text, true);
+  BEGIN
+    EXECUTE 'UPDATE public.calculations SET ' || p_set || ' WHERE id = $1' USING v_id;
+    PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+    RETURN 'ok';
+  EXCEPTION WHEN others THEN
+    PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+    RETURN SQLSTATE;
+  END;
+END;
+$$;
+
+-- Які сповіщення (мітки 'A'..) бачить користувач під роллю authenticated (RLS).
+CREATE FUNCTION pg_temp.seen(p_uid uuid) RETURNS text LANGUAGE plpgsql AS $$
+DECLARE
+  v text;
+BEGIN
+  EXECUTE 'SET LOCAL ROLE authenticated';
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+  SELECT coalesce(string_agg(n.meta ->> 'tag', '' ORDER BY n.meta ->> 'tag'), '') INTO v FROM public.org_notifications AS n WHERE n.meta ->> 'tag' IS NOT NULL;
+  EXECUTE 'RESET ROLE';
+  PERFORM set_config('request.jwt.claims', '{"role":"service_role"}', true);
+  RETURN v;
+END;
+$$;
+
+-- Скільки рядків видалив DELETE (RLS мовчки відсікає заборонені).
+CREATE FUNCTION pg_temp.del_count(p_id uuid) RETURNS integer LANGUAGE plpgsql AS $$
+DECLARE
+  v integer;
+BEGIN
+  DELETE FROM public.calculations WHERE id = p_id;
+  GET DIAGNOSTICS v = ROW_COUNT;
+  RETURN v;
 END;
 $$;
 
@@ -209,6 +259,63 @@ SELECT is(
 );
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
+SELECT is(
+  pg_temp.can_accept('00000000-0000-0000-0000-0000000000d9'), true,
+  '6b: member_can(accept) працює й у організації на тарифі company (org R)'
+);
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
+-- Логіст з правом (режим logist_can_accept), не автор: будь-яка колонка поза полями рішення — відмова на draft / pending / accepted.
+SELECT results_eq(
+  $$SELECT s.status, string_agg(c.col || '=' || pg_temp.patch('00000000-0000-0000-0000-0000000000d2', s.status, c.set_sql), ' ' ORDER BY c.col)
+    FROM (VALUES ('draft'), ('pending'), ('accepted')) AS s(status)
+    CROSS JOIN (VALUES ('route_from', $q$route_from = 'Інше місто'$q$), ('revenue', 'revenue = 1'),
+                       ('inputs', $q$inputs = '{"a":1}'::jsonb$q$), ('client_name', $q$client_name = 'Інший'$q$),
+                       ('name', $q$name = 'Нова назва'$q$)) AS c(col, set_sql)
+    GROUP BY s.status ORDER BY s.status$$,
+  $$VALUES ('accepted'::text, 'client_name=42501 inputs=42501 name=42501 revenue=42501 route_from=42501'::text),
+           ('draft', 'client_name=42501 inputs=42501 name=42501 revenue=42501 route_from=42501'),
+           ('pending', 'client_name=42501 inputs=42501 name=42501 revenue=42501 route_from=42501')$$,
+  '6c: логіст з правом accept не змінює route_from, revenue, inputs, client_name, name чужої draft / pending / accepted заявки'
+);
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
+SELECT results_eq(
+  $$SELECT pg_temp.act('00000000-0000-0000-0000-0000000000d2', 'pending', 'accepted', NULL, '50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d1'),
+           pg_temp.act('00000000-0000-0000-0000-0000000000d2', 'pending', 'rejected', NULL, '50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d1'),
+           pg_temp.act('00000000-0000-0000-0000-0000000000d2', 'accepted', 'cancelled', 'Причина', '50000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000d1')$$,
+  $$VALUES ('ok'::text, 'ok'::text, 'ok'::text)$$,
+  '6d: той самий логіст приймає, відхиляє й скасовує (з причиною) чужу заявку'
+);
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
+SELECT results_eq(
+  $$SELECT pg_temp.patch('00000000-0000-0000-0000-0000000000d1', 'draft', $q$route_from = 'Власник міняє'$q$),
+           pg_temp.patch('00000000-0000-0000-0000-0000000000d1', 'accepted', $q$client_name = 'Власник міняє'$q$)$$,
+  $$VALUES ('ok'::text, 'ok'::text)$$,
+  '6e: власник (не обмежений обліком колонок) змінює інші поля'
+);
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
+-- Директор на тарифі company не діє (kp_is_org_director враховує control_plus); на control_plus — діє (матриця вище).
+SELECT is(
+  pg_temp.act('00000000-0000-0000-0000-0000000000d4', 'pending', 'accepted', NULL, '50000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000d5'),
+  '42501', '6f: директор з org_directors організації на тарифі company не приймає'
+);
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
+-- Сповіщення без адресата: owner і директор (control_plus) бачать усе, логіст з правом accept — лише approval_pending, адресат — свої.
+INSERT INTO public.org_notifications (org_id, kind, ref_kind, ref_id, meta, recipient_id) VALUES
+  ('50000000-0000-0000-0000-00000000000a', 'approval_pending', 'calculation', gen_random_uuid(), '{"tag":"A"}', NULL),
+  ('50000000-0000-0000-0000-00000000000a', 'signature_used', 'document', gen_random_uuid(), '{"tag":"B"}', NULL),
+  ('50000000-0000-0000-0000-00000000000a', 'approval_decided', 'calculation', gen_random_uuid(), '{"tag":"C"}', '00000000-0000-0000-0000-0000000000d3');
+SELECT results_eq(
+  $$SELECT string_agg(r.role || '=' || pg_temp.seen(r.uid), ' ' ORDER BY r.ord) FROM reg_roles AS r WHERE r.role <> 'out'$$,
+  $$VALUES ('own=AB dir=AB lgR=A lgN=C'::text)$$,
+  '6g: SELECT org_notifications: owner і директор — без адресата, логіст з правом — approval_pending, адресат — своє'
+);
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+
 -- ---------------------------------------------------------------------------
 -- Скасування: причина, службові поля, незмінність станів
 -- ---------------------------------------------------------------------------
@@ -227,9 +334,9 @@ SELECT throws_ok(
   $$UPDATE public.calculations SET status = 'accepted' WHERE id = '60000000-0000-0000-0000-000000000001'$$,
   '42501', NULL, '10: з cancelled нікуди не переходить — навіть service_role'
 );
+SELECT pg_temp.mk('50000000-0000-0000-0000-00000000000d', '00000000-0000-0000-0000-0000000000d7', 'done', '2031-05-02 10:00+03', '60000000-0000-0000-0000-000000000003');
 SELECT throws_ok(
-  $$UPDATE public.calculations SET status = 'cancelled', cancel_reason = 'x'
-    WHERE id = (SELECT pg_temp.mk('50000000-0000-0000-0000-00000000000d', '00000000-0000-0000-0000-0000000000d7', 'done', '2031-05-02 10:00+03'))$$,
+  $$UPDATE public.calculations SET status = 'cancelled', cancel_reason = 'x' WHERE id = '60000000-0000-0000-0000-000000000003'$$,
   '42501', NULL, '11: done > cancelled заборонено — навіть service_role'
 );
 
@@ -330,8 +437,8 @@ SELECT set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-
 
 SELECT results_eq(
   $$SELECT total_count, cancelled_count, revenue, profit_plan, profit_fact, distance_km FROM public.registry_totals('{}'::jsonb)$$,
-  $$VALUES (3::bigint, 1::bigint, 3500::numeric, 450::numeric, 330::numeric, 350::numeric)$$,
-  '25: registry_totals — кількість, виручка, прибуток план / факт (trip_actuals), км; чернетка не в реєстрі'
+  $$VALUES (3::bigint, 1::bigint, 3000::numeric, 400::numeric, 330::numeric, 300::numeric)$$,
+  '25: registry_totals — кількість зі скасованою, суми (виручка, прибуток план / факт, км) без скасованої; чернетка не в реєстрі'
 );
 SELECT results_eq(
   $$SELECT total_count, revenue FROM public.registry_totals('{"status":["accepted","done"]}'::jsonb)$$,
@@ -380,7 +487,7 @@ SELECT is((SELECT count(*)::int FROM public.calculations WHERE id = '60000000-00
 SELECT set_config('request.jwt.claims', json_build_object('sub', '00000000-0000-0000-0000-0000000000d1', 'role', 'authenticated')::text, true);
 SELECT throws_ok($$SELECT public.set_approval_mode('50000000-0000-0000-0000-00000000000a', 'logist_can_accept')$$, '42501', NULL, '37: клієнт не викликає set_approval_mode');
 SELECT is(
-  (WITH d AS (DELETE FROM public.calculations WHERE id = '60000000-0000-0000-0000-000000000030' RETURNING 1) SELECT count(*)::int FROM d),
+  pg_temp.del_count('60000000-0000-0000-0000-000000000030'),
   0, '38: accepted / done / cancelled видалити не можна'
 );
 RESET ROLE;

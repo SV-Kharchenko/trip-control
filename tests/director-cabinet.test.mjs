@@ -16,6 +16,20 @@ const N1 = '66666666-6666-4666-8666-666666666661';
 const N2 = '66666666-6666-4666-8666-666666666662';
 const N3 = '66666666-6666-4666-8666-666666666663';
 
+// Розбиття за комами верхнього рівня (всередині and(...) коми не ділять).
+function splitTop(text) {
+    const out = [];
+    let depth = 0;
+    let cur = '';
+    for (const ch of text) {
+        if (ch === '(') depth += 1;
+        if (ch === ')') depth -= 1;
+        if (ch === ',' && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+    }
+    out.push(cur);
+    return out;
+}
+
 // Мінімальна in-memory підміна Supabase для сервісу команди: рівно ті запити, які роблять нові дії.
 function createFake() {
     const state = {
@@ -46,8 +60,14 @@ function createFake() {
         eq(col, val) { this.filters.push((row) => row[col] === val); return this; }
         is(col, val) { this.filters.push((row) => (row[col] === undefined ? null : row[col]) === val); return this; }
         or(expr) {
-            const parts = String(expr).split(',').map((part) => part.split('.'));
-            this.filters.push((row) => parts.some(([col, op, val]) => (op === 'is' ? (row[col] === undefined ? null : row[col]) === (val === 'null' ? null : val) : row[col] === val)));
+            const cond = (part) => {
+                const and = /^and\((.*)\)$/.exec(part);
+                if (and) { const all = splitTop(and[1]).map(cond); return (row) => all.every((f) => f(row)); }
+                const [col, op, val] = part.split('.');
+                return (row) => (op === 'is' ? (row[col] === undefined ? null : row[col]) === (val === 'null' ? null : val) : row[col] === val);
+            };
+            const any = splitTop(String(expr)).map(cond);
+            this.filters.push((row) => any.some((f) => f(row)));
             return this;
         }
         in(col, list) { this.filters.push((row) => list.includes(row[col])); return this; }
@@ -252,4 +272,23 @@ test('set_approval_mode: the owner in team mode only, two known modes, written t
     assert.equal(solo.status, 409);
     assert.equal(solo.payload.code, 'TEAM_MODE_ONLY');
     assert.equal(fake.state.rpc.length, 1, 'nothing written in solo mode or by a logist');
+});
+
+test('логіст з правом accept (режим logist_can_accept) бачить заявки на погодженні без адресата, але не директорські типи; читає лише свої', async () => {
+    const fake = createFake();
+    fake.state.org_notifications.push(decided());
+    fake.state.company_settings = [{ org_id: ORG, settings: { approval_mode: 'logist_can_accept' } }];
+    fake.state.org_member_permissions.push({ org_id: ORG, user_id: LOGIST, can_accept: true });
+    const list = await post(fake, 'logist-token', { action: 'notifications' });
+    assert.deepEqual(list.payload.items.map((item) => item.id).sort(), [N1, N4].sort(), 'approval_pending без адресата й своє рішення; signature_used — ні');
+    assert.equal(list.payload.unread, 1, 'лічильник — лише власні сповіщення');
+    const shared = await post(fake, 'logist-token', { action: 'notifications_read', ids: [N1] });
+    assert.equal(shared.payload.marked, 0, 'спільне сповіщення директора логіст не позначає');
+    assert.equal(fake.state.org_notifications.find((item) => item.id === N1).read_at, null);
+    // Без режиму або без права — лише адресовані.
+    for (const change of [() => { fake.state.company_settings = []; }, () => { fake.state.company_settings = [{ org_id: ORG, settings: { approval_mode: 'logist_can_accept' } }]; fake.state.org_member_permissions[0].can_accept = false; }]) {
+        change();
+        const again = await post(fake, 'logist-token', { action: 'notifications' });
+        assert.deepEqual(again.payload.items.map((item) => item.id), [N4]);
+    }
 });
