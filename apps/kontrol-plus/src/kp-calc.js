@@ -1,4 +1,4 @@
-// Після зміни розміру мапи (розкладка калькулятора) просимо Google Maps перемалюватись: window resize його підхоплює.
+// Після зміни розміру мапи (розкладка розрахунку рейсу) просимо Google Maps перемалюватись: window resize його підхоплює.
 // Лише Контроль+ (модуль підключає site-bridge.js).
 export function watchCalcMap(doc = document, win = window) {
     if (!win.ResizeObserver) return null;

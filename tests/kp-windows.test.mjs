@@ -27,7 +27,7 @@ const constLine = (name) => {
 const ID = '11111111-1111-1111-1111-111111111111';
 const run = (ctx, code) => JSON.parse(vm.runInContext('JSON.stringify(' + code + ')', ctx));
 
-test('клік по рядку реєстру: у КП з вікнами — hash #/requests/<id> (вікно); без вікон і на сайті — як раніше (калькулятор)', () => {
+test('клік по рядку реєстру: у КП з вікнами — hash #/requests/<id> (вікно); без вікон і на сайті — як раніше (розрахунок рейсу)', () => {
     const calls = [];
     const make = ({ kp, windows }) => {
         const ctx = vm.createContext({
@@ -46,7 +46,7 @@ test('клік по рядку реєстру: у КП з вікнами — has
         vm.runInContext('openRegistryRow("' + ID + '")', ctx);
         assert.equal(ctx.location.hash, '', 'хеш не міняється');
     }
-    assert.deepEqual(calls, [['openSaved', ID], ['openSaved', ID], ['openSaved', ID]], 'старий шлях: заявка відкривається в калькуляторі');
+    assert.deepEqual(calls, [['openSaved', ID], ['openSaved', ID], ['openSaved', ID]], 'старий шлях: заявка відкривається в розрахунку рейсу');
     // Не uuid — завжди старий шлях.
     const bad = make({ kp: true, windows: true });
     vm.runInContext('openRegistryRow("x\\"><script>")', bad);

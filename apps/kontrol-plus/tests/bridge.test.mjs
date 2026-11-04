@@ -430,7 +430,7 @@ test('bridge: active menu item and calc tabs follow data-studio-view from the fi
             env.calls.mutationCb([{ attributeName: 'data-studio-view' }]);
         };
         env.calls.mutationCb([{ attributeName: 'data-theme' }]);
-        assert.deepEqual(items(), ['calc'], 'калькулятор за замовчуванням: «Розрахунки» підсвічено');
+        assert.deepEqual(items(), ['calc'], 'розрахунок рейсу за замовчуванням: «Розрахунки» підсвічено');
         assert.deepEqual(tabs(), ['kp-calc-tab-calc']);
         change('history');
         assert.deepEqual(items(), ['calc'], 'історія заявок — теж «Розрахунки»');

@@ -14,7 +14,7 @@ export const SHELL_GROUPS = [
         { key: 'overview', label: 'Огляд', icon: 'overview', kind: 'hash', hash: '#/dashboard', access: 'overview' },
         { key: 'registry', label: 'Реєстр заявок', icon: 'registry', kind: 'site', site: 'registry', counter: 'registry', access: 'calc' },
         { key: 'history', label: 'Заявки', icon: 'history', kind: 'site', site: 'history', access: 'calc' },
-        { key: 'calc', label: 'Розрахунок', icon: 'calc', kind: 'site', site: 'calc', access: 'calc' },
+        { key: 'calc', label: 'Розрахунок рейсу', icon: 'calc', kind: 'site', site: 'calc', access: 'calc' },
         { key: 'report', label: 'План/факт', icon: 'report', kind: 'hash', hash: '#/report', access: 'report' },
     ] },
     { key: 'docs', label: 'Документи', items: [

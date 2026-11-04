@@ -855,7 +855,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     const dup = await user(OA)(`INSERT INTO public.fleet_trailers (org_id, plate) VALUES ('${A}', 'ВВ0007ВВ')`);
     check(!dup.ok, 'trailers: a duplicate plate (normalised) is refused', dup.message);
 
-    // Вибір причепа в тягача (калькулятор / ТТН беруть його з нової таблиці) і «Відчепити».
+    // Вибір причепа в тягача (розрахунок рейсу / ТТН беруть його з нової таблиці) і «Відчепити».
     const listed = await user(OA)(`SELECT * FROM public.kp_vehicles_list() WHERE id = $1`, [T1]);
     check(listed.ok && listed.rows[0].trailer_make_model === 'Krone', 'trailers: kp_vehicles_list (the waybill source) shows the trailer from fleet_trailers', listed.message || JSON.stringify(listed.rows[0]));
     const viaSite = await one(`SELECT trailer_make_model FROM public.fleet_vehicles WHERE id = $1`, [T2]);
