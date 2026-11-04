@@ -12,6 +12,6 @@ export function renderPaywall({ context, siteUrl }) {
                 h('li', null, 'Клієнти з реквізитами ТОВ / ФОП'),
                 h('li', null, 'Історія рейсів і ставок по кожному клієнту'),
                 h('li', null, 'Звіт план/факт по логістах, авто, клієнтах і напрямках'),
-                h('li', null, 'Доступ директора лише на перегляд')),
+                h('li', null, 'Доступ менеджера лише на перегляд')),
             h('a', { class: 'btn btn-primary', href: siteUrl + '/', target: '_blank', rel: 'noopener' }, 'Дізнатися більше на trip-control.com')));
 }

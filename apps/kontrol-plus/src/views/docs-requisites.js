@@ -1,5 +1,5 @@
 // Реквізити компанії (продавець у документах), префікси номерів, валюта й режим ПДВ за замовчуванням, підпис і печатка.
-// Змінює лише власник; логіст і директор бачать реквізити для перевірки. Підпис / печатка — приватний бакет kp-doc-assets
+// Змінює лише owner; логіст і director бачать реквізити для перевірки. Підпис / печатка — приватний бакет kp-doc-assets
 // (PNG / JPEG ≤ 512 КБ, шлях <org>/(signature|stamp).(png|jpg)); перегляд — через data: URL (CSP без blob: в img-src).
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { LEGAL_FORMS } from '../lib/validate.js';
@@ -73,7 +73,7 @@ export function renderRequisites(app, access) {
     }
 
     function readOnly(row) {
-        if (!row) return notice('Реквізити компанії ще не заповнено. Заповнює власник компанії.', 'info');
+        if (!row) return notice('Реквізити компанії ще не заповнено. Заповнює директор компанії.', 'info');
         const dd = (label, value, mono) => h('div', { class: 'kv' }, h('dt', null, label), h('dd', { class: mono ? 'mono' : null }, value || '—'));
         return h('div', { class: 'card' }, h('dl', null,
             dd('Повна назва', row.legal_name), dd('ЄДРПОУ', row.edrpou, true), dd('ІПН / РНОКПП', row.ipn, true),

@@ -67,7 +67,7 @@ test('a pending integration without a token (failed attempt trace) shows the con
 
 test('GPS errors from the database → Ukrainian text', () => {
     assert.match(errorText({ message: 'GPS_VEHICLE_TAKEN' }), /вже привʼязане/);
-    assert.match(errorText({ message: 'GPS_MAP_FORBIDDEN' }), /лише власник/);
+    assert.match(errorText({ message: 'GPS_MAP_FORBIDDEN' }), /лише директор/);
     assert.match(errorText({ message: 'GPS_VEHICLE_NOT_FOUND' }), /не знайдено/);
 });
 
@@ -111,8 +111,8 @@ test('map: order text, state notices by role, refresh status', () => {
     assert.equal(orderText({ trip_date: '2026-10-23' }), '23.10 · маршрут не вказано');
     assert.deepEqual(mapStateNotice({ status: 'not_connected', vehicles: [], canManage: true }),
         { kind: 'info', text: 'GPS ще не підключено. Підключіть Wialon у формі нижче.', action: 'connect' });
-    assert.equal(mapStateNotice({ status: 'not_connected', vehicles: [], canManage: false }).text, 'GPS ще не підключено. Попросіть власника підключити GPS.');
-    assert.match(mapStateNotice({ status: 'error_auth', vehicles: [{}], canManage: false }).text, /Попросіть власника оновити токен/);
+    assert.equal(mapStateNotice({ status: 'not_connected', vehicles: [], canManage: false }).text, 'GPS ще не підключено. Попросіть директора підключити GPS.');
+    assert.match(mapStateNotice({ status: 'error_auth', vehicles: [{}], canManage: false }).text, /Попросіть директора оновити токен/);
     assert.match(mapStateNotice({ status: 'active', vehicles: [], canManage: true }).text, /Привʼяжіть юніти/);
     assert.equal(mapStateNotice({ status: 'active', vehicles: [], canManage: false }).text, 'Немає привʼязаних авто.');
     assert.match(mapStateNotice({ status: 'active', vehicles: [{ lat: null, lon: null }] }).text, /Натисніть «Оновити»/);

@@ -66,17 +66,17 @@ export function orderText(order) {
     return [date, route, order.client_name].filter(Boolean).join(' · ');
 }
 
-// Повідомлення над картою за станом відповіді. kind: 'info' | 'error'; action: 'connect' — кнопка до форми (власник).
+// Повідомлення над картою за станом відповіді. kind: 'info' | 'error'; action: 'connect' — кнопка до форми (owner).
 export function mapStateNotice({ status, vehicles, networkError, refreshError, canManage }) {
     if (networkError) return { kind: 'error', text: 'Не вдалося завантажити карту. Перевірте інтернет і спробуйте ще раз.' };
     if (status === 'not_connected' || status === 'pending' || !status) {
         return canManage
             ? { kind: 'info', text: 'GPS ще не підключено. Підключіть Wialon у формі нижче.', action: 'connect' }
-            : { kind: 'info', text: 'GPS ще не підключено. Попросіть власника підключити GPS.' };
+            : { kind: 'info', text: 'GPS ще не підключено. Попросіть директора підключити GPS.' };
     }
     if (status === 'error_auth') {
         return { kind: 'error', text: 'Немає доступу до Wialon: токен недійсний або відкликаний. '
-            + (canManage ? 'Перевірте підключення нижче.' : 'Попросіть власника оновити токен.') + ' Показано останні відомі дані.' };
+            + (canManage ? 'Перевірте підключення нижче.' : 'Попросіть директора оновити токен.') + ' Показано останні відомі дані.' };
     }
     if (!vehicles || !vehicles.length) {
         return { kind: 'info', text: canManage ? 'Немає привʼязаних авто. Привʼяжіть юніти Wialon до авто в таблиці нижче.' : 'Немає привʼязаних авто.' };

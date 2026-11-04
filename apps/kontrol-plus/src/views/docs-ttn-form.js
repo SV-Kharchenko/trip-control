@@ -51,7 +51,7 @@ export function renderTtnForm(app, access, route) {
         if (!requisites || (!requisites.edrpou && !requisites.ipn)) {
             clear(root, notice('Спершу заповніть реквізити компанії — перевізник у ТТН завжди ваша компанія (назва і ЄДРПОУ або ІПН).', 'info'),
                 access.isOwner ? h('a', { class: 'btn btn-primary', href: '#/docs/requisites' }, 'Заповнити реквізити')
-                    : h('p', { class: 'muted' }, 'Реквізити заповнює власник компанії.'));
+                    : h('p', { class: 'muted' }, 'Реквізити заповнює директор компанії.'));
             return;
         }
         const clients = (cl.data || []).filter((c) => !c.archived_at);

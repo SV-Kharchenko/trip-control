@@ -1,14 +1,14 @@
 // Гейт вкладок Контроль+ за відповіддю kp_context(). Лише підказка інтерфейсу: справжня перевірка — RLS і функції БД
 // (CONTROL_PLUS_REQUIRED для org без plan = 'control_plus').
-export const ROLE_LABELS = { owner: 'Директор', logist: 'Логіст', director: 'Менеджер' };
+export const ROLE_LABELS = { owner: 'Директор', logist: 'Логіст', director: 'Менеджер', repair_manager: 'Відповідальний за ремонти' };
 
 export function crmAccess(context) {
     if (!context) return 'paywall';
     return context.control_plus === true ? 'open' : 'paywall';
 }
 
-// Вкладка «GPS»: видно всім ролям організації на control_plus; керує власник; метадані підключення бачать власник
-// і директор (як RLS gps_integrations); юніти й мапінг (перегляд) — усі.
+// Вкладка «GPS»: видно всім ролям організації на control_plus; керує owner; метадані підключення бачать owner
+// і director (як RLS gps_integrations); юніти й мапінг (перегляд) — усі.
 export function gpsAccess(context) {
     const plan = Boolean(context && context.control_plus === true);
     const role = plan ? context.role : null;

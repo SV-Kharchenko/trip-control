@@ -20,7 +20,7 @@ test('linking: insert into calculation_clients (the same path as client-card.js)
 
 test('linking failed: readable text (no rights → ask the owner), no throw', async () => {
     const forbidden = await linkCalcClient(fakeApp({ error: { message: 'CLIENT_LINK_FORBIDDEN', code: '42501' } }), 'c', 'k');
-    assert.equal(forbidden, 'Немає права привʼязувати рейси, зверніться до власника.');
+    assert.equal(forbidden, 'Немає права привʼязувати рейси, зверніться до директора.');
     const other = await linkCalcClient(fakeApp({ error: { message: 'boom' } }), 'c', 'k');
     assert.equal(typeof other, 'string');
     assert.ok(other.length > 0);

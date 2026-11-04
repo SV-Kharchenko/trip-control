@@ -1,5 +1,5 @@
 // Склад: залишки з середньою собівартістю й вартістю залишку, пошук, «Прихід», «Нова запчастина», імпорт і шаблон CSV,
-// історія руху, «Коригування» (власник / директор).
+// історія руху, «Коригування» (owner / director).
 import { h, clear, spinner, notice, toast, download } from '../ui.js';
 import { fmtMoney, fmtMoneyCents, fmtNumber, fmtDate, kyivDate } from '../lib/format.js';
 import { repairErrorText, stockValue } from '../lib/repairs.js';

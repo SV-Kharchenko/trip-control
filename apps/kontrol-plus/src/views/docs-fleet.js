@@ -1,8 +1,8 @@
 // «Авто й водії» (етап 4b): поля ТЗ для ТТН (марка / модель і номер причепа, тип, габарити, тара, макс. маса, водій
 // за замовчуванням) — ті самі нові колонки fleet_vehicles, що й у картці авто сайту; пишуть owner / logist через
-// kp_vehicle_save (лише нові колонки). Номер авто, марку, номер і тип причепа та строки документів змінює власник у
+// kp_vehicle_save (лише нові колонки). Номер авто, марку, номер і тип причепа та строки документів змінює owner у
 // картці авто на сайті. ТО і страхування — згорнутий блок із бейджем, якщо строк жовтий / червоний. Мінімальний довідник
-// водіїв (ПІБ, номер посвідчення; деактивація замість видалення). Директор — лише перегляд.
+// водіїв (ПІБ, номер посвідчення; деактивація замість видалення). director — лише перегляд.
 import { h, clear, spinner, notice, toast } from '../ui.js';
 import { fmtDate, kyivDate } from '../lib/format.js';
 import { FLEET_DOCS, FLEET_WARN_DAYS, daysLeft, docState, fleetBadge, validateDriver, validateVehicleTtn } from '../lib/fleet.js';
@@ -30,7 +30,7 @@ export function docsBlock(vehicle, today) {
             return h('div', { class: 'kv kpt-doc-' + state }, h('dt', null, label),
                 h('dd', null, vehicle[key] ? fmtDate(vehicle[key]) : '—', h('small', null, ' · ' + docNote(vehicle[key], today))));
         })),
-        h('p', { class: 'muted small' }, 'Строки змінює власник у картці авто на сайті. Попередження — за ' + FLEET_WARN_DAYS + ' днів.'));
+        h('p', { class: 'muted small' }, 'Строки змінює директор у картці авто на сайті. Попередження — за ' + FLEET_WARN_DAYS + ' днів.'));
     const toggle = h('button', { type: 'button', class: 'kpt-docs-toggle', 'aria-expanded': 'false', 'aria-controls': id },
         'Додаткова інформація про ТО і Страхування',
         badge ? h('span', { class: 'kpt-badge is-' + badge.tone, title: badge.tone === 'overdue' ? 'є прострочені строки' : 'строки спливають' }, String(badge.count)) : null,
@@ -62,17 +62,17 @@ export function renderFleet(app, access, mode = 'all') {
         if (mode === 'cars') {
             clear(box,
                 h('p', { class: 'muted small' }, 'Поля для ТТН: тип, причіп, габарити автопоїзда, тара, максимально дозволена маса, водій за замовчуванням. '
-                    + 'Номер авто, марку, номер і тип причепа та строки документів змінює власник у картці авто на сайті.'),
+                    + 'Номер авто, марку, номер і тип причепа та строки документів змінює директор у картці авто на сайті.'),
                 (veh.data || []).length ? h('div', { class: 'kpt-vehicles' }, veh.data.map((v) => vehicleCard(v, today)))
-                    : notice('Авто ще немає — власник додає їх у картці авто на сайті.', 'info'));
+                    : notice('Авто ще немає — директор додає їх у картці авто на сайті.', 'info'));
             return;
         }
         clear(box,
             h('h2', { class: 'section-title' }, 'Авто'),
             h('p', { class: 'muted small' }, 'Поля для ТТН: тип, причіп, габарити автопоїзда, тара, максимально дозволена маса, водій за замовчуванням. '
-                + 'Номер авто, марку, номер і тип причепа та строки документів змінює власник у картці авто на сайті (вкладка «Кабінет»).'),
+                + 'Номер авто, марку, номер і тип причепа та строки документів змінює директор у картці авто на сайті (вкладка «Кабінет»).'),
             (veh.data || []).length ? h('div', { class: 'kpt-vehicles' }, veh.data.map((v) => vehicleCard(v, today)))
-                : notice('Авто ще немає — власник додає їх у картці авто на сайті.', 'info'),
+                : notice('Авто ще немає — директор додає їх у картці авто на сайті.', 'info'),
             h('h2', { class: 'section-title' }, 'Водії'),
             driversBlock());
     }

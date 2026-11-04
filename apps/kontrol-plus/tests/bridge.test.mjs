@@ -287,7 +287,7 @@ test('bridge: blocked localStorage does not break start', async () => {
     }
 });
 
-// Запрошення менеджера з ремонтів: реєстрація з підтвердженням пошти відкриває сайт без ?repair_invite=.
+// Запрошення відповідального за ремонти: реєстрація з підтвердженням пошти відкриває сайт без ?repair_invite=.
 const TOKEN = 'v2.11111111-2222-4333-8444-555555555555.' + 'A'.repeat(43);
 const ticks = () => new Promise((r) => setTimeout(r, 30));
 

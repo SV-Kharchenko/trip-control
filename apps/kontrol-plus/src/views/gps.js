@@ -1,5 +1,5 @@
 // Вкладка «GPS» (етап 2a): підключення Wialon (Hosting / Local), картка статусу, юніти й мапінг на авто компанії.
-// Власник — усі дії; директор — картка статусу й таблиця (перегляд); логіст та інші — лише таблиця (перегляд).
+// owner — усі дії; director — картка статусу й таблиця (перегляд); логіст та інші — лише таблиця (перегляд).
 // Токен живе лише в полі форми до відправки: після відправки поле й змінна очищаються, у сховище браузера не йде.
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
@@ -206,7 +206,7 @@ export function renderGps(app) {
         // 'pending' без токена — лише слід невдалої спроби (ліміт перебору): показуємо форму, а не картку.
         if (!it || it.status === 'disabled' || (it.status === 'pending' && !it.token_hint)) {
             if (access.canManage) clear(statusBox, connectForm());
-            else clear(statusBox, notice('GPS ще не підключено. Підключає власник компанії.', 'info'));
+            else clear(statusBox, notice('GPS ще не підключено. Підключає директор компанії.', 'info'));
             return;
         }
         clear(statusBox, statusCard());
@@ -302,13 +302,13 @@ export function renderGps(app) {
 
     load();
 
-    // Карта (етап 2c) — для всіх ролей організації на control_plus; власника «До форми підключення» веде до форми нижче.
+    // Карта (етап 2c) — для всіх ролей організації на control_plus; owner «До форми підключення» веде до форми нижче.
     const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
 
     return h('section', { class: 'page gps-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'GPS')),
         access.canManage ? null : notice(access.seesIntegration
-            ? 'Режим перегляду: підключенням і привʼязкою авто керує власник компанії.'
+            ? 'Режим перегляду: підключенням і привʼязкою авто керує директор компанії.'
             : 'Режим перегляду: юніти GPS і привʼязка до авто вашої компанії.', 'info'),
         map,
         access.seesIntegration ? h('h2', { class: 'section-title' }, access.canManage ? 'Підключення' : 'Підключення (перегляд)') : null,

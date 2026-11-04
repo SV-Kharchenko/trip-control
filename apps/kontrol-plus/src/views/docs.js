@@ -1,6 +1,6 @@
 // Вкладка «Документи» (етапи 4a, 4b): підвкладки Усі · Договори · ТТН / Подорожній лист · Акти · Інше (список рахунків, актів і ТТН, створення, картка).
 // «Борги» живуть у «План/факт», «Авто й водії» — в «Автопарку» і «Водіях», «Реквізити» — у «Реквізитах компанії». Права — з kp_context(): пишуть owner / logist, анулює й змінює
-// реквізити лише owner, директор — перегляд. Кнопки без права приховані, але база однаково перевіряє кожну дію.
+// реквізити лише owner, director — перегляд. Кнопки без права приховані, але база однаково перевіряє кожну дію.
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtDate, kyivDate, monthRange, daysBetween } from '../lib/format.js';
 import {
@@ -311,7 +311,7 @@ export function renderDocs(app, route) {
     const currentKey = route.tab || cardTab || 'all';
     if (sub === 'list') rememberDocsList(route.tab ? '#/docs/tab/' + route.tab : '#/docs');
     let body;
-    if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть власник і логіст.', 'info');
+    if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть директор і логіст.', 'info');
     else if (sub === 'new' && route.kind === 'ttn') body = renderTtnForm(app, access, route);
     else if (sub === 'new' && route.kind === 'trip_sheet') body = renderTripSheetForm(app, access, route);
     else if (sub === 'new') body = renderDocForm(app, access, route);
@@ -325,6 +325,6 @@ export function renderDocs(app, route) {
         h('div', { class: 'page-head' }, h('h1', null, 'Документи')),
         h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи документів' }, docsTabs().map((t) =>
             h('a', { href: t.hash, class: 'kpr-tab' + (t.key === currentKey ? ' on' : ''), 'aria-current': t.key === currentKey ? 'page' : null }, t.label))),
-        access.canWrite ? null : notice('Режим перегляду: директор бачить документи, ТТН, оплати, борги й авто, але не змінює їх.', 'info'),
+        access.canWrite ? null : notice('Режим перегляду: менеджер бачить документи, ТТН, оплати, борги й авто, але не змінює їх.', 'info'),
         body);
 }

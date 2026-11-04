@@ -63,6 +63,6 @@ export function contractCancelErrorText(error) {
     if (/CONTRACT_REASON/.test(text)) return 'Вкажіть причину анулювання (до 500 символів).';
     if (/CONTRACT_ALREADY_CANCELLED/.test(text)) return 'Договір уже анульовано.';
     if (/CONTRACT_NOT_FOUND/.test(text)) return 'Договір не знайдено.';
-    if (/KP_FORBIDDEN|42501/.test(text)) return 'Анулювати договір може лише власник.';
+    if (/KP_FORBIDDEN|42501/.test(text)) return 'Анулювати договір може лише директор.';
     return text || 'Не вдалося анулювати договір.';
 }

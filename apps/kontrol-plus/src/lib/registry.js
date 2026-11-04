@@ -54,7 +54,7 @@ export const TRAILER_FIELDS = [
 export const DRIVER_FIELDS = [
     { key: 'full_name', label: 'ПІБ', width: 'xl', maxlength: 200, required: true, placeholder: 'Прізвище Імʼя По батькові' },
     { key: 'license_no', label: 'Посвідчення', width: 'm', maxlength: 30, placeholder: 'серія й номер' },
-    { section: 'Особисті дані (лише власник змінює; у ТТН не потрапляють)' },
+    { section: 'Особисті дані (лише директор змінює; у ТТН не потрапляють)' },
     { key: 'phone', label: 'Телефон', width: 'ph', maxlength: 25, details: true, inputmode: 'tel', placeholder: '+380…' },
     { key: 'passport', label: 'Паспорт (серія / номер)', width: 'm', maxlength: 12, details: true, placeholder: 'АА123456 або 9 цифр' },
     { key: 'ipn', label: 'ІПН / РНОКПП', width: 'm', maxlength: 10, details: true, inputmode: 'numeric', placeholder: '10 цифр' },

@@ -35,7 +35,7 @@ function siteSupabase() {
     }
 }
 
-// repairs — kp_repairs_context() (етап 3a): менеджер з ремонтів має доступ лише до «Ремонтів» чужої організації.
+// repairs — kp_repairs_context() (етап 3a): відповідальний за ремонти має доступ лише до «Ремонтів» чужої організації.
 // docs — чи є в базі функції документів (етап 4a): null — ще не перевіряли, false — міграцію не застосовано.
 const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null };
 // Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
@@ -150,10 +150,10 @@ function syncGpsTab() {
     if (!tabs.gps) return;
     const current = state.session && state.contextUser === state.session.user.id ? state.context : null;
     tabs.gps.hidden = !gpsAccess(current).visible;
-    // «Ремонти» — за kp_repairs_context(); менеджеру з ремонтів без власного Контроль+ — лише ця вкладка.
+    // «Ремонти» — за kp_repairs_context(); відповідальному за ремонти без власного Контроль+ — лише ця вкладка.
     const repairs = repairsAccess(current ? state.repairs : null, current);
     if (tabs.repairs) tabs.repairs.hidden = !repairs.visible;
-    // Менеджер з ремонтів чужої організації бачить лише «Ремонти»; решта розділів — як і раніше за ролями й тарифом.
+    // Відповідальний за ремонти чужої організації бачить лише «Ремонти»; решта розділів — як і раніше за ролями й тарифом.
     for (const key of ['clients', 'report', 'overview', 'calc']) {
         if (tabs[key] && (repairs.repairsOnly || tabs[key].hidden)) tabs[key].hidden = repairs.repairsOnly;
     }
@@ -236,7 +236,7 @@ async function topUpSiteFleet() {
     } catch { /* лишається порожній список, як було */ }
 }
 
-// Підміна loadFleetVehicles сайту доповнює його, а не замінює: власник і логіст отримують свої рядки як і раніше.
+// Підміна loadFleetVehicles сайту доповнює його, а не замінює: owner і логіст отримують свої рядки як і раніше.
 function patchSiteFleet() {
     const original = window.loadFleetVehicles;
     if (typeof original !== 'function' || original.kpPatched) return;
@@ -273,7 +273,7 @@ async function loadRepairsContext() {
     }
 }
 
-// Посилання-запрошення менеджера з ремонтів (?repair_invite=…). Параметр одразу прибираємо з URL. Без сесії токен
+// Посилання-запрошення відповідального за ремонти (?repair_invite=…). Параметр одразу прибираємо з URL. Без сесії токен
 // чекає в localStorage (реєстрація з підтвердженням пошти відкриває сайт без параметра, часто в іншій вкладці), не довше
 // за строк запрошення (7 днів). Після входу — accept; ключ видаляємо за будь-якої відповіді сервера. Токен не логуємо.
 // Власна організація людини не змінюється.
@@ -358,7 +358,7 @@ async function acceptRepairInviteOnce() {
     state.context = null; window.tcKpRole = null; window.tcKpOrgId = null; window.tcKpOrgName = null;
     state.contextUser = null;
     await refreshGpsTab();
-    toast('Ви — менеджер з ремонтів' + (out.org_name ? ' компанії «' + out.org_name + '»' : '') + '.');
+    toast('Ви — відповідальний за ремонти' + (out.org_name ? ' компанії «' + out.org_name + '»' : '') + '.');
     location.hash = '#/repairs';
 }
 
@@ -399,7 +399,7 @@ async function render() {
         return;
     }
     if (crmAccess(state.context) !== 'open') {
-        // Менеджер з ремонтів без власного Контроль+ — без екрана тарифу: одразу до «Ремонтів».
+        // Відповідальний за ремонти без власного Контроль+ — без екрана тарифу: одразу до «Ремонтів».
         if (repairs.repairsOnly) {
             location.hash = '#/repairs';
             return;
@@ -538,7 +538,7 @@ async function buildWindow(type, id, container, ctl) {
         else {
             const route = parseCrmHash(id);
             if (!route || route.view !== 'docs' || route.sub !== 'new') { clear(container, notice('Не вдалося відкрити форму.')); return; }
-            if (!access.canWrite) view = notice('Створювати документи можуть власник і логіст.', 'info');
+            if (!access.canWrite) view = notice('Створювати документи можуть директор і логіст.', 'info');
             else if (route.kind === 'ttn') view = (await import('./views/docs-ttn-form.js')).renderTtnForm(a, access, route);
             else if (route.kind === 'trip_sheet') view = (await import('./views/docs-ts-form.js')).renderTripSheetForm(a, access, route);
             else view = (await import('./views/docs-form.js')).renderDocForm(a, access, route);

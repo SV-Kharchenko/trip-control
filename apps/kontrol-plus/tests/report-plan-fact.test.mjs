@@ -87,15 +87,15 @@ test('CSV: ті самі колонки й назви, що в таблиці, �
 });
 
 test('ролі: owner — «Директор», director — «Менеджер»; шапка Контроль+ і меню узгоджені', () => {
-    assert.deepEqual(ROLE_LABELS, { owner: 'Директор', logist: 'Логіст', director: 'Менеджер' });
+    assert.deepEqual(ROLE_LABELS, { owner: 'Директор', logist: 'Логіст', director: 'Менеджер', repair_manager: 'Відповідальний за ремонти' });
     for (const role of ['owner', 'logist', 'director']) {
         assert.equal(roleLabel(role), ROLE_LABELS[role], 'шапка (shell-menu): ' + role);
         if (role !== 'logist' || REPAIR_ROLE_LABELS.logist) assert.equal(REPAIR_ROLE_LABELS[role], ROLE_LABELS[role], 'ремонти: ' + role);
     }
     assert.equal(roleLabel('x', 'запасний'), 'запасний');
     assert.equal(roleLabel('owner') === roleLabel('director'), false, 'owner і director — різні підписи');
-    assert.equal(REPAIR_ROLE_LABELS.repair_manager, 'Менеджер з ремонтів');
-    assert.match(read('src/views/repairs-handlers.js'), /Директор і Менеджер вносять ремонти завжди/, 'director реально пише ремонти (kp_repairs_can_write)');
+    assert.equal(REPAIR_ROLE_LABELS.repair_manager, ROLE_LABELS.repair_manager);
+    assert.match(read('src/views/repairs-handlers.js'), /Директор і менеджер вносять ремонти завжди/, 'director реально пише ремонти (kp_repairs_can_write)');
     // «Власник» з великої літери — як підпис ролі — ніде в UI Контроль+
     const hits = [];
     const walk = (dir) => { for (const f of fs.readdirSync(path.join(APP, dir), { withFileTypes: true })) {

@@ -61,7 +61,7 @@ export function renderClientCard(app, clientId) {
         };
         const remove = async () => {
             const { data, error } = await app.supabase.from('clients').delete().eq('id', clientId).select('id');
-            if (error || !data || !data.length) return toast(error ? errorText(error) : 'Видаляти клієнтів може лише власник', 'error');
+            if (error || !data || !data.length) return toast(error ? errorText(error) : 'Видаляти клієнтів може лише директор', 'error');
             toast('Клієнта видалено');
             app.go('#/clients');
         };
@@ -243,7 +243,7 @@ export function renderClientCard(app, clientId) {
         };
         clear(linker,
             h('h2', { class: 'section-title' }, 'Привʼязати рейси'),
-            h('p', { class: 'muted small' }, 'Рейси, збережені на trip-control.com. Логіст привʼязує свої рейси, власник — будь-які рейси організації.'),
+            h('p', { class: 'muted small' }, 'Рейси, збережені на trip-control.com. Логіст привʼязує свої рейси, директор — будь-які рейси організації.'),
             h('div', { class: 'toolbar' }, h('label', null, 'З ', from), h('label', null, 'по ', to),
                 h('button', { type: 'button', class: 'btn', onclick: load }, 'Показати')),
             list);

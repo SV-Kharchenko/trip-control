@@ -1,4 +1,4 @@
-// «Відповідальні» (лише власник і директор): призначені логісти й менеджери з ремонтів, запрошення менеджера
+// «Відповідальні» (лише директор і Менеджер): призначені логісти й відповідальні за ремонти, запрошення менеджера
 // за посиланням (до 2 місць разом з чинними запрошеннями). Посилання бачить лише той, хто запрошує, і лише коли лист
 // не надіслано (немає Resend у проєкті).
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
@@ -17,7 +17,7 @@ export function renderHandlers(app) {
     const message = h('div', { 'aria-live': 'polite' });
     const linkBox = h('div', { 'aria-live': 'polite' });
     const candidate = h('select', { id: 'kpr-h-logist', 'aria-label': 'Логіст' }, h('option', { value: '' }, '— активний логіст —'));
-    const email = h('input', { id: 'kpr-h-email', type: 'email', autocomplete: 'off', maxlength: '254', placeholder: 'пошта менеджера з ремонтів' });
+    const email = h('input', { id: 'kpr-h-email', type: 'email', autocomplete: 'off', maxlength: '254', placeholder: 'пошта відповідального за ремонти' });
 
     const fail = (text) => clear(message, notice(text));
 
@@ -28,7 +28,7 @@ export function renderHandlers(app) {
         }
         const input = h('input', { type: 'text', readonly: true, value: out.link, class: 'mono', 'aria-label': 'Посилання-запрошення' });
         clear(linkBox, h('div', { class: 'notice notice-info' },
-            h('p', null, 'Пошту для запрошень не налаштовано — передайте посилання менеджеру самі (діє 7 днів):'),
+            h('p', null, 'Пошту для запрошень не налаштовано — передайте посилання відповідальному самі (діє 7 днів):'),
             h('div', { class: 'toolbar' }, input, h('button', { type: 'button', class: 'btn btn-sm', onclick: async () => {
                 try {
                     await navigator.clipboard.writeText(out.link);
@@ -58,7 +58,7 @@ export function renderHandlers(app) {
                         toast('Прибрано');
                         await Promise.all([loadHandlers(), loadInvites()]);
                     }
-                }, 'btn btn-sm btn-danger'))))))) : h('p', { class: 'muted' }, 'Відповідальних ще немає. Директор і Менеджер вносять ремонти завжди.'));
+                }, 'btn btn-sm btn-danger'))))))) : h('p', { class: 'muted' }, 'Відповідальних ще немає. Директор і менеджер вносять ремонти завжди.'));
     }
 
     async function loadInvites() {
@@ -108,9 +108,9 @@ export function renderHandlers(app) {
             }
         } }, 'Призначити логіста')),
         handlersBox,
-        h('h2', { class: 'section-title' }, 'Менеджери з ремонтів'),
-        h('p', { class: 'muted small' }, 'Менеджер з ремонтів — людина поза командою (не займає місця логіста): бачить лише «Ремонти і склад» вашої компанії. '
-            + 'До 2 менеджерів; запрошення, що очікує, теж займає місце.'),
+        h('h2', { class: 'section-title' }, 'Відповідальні за ремонти'),
+        h('p', { class: 'muted small' }, 'Відповідальний за ремонти — людина поза командою (не займає місця логіста): бачить лише «Ремонти і склад» вашої компанії. '
+            + 'До 2 відповідальних за ремонти; запрошення, що очікує, теж займає місце.'),
         seats,
         h('form', { class: 'toolbar', onsubmit: async (e) => {
             e.preventDefault();
@@ -120,7 +120,7 @@ export function renderHandlers(app) {
             email.value = '';
             showLink(out);
             await loadInvites();
-        } }, email, h('button', { type: 'submit', class: 'btn btn-primary' }, 'Запросити менеджера з ремонтів')),
+        } }, email, h('button', { type: 'submit', class: 'btn btn-primary' }, 'Запросити відповідального за ремонти')),
         linkBox,
         invitesBox);
 }

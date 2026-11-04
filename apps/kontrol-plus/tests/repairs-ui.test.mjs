@@ -58,15 +58,15 @@ test('validateRepairForm: required fields, future date, stock shortage summed ov
 test('repairErrorText: STOCK_INSUFFICIENT names the part; codes map to Ukrainian text', () => {
     assert.equal(repairErrorText({ message: 'STOCK_INSUFFICIENT', details: 'Фільтр' }), 'Не вистачає на складі: Фільтр. Нічого не списано.');
     assert.match(repairErrorText({ message: 'REPAIR_VOID_EXPIRED' }), /24 години/);
-    assert.match(repairErrorText({ message: 'REPAIR_MANAGER_LIMIT' }), /2 менеджери/);
+    assert.match(repairErrorText({ message: 'REPAIR_MANAGER_LIMIT' }), /2 відповідальних за ремонти/);
     assert.equal(repairErrorText({ message: 'something', code: '42501' }), 'Недостатньо прав для цієї дії.');
     assert.equal(repairErrorText({ message: 'boom' }), 'Не вдалося виконати дію. Спробуйте ще раз.');
     assert.equal(repairErrorText(null), '');
 });
 
 test('seatsText, importStatusLabel, importCanCommit, stockValue', () => {
-    assert.equal(seatsText({ used: 2, limit: 2, pending: 1 }), 'Менеджерів з ремонтів: 2 з 2 (з них очікують: 1)');
-    assert.equal(seatsText({ used: 0, limit: 2, pending: 0 }), 'Менеджерів з ремонтів: 0 з 2');
+    assert.equal(seatsText({ used: 2, limit: 2, pending: 1 }), 'Відповідальних за ремонти: 2 з 2 (з них очікують: 1)');
+    assert.equal(seatsText({ used: 0, limit: 2, pending: 0 }), 'Відповідальних за ремонти: 0 з 2');
     assert.equal(seatsText(null), '');
     assert.equal(importStatusLabel('new_part'), 'Нова запчастина');
     assert.equal(importStatusLabel('error'), 'Помилка');

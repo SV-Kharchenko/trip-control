@@ -41,7 +41,7 @@ export function renderClientForm(app, clientId) {
         body);
 
     if (!app.canWrite) {
-        clear(body, notice('Директор має доступ лише на перегляд.', 'info'));
+        clear(body, notice('Менеджер має доступ лише на перегляд.', 'info'));
         return page;
     }
     if (!clientId) {
