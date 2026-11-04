@@ -34,6 +34,31 @@ html[data-app="kp"] body.kp-shell-on {
     --kp-trial-warn-bg: rgba(255, 200, 0, 0.24);
     --kp-trial-warn-line: #d9a400;
     --kp-trial-bad-bg: rgba(179, 38, 30, 0.14);
+    --kp-on-strong: #fff;
+    --kp-warn-line: #E6D2A8;
+    --kp-bad-line: #E5B8B4;
+    --kp-info-line: #C7D9D4;
+    --kp-invite-bg: #0D2A29;
+    --kp-invite-ink: #F4EFE5;
+    --kp-invite-bad-bg: #C2453F;
+    --kp-toast-shadow: rgba(0, 0, 0, 0.25);
+    --kp-pop-shadow: rgba(0, 0, 0, 0.18);
+    --kp-marker-bg: #1F6F4D;
+    --kp-marker-off: #6B7280;
+    --kp-marker-shadow: rgba(0, 0, 0, 0.35);
+    --kp-map-bg: #fff;
+    --kp-map-ctrl: #222;
+    --kp-map-ctrl-line: #ccc;
+    --kp-map-attr-bg: rgba(255, 255, 255, 0.85);
+    --kp-map-attr-ink: #333;
+    --kp-map-link: #0078a8;
+    --kp-map-ink: #0D2A28;
+    --kp-map-muted: #5A6B66;
+    --kp-map-warn: #8A6420;
+    --kp-badge-red-bg: #C2453F;
+    --kp-badge-red-ink: #fff;
+    --kp-badge-yellow-bg: #E3B341;
+    --kp-badge-yellow-ink: #1C1406;
     --kp-win-shadow: rgba(13, 42, 41, 0.22);
     --kp-win-shadow-active: rgba(13, 42, 41, 0.32);
     --kp-dialog-shadow: rgba(13, 42, 41, 0.28);
@@ -41,7 +66,7 @@ html[data-app="kp"] body.kp-shell-on {
     --kp-side-shadow: rgba(13, 42, 41, 0.45);
 }
 html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-side-bg: #0A1717; --kp-side-gold: #E0B25A; }
-html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-scrim: rgba(2, 8, 8, 0.55); --kp-on-danger: #1A0606; --kp-win-shadow: rgba(0, 0, 0, 0.5); --kp-win-shadow-active: rgba(0, 0, 0, 0.65); --kp-dialog-shadow: rgba(0, 0, 0, 0.6); --kp-seg-shadow: rgba(0, 0, 0, 0.5); --kp-side-shadow: rgba(0, 0, 0, 0.6); }
+html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-scrim: rgba(2, 8, 8, 0.55); --kp-on-danger: #1A0606; --kp-win-shadow: rgba(0, 0, 0, 0.5); --kp-win-shadow-active: rgba(0, 0, 0, 0.65); --kp-dialog-shadow: rgba(0, 0, 0, 0.6); --kp-seg-shadow: rgba(0, 0, 0, 0.5); --kp-side-shadow: rgba(0, 0, 0, 0.6); --kp-badge-red-bg: #F85149; --kp-badge-red-ink: #160606; }
 html[data-app="kp"] body.kp-shell-on.kp-shell-strip-on { --kp-strip-h: 30px; }
 html[data-app="kp"] body.kp-shell-on.kp-shell-collapsed { --kp-side-w: 64px; }
 

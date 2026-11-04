@@ -20,6 +20,7 @@ import { repairsAccess } from './lib/repairs.js';
 import { callKpApi } from './lib/gps-client.js';
 import { kpVehiclesToSite, needsKpFleet } from './lib/site-fleet.js';
 import { mountShell } from './shell.js';
+import { mountMobile } from './kp-mobile.js';
 import { createWindowManager } from './kp-windows.js';
 import { renderRequestWindow } from './views/request-window.js';
 
@@ -690,6 +691,7 @@ export async function startBridge() {
     const { data } = await state.supabase.auth.getSession();
     state.session = data.session;
     mountShell({ supabase: state.supabase });
+    mountMobile();
     windows = createWindowManager({
         storage: (() => { try { return typeof sessionStorage !== 'undefined' ? sessionStorage : null; } catch { return null; } })(),
         // Підтвердження закриття «брудної» форми — наявний діалог сайту (tcModal), не confirm().

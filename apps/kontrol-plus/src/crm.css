@@ -49,7 +49,7 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 
 /* Шапка */
 #kp-crm .badge { padding: 2px 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); font-weight: 600; }
-#kp-crm .badge-director { background: var(--warn-bg); border-color: #E6D2A8; color: var(--warn); }
+#kp-crm .badge-director { background: var(--warn-bg); border-color: var(--kp-warn-line); color: var(--warn); }
 
 /* Сторінки */
 #kp-crm .page.narrow { max-width: 760px; margin: 0; }
@@ -77,8 +77,8 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .btn-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 #kp-crm .btn-primary:hover { background: var(--accent-hover); }
 #kp-crm .btn-ghost { background: transparent; }
-#kp-crm .btn-danger { color: var(--negative); border-color: #E5B8B4; background: transparent; }
-#kp-crm .btn-danger.is-armed { background: var(--negative); color: #fff; border-color: var(--negative); }
+#kp-crm .btn-danger { color: var(--negative); border-color: var(--kp-bad-line); background: transparent; }
+#kp-crm .btn-danger.is-armed { background: var(--negative); color: var(--kp-on-strong); border-color: var(--negative); }
 #kp-crm .btn-sm { min-height: 30px; padding: 4px 10px; font-size: 13px; }
 #kp-crm .btn-block { width: 100%; }
 #kp-crm input, #kp-crm select, #kp-crm textarea {
@@ -110,8 +110,8 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 
 /* Повідомлення */
 #kp-crm .notice { padding: 10px 14px; border-radius: var(--radius-control); margin: 0 0 12px; border: 1px solid; }
-#kp-crm .notice-error { background: var(--negative-bg); border-color: #E5B8B4; color: var(--negative-text); }
-#kp-crm .notice-info { background: var(--info-bg); border-color: #C7D9D4; color: var(--text); }
+#kp-crm .notice-error { background: var(--negative-bg); border-color: var(--kp-bad-line); color: var(--negative-text); }
+#kp-crm .notice-info { background: var(--info-bg); border-color: var(--kp-info-line); color: var(--text); }
 #kp-crm .loading { display: flex; align-items: center; gap: 10px; padding: 20px 0; color: var(--muted); }
 #kp-crm .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: kp-spin 0.8s linear infinite; }
 @keyframes kp-spin { to { transform: rotate(360deg); } }
@@ -180,14 +180,14 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
     transition: opacity 0.2s, transform 0.2s; z-index: 50; max-width: calc(100vw - 32px);
 }
 #kp-toast.is-on { opacity: 1; transform: translate(-50%, 0); }
-#kp-toast.toast-error { background: var(--negative); color: #fff; }
+#kp-toast.toast-error { background: var(--negative); color: var(--kp-on-strong); }
 /* Підказка запрошення відповідального за ремонти — на сторінках сайту (поза #kp-crm). */
 #kp-invite-hint {
     position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60; width: min(560px, calc(100vw - 32px));
     display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 10px;
-    background: #0D2A29; color: #F4EFE5; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25); font-size: 14px; line-height: 1.4;
+    background: var(--kp-invite-bg); color: var(--kp-invite-ink); box-shadow: 0 4px 16px var(--kp-toast-shadow); font-size: 14px; line-height: 1.4;
 }
-#kp-invite-hint.kp-invite-hint-error { background: #C2453F; color: #fff; }
+#kp-invite-hint.kp-invite-hint-error { background: var(--kp-invite-bad-bg); color: var(--kp-on-strong); }
 #kp-invite-hint span { flex: 1 1 auto; }
 #kp-invite-hint .kp-invite-hint-close { flex: 0 0 auto; font: inherit; font-weight: 600; padding: 6px 12px; border-radius: 8px;
     border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
@@ -228,12 +228,12 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 /* Маркери (L.divIcon): мітка над точкою; тайли не інвертуємо в темній темі. */
 #kp-crm .kp-marker-wrap { background: none; border: 0; }
 #kp-crm .kp-marker { transform: translate(-50%, -100%); display: grid; gap: 1px; padding: 3px 7px; border-radius: 8px; white-space: nowrap;
-    font: 600 12px/1.2 var(--font-ui, sans-serif); color: #fff; background: #1F6F4D; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); border: 2px solid #fff; }
+    font: 600 12px/1.2 var(--font-ui, sans-serif); color: var(--kp-on-strong); background: var(--kp-marker-bg); box-shadow: 0 1px 4px var(--kp-marker-shadow); border: 2px solid var(--kp-on-strong); }
 #kp-crm .kp-marker span { font-weight: 500; font-size: 11px; opacity: 0.95; }
-#kp-crm .kp-marker.is-nosignal { background: #6B7280; }
-#kp-crm .kp-popup { display: grid; gap: 3px; font-size: 13px; min-width: 200px; color: #0D2A28; }
-#kp-crm .kp-popup .muted { color: #5A6B66; }
-#kp-crm .kp-nosignal { color: #8A6420; font-weight: 600; }
+#kp-crm .kp-marker.is-nosignal { background: var(--kp-marker-off); }
+#kp-crm .kp-popup { display: grid; gap: 3px; font-size: 13px; min-width: 200px; color: var(--kp-map-ink); }
+#kp-crm .kp-popup .muted { color: var(--kp-map-muted); }
+#kp-crm .kp-nosignal { color: var(--kp-map-warn); font-weight: 600; }
 #kp-crm .kp-popup-order { margin-top: 4px; }
 #kp-crm .leaflet-container { font: inherit; }
 @media (max-width: 767px) {
@@ -242,10 +242,10 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
     #kp-crm .gps-map-list { max-height: none; }
 }
 /* Контроли Leaflet — завжди світлі, читабельні в будь-якій темі сайту (тайли теж не інвертуємо). */
-#kp-crm .leaflet-bar a, #kp-crm .leaflet-bar a:hover { background: #fff; color: #222; border-bottom-color: #ccc; }
-#kp-crm .leaflet-control-attribution { background: rgba(255, 255, 255, 0.85); color: #333; }
-#kp-crm .leaflet-control-attribution a { color: #0078a8; }
-#kp-crm .leaflet-popup-content-wrapper, #kp-crm .leaflet-popup-tip { background: #fff; color: #0D2A28; }
+#kp-crm .leaflet-bar a, #kp-crm .leaflet-bar a:hover { background: var(--kp-map-bg); color: var(--kp-map-ctrl); border-bottom-color: var(--kp-map-ctrl-line); }
+#kp-crm .leaflet-control-attribution { background: var(--kp-map-attr-bg); color: var(--kp-map-attr-ink); }
+#kp-crm .leaflet-control-attribution a { color: var(--kp-map-link); }
+#kp-crm .leaflet-popup-content-wrapper, #kp-crm .leaflet-popup-tip { background: var(--kp-map-bg); color: var(--kp-map-ink); }
 
 /* Ремонти і склад (етап 3a). */
 .tc-studio-nav #kp-nav-repairs { white-space: nowrap; }
@@ -278,9 +278,8 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 /* ТО і вартість на км (етап 3b). Бейдж — у навігації сайту (поза #kp-crm), тому кольори явні. */
 .tc-studio-nav #kp-nav-repairs .kpr-nav-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px;
     font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; vertical-align: 1px; }
-.tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { background: #C2453F; color: #fff; }
-.tc-studio-nav #kp-nav-repairs .kpr-nav-badge-yellow { background: #E3B341; color: #1C1406; }
-body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { background: #F85149; color: #160606; }
+.tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { background: var(--kp-badge-red-bg); color: var(--kp-badge-red-ink); }
+.tc-studio-nav #kp-nav-repairs .kpr-nav-badge-yellow { background: var(--kp-badge-yellow-bg); color: var(--kp-badge-yellow-ink); }
 #kp-crm .kpr-st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid var(--border); white-space: nowrap; }
 #kp-crm .kpr-st-red { background: var(--negative-bg); color: var(--negative-text); border-color: var(--negative); }
 #kp-crm .kpr-st-yellow { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
@@ -368,7 +367,7 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 #kp-crm .kpd-payments, #kp-crm .kpd-danger { margin-top: 16px; }
 #kp-crm .kpd-pay-form { display: grid; gap: 10px; margin-top: 12px; justify-items: start; }
 #kp-crm .kpd-pay-form .toolbar { margin: 0; width: 100%; }
-#kp-crm .kpd-asset-preview { display: flex; align-items: center; justify-content: center; min-height: 130px; margin: 0 0 8px; border: 1px dashed var(--border); border-radius: var(--radius-control); background: #fff; }
+#kp-crm .kpd-asset-preview { display: flex; align-items: center; justify-content: center; min-height: 130px; margin: 0 0 8px; border: 1px dashed var(--border); border-radius: var(--radius-control); background: var(--kp-map-bg); }
 #kp-crm .kpd-asset-preview img { max-width: 100%; max-height: 120px; object-fit: contain; }
 #kp-crm .kpd-file { position: relative; overflow: hidden; }
 #kp-crm .kpd-file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; }
@@ -751,7 +750,7 @@ body.kp-nav-on #main-app { min-width: 0; }
 #kp-crm .kp-hint { position: relative; display: inline-flex; flex: 0 0 auto; }
 #kp-crm .kp-hint-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 20px; height: 20px; padding: 0 5px; border: 1px solid var(--border-soft); border-radius: 999px; background: var(--bg); color: var(--text-muted); font: inherit; font-size: 0.72rem; line-height: 1; cursor: pointer; }
 #kp-crm .kp-hint-btn:hover, #kp-crm .kp-hint-btn[aria-expanded="true"] { color: var(--text); border-color: var(--text-muted); }
-#kp-crm .kp-hint-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: max-content; max-width: min(18rem, calc(100vw - 16px)); padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--surface, var(--bg)); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); color: var(--text); font-size: 0.8rem; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; }
+#kp-crm .kp-hint-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: max-content; max-width: min(18rem, calc(100vw - 16px)); padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--surface, var(--bg)); box-shadow: 0 6px 18px var(--kp-pop-shadow); color: var(--text); font-size: 0.8rem; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; }
 #kp-crm .kp-hint-pop[hidden] { display: none; }
 #kp-crm .kp-hint-pop.kp-hint-up { top: auto; bottom: calc(100% + 6px); }
 #kp-crm .kp-hint-cell { position: relative; display: block; min-width: 0; }

@@ -116,7 +116,9 @@ test('report.js і CSS звіту: лише змінні тем — без hex /
     }
     assert.match(css, /var\(--font-mono/);
     assert.match(css, /tabular-nums/);
-    assert.doesNotMatch(css, /overflow-x:\s*(auto|scroll)/, 'без горизонтальної прокрутки');
+    // Прокрутка вбік — лише всередині таблиці на телефоні (@media 720px), не сторінки.
+    assert.equal((css.match(/overflow-x:\s*(auto|scroll)/g) || []).length, 1);
+    assert.match(css, /@media \(max-width: 720px\) \{[^@]*\.kpq-wrap \{ overflow-x: auto;/);
     assert.match(read('src/site-bridge.js'), /import '\.\/kp-report\.css';/);
     assert.doesNotMatch(read('src/views/report.js'), /innerHTML/);
     assert.match(read('src/views/report.js'), /kpd-periods kpq-groups/, 'групування — легкий segment як період дашборда');
@@ -196,6 +198,8 @@ test('браузер: 390 / 1024 / 1366 / 1920 × світла / темна — 
                         allHidden: [...document.querySelectorAll('.kpq td.kpq-all')].every((e) => !vis(e)),
                         mono: getComputedStyle(document.querySelector('.kpq td.kpq-mono')).fontVariantNumeric,
                         tableMode: getComputedStyle(document.querySelector('.kpq thead')).display === 'none' ? 'cards' : 'table',
+                        firstColSticky: getComputedStyle(document.querySelector('.kpq tbody tr > :first-child')).position,
+                        wrapScrolls: (() => { const w = document.querySelector('.kpq-wrap'); return w.scrollWidth > w.clientWidth; })(),
                     };
                 });
                 assert.ok(m.overflow <= 0, `скрол при ${w} (${theme}): ${m.overflow}`);
@@ -207,7 +211,11 @@ test('браузер: 390 / 1024 / 1366 / 1920 × світла / темна — 
                 assert.match(m.mono, /tabular-nums/);
                 if (w >= 1101) assert.equal(m.allHidden, false, 'на широких видно «Усі рейси»');
                 if (w <= 1100 && w > 720) assert.equal(m.allHidden, true, 'на середніх лишаються пріоритетні колонки');
-                if (w <= 720) assert.equal(m.tableMode, 'cards');
+                if (w <= 720) {
+                    assert.equal(m.tableMode, 'table', 'телефон: та сама таблиця, не картки');
+                    assert.equal(m.firstColSticky, 'sticky', 'перша колонка липка');
+                    assert.ok(m.wrapScrolls, 'решта прокручується всередині таблиці, а не сторінки');
+                }
                 assert.deepEqual(errors, []);
                 if (SHOTS && (w === 390 || w === 1366 || w === 1920)) await page.screenshot({ path: path.join(SHOTS, `report-${w}-${theme}.png`), fullPage: true });
                 await page.close();

@@ -1,4 +1,4 @@
-// POST /api/gps/{connect|test|sync-units|disconnect} — керування підключенням GPS (лише власник організації на
+// POST /api/gps/{connect|test|sync-units|disconnect} — керування підключенням GPS (лише owner організації на
 // control_plus). POST /api/gps/positions — карта (етап 2c): будь-який учасник організації на control_plus.
 // Залежності підмінні (store, провайдер, час), тож логіка тестується без мережі й без БД.
 // Токен Wialon: перевіряється, передається в Vault (gps_store_token) і далі ніде не зʼявляється — ні у відповідях,
@@ -131,7 +131,7 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         return { user, profile: await store.getProfile(user.id) };
     }
 
-    // Карта: будь-який учасник організації на control_plus (власник, логіст, інші ролі) або її директор
+    // Карта: будь-який учасник організації на control_plus (owner, logist, інші ролі) або її директор
     // (org_directors, як kp_org_id()). Усі бачать усі авто своєї організації.
     async function authorizeMember(req) {
         const { user, profile } = await authenticate(req);
@@ -154,7 +154,7 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         if (profile.member_status !== 'active') throw new HttpError(403, 'MEMBER_DISABLED', 'Доступ до компанії відключено.');
         if (profile.org_status === 'blocked') throw new HttpError(403, 'ORG_BLOCKED', 'Доступ компанії заблоковано.');
         if (profile.org_plan !== 'control_plus') throw new HttpError(403, 'CONTROL_PLUS_REQUIRED', 'GPS доступний у тарифі Контроль+.');
-        if (profile.org_role !== 'owner') throw new HttpError(403, 'OWNER_ONLY', 'Підключенням GPS керує власник компанії.');
+        if (profile.org_role !== 'owner') throw new HttpError(403, 'OWNER_ONLY', 'Підключенням GPS керує директор компанії.');
         return { user, orgId: profile.org_id };
     }
 

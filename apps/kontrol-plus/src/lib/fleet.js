@@ -42,8 +42,6 @@ export function fleetBadge(vehicle, today, warnDays = FLEET_WARN_DAYS) {
     return null;
 }
 
-export const VEHICLE_TTN_FIELDS = ['vehicle_type', 'trailer_make_model', 'length_m', 'width_m', 'height_m', 'tare_t', 'max_mass_t', 'default_driver_id'];
-
 // Поля ТЗ для kp_vehicle_save — ті самі межі, що CHECK-и fleet_vehicles: тексти ≤ 100 без керівних символів,
 // габарити 0 < x ≤ 30 м, тара й макс. маса 0 < x ≤ 100 т, тара < макс. маси. → { data, errors }.
 export function validateVehicleTtn(input) {
