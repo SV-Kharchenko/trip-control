@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 30);
+    assert.equal(SCOPE_ALLOWLIST.length, 32); // + міграція й pgTAP «Скасувати сторно»
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -208,7 +208,7 @@ test('check-scope allowlist: exactly one more root test for the windows (PR 3), 
 });
 
 test('check-scope allowlist: exactly twelve more patterns for the compact «Розрахунок рейсу» on the site (visible texts and their tests), neighbours refused', () => {
-    assert.deepEqual(SCOPE_ALLOWLIST.slice(18).map(String), [
+    assert.deepEqual(SCOPE_ALLOWLIST.slice(18, 30).map(String), [
     '/^landing\\/kontrol-plus\\.html$/',
     '/^lib\\/weekly-report\\.js$/',
     '/^scripts\\/gen-og-image\\.mjs$/',

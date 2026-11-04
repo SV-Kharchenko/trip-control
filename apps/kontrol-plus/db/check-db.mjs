@@ -695,6 +695,24 @@ const mTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`))
 for (const row of mTap) check(row.ok, 'pgTAP repairs_maintenance.sql: ' + row.label);
 check(mTap.length === mPlanned, `pgTAP repairs_maintenance.sql: ran ${mTap.length} of plan(${mPlanned})`);
 
+// Скасування сторно ремонту: міграція ПІСЛЯ повторного прогону 3a (той повертає стару kp_repair_void) — двічі поспіль, потім pgTAP.
+const UNSTORNO = all.find((f) => /^\d{14}_repair_unstorno\.sql$/.test(f));
+if (!UNSTORNO) throw new Error('немає міграції *_repair_unstorno.sql');
+const unSql = fs.readFileSync(new URL(UNSTORNO, DIR), 'utf8');
+await db.exec(unSql);
+await db.exec(unSql);
+check(UNSTORNO > REPAIRS && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(unSql)
+    && !unSql.split('\n').some((line) => !/^\s*--/.test(line) && /CREATE EXTENSION/i.test(line)),
+'unstorno: ' + UNSTORNO + ' applied twice (idempotent), manual-apply header, no CREATE EXTENSION');
+const uTapSql = fs.readFileSync(new URL('../../../supabase/tests/repairs_unstorno.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const uPlanned = Number((uTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const uBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+await db.exec(uTapSql);
+const uTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(uBefore);
+for (const row of uTap) check(row.ok, 'pgTAP repairs_unstorno.sql: ' + row.label);
+check(uTap.length === uPlanned, `pgTAP repairs_unstorno.sql: ran ${uTap.length} of plan(${uPlanned})`);
+
 // supabase/tests/kp_documents.sql — той самий shim pgTAP і заглушка Storage.
 const dTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_documents.sql', import.meta.url), 'utf8')
     .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');

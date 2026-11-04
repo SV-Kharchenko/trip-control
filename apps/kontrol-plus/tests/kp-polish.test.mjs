@@ -394,14 +394,15 @@ test('форма рахунку / акта: ПДВ-сегмент із двох 
 });
 
 // ---- 7. Ремонти, сторно ----
-test('сторнований ремонт: приглушений рядок, закреслена сума, плашка «сторно» з title, «Створити копію»; «Скасувати сторно» не робимо (потрібна міграція)', () => {
+test('сторнований ремонт: приглушений рядок, закреслена сума, плашка «сторно» з title, «Створити копію»; «Скасувати сторно» — repair_unstorno', () => {
     const src = read('src/views/repairs.js');
     assert.match(src, /const VOID_TITLE = 'Ремонт сторновано, не враховується у витратах'/);
     assert.match(src, /class: r\.status === 'void' \? 'is-archived is-void' : ''/);
     assert.match(src, /h\('span', \{ class: 'tag kpr-void-tag', title: VOID_TITLE \}, 'сторно'\)/);
     assert.match(src, /h\('s', \{ class: 'kpr-void-sum', title: VOID_TITLE \}/);
     assert.match(src, /access\.canWrite && r\.status === 'void'[\s\S]*?'Створити копію'/, 'за правами з lib/repairs.js (canWrite)');
-    assert.equal(/'Скасувати сторно'|kp_repair_unvoid|kp_repair_restore/.test(src), false);
+    assert.match(src, /access\.canUnstorno && r\.status === 'void'/);
+    assert.match(src, /rpc\('repair_unstorno', \{ p_repair_id: r\.id \}\)/);
     assert.match(read('src/crm.css'), /#kp-crm \.kpr-void-sum \{ text-decoration: line-through/);
     assert.match(read('src/crm.css'), /#kp-crm \.is-void \{ opacity: /);
     const copy = repairCopyData({

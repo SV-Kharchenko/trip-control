@@ -209,26 +209,28 @@ test('браузер: рядок-картка — дії в меню «⋯»; ф
         assert.equal(await page.locator('.kp-flt').first().isVisible(), true);
         await page.locator('.kp-flt select').first().selectOption({ index: 1 }).catch(() => {});
         assert.match(await toggle.innerText(), /^Фільтри( \(\d\))?$/);
+        await page.waitForTimeout(500); // список ремонтів перемальовується після завантаження авто
         // Дії рядка: кілька кнопок у комірці → одна «⋯».
         await page.evaluate(() => {
             const td = document.querySelector('.kpr-cards td:last-child');
             window.__clicks = [];
             td.replaceChildren(...['Одна', 'Друга', 'Третя'].map((t) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = t; b.onclick = () => window.__clicks.push(t); return b; }));
             td.dataset.label = '';
+            td.id = 'kp-test-cell';
         });
         await page.waitForSelector('.kp-more-btn');
-        assert.equal(await page.locator('.kp-more-btn').count(), 1);
-        assert.equal(await page.locator('.kp-more-menu').isVisible(), false);
-        await page.click('.kp-more-btn');
-        assert.equal(await page.locator('.kp-more-menu').isVisible(), true);
-        assert.equal(await page.getAttribute('.kp-more-btn', 'aria-expanded'), 'true');
-        await page.click('.kp-more-menu >> text=Друга');
+        assert.equal(await page.locator('#kp-test-cell .kp-more-btn').count(), 1);
+        assert.equal(await page.locator('#kp-test-cell .kp-more-menu').isVisible(), false);
+        await page.click('#kp-test-cell .kp-more-btn');
+        assert.equal(await page.locator('#kp-test-cell .kp-more-menu').isVisible(), true);
+        assert.equal(await page.getAttribute('#kp-test-cell .kp-more-btn', 'aria-expanded'), 'true');
+        await page.click('#kp-test-cell .kp-more-menu >> text=Друга');
         assert.deepEqual(await page.evaluate(() => window.__clicks), ['Друга'], 'обробник перенесеної кнопки працює');
-        assert.equal(await page.locator('.kp-more-menu').isVisible(), false, 'меню закрилось після дії');
+        assert.equal(await page.locator('#kp-test-cell .kp-more-menu').isVisible(), false, 'меню закрилось після дії');
         // Широкий екран: кнопки на місці, «⋯» і перемикач фільтрів зникли.
         await page.setViewportSize({ width: 1366, height: 768 });
-        await page.waitForFunction(() => !document.querySelector('.kp-more-btn'));
-        assert.equal(await page.locator('.kpr-cards tr:first-child td:last-child > button').count(), 3);
+        await page.waitForFunction(() => !document.querySelector('#kp-test-cell .kp-more-btn'));
+        assert.equal(await page.locator('#kp-test-cell > button').count(), 3);
         assert.equal(await page.locator('.kp-flt-toggle').count(), 0);
     });
 });
