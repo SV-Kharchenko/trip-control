@@ -8,7 +8,7 @@ export async function linkCalcClient(app, calcId, clientId) {
     try {
         const { error } = await app.supabase.from('calculation_clients').insert({ calculation_id: calcId, client_id: clientId });
         if (!error) return null;
-        if (/CLIENT_LINK_FORBIDDEN/.test(String(error.message || ''))) return 'Немає права привʼязувати рейси, зверніться до власника.';
+        if (/CLIENT_LINK_FORBIDDEN/.test(String(error.message || ''))) return 'Немає права привʼязувати рейси, зверніться до директора.';
         return errorText(error);
     } catch (error) {
         return errorText(error);

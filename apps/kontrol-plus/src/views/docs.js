@@ -311,7 +311,7 @@ export function renderDocs(app, route) {
     const currentKey = route.tab || cardTab || 'all';
     if (sub === 'list') rememberDocsList(route.tab ? '#/docs/tab/' + route.tab : '#/docs');
     let body;
-    if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть власник і логіст.', 'info');
+    if (sub === 'new' && !access.canWrite) body = notice('Створювати документи можуть директор і логіст.', 'info');
     else if (sub === 'new' && route.kind === 'ttn') body = renderTtnForm(app, access, route);
     else if (sub === 'new' && route.kind === 'trip_sheet') body = renderTripSheetForm(app, access, route);
     else if (sub === 'new') body = renderDocForm(app, access, route);

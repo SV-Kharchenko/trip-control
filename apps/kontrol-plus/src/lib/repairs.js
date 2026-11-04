@@ -8,7 +8,7 @@ export const REPAIR_ROLE_LABELS = {
     owner: ROLE_LABELS.owner,
     director: ROLE_LABELS.director,
     logist: ROLE_LABELS.logist,
-    repair_manager: 'Менеджер з ремонтів',
+    repair_manager: ROLE_LABELS.repair_manager,
 };
 
 // rctx — kp_repairs_context(), kpctx — kp_context().
@@ -20,7 +20,7 @@ export function repairsAccess(rctx, kpctx) {
         role,
         canWrite: visible && rctx.can_write === true,
         canManage: visible && rctx.can_manage_handlers === true,
-        // Менеджер з ремонтів без власного Контроль+: лише вкладка «Ремонти», без «Клієнтів», «Звіту», «GPS» і без екрана тарифу.
+        // Відповідальний за ремонти без власного Контроль+: лише вкладка «Ремонти», без «Клієнтів», «Звіту», «GPS» і без екрана тарифу.
         repairsOnly: visible && !(kpctx && kpctx.control_plus === true),
     };
 }
@@ -75,8 +75,8 @@ export function repairPartsPayload(lines) {
 }
 
 const REPAIR_ERRORS = [
-    [/REPAIRS_FORBIDDEN/, 'Немає права вносити ремонти. Попросіть власника призначити вас відповідальним.'],
-    [/REPAIR_VOID_EXPIRED/, 'Минуло 24 години — сторнувати може лише власник або директор.'],
+    [/REPAIRS_FORBIDDEN/, 'Немає права вносити ремонти. Попросіть директора призначити вас відповідальним.'],
+    [/REPAIR_VOID_EXPIRED/, 'Минуло 24 години — сторнувати може лише Директор або Менеджер.'],
     [/REPAIR_ALREADY_VOID/, 'Ремонт уже сторновано.'],
     [/RECEIPT_ALREADY_USED/, 'Запчастини з цього приходу вже використано — сторно неможливе. Зробіть коригування.'],
     [/RECEIPT_ALREADY_REVERSED/, 'Прихід уже сторновано.'],
@@ -89,7 +89,7 @@ const REPAIR_ERRORS = [
     [/BAD_DATE/, 'Перевірте дату.'],
     [/IMPORT_HAS_ERRORS/, 'У файлі є помилкові рядки — нічого не імпортовано.'],
     [/IMPORT_TOO_LARGE/, 'Понад 2000 рядків. Розбийте файл на частини.'],
-    [/REPAIR_MANAGER_LIMIT/, 'Уже 2 менеджери з ремонтів (разом із чинними запрошеннями).'],
+    [/REPAIR_MANAGER_LIMIT/, 'Уже 2 відповідальних за ремонти (разом із чинними запрошеннями).'],
     [/REPAIR_HANDLER_NOT_LOGIST/, 'Призначити можна лише активного логіста компанії.'],
     [/REPAIR_HANDLER_EXISTS/, 'Цю людину вже призначено.'],
     [/ADJUST_REASON/, 'Вкажіть причину коригування.'],

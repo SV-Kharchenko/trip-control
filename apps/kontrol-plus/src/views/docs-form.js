@@ -37,7 +37,7 @@ export function renderDocForm(app, access, route) {
                 ? 'Для рахунку потрібен IBAN компанії, для будь-якого документа — ЄДРПОУ або ІПН. Доповніть реквізити.'
                 : 'Спершу заповніть реквізити компанії — вони потрапляють у кожен документ.', 'info'),
             access.isOwner ? h('a', { class: 'btn btn-primary', href: '#/docs/requisites' }, 'Заповнити реквізити')
-                : h('p', { class: 'muted' }, 'Реквізити заповнює власник компанії.'));
+                : h('p', { class: 'muted' }, 'Реквізити заповнює директор компанії.'));
             return;
         }
         if (route.calc && !route.client) {

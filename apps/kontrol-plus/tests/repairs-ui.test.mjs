@@ -58,7 +58,7 @@ test('validateRepairForm: required fields, future date, stock shortage summed ov
 test('repairErrorText: STOCK_INSUFFICIENT names the part; codes map to Ukrainian text', () => {
     assert.equal(repairErrorText({ message: 'STOCK_INSUFFICIENT', details: 'Фільтр' }), 'Не вистачає на складі: Фільтр. Нічого не списано.');
     assert.match(repairErrorText({ message: 'REPAIR_VOID_EXPIRED' }), /24 години/);
-    assert.match(repairErrorText({ message: 'REPAIR_MANAGER_LIMIT' }), /2 менеджери/);
+    assert.match(repairErrorText({ message: 'REPAIR_MANAGER_LIMIT' }), /2 відповідальних за ремонти/);
     assert.equal(repairErrorText({ message: 'something', code: '42501' }), 'Недостатньо прав для цієї дії.');
     assert.equal(repairErrorText({ message: 'boom' }), 'Не вдалося виконати дію. Спробуйте ще раз.');
     assert.equal(repairErrorText(null), '');

@@ -206,7 +206,7 @@ export function renderGps(app) {
         // 'pending' без токена — лише слід невдалої спроби (ліміт перебору): показуємо форму, а не картку.
         if (!it || it.status === 'disabled' || (it.status === 'pending' && !it.token_hint)) {
             if (access.canManage) clear(statusBox, connectForm());
-            else clear(statusBox, notice('GPS ще не підключено. Підключає власник компанії.', 'info'));
+            else clear(statusBox, notice('GPS ще не підключено. Підключає директор компанії.', 'info'));
             return;
         }
         clear(statusBox, statusCard());
@@ -308,7 +308,7 @@ export function renderGps(app) {
     return h('section', { class: 'page gps-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'GPS')),
         access.canManage ? null : notice(access.seesIntegration
-            ? 'Режим перегляду: підключенням і привʼязкою авто керує власник компанії.'
+            ? 'Режим перегляду: підключенням і привʼязкою авто керує директор компанії.'
             : 'Режим перегляду: юніти GPS і привʼязка до авто вашої компанії.', 'info'),
         map,
         access.seesIntegration ? h('h2', { class: 'section-title' }, access.canManage ? 'Підключення' : 'Підключення (перегляд)') : null,

@@ -73,7 +73,7 @@ export function renderRequisites(app, access) {
     }
 
     function readOnly(row) {
-        if (!row) return notice('Реквізити компанії ще не заповнено. Заповнює власник компанії.', 'info');
+        if (!row) return notice('Реквізити компанії ще не заповнено. Заповнює директор компанії.', 'info');
         const dd = (label, value, mono) => h('div', { class: 'kv' }, h('dt', null, label), h('dd', { class: mono ? 'mono' : null }, value || '—'));
         return h('div', { class: 'card' }, h('dl', null,
             dd('Повна назва', row.legal_name), dd('ЄДРПОУ', row.edrpou, true), dd('ІПН / РНОКПП', row.ipn, true),

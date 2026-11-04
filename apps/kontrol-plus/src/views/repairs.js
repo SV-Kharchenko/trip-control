@@ -103,7 +103,7 @@ export function renderRepairs(app, sub) {
     else if (sub === 'stock') body = renderStock(app, access);
     else if (sub === 'maintenance') body = renderMaintenance(app, access);
     else if (sub === 'cost') body = renderCost(app);
-    else if (sub === 'handlers') body = access.canManage ? renderHandlers(app, access) : notice('Розділ доступний власнику й директору.', 'info');
+    else if (sub === 'handlers') body = access.canManage ? renderHandlers(app, access) : notice('Розділ доступний Директору і Менеджеру.', 'info');
     else body = renderList(app, access);
     return h('section', { class: 'page kpr-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'Ремонти і склад'),
@@ -112,6 +112,6 @@ export function renderRepairs(app, sub) {
                 : access.role === 'logist' && access.canWrite ? h('span', { class: 'badge' }, 'Відповідальний за ремонти') : null),
         h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи ремонтів' }, repairsTabs(access).map((t) =>
             h('a', { href: t.hash, class: 'kpr-tab' + (t.sub === current ? ' on' : ''), 'aria-current': t.sub === current ? 'page' : null }, t.label))),
-        access.canWrite ? null : notice('Режим перегляду: вносити ремонти й приходи можуть власник, директор і призначені відповідальні.', 'info'),
+        access.canWrite ? null : notice('Режим перегляду: вносити ремонти й приходи можуть Директор, Менеджер і призначені відповідальні.', 'info'),
         body);
 }
