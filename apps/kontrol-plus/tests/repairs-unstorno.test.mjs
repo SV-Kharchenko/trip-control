@@ -66,6 +66,7 @@ async function withBrowser(t, fn) {
         await page.goto(base + `?view=repairs&role=${role}&theme=${theme}`);
         await page.waitForFunction(() => window.__ready === true);
         await page.waitForSelector('.kpr-cards tbody tr');
+        await page.waitForTimeout(500); // список перемальовується після завантаження авто
         return page;
     };
     try { await fn({ open, shots: process.env.KP_SHOTS_DIR || null }); } finally { await browser.close(); server.close(); }
@@ -146,5 +147,16 @@ test('знімки екранів (KP_SHOTS_DIR): 1366 і 390 × light / dark', 
                 await list.close();
             }
         }
+    });
+});
+
+test('браузер: без tcModal підтвердження немає — дія НЕ виконується', async (t) => {
+    await withBrowser(t, async ({ open }) => {
+        const page = await open(1366, 768, 'owner');
+        await page.evaluate(() => { globalThis.__rpcCalls = []; delete window.tcModal; });
+        await page.click('button[data-act="unstorno"]');
+        await page.waitForTimeout(200);
+        assert.equal(await page.evaluate(() => globalThis.__rpcCalls.length), 0);
+        assert.equal(await page.locator('tr.is-void').count(), 1);
     });
 });

@@ -209,6 +209,7 @@ test('браузер: рядок-картка — дії в меню «⋯»; ф
         assert.equal(await page.locator('.kp-flt').first().isVisible(), true);
         await page.locator('.kp-flt select').first().selectOption({ index: 1 }).catch(() => {});
         assert.match(await toggle.innerText(), /^Фільтри( \(\d\))?$/);
+        await page.waitForTimeout(500); // список ремонтів перемальовується після завантаження авто
         // Дії рядка: кілька кнопок у комірці → одна «⋯».
         await page.evaluate(() => {
             const td = document.querySelector('.kpr-cards td:last-child');

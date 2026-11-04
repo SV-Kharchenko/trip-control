@@ -5,19 +5,19 @@ import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtMoney, fmtNumber, fmtDate, kyivDate, monthRange } from '../lib/format.js';
 import { repairsAccess, repairErrorText, REPAIR_ROLE_LABELS } from '../lib/repairs.js';
 import { renderRepairForm, setRepairCopy } from './repairs-form.js';
-
-const VOID_TITLE = 'Ремонт сторновано, не враховується у витратах';
-export const UNSTORNO_TEXT = 'Ремонт знову стане активним і враховуватиметься у витратах. Запчастини ремонту буде знову списано зі складу за поточною собівартістю; '
-    + 'якщо їх не вистачає, дію буде відхилено. Пов\'язані документи (якщо їх коригували після сторно) автоматично не відновлюються — перевірте їх вручну.';
-
-// Підтвердження — діалог сайту (tcModal, над вікнами, з напівпрозорим фоном); без нього (тести без сайту) — одразу підтверджено.
-function confirmDialog(options) {
-    return typeof window !== 'undefined' && typeof window.tcModal === 'function' ? window.tcModal(options) : Promise.resolve({ ok: true });
-}
 import { renderStock } from './repairs-stock.js';
 import { renderHandlers } from './repairs-handlers.js';
 import { renderMaintenance } from './repairs-maintenance.js';
 import { renderCost } from './repairs-cost.js';
+
+const VOID_TITLE = 'Ремонт сторновано, не враховується у витратах';
+export const UNSTORNO_TEXT = 'Ремонт знову стане активним і враховуватиметься у витратах. Запчастини ремонту буде знову списано зі складу за тією самою собівартістю, що й до сторно; '
+    + 'якщо їх не вистачає, дію буде відхилено. Пов\'язані документи (якщо їх коригували після сторно) автоматично не відновлюються — перевірте їх вручну.';
+
+// Підтвердження — діалог сайту (tcModal, над вікнами, з напівпрозорим фоном). Без нього дію НЕ виконуємо ({ ok: false}).
+function confirmDialog(options) {
+    return typeof window !== 'undefined' && typeof window.tcModal === 'function' ? window.tcModal(options) : Promise.resolve({ ok: false });
+}
 
 export function repairsTabs(access) {
     return [

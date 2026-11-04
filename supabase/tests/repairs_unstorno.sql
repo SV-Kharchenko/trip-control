@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(30);
+SELECT plan(44);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000ab01","role":"service_role"}', true);
 
@@ -106,6 +106,40 @@ UPDATE public.repairs SET status_before_void = NULL WHERE id = (SELECT id FROM t
 SET LOCAL ROLE authenticated;
 SELECT is(public.repair_unstorno((SELECT id FROM t_ru WHERE k = 'r1')), 'posted', 'legacy void without a stored status: back to posted (owner allowed)');
 RESET ROLE;
+
+-- Склад: цикл «сторно → скасування сторно» з різною собівартістю між операціями — кількість, середня і суми ті самі, ніби сторно не було.
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000ab01","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT lives_ok($$INSERT INTO t_ru SELECT 'p2', public.kp_part_upsert(NULL, 'Колодки RU', 'RU-2', 'шт', NULL, NULL)$$, 'cost cycle: new part');
+SELECT lives_ok($$SELECT public.kp_part_receive((SELECT id FROM t_ru WHERE k = 'p2'), 10, 100, public.ua_today())$$, 'cost cycle: receipt 10 × 100');
+SELECT lives_ok($$INSERT INTO t_ru SELECT 'r3', public.kp_repair_post('7f000000-0000-0000-0000-0000000000a1', public.ua_today(), NULL, 'Колодки', NULL, 0,
+  jsonb_build_array(jsonb_build_object('part_id', (SELECT id FROM t_ru WHERE k = 'p2'), 'qty', 4)))$$, 'cost cycle: repair writes off 4 at 100');
+SELECT lives_ok($$SELECT public.kp_repair_void((SELECT id FROM t_ru WHERE k = 'r3'), NULL)$$, 'cost cycle: void');
+SELECT lives_ok($$SELECT public.kp_part_receive((SELECT id FROM t_ru WHERE k = 'p2'), 10, 200, public.ua_today())$$, 'cost cycle: receipt 10 × 200 while voided (avg 150)');
+SELECT lives_ok($$SELECT public.repair_unstorno((SELECT id FROM t_ru WHERE k = 'r3'))$$, 'cost cycle: unstorno');
+RESET ROLE;
+SELECT is((SELECT qty::text || '|' || avg_cost::text || '|' || round(qty * avg_cost, 2)::text FROM public.parts WHERE id = (SELECT id FROM t_ru WHERE k = 'p2')),
+  '16.000|162.5000|2600.00', 'stock value = as if the void never happened: 6 × 100 + 10 × 200 = 2600 (re-write-off at the original unit_cost, not at the current average)');
+SELECT is((SELECT r.parts_cost::text || '|' || w.unit_cost::text || '|' || w.total::text FROM public.repairs AS r JOIN public.part_writeoffs AS w ON w.repair_id = r.id WHERE r.id = (SELECT id FROM t_ru WHERE k = 'r3')),
+  '400.00|100.0000|400.00', 'repair parts cost and the write-off keep the original unit cost');
+
+-- Старе сторно (зроблене до міграції, без запису в журналі): перед скасуванням воно потрапляє в журнал зі своїми значеннями.
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000ab01","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT lives_ok($$SELECT public.kp_repair_void((SELECT id FROM t_ru WHERE k = 'r2'), 'старе сторно')$$, 'legacy: void r2');
+RESET ROLE;
+DELETE FROM public.repair_status_log WHERE repair_id = (SELECT id FROM t_ru WHERE k = 'r2');
+UPDATE public.repairs SET status_before_void = NULL, voided_at = '2026-01-02 10:00:00+00', voided_by = '00000000-0000-0000-0000-00000000ab04', void_reason = 'legacy reason'
+WHERE id = (SELECT id FROM t_ru WHERE k = 'r2');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000ab05","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT is(public.repair_unstorno((SELECT id FROM t_ru WHERE k = 'r2')), 'posted', 'legacy: unstorno by the repair manager');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM public.repair_status_log WHERE repair_id = (SELECT id FROM t_ru WHERE k = 'r2')), 2, 'legacy: the log now has two rows');
+SELECT is((SELECT actor::text || '|' || reason || '|' || created_at::text FROM public.repair_status_log WHERE repair_id = (SELECT id FROM t_ru WHERE k = 'r2') AND action = 'void'),
+  '00000000-0000-0000-0000-00000000ab04|legacy reason|2026-01-02 10:00:00+00', 'legacy: the void row keeps the old voided_by, void_reason and voided_at');
+SELECT is((SELECT actor::text FROM public.repair_status_log WHERE repair_id = (SELECT id FROM t_ru WHERE k = 'r2') AND action = 'unstorno'), '00000000-0000-0000-0000-00000000ab05', 'legacy: the unstorno row is by the repair manager');
+SELECT is((SELECT (voided_at IS NULL)::text || '|' || status FROM public.repairs WHERE id = (SELECT id FROM t_ru WHERE k = 'r2')), 'true|posted', 'legacy: void fields cleared after the log entry');
 
 -- Гранти: лише authenticated і service_role.
 SELECT ok(has_function_privilege('authenticated', 'public.repair_unstorno(uuid)', 'EXECUTE') AND NOT has_function_privilege('anon', 'public.repair_unstorno(uuid)', 'EXECUTE'),
