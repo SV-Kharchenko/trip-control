@@ -336,7 +336,16 @@ test('вікна беруть стилі розділу: kp-win-scope.css зге
     assert.equal(read('src/cabinet-slot.css'), slotCss(read('src/crm.css')));
     const scope = read('src/kp-win-scope.css');
     assert.ok(scope.includes('body.kp-shell-on .kp-win .btn {'));
-    assert.ok(scope.includes('body[data-theme="dark"].kp-shell-on .kp-win {'), 'темна тема вікна');
+    // Палітра (light і dark) живе лише в crm.css: .kp-win і .tc-modal названі в ній, копія її не дублює.
+    assert.equal(/--bg:|--accent:|color-scheme/.test(scope), false, 'у kp-win-scope.css немає визначень палітри');
+    const crmCss = read('src/crm.css');
+    assert.ok(crmCss.includes('body.kp-shell-on .kp-win, body.kp-shell-on .tc-modal {'));
+    assert.ok(crmCss.includes('body[data-theme="dark"].kp-shell-on .kp-win, body[data-theme="dark"].kp-shell-on .tc-modal {'));
+    // Без прямих кольорів поза визначеннями змінних у kp-windows.css / kp-shell.css.
+    for (const f of ['src/kp-windows.css', 'src/kp-shell.css']) {
+      const rules = read(f).replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => !/^\s*--[\w-]+:/.test(l) && !/\[data-theme="dark"\] \{ --/.test(l));
+      assert.equal(rules.filter((l) => /rgba\(|#[0-9a-fA-F]{3,6}\b/.test(l)).length, 0, f);
+    }
     assert.equal(/#kp-crm|#main-app|#kp-side/.test(scope), false);
     assert.match(read('src/site-bridge.js'), /import '\.\/kp-win-scope\.css';\nimport '\.\/kp-windows\.css';/);
     const css = read('src/kp-windows.css');

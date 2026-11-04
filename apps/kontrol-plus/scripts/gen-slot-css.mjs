@@ -50,7 +50,7 @@ function convertRule(rule, target = SLOT) {
     if (selectors.length === 1 && selectors[0] === target && body.trim() === 'display: none;') return null;
     // Корінь вікна — його рамка (kp-windows.css): відступи й колір кореня розділу (`#kp-crm { color; padding }`) не копіюються.
     // Палітру (--bg, --accent…) не дублюємо: вікно й діалог названі прямо в палітрі crm.css.
-    if (target === WIN && selectors.length === 1 && selectors[0] === WIN) return null;
+    if (target === WIN && selectors.length === 1 && (selectors[0] === WIN || selectors[0] === WIN_DARK)) return null;
     return selectors.length ? selectors.join(',\n') + ' {' + body + '}' : null;
 }
 

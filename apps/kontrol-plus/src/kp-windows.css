@@ -27,8 +27,8 @@ body.kp-shell-on .tc-modal .tc-modal-actions .btn {
 body.kp-shell-on .tc-modal .tc-modal-actions .btn:hover { border-color: var(--accent); background: var(--row-hover); color: var(--text); }
 body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-success { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-success:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
-body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-danger { background: var(--negative); border-color: var(--negative); color: var(--kp-on-danger, #fff); }
-body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-danger:hover { background: var(--negative); border-color: var(--negative); color: var(--kp-on-danger, #fff); filter: brightness(0.92); }
+body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-danger { background: var(--negative); border-color: var(--negative); color: var(--kp-on-danger); }
+body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-danger:hover { background: var(--negative); border-color: var(--negative); color: var(--kp-on-danger); filter: brightness(0.92); }
 body.kp-shell-on .tc-modal .tc-modal-actions .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp-z-toast); }
 
@@ -57,8 +57,8 @@ body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp
         width: 28px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px;
         background: transparent; color: var(--kp-side-ink-strong); font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
     }
-    body.kp-shell-on .kp-win-btn:hover { background: rgba(244, 239, 229, 0.14); }
-    body.kp-shell-on .kp-win-btn.is-close:hover { background: var(--negative); color: var(--kp-on-danger, #fff); }
+    body.kp-shell-on .kp-win-btn:hover { background: var(--kp-side-btn-hover); }
+    body.kp-shell-on .kp-win-btn.is-close:hover { background: var(--negative); color: var(--kp-on-danger); }
     body.kp-shell-on .kp-win-btn:focus-visible { outline: 2px solid var(--kp-side-gold, var(--gold)); outline-offset: -2px; }
     body.kp-shell-on .kp-win-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 16px 16px; container: kpwin / inline-size; font-size: 13px; }
     body.kp-shell-on .kp-win-body .page, body.kp-shell-on .kp-win-body .page.narrow { padding: 0; max-width: none; margin: 0; }
@@ -121,7 +121,7 @@ body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp
     body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-ghost:hover { border-color: var(--border); color: var(--text); }
     body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-danger { color: var(--negative); border-color: var(--negative); background: transparent; }
     body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-danger:hover { background: var(--negative-bg); border-color: var(--negative); color: var(--negative-text); }
-    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-danger.is-armed { background: var(--negative); color: var(--kp-on-danger, #fff); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-danger.is-armed { background: var(--negative); color: var(--kp-on-danger); }
     /* «В архів» і «Видалити» — окремо, праворуч від решти дій; «Видалити» червона. */
     body.kp-shell-on .kp-win.kp-win .kp-win-body .kp-act-end { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
     /* Прапорець біля кнопок («3 примірники»): свій відступ, не затиснутий між кнопками. */
@@ -223,9 +223,9 @@ body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp
     body.kp-shell-on .kp-req-fact small { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
     body.kp-shell-on .kp-req-fact b { font-size: 13px; }
     body.kp-shell-on .kp-req .kp-mono { font-family: var(--kp-mono, 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace); font-variant-numeric: tabular-nums; }
-    body.kp-shell-on .kp-req .kp-fact.is-ok { color: var(--kp-ok, #1E7F4F); }
-    body.kp-shell-on .kp-req .kp-fact.is-low { color: var(--kp-bad, #B3261E); }
-    body.kp-shell-on .kp-req-cancel { color: var(--kp-bad, #B3261E); font-size: 0.85rem; }
+    body.kp-shell-on .kp-req .kp-fact.is-ok { color: var(--kp-ok); }
+    body.kp-shell-on .kp-req .kp-fact.is-low { color: var(--kp-bad); }
+    body.kp-shell-on .kp-req-cancel { color: var(--kp-bad); font-size: 0.85rem; }
     body.kp-shell-on .kp-req-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 }
 

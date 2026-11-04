@@ -1,13 +1,4 @@
 /* Згенеровано scripts/gen-slot-css.mjs з crm.css — не редагувати руками (npm run gen:slot-css). */
-body[data-theme="dark"].kp-shell-on .kp-win {
-    --bg: #0E1117; --surface: #161B22; --input: #0D1117; --row-hover: #1C222B;
-    --text: #E6EDF3; --muted: #8B949E;
-    --border: #30363D; --border-soft: #262C34;
-    --accent: #D6B67E; --on-accent: #1C1406; --accent-hover: #E2C590;
-    --gold: #D6B67E; --warn: #E3B341; --warn-bg: #2B2414;
-    --positive: #3FB950; --negative: #F85149; --negative-bg: #2D1517; --negative-text: #FFA198; --info-bg: #15232A;
-    color-scheme: dark;
-}
 body.kp-shell-on .kp-win,
 body.kp-shell-on .kp-win * { box-sizing: border-box; }
 body.kp-shell-on .kp-win:focus { outline: none; }
