@@ -225,3 +225,45 @@ test('браузер: ДЕМО-стан (банер першого запуск�
         }
     });
 });
+
+test('браузер: мапа доходить до низу вікна на будь-якому скролі (room() перераховується на scroll); у кінці — до низу лівої колонки', async (t) => {
+    await withSite(t, async (open) => {
+        const geo = (page) => page.evaluate(() => {
+            const m = document.querySelector('.tc-map-frame').getBoundingClientRect();
+            return { top: Math.round(m.top), bottom: Math.round(m.bottom), kpi: Math.round(document.getElementById('tc-kpi-bar').getBoundingClientRect().bottom), left: Math.round(document.getElementById('studio-left').getBoundingClientRect().bottom), vh: innerHeight };
+        });
+        const scrollTo = async (page, y) => { await page.evaluate((v) => window.scrollTo(0, v), y); await page.waitForTimeout(450); };
+        for (const [w, h] of [[1366, 768], [1280, 600]]) {
+            for (const theme of ['light', 'dark']) {
+                const page = await open(w, h, theme);
+                await scrollTo(page, 300);
+                const g = await geo(page);
+                assert.ok(g.bottom >= g.vh - 16, w + 'x' + h + ' ' + theme + ': низ мапи ' + g.bottom + ' ≥ ' + (g.vh - 16) + ' (порожнечі під нею немає)');
+                assert.ok(g.top >= g.kpi, w + 'x' + h + ': верх мапи ' + g.top + ' не під KPI-смугою ' + g.kpi);
+                await page.close();
+            }
+        }
+        // Початок сторінки: мапа в межах вікна; кінець: низ мапи ≈ низ лівої колонки (±14px).
+        for (const [w, h] of [[1366, 768], [1920, 1080]]) {
+            const page = await open(w, h);
+            await scrollTo(page, 0);
+            const g0 = await geo(page);
+            assert.ok(g0.bottom <= g0.vh, w + ': на скролі 0 мапа в межах вікна: ' + g0.bottom);
+            await scrollTo(page, 99999);
+            const g1 = await geo(page);
+            assert.ok(Math.abs(g1.bottom - g1.left) <= 14, w + ': у кінці низ мапи ' + g1.bottom + ' ≈ низ колонки ' + g1.left);
+            await page.close();
+        }
+        // 1920×1080 не зламався: посередині мапа не виходить за вікно і не заходить нижче колонки; без горизонтального скролу.
+        const page = await open(1920, 1080);
+        await scrollTo(page, 300);
+        const g = await geo(page);
+        assert.ok(g.bottom <= g.vh && g.bottom <= g.left + 14 && g.top >= g.kpi, '1920 посередині: ' + JSON.stringify(g));
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0);
+        // Телефон: нічого не змінилось — мапа 40vh і після прокрутки.
+        const phone = await open(390, 844);
+        await scrollTo(phone, 300);
+        const mh = await phone.evaluate(() => Math.round(document.querySelector('.tc-map-frame').getBoundingClientRect().height));
+        assert.ok(Math.abs(mh - 0.4 * 844) <= 2, '390: мапа 40vh: ' + mh);
+    });
+});

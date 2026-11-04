@@ -382,7 +382,7 @@ test('browser: sticky map after scroll 600 sits under the strip inside the windo
     await withPage(t, [1920, 1440, 1280], async (page, width, theme) => {
         const at = ' at ' + width + ' ' + theme;
         await page.evaluate(() => window.scrollTo(0, 600));
-        await page.waitForTimeout(150);
+        await page.waitForTimeout(500);
         const g = await page.evaluate(() => {
             const map = document.querySelector('.tc-map-frame').getBoundingClientRect();
             const bar = document.getElementById('tc-kpi-bar').getBoundingClientRect();
