@@ -1,4 +1,4 @@
-// Запрошення менеджера з ремонтів (етап 3a). Патерн запрошень логістів сайту (api/team.js), скопійований сюди,
+// Запрошення repair_manager (етап 3a). Патерн запрошень логістів сайту (api/team.js), скопійований сюди,
 // а не імпортований: токен v2.<id>.<HMAC-SHA256>, у БД лише sha256 токена, перевірка timingSafeEqual, 7 днів.
 // Domain separation: підписуємо 'repair_manager|…', тож токен запрошення логіста тут не працює, і навпаки.
 // Секрет — env KP_INVITE_SIGNING_SECRET (проєкт kontrol-plus). Токен і email не логуємо й не повертаємо в помилках.
@@ -91,11 +91,11 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 export function buildInviteEmail({ orgName, url, expiresAt }) {
     const company = String(orgName || 'компанію').replace(/[\r\n]+/g, ' ').slice(0, 100);
     const until = new Intl.DateTimeFormat('uk-UA', { timeZone: 'Europe/Kyiv', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(expiresAt));
-    const subject = 'Запрошення: менеджер з ремонтів — ' + company;
-    const text = ['Вас запрошують у Контроль+ як менеджера з ремонтів компанії «' + company + '».', '',
+    const subject = 'Запрошення: відповідальний за ремонти — ' + company;
+    const text = ['Вас запрошують у Контроль+ як відповідального за ремонти компанії «' + company + '».', '',
         'Прийняти: ' + url, 'Посилання дійсне до ' + until + '.', '', 'Якщо ви не чекали цього листа, просто проігноруйте його.'].join('\n');
     const html = '<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#0D2A28;max-width:520px">'
-        + '<p>Вас запрошують у Контроль+ як менеджера з ремонтів компанії <b>«' + escapeHtml(company) + '»</b>.</p>'
+        + '<p>Вас запрошують у Контроль+ як відповідального за ремонти компанії <b>«' + escapeHtml(company) + '»</b>.</p>'
         + '<p style="margin:24px 0"><a href="' + escapeHtml(url) + '" style="display:inline-block;padding:12px 22px;border-radius:8px;'
         + 'background:#0D2A29;color:#F4EFE5;text-decoration:none;font-weight:600">Прийняти запрошення</a></p>'
         + '<p style="color:#5A6B66;font-size:13px">Посилання дійсне до ' + escapeHtml(until) + '. Якщо кнопка не працює, відкрийте:<br>'
@@ -143,16 +143,16 @@ export function createSendLimiter({ limit = SEND_LIMIT_PER_HOUR, windowMs = 3600
 }
 
 const DB_ERRORS = {
-    REPAIR_MANAGER_LIMIT: [409, 'Уже 2 менеджери з ремонтів (разом із чинними запрошеннями). Скасуйте запрошення або приберіть менеджера.'],
+    REPAIR_MANAGER_LIMIT: [409, 'Уже 2 відповідальних за ремонти (разом із чинними запрошеннями). Скасуйте запрошення або приберіть відповідального.'],
     REPAIR_INVITE_EXISTS: [409, 'Цю адресу вже запрошено. Надішліть запрошення ще раз зі списку.'],
-    REPAIR_MANAGER_EXISTS: [409, 'Ця людина вже менеджер з ремонтів вашої компанії.'],
+    REPAIR_MANAGER_EXISTS: [409, 'Ця людина вже відповідальний за ремонти вашої компанії.'],
     REPAIR_INVITE_CLOSED: [409, 'Запрошення вже прийняте, скасоване або відхилене.'],
     REPAIR_INVITE_NOT_FOUND: [404, 'Запрошення не знайдено або строк дії минув.'],
     REPAIR_INVITE_USED: [409, 'Запрошення вже прийнято.'],
     INVITE_EMAIL_MISMATCH: [403, 'Запрошення надіслано на іншу пошту. Увійдіть акаунтом з тією адресою, на яку прийшов лист.'],
-    REPAIR_MANAGER_IS_MEMBER: [409, 'Ви вже учасник цієї компанії — менеджером з ремонтів бути не можна.'],
-    REPAIR_MANAGER_IS_DIRECTOR: [409, 'Ви директор цієї компанії — менеджером з ремонтів бути не можна.'],
-    REPAIR_MANAGER_HAS_OWN_KP: [409, 'У вас уже є власний Контроль+ (ви учасник або директор компанії на цьому тарифі), тому стати менеджером з ремонтів іншої компанії не можна. '
+    REPAIR_MANAGER_IS_MEMBER: [409, 'Ви вже учасник цієї компанії — відповідальним за ремонти бути не можна.'],
+    REPAIR_MANAGER_IS_DIRECTOR: [409, 'Ви менеджер цієї компанії — відповідальним за ремонти бути не можна.'],
+    REPAIR_MANAGER_HAS_OWN_KP: [409, 'У вас уже є власний Контроль+ (ви учасник або менеджер компанії на цьому тарифі), тому стати відповідальним за ремонти іншої компанії не можна. '
         + 'Увійдіть іншим акаунтом або попросіть надіслати запрошення на іншу пошту.'],
     REPAIR_INVITE_RATE_LIMIT: [429, 'Забагато запрошень: не більше 10 на годину й не частіше разу на хвилину для одного запрошення. Спробуйте пізніше.'],
     CONTROL_PLUS_REQUIRED: [403, 'Компанія не на тарифі Контроль+.'],
@@ -200,7 +200,7 @@ export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doF
     // Як kp_repairs_require_manage(): не заблокований; організація — як kp_org_id() (спершу власна на control_plus,
     // і тоді лише власник; інакше — перша організація на control_plus, де користувач директор).
     async function inviter(user) {
-        const forbidden = new HttpError(403, 'REPAIRS_FORBIDDEN', 'Запрошувати менеджерів з ремонтів може власник або директор компанії на тарифі Контроль+.');
+        const forbidden = new HttpError(403, 'REPAIRS_FORBIDDEN', 'Запрошувати відповідальних за ремонти може директор або менеджер компанії на тарифі Контроль+.');
         if (blocked(user)) throw new HttpError(403, 'USER_BLOCKED', 'Акаунт заблоковано.');
         const profile = await store.getProfile(user.id);
         if (profile && profile.org_id && profile.org_plan === 'control_plus' && profile.org_status !== 'blocked' && profile.member_status === 'active') {

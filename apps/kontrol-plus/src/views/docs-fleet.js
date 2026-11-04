@@ -2,7 +2,7 @@
 // за замовчуванням) — ті самі нові колонки fleet_vehicles, що й у картці авто сайту; пишуть owner / logist через
 // kp_vehicle_save (лише нові колонки). Номер авто, марку, номер і тип причепа та строки документів змінює owner у
 // картці авто на сайті. ТО і страхування — згорнутий блок із бейджем, якщо строк жовтий / червоний. Мінімальний довідник
-// водіїв (ПІБ, номер посвідчення; деактивація замість видалення). Директор — лише перегляд.
+// водіїв (ПІБ, номер посвідчення; деактивація замість видалення). director — лише перегляд.
 import { h, clear, spinner, notice, toast } from '../ui.js';
 import { fmtDate, kyivDate } from '../lib/format.js';
 import { FLEET_DOCS, FLEET_WARN_DAYS, daysLeft, docState, fleetBadge, validateDriver, validateVehicleTtn } from '../lib/fleet.js';

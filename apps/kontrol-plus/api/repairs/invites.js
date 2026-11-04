@@ -1,4 +1,4 @@
-// POST /api/repairs/invites — запрошення менеджера з ремонтів (етап 3a). Статичний файл: реальний файл у api/ має
+// POST /api/repairs/invites — запрошення repair_manager (етап 3a). Статичний файл: реальний файл у api/ має
 // пріоритет над rewrite /api/:path* → trip-control.com. Логіка — lib/repairs/invites.js.
 // Env (Vercel, проєкт kontrol-plus): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, KP_INVITE_SIGNING_SECRET;
 // RESEND_API_KEY і INVITE_FROM_EMAIL — необовʼязково (без них — «Скопіювати посилання»).

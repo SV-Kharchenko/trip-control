@@ -1,4 +1,4 @@
-// Дані запрошень менеджера з ремонтів для API (клієнт Supabase зі service_role). Запис — лише RPC з міграції
+// Дані запрошень repair_manager для API (клієнт Supabase зі service_role). Запис — лише RPC з міграції
 // *_repairs_stock.sql (kp_repair_invite_*), з явною організацією. Помилки бази назовні — лише код (без деталей).
 const INVITE_COLUMNS = 'id, org_id, email, expires_at, accepted_at, revoked_at, declined_at, created_at, last_sent_at';
 

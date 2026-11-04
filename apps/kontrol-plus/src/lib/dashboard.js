@@ -24,7 +24,7 @@ const validDate = (s) => typeof s === 'string' && ISO.test(s) && !Number.isNaN(D
     && new Date(Date.parse(s + 'T00:00:00Z')).toISOString().slice(0, 10) === s;
 
 // Фінансові картки (дебіторка, прострочені, документи) — тим ролям, яким їх уже показують «Документи» / «Борги» (owner, logist, director);
-// створення — як скрізь у Контроль+: owner і logist. Директор (перегляд) і тариф без Контроль+ — лише читання.
+// створення — як скрізь у Контроль+: owner і logist. director (перегляд) і тариф без Контроль+ — лише читання.
 export function dashboardAccess(context) {
     return { finance: docsAccess(context).visible, canWrite: crmPermissions(context).canWrite };
 }

@@ -45,7 +45,7 @@ export const TTN_FIELD_LABELS = Object.fromEntries([
 
 export const PARTY_CODE = /^([0-9]{8}|[0-9]{9}|[0-9]{10}|[А-ЯҐЄІЇ]{2}[0-9]{6})$/;
 
-// Права як у 4a: створюють owner / logist, анулює owner, директор — перегляд (docsAccess у docs.js).
+// Права як у 4a: створюють owner / logist, анулює owner, director — перегляд (docsAccess у docs.js).
 
 function get(obj, path) {
     return path.split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), obj);
