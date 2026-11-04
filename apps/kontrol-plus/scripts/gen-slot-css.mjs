@@ -48,8 +48,9 @@ function convertRule(rule, target = SLOT) {
     const selectors = convertSelectors(head, target);
     // `#kp-crm { display: none }` ховає кореневий розділ; слот кабінету видимий завжди.
     if (selectors.length === 1 && selectors[0] === target && body.trim() === 'display: none;') return null;
-    // Корінь вікна — його рамка (kp-windows.css): відступи й колір кореня розділу (`#kp-crm { color; padding }`) не копіюються, лише змінні палітри.
-    if (target === WIN && selectors.length === 1 && selectors[0] === WIN && !/--bg:/.test(body)) return null;
+    // Корінь вікна — його рамка (kp-windows.css): відступи й колір кореня розділу (`#kp-crm { color; padding }`) не копіюються.
+    // Палітру (--bg, --accent…) не дублюємо: вікно й діалог названі прямо в палітрі crm.css.
+    if (target === WIN && selectors.length === 1 && selectors[0] === WIN) return null;
     return selectors.length ? selectors.join(',\n') + ' {' + body + '}' : null;
 }
 

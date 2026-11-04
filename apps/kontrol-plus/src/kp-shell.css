@@ -15,6 +15,7 @@ html[data-app="kp"] body.kp-shell-on {
     /* Єдина шкала z-index Контроль+ (знизу вгору). Вікна 3040…3047 (WIN_Z_BASE у lib/windows-core.js); діалоги, випадні списки й тости — завжди над вікнами й панеллю задач. */
     --kp-z-win: 3040;
     --kp-z-top: 3090;
+    /* strip (смуга тріалу зверху) і taskbar (панель задач знизу) на різних краях екрана й не перекриваються, тому мають однаковий шар; фон мобільного меню теж на ньому (нижче меню 3100). */
     --kp-z-strip: 3095;
     --kp-z-taskbar: 3095;
     --kp-z-side: 3100;
@@ -24,9 +25,14 @@ html[data-app="kp"] body.kp-shell-on {
     --kp-z-toast: 3500;
     --kp-scrim: rgba(13, 42, 41, 0.4); /* напівпрозорий фон за діалогом, не чорний */
     --kp-on-danger: #fff;
+    --kp-win-shadow: rgba(13, 42, 41, 0.22);
+    --kp-win-shadow-active: rgba(13, 42, 41, 0.32);
+    --kp-dialog-shadow: rgba(13, 42, 41, 0.28);
+    --kp-seg-shadow: rgba(13, 42, 41, 0.25);
+    --kp-side-shadow: rgba(13, 42, 41, 0.45);
 }
 html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-side-bg: #0A1717; --kp-side-gold: #E0B25A; }
-html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-scrim: rgba(2, 8, 8, 0.55); --kp-on-danger: #1A0606; }
+html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-scrim: rgba(2, 8, 8, 0.55); --kp-on-danger: #1A0606; --kp-win-shadow: rgba(0, 0, 0, 0.5); --kp-win-shadow-active: rgba(0, 0, 0, 0.65); --kp-dialog-shadow: rgba(0, 0, 0, 0.6); --kp-seg-shadow: rgba(0, 0, 0, 0.5); --kp-side-shadow: rgba(0, 0, 0, 0.6); }
 html[data-app="kp"] body.kp-shell-on.kp-shell-strip-on { --kp-strip-h: 30px; }
 html[data-app="kp"] body.kp-shell-on.kp-shell-collapsed { --kp-side-w: 64px; }
 
@@ -168,10 +174,10 @@ body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: rgb
     html[data-app="kp"] body.kp-shell-on.layout-studio #main-app { margin-left: 0 !important; padding: calc(var(--kp-strip-h) + var(--kp-top-h) + 12px) 12px 32px !important; }
     html[data-app="kp"] body.kp-shell-on #cabinet-screen { left: 0; }
     body.kp-shell-on .kp-shell-side { width: 264px; transform: translateX(-100%); box-shadow: none; }
-    body.kp-shell-on.kp-shell-open .kp-shell-side { transform: translateX(0); box-shadow: 0 0 40px rgba(0, 0, 0, 0.45); }
+    body.kp-shell-on.kp-shell-open .kp-shell-side { transform: translateX(0); box-shadow: 0 0 40px var(--kp-side-shadow); }
     body.kp-shell-on.kp-shell-collapsed .kp-shell-side { width: 264px; }
     body.kp-shell-on .kp-shell-collapse { display: none; }
-    body.kp-shell-on.kp-shell-open .kp-shell-backdrop { display: block; position: fixed; inset: 0; z-index: var(--kp-z-strip); background: rgba(8, 12, 16, 0.5); }
+    body.kp-shell-on.kp-shell-open .kp-shell-backdrop { display: block; position: fixed; inset: 0; z-index: var(--kp-z-strip); background: var(--kp-scrim); }
     body.kp-shell-on .kp-shell-burger { display: inline-flex; }
     body.kp-shell-on .kp-shell-top { left: 0; padding: 0 12px; gap: 8px; }
     body.kp-shell-on.kp-shell-strip-on .kp-shell-strip { left: 0; }

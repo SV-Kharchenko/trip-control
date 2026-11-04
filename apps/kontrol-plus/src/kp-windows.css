@@ -12,7 +12,7 @@ body.kp-shell-on .tc-modal {
 }
 body.kp-shell-on .tc-modal-card {
     background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px 16px; gap: 10px;
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 18px 50px var(--kp-dialog-shadow);
 }
 body.kp-shell-on .tc-modal-card h3 { font-size: 1rem; color: var(--text); }
 body.kp-shell-on .tc-modal-card p { color: var(--muted); font-size: 0.85rem; }
@@ -36,10 +36,10 @@ body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp
     body.kp-shell-on .kp-win {
         position: fixed; display: flex; flex-direction: column; box-sizing: border-box; min-width: 480px; min-height: 320px; overflow: hidden;
         background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; font-family: var(--kp-font, inherit);
-        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+        box-shadow: 0 18px 50px var(--kp-win-shadow);
     }
     body.kp-shell-on .kp-win[hidden] { display: none; }
-    body.kp-shell-on .kp-win.is-active { border-color: var(--kp-side-gold, var(--gold)); box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32); }
+    body.kp-shell-on .kp-win.is-active { border-color: var(--kp-side-gold, var(--gold)); box-shadow: 0 22px 60px var(--kp-win-shadow-active); }
     body.kp-shell-on .kp-win.is-max {
         left: var(--kp-side-w, 0px); top: calc(var(--kp-strip-h, 0px) + var(--kp-top-h, 52px)); right: 0; bottom: 32px; width: auto; height: auto; border-radius: 0;
     }
@@ -190,7 +190,7 @@ body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp
     }
     body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button:hover { color: var(--text); }
     body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button.is-on,
-    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); box-shadow: 0 1px 3px var(--kp-seg-shadow); }
     body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 
     /* Рядки документа й підсумки (база — crm.css): у вікні поля 30px, підсумки 13px, смітничок 28px. */

@@ -9,7 +9,7 @@ body[data-kp-view] #onboard-banner,
 body[data-kp-view] #cab-warning { display: none !important; }
 
 /* Палітра trip-control.com: світла тема і темна (body[data-theme="dark"] сайту). */
-#kp-crm, #kp-toast, #kp-side {
+#kp-crm, #kp-toast, #kp-side, body.kp-shell-on .kp-win, body.kp-shell-on .tc-modal {
     --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE; --row-hover: #FBF7EE;
     --text: #0D2A28; --muted: #5A6B66;
     --border: #D9D1BD; --border-soft: #E3DCCB;
@@ -19,7 +19,7 @@ body[data-kp-view] #cab-warning { display: none !important; }
     --radius-card: 14px; --radius-control: 10px;
     --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
 }
-body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-theme="dark"] #kp-side {
+body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-theme="dark"] #kp-side, body[data-theme="dark"].kp-shell-on .kp-win, body[data-theme="dark"].kp-shell-on .tc-modal {
     --bg: #0E1117; --surface: #161B22; --input: #0D1117; --row-hover: #1C222B;
     --text: #E6EDF3; --muted: #8B949E;
     --border: #30363D; --border-soft: #262C34;
