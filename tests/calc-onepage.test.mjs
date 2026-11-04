@@ -312,7 +312,8 @@ test('browser: strip sticks at top 0 below the header, map and panel do not inte
             assert.ok(two.panelW >= 380 && two.mapW > two.panelW * 0.9, 'columns ' + JSON.stringify(two) + at);
         } else {
             const mapH = await page.evaluate(() => Math.round(document.querySelector('.tc-map-frame').getBoundingClientRect().height));
-            assert.ok(mapH >= 240 && mapH <= 280, 'mobile map height ' + mapH + at);
+            const vh = await page.evaluate(() => innerHeight);
+            assert.ok(Math.abs(mapH - 0.4 * vh) <= 3 || mapH === 220, 'mobile map height ≈ 40vh: ' + mapH + ' (vh ' + vh + ')' + at);
         }
     });
 });

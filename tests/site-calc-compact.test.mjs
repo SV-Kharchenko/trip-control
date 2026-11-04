@@ -65,3 +65,163 @@ test('у видимих текстах немає слова «калькуля�
     assert.match(html, /tc-panel-eyebrow">Розрахунок рейсу</);
     assert.match(read('apps/kontrol-plus/src/views/request-window.js'), /'Відкрити в розрахунку рейсу'/);
 });
+
+// ---- Браузерні перевірки сайту: демо-режим на localhost (?preview=1), власний Chromium Playwright (не Chrome); без нього пропуск ----
+import { createServer } from 'node:http';
+import { existsSync } from 'node:fs';
+import { extname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const MIME = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json', '.webmanifest': 'application/json', '.jpg': 'image/jpeg' };
+
+async function withSite(t, fn) {
+    let pw;
+    try { pw = await import('playwright-core'); } catch { t.skip('no playwright-core'); return; }
+    let browser;
+    try { browser = await pw.chromium.launch({ headless: true }); } catch { t.skip('no Chromium'); return; }
+    const server = createServer((req, res) => {
+        let p = new URL(req.url, 'http://x').pathname;
+        if (p === '/') p = '/index.html';
+        const f = join(ROOT, decodeURIComponent(p));
+        if (!f.startsWith(ROOT) || !existsSync(f) || !statSync(f).isFile()) { res.writeHead(404); res.end(); return; }
+        res.writeHead(200, { 'content-type': MIME[extname(f)] || 'application/octet-stream' });
+        res.end(readFileSync(f));
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const open = async (w, h, theme = 'light') => {
+        const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: w < 900 });
+        const page = await ctx.newPage();
+        await page.addInitScript((th) => { try { localStorage.setItem('tc_theme', th); } catch { /* приватний режим */ } }, theme);
+        await page.goto('http://127.0.0.1:' + server.address().port + '/?preview=1', { waitUntil: 'load' });
+        await page.waitForFunction(() => document.body.dataset.studioView === 'calc' && document.querySelector('#tc-op .tc-in'));
+        await page.waitForTimeout(700);
+        return page;
+    };
+    try { await fn(open); } finally { await browser.close(); server.close(); }
+}
+// Стан «після оплати / без першого запуску»: без демо-блоків і банера першого рейсу (у демо кнопка «Розрахувати відстань» прихована).
+const realState = (page) => page.evaluate(() => { document.body.classList.remove('demo-mode'); const b = document.getElementById('onboard-banner'); if (b) b.remove(); });
+
+test('браузер 1366×768: «Розрахувати відстань» і крок 1 видно без скролу; поля 30px / 13px, підписи 12px, кнопки 28px (light і dark)', async (t) => {
+    await withSite(t, async (open) => {
+        for (const theme of ['light', 'dark']) {
+            const page = await open(1366, 768, theme);
+            await realState(page);
+            await page.waitForTimeout(300);
+            const m = await page.evaluate(() => {
+                const r = (s) => document.querySelector(s).getBoundingClientRect();
+                const cs = (s) => getComputedStyle(document.querySelector(s));
+                return {
+                    btn: r('#route-calc-btn'), btnVisible: r('#route-calc-btn').height > 0, step1: r('#tc-acc-route'), scroll: window.scrollY, vh: innerHeight,
+                    field: Math.round(r('#tc-op .tc-in').height), fieldFs: cs('#tc-op .tc-in > input').fontSize, label: cs('#tc-op .form-row > label').fontSize,
+                    btnH: Math.round(r('#route-calc-btn').height), clearH: Math.round(r('#tc-op .tc-panel-clear').height), kpi: Math.round(r('.tc-kpi-bar').height),
+                    cols: cs('#tc-op .tc-sec-body:has(.tc-f-podacha)').gridTemplateColumns.split(' ').length, over: document.documentElement.scrollWidth - innerWidth,
+                };
+            });
+            assert.equal(m.scroll, 0);
+            assert.ok(m.btnVisible && m.btn.top >= 0 && m.btn.bottom <= m.vh, theme + ': кнопка в межах екрана ' + JSON.stringify(m.btn));
+            assert.ok(m.step1.bottom <= m.vh, theme + ': крок 1 цілком на екрані: ' + m.step1.bottom);
+            assert.deepEqual([m.field, m.fieldFs, m.label, m.btnH, m.clearH], [30, '13px', '12px', 28, 28], theme);
+            assert.ok(m.kpi <= 64, 'KPI — тонка смужка: ' + m.kpi);
+            assert.equal(m.cols, 2, 'короткі поля парами');
+            assert.ok(m.over <= 0);
+            await page.close();
+        }
+    });
+});
+
+test('браузер: під мапою немає порожнечі — в кінці сторінки низ мапи ≈ низ колонки форми (1366 і 1920)', async (t) => {
+    await withSite(t, async (open) => {
+        for (const [w, h] of [[1366, 768], [1920, 1080]]) {
+            const page = await open(w, h);
+            await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+            await page.waitForTimeout(400);
+            const m = await page.evaluate(() => {
+                const map = document.querySelector('.tc-map-frame').getBoundingClientRect();
+                const left = document.getElementById('studio-left').getBoundingClientRect();
+                const room = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cc-room'));
+                return { mapBottom: Math.round(map.bottom), leftBottom: Math.round(left.bottom), mapH: Math.round(map.height), mapTop: Math.round(map.top), room };
+            });
+            assert.ok(Math.abs(m.mapBottom - m.leftBottom) <= 14, w + ': низ мапи ' + m.mapBottom + ' ≈ низ колонки форми ' + m.leftBottom);
+            assert.ok(m.mapH <= m.room + 1 && m.mapH >= 360, w + ': висота мапи в межах --cc-room');
+            // На початку сторінки мапа sticky: займає видиму висоту, а не лишає порожнє поле під собою у вікні.
+            await page.evaluate(() => window.scrollTo(0, 0));
+            await page.waitForTimeout(300);
+            const top = await page.evaluate(() => { const b = document.querySelector('.tc-map-frame').getBoundingClientRect(); return [Math.round(b.bottom), innerHeight]; });
+            assert.ok(top[0] <= top[1], w + ': мапа в межах вікна на початку сторінки');
+            await page.close();
+        }
+    });
+});
+
+test('браузер 390: без горизонтального скролу; поля 40px і 16px (iOS не зумить), одна колонка, мапа ≈ 40vh; те саме на 1024 і 1920', async (t) => {
+    await withSite(t, async (open) => {
+        for (const theme of ['light', 'dark']) {
+            const page = await open(390, 844, theme);
+            const m = await page.evaluate(() => {
+                const i = document.querySelector('#tc-op .tc-in > input');
+                return {
+                    over: document.documentElement.scrollWidth - innerWidth, fs: getComputedStyle(i).fontSize, h: Math.round(document.querySelector('#tc-op .tc-in').getBoundingClientRect().height),
+                    cols: getComputedStyle(document.querySelector('#tc-op .tc-sec-body:has(.tc-f-podacha)')).gridTemplateColumns.split(' ').length,
+                    map: Math.round(document.querySelector('.tc-map-frame').getBoundingClientRect().height), vh: innerHeight,
+                };
+            });
+            assert.ok(m.over <= 0, theme + ': горизонтальний скрол ' + m.over);
+            assert.deepEqual([m.fs, m.h, m.cols], ['16px', 40, 1], theme);
+            assert.ok(Math.abs(m.map - 0.4 * m.vh) <= 2, theme + ': мапа ' + m.map + ' ≈ 40vh ' + 0.4 * m.vh);
+            await page.close();
+        }
+        for (const [w, h] of [[1024, 768], [1920, 1080]]) {
+            const page = await open(w, h);
+            assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, w + ': без горизонтального скролу');
+            await page.close();
+        }
+    });
+});
+
+test('браузер: перемикач «покроково / усе одразу» і каскад прибутку на місці й працюють', async (t) => {
+    await withSite(t, async (open) => {
+        const page = await open(1366, 768);
+        const ids = await page.evaluate(() => ({ stepper: !!document.querySelector('#tc-acc, .tc-acc'), cascade: !!document.getElementById('tc-cascade'), kpi: !!document.querySelector('.tc-kpi-bar'), detail: !!document.querySelector('.tc-kb-detail') }));
+        assert.deepEqual(ids, { stepper: true, cascade: true, kpi: true, detail: true });
+        await page.click('.tc-kb-detail');
+        await page.waitForTimeout(400);
+        assert.equal(await page.evaluate(() => document.body.dataset.calcDetail), '1', '«Детально» відкриває каскад');
+        assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('tc-cascade')).display !== 'none'), true);
+    });
+});
+
+test('браузер: ДЕМО-стан (банер першого запуску + демо-блоки) 1366×768 light/dark — останнє поле кроку 1 і «Підставити демо-рейс» без скролу; банер тонкий; 390 без h-скролу', async (t) => {
+    await withSite(t, async (open) => {
+        for (const theme of ['light', 'dark']) {
+            const page = await open(1366, 768, theme);
+            const m = await page.evaluate(() => {
+                const r = (s) => document.querySelector(s).getBoundingClientRect();
+                const list = document.getElementById('setup-checks');
+                return {
+                    demo: document.body.classList.contains('demo-mode'), bannerVisible: r('#onboard-banner').height > 0, banner: Math.round(r('#onboard-banner').height),
+                    action: r('#onboard-banner .btn'), close: r('#onboard-banner .hint-close'), truck: r('#tc-op .tc-f-truck'), scroll: window.scrollY, vh: innerHeight,
+                    chipsFit: [...list.children].every((c) => c.getBoundingClientRect().right <= list.getBoundingClientRect().right + 1),
+                    note: getComputedStyle(document.getElementById('tc-demo-fields-note')).display !== 'none', over: document.documentElement.scrollWidth - innerWidth,
+                };
+            });
+            assert.equal(m.demo, true);
+            assert.ok(m.bannerVisible && m.banner <= 64, theme + ': банер — тонкий блок: ' + m.banner);
+            assert.ok(m.action.top >= 0 && m.action.bottom <= m.vh && m.action.height >= 24, theme + ': «Підставити демо-рейс» видно ' + JSON.stringify(m.action));
+            assert.ok(m.close.bottom <= m.vh, theme + ': хрестик на місці');
+            assert.ok(m.truck.bottom <= m.vh, theme + ': останнє поле кроку 1 без скролу: ' + m.truck.bottom);
+            assert.equal(m.scroll, 0);
+            assert.equal(m.chipsFit, true, theme + ': статуси налаштувань не обрізані');
+            assert.equal(m.note, true, 'демо-підказка на місці (зміст не прибрано)');
+            assert.ok(m.over <= 0);
+            await page.close();
+        }
+        for (const theme of ['light', 'dark']) {
+            const page = await open(390, 844, theme);
+            assert.ok(await page.evaluate(() => document.body.classList.contains('demo-mode')));
+            assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, theme + ': демо на 390 без горизонтального скролу');
+            await page.close();
+        }
+    });
+});

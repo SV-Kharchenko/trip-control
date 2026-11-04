@@ -4466,6 +4466,29 @@
             }
         }
         /*TC-COMPACT-END*/
+        /* Демо-стан «Розрахунку рейсу» (без оплати): банер першого запуску — компактна сітка 2×2 (рядок: текст і дія «Підставити демо-рейс»; під ним статуси
+           і «Відкрити кабінет»), закрити — у куті; демо-підказка стиснута. Зміст не прибрано. Лише від 901px і лише в розрахунку рейсу; токени тем, без нових кольорів. */
+        @media (min-width: 901px) {
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner { align-items: flex-start; gap: 8px; padding: 6px 6px 6px 12px; font-size: 12px; line-height: 1.3; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-text { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-text > b { grid-area: 1 / 1; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-text > div:not(.setup-list) { display: contents !important; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .btn { grid-area: 1 / 2; justify-self: end; min-height: 24px; height: 24px; padding: 0 10px !important; font-size: 12px; white-space: nowrap; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .setup-list { grid-area: 2 / 1 / 3 / 3; max-width: calc(100% - 104px); margin: 0; gap: 2px; flex-wrap: nowrap; min-width: 0; overflow: hidden; } /* під «Відкрити кабінет» лишається вільне місце в другій колонці */
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .link-btn { grid-area: 2 / 2; justify-self: end; font-size: 12px; white-space: nowrap; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .setup-item { padding: 0 4px; border-color: transparent; font-size: 11px; line-height: 16px; white-space: nowrap; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-close { width: 24px; height: 24px; margin: 0; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op #tc-demo-fields-note { padding: 6px 10px !important; margin-bottom: 0 !important; font-size: 12px !important; line-height: 1.35 !important; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op #tc-demo-fields-note > div { display: inline; margin: 0 4px 0 0 !important; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op .tc-panel-head { padding-block: 4px; }
+            body.layout-studio[data-theme][data-studio-view="calc"] #tc-op > .tc-acc .tc-acc-head { min-height: 30px; padding-block: 4px; }
+        }
+        /* Телефон і вузький екран (≤900px): карта ≈40vh (раніше 260px з правила вище). Поля 40px / 16px і одна колонка дає сайтова мобільна версія. */
+        @media (max-width: 900px) {
+            body.layout-studio[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame {
+                height: 40vh !important; min-height: 220px !important;
+            }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
