@@ -4,7 +4,7 @@
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
 import { h, clear, spinner, notice, toast } from './ui.js';
 import { errorText } from './lib/errors.js';
-import { legacyRedirect, parseCrmHash, tabOf, windowSpecOf } from './lib/route.js';
+import { cardParentHash, legacyRedirect, parseCrmHash, tabOf, windowSpecOf } from './lib/route.js';
 import { navIcon } from './nav-icons.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
@@ -489,11 +489,18 @@ function onCabinetTab(event) {
 // ===== Вікна поверх розділу (PR 3): картки документів, форми, клієнт, заявка. Лише Контроль+ ≥900px (createWindowManager сам вирішує). =====
 let windows = null;
 let coldStart = true;
-const WINDOW_TITLES = { doc: 'Документ', ttn: 'ТТН', trip_sheet: 'Подорожній лист', form: 'Новий документ', client: 'Клієнт', client_form: 'Клієнт', request: 'Заявка' };
+const WINDOW_TITLES = {
+    doc: 'Документ', ttn: 'ТТН', trip_sheet: 'Подорожній лист', form: 'Новий документ', client: 'Клієнт', client_form: 'Клієнт', request: 'Заявка',
+    vehicle: 'Авто', trailer: 'Причіп', driver: 'Водій',
+};
 
 // Те саме, що app(), але навігація зсередини вікна: заміна вікна (після збереження форми), а не перемальовування розділу.
 function winApp(ctl) {
-    return { ...app(), go: (hash) => windowGo(ctl, hash), onCleanup: (fn) => ctl.onClose(fn) };
+    return {
+        ...app(), go: (hash) => windowGo(ctl, hash), onCleanup: (fn) => ctl.onClose(fn),
+        // Закрити вікно картки (авто, причіп, водій) без переходу; changed — список під вікном перечитується.
+        closeWindow: (changed) => ctl.close({ force: true }).then(() => { if (changed) window.dispatchEvent(new CustomEvent('kp:registry-changed')); }),
+    };
 }
 function windowGo(ctl, hash) {
     ctl.close({ force: true }).then(() => {
@@ -522,8 +529,15 @@ async function buildWindow(type, id, container, ctl) {
         return;
     }
     const a = winApp(ctl);
+    // Той самий каркас сторінки, що й у розділі (docs.js / реєстр): його класи дають вікну ті самі правила полів, кнопок і таблиць.
+    if (container.classList && typeof container.classList.add === 'function') {
+        if (['doc', 'ttn', 'trip_sheet', 'form'].includes(type)) container.classList.add('kpr-page', 'kpd-page');
+        else if (['vehicle', 'trailer', 'driver'].includes(type)) container.classList.add('kpr-page', 'kpg-page');
+    }
     let view;
     if (type === 'client') view = renderClientCard(a, id);
+    else if (type === 'vehicle' || type === 'trailer') view = await (await import('./views/fleet.js')).renderFleetCardWindow(a, type, id || null);
+    else if (type === 'driver') view = await (await import('./views/drivers.js')).renderDriverCardWindow(a, id || null);
     else if (type === 'client_form') view = renderClientForm(a, id || null);
     else {
         if (state.docs === null) await loadDocsAvailability();
@@ -558,9 +572,9 @@ function specFromItem(item) {
         const base = windowSpecOf(route, item.id);
         return base ? toWindowSpec(base) : null;
     }
-    const keyed = { doc: 'doc', ttn: 'ttn', trip_sheet: 'trip_sheet', client: 'client', request: 'request', client_form: 'client_form' }[item.type];
+    const keyed = { doc: 'doc', ttn: 'ttn', trip_sheet: 'trip_sheet', client: 'client', request: 'request', client_form: 'client_form', vehicle: 'vehicle', trailer: 'trailer', driver: 'driver' }[item.type];
     if (!keyed) return null;
-    return toWindowSpec({ type: item.type, id: item.id, key: item.type + ':' + (item.type === 'client_form' && !item.id ? 'new' : item.id) });
+    return toWindowSpec({ type: item.type, id: item.id, key: item.type + ':' + (!item.id && ['client_form', 'vehicle', 'trailer', 'driver'].includes(item.type) ? 'new' : item.id) });
 }
 
 // Пара компанія / користувач змінилась → усі вікна закриваються; для нової пари відновлюється збережений список (sessionStorage).
@@ -581,7 +595,13 @@ function onHash() {
     // Старі підвкладки «Документів» переїхали: Авто й водії → Автопарк, Реквізити → Реквізити компанії, Борги → План/факт.
     const moved = legacyRedirect(location.hash);
     if (moved) history.replaceState(null, '', location.pathname + location.search + moved);
-    const route = parseCrmHash(moved || location.hash);
+    let route = parseCrmHash(moved || location.hash);
+    if (route && cardParentHash(route) && !(windows && windows.enabled())) {
+        // Вікон немає (вузький екран): картка авто / причепа / водія вікном не відкривається — лишається список.
+        const parent = cardParentHash(route);
+        history.replaceState(null, '', location.pathname + location.search + parent);
+        route = parseCrmHash(parent);
+    }
     if (route && route.view === 'request' && !(windows && windows.enabled())) {
         // Вікон немає (вузький екран): заявка відкривається, як раніше, — у калькуляторі.
         history.replaceState(null, '', location.pathname + location.search);
@@ -591,7 +611,14 @@ function onHash() {
     if (windows) {
         const base = windowSpecOf(route, location.hash);
         // Прямий захід за посиланням на вікно: під ним розділ за замовчуванням.
-        if (base && coldStart && !state.route && windows.count() === 0 && windows.enabled()) openDefaultSection();
+        if (base && coldStart && !state.route && windows.count() === 0 && windows.enabled()) {
+            const parent = cardParentHash(route);
+            if (parent) {
+                // Картка авто / причепа / водія: під вікном — його список.
+                state.route = parseCrmHash(parent);
+                render();
+            } else openDefaultSection();
+        }
         const handled = windows.handleHash(location.hash, base ? toWindowSpec(base) : null);
         coldStart = false;
         if (handled) return;
@@ -666,7 +693,14 @@ export async function startBridge() {
     windows = createWindowManager({
         storage: (() => { try { return typeof sessionStorage !== 'undefined' ? sessionStorage : null; } catch { return null; } })(),
         // Підтвердження закриття «брудної» форми — наявний діалог сайту (tcModal), не confirm().
-        confirm: (options) => (typeof tcModal === 'function' ? tcModal(options) : Promise.resolve({ ok: true })), // eslint-disable-line no-undef
+        confirm: (options) => {
+            if (typeof tcModal !== 'function') return Promise.resolve({ ok: true }); // eslint-disable-line no-undef
+            const answer = tcModal(options); // eslint-disable-line no-undef
+            // Небезпечна дія («Закрити без збереження», «Видалити»): фокус на «Скасувати», щоб Enter не підтвердив її випадково; Esc теж скасовує.
+            const cancel = options && options.danger ? document.querySelector('.tc-modal [data-act="cancel"]') : null;
+            if (cancel && typeof cancel.focus === 'function') cancel.focus();
+            return answer;
+        },
         notify: (text) => toast(text),
     });
     window.kpWindowsOn = () => !!(windows && windows.enabled());

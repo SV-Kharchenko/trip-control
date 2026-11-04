@@ -10,6 +10,7 @@ import { partyLines, rateLine } from '../lib/pdf-docs-text.js';
 import { showError, statusBadge, signedActs, pdfButton, excelButton, cancelControl } from './docs.js';
 import { emailControl, renderEmailLog } from './doc-email.js';
 import { docsBackHash } from '../lib/docs-requests.js';
+import { totalRows } from './docs-totals.js';
 
 export function renderDocCard(app, access, id) {
     const box = h('div', null, spinner());
@@ -78,9 +79,8 @@ export function renderDocCard(app, access, id) {
                     h('td', { 'data-label': 'Ціна', class: 'mono' }, fmtMoneyPlain(l.price)),
                     h('td', { 'data-label': 'Сума', class: 'mono' }, fmtMoneyPlain(l.amount))))))),
             h('div', { class: 'kpr-totals kpd-totals' },
-                h('span', null, vat ? 'Без ПДВ: ' : 'Разом: ', h('b', null, fmtAmount(doc.subtotal, cur))),
-                vat ? h('span', null, 'ПДВ 20 % (' + (doc.vat_mode === 'gross' ? 'у ціні' : 'зверху') + '): ', h('b', null, fmtAmount(doc.vat_amount, cur))) : h('span', { class: 'muted' }, 'Без ПДВ'),
-                h('span', null, 'Всього: ', h('b', null, fmtAmount(doc.total, cur)))),
+                totalRows({ vat, subtotal: fmtAmount(doc.subtotal, cur), vatAmount: fmtAmount(doc.vat_amount, cur), total: fmtAmount(doc.total, cur),
+                    vatLabel: 'ПДВ 20 % (' + (doc.vat_mode === 'gross' ? 'у ціні' : 'зверху') + ')' })),
             h('p', null, h('b', null, 'Сума прописом: '), amountInWords(doc.total, cur)),
             cur !== 'UAH' ? h('p', { class: 'small' }, rateLine(doc)) : null,
             isInvoice && doc.due_date ? h('p', { class: 'small' }, 'Оплатити до: ', h('b', null, fmtDate(doc.due_date))) : null,

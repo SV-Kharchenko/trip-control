@@ -27,7 +27,7 @@ function statusCell(row) {
 
 // Таблиця статусу (рядки — з kp_maintenance_status); лише h() / textContent.
 export function maintenanceTable(rows) {
-    return h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
+    return h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table kpg-table' },
         h('thead', null, h('tr', null, ['Авто', 'Тип ТО', 'Статус', 'Залишок км', 'Залишок днів', 'Остання: дата / км'].map((t) => h('th', null, t)))),
         h('tbody', null, sortMaintenance(rows).map((r) => h('tr', { class: 'kpr-row-' + r.status },
             h('td', { 'data-label': 'Авто' }, r.vehicle_label),
@@ -141,7 +141,7 @@ export function renderMaintenance(app, access) {
         function drawTypes() {
             const active = state.types.filter((t) => t.is_active);
             clear(typesBox,
-                active.length ? h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
+                active.length ? h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table kpg-table' },
                     h('thead', null, h('tr', null, ['Тип ТО', 'Інтервал', ''].map((t) => h('th', null, t)))),
                     h('tbody', null, active.map((t) => h('tr', null,
                         h('td', { 'data-label': 'Тип ТО' }, t.name),
@@ -168,7 +168,7 @@ export function renderMaintenance(app, access) {
             const { data, error } = await app.supabase.from('vehicle_maintenance_overrides').select('type_id, interval_km, interval_months, disabled').eq('vehicle_id', vehicleId);
             if (error) return clear(overridesBox, notice(repairErrorText(error)));
             const byType = new Map((data || []).map((o) => [o.type_id, o]));
-            clear(overridesBox, h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
+            clear(overridesBox, h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table kpg-table' },
                 h('thead', null, h('tr', null, ['Тип ТО', 'Шаблон', 'Для цього авто', ''].map((t) => h('th', null, t)))),
                 h('tbody', null, state.types.filter((t) => t.is_active).map((t) => overrideRow(vehicleId, t, byType.get(t.id) || null))))));
         }
@@ -233,7 +233,7 @@ export function renderMaintenance(app, access) {
 
         function drawHistory(rows) {
             historyRows = rows || [];
-            clear(history, (rows || []).length ? h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
+            clear(history, (rows || []).length ? h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table kpg-table' },
                 h('thead', null, h('tr', null, ['Дата', 'Показник', 'Джерело', 'Примітка'].map((t) => h('th', null, t)))),
                 h('tbody', null, rows.map((r) => h('tr', null,
                     h('td', { 'data-label': 'Дата' }, fmtDate(r.read_on)),

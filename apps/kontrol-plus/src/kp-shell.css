@@ -12,8 +12,36 @@ html[data-app="kp"] body.kp-shell-on {
     --kp-side-faint: rgba(244, 239, 229, 0.42);
     --kp-font: Manrope, 'Segoe UI', system-ui, -apple-system, sans-serif;
     --kp-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    /* Єдина шкала z-index Контроль+ (знизу вгору). Вікна 3040…3047 (WIN_Z_BASE у lib/windows-core.js); діалоги, випадні списки й тости — завжди над вікнами й панеллю задач. */
+    --kp-z-win: 3040;
+    --kp-z-top: 3090;
+    /* strip (смуга тріалу зверху) і taskbar (панель задач знизу) на різних краях екрана й не перекриваються, тому мають однаковий шар; фон мобільного меню теж на ньому (нижче меню 3100). */
+    --kp-z-strip: 3095;
+    --kp-z-taskbar: 3095;
+    --kp-z-side: 3100;
+    --kp-z-dropdown: 3300;
+    --kp-z-scrim: 3400;
+    --kp-z-modal: 3410;
+    --kp-z-toast: 3500;
+    --kp-scrim: rgba(13, 42, 41, 0.4); /* напівпрозорий фон за діалогом, не чорний */
+    --kp-on-danger: #fff;
+    --kp-on-gold: #0D2A29;
+    --kp-side-line: rgba(244, 239, 229, 0.1);
+    --kp-side-hover: rgba(244, 239, 229, 0.08);
+    --kp-side-hover-soft: rgba(244, 239, 229, 0.07);
+    --kp-side-active: rgba(244, 239, 229, 0.1);
+    --kp-side-btn-hover: rgba(244, 239, 229, 0.14);
+    --kp-trial-warn-bg: rgba(255, 200, 0, 0.24);
+    --kp-trial-warn-line: #d9a400;
+    --kp-trial-bad-bg: rgba(179, 38, 30, 0.14);
+    --kp-win-shadow: rgba(13, 42, 41, 0.22);
+    --kp-win-shadow-active: rgba(13, 42, 41, 0.32);
+    --kp-dialog-shadow: rgba(13, 42, 41, 0.28);
+    --kp-seg-shadow: rgba(13, 42, 41, 0.25);
+    --kp-side-shadow: rgba(13, 42, 41, 0.45);
 }
 html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-side-bg: #0A1717; --kp-side-gold: #E0B25A; }
+html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-scrim: rgba(2, 8, 8, 0.55); --kp-on-danger: #1A0606; --kp-win-shadow: rgba(0, 0, 0, 0.5); --kp-win-shadow-active: rgba(0, 0, 0, 0.65); --kp-dialog-shadow: rgba(0, 0, 0, 0.6); --kp-seg-shadow: rgba(0, 0, 0, 0.5); --kp-side-shadow: rgba(0, 0, 0, 0.6); }
 html[data-app="kp"] body.kp-shell-on.kp-shell-strip-on { --kp-strip-h: 30px; }
 html[data-app="kp"] body.kp-shell-on.kp-shell-collapsed { --kp-side-w: 64px; }
 
@@ -40,14 +68,14 @@ html[data-app="kp"] body.kp-shell-on #cabinet-screen { left: var(--kp-side-w); t
 /* Бокове меню */
 .kp-shell-side { display: none; }
 body.kp-shell-on .kp-shell-side {
-    position: fixed; z-index: 3100; left: 0; top: 0; bottom: 0; width: var(--kp-side-w);
+    position: fixed; z-index: var(--kp-z-side); left: 0; top: 0; bottom: 0; width: var(--kp-side-w);
     display: flex; flex-direction: column; box-sizing: border-box; overflow-x: hidden; overflow-y: auto;
     background: var(--kp-side-bg); color: var(--kp-side-ink); font-family: var(--kp-font);
     transition: width 0.18s ease, transform 0.2s ease;
 }
 body.kp-shell-on .kp-shell-brand {
     display: flex; align-items: center; justify-content: space-between; gap: 8px; height: calc(var(--kp-top-h) + var(--kp-strip-h)); flex: none;
-    padding: 0 12px 0 20px; border-bottom: 1px solid rgba(244, 239, 229, 0.1);
+    padding: 0 12px 0 20px; border-bottom: 1px solid var(--kp-side-line);
 }
 body.kp-shell-on .kp-shell-logo { font-weight: 700; font-size: 1.1rem; letter-spacing: 0.02em; color: var(--kp-side-ink-strong); white-space: nowrap; }
 body.kp-shell-on .kp-shell-logo b { color: var(--kp-side-gold); }
@@ -55,7 +83,7 @@ body.kp-shell-on .kp-shell-collapse {
     flex: none; width: 28px; height: 28px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px;
     background: transparent; color: var(--kp-side-faint); cursor: pointer;
 }
-body.kp-shell-on .kp-shell-collapse:hover { background: rgba(244, 239, 229, 0.08); color: var(--kp-side-ink-strong); }
+body.kp-shell-on .kp-shell-collapse:hover { background: var(--kp-side-hover); color: var(--kp-side-ink-strong); }
 body.kp-shell-on .kp-shell-nav { flex: 1 1 auto; padding: 4px 10px 16px; }
 body.kp-shell-on .kp-shell-group[hidden] { display: none; }
 body.kp-shell-on .kp-shell-glabel {
@@ -66,14 +94,14 @@ body.kp-shell-on .kp-shell-item {
     border: 0; border-radius: 8px; background: transparent; color: var(--kp-side-ink); font: inherit; font-size: 0.88rem; font-weight: 600; text-align: left; cursor: pointer;
 }
 body.kp-shell-on .kp-shell-item[hidden] { display: none; }
-body.kp-shell-on .kp-shell-item:hover { background: rgba(244, 239, 229, 0.07); color: var(--kp-side-ink-strong); }
+body.kp-shell-on .kp-shell-item:hover { background: var(--kp-side-hover-soft); color: var(--kp-side-ink-strong); }
 body.kp-shell-on .kp-shell-item:focus-visible { outline: 2px solid var(--kp-side-gold); outline-offset: -2px; }
-body.kp-shell-on .kp-shell-item.on { background: rgba(244, 239, 229, 0.1); color: var(--kp-side-ink-strong); }
+body.kp-shell-on .kp-shell-item.on { background: var(--kp-side-active); color: var(--kp-side-ink-strong); }
 body.kp-shell-on .kp-shell-item.on::before { content: ''; position: absolute; left: -10px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: var(--kp-side-gold); }
 body.kp-shell-on .kp-shell-item .ic { flex: none; display: inline-flex; width: 16px; height: 16px; }
 body.kp-shell-on .kp-shell-lb { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.kp-shell-on .kp-shell-count {
-    flex: none; min-width: 20px; padding: 1px 6px; border-radius: 10px; background: var(--kp-side-gold); color: #0D2A29;
+    flex: none; min-width: 20px; padding: 1px 6px; border-radius: 10px; background: var(--kp-side-gold); color: var(--kp-on-gold);
     font-family: var(--kp-mono); font-size: 0.7rem; font-weight: 700; text-align: center;
 }
 body.kp-shell-on .kp-shell-count[hidden] { display: none; }
@@ -87,7 +115,7 @@ body.kp-shell-collapsed .kp-shell-logo { font-size: 0; }
 body.kp-shell-collapsed .kp-shell-logo b { font-size: 1.3rem; }
 body.kp-shell-collapsed .kp-shell-collapse { transform: rotate(180deg); }
 body.kp-shell-collapsed .kp-shell-lb, body.kp-shell-collapsed .kp-shell-soon, body.kp-shell-collapsed .kp-shell-glabel { display: none; }
-body.kp-shell-collapsed .kp-shell-group + .kp-shell-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(244, 239, 229, 0.1); }
+body.kp-shell-collapsed .kp-shell-group + .kp-shell-group { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--kp-side-line); }
 body.kp-shell-collapsed .kp-shell-item { justify-content: center; padding: 0; }
 body.kp-shell-collapsed .kp-shell-item.on::before { left: -10px; }
 body.kp-shell-collapsed .kp-shell-count { position: absolute; top: 2px; right: 2px; min-width: 0; padding: 0 4px; font-size: 0.6rem; }
@@ -95,7 +123,7 @@ body.kp-shell-collapsed .kp-shell-count { position: absolute; top: 2px; right: 2
 /* Верхня панель */
 .kp-shell-top, .kp-shell-strip, .kp-shell-backdrop { display: none; }
 body.kp-shell-on .kp-shell-top {
-    position: fixed; z-index: 3090; left: var(--kp-side-w); right: 0; top: var(--kp-strip-h); height: var(--kp-top-h);
+    position: fixed; z-index: var(--kp-z-top); left: var(--kp-side-w); right: 0; top: var(--kp-strip-h); height: var(--kp-top-h);
     display: flex; align-items: center; gap: 12px; box-sizing: border-box; padding: 0 20px;
     background: var(--surface); border-bottom: 1px solid var(--border); color: var(--text); font-family: var(--kp-font);
     transition: left 0.18s ease;
@@ -118,7 +146,7 @@ body.kp-shell-on .kp-shell-bell {
 body.kp-shell-on .kp-shell-bell:hover { border-color: var(--kp-side-gold); }
 body.kp-shell-on .kp-shell-bell .ic { display: inline-flex; width: 16px; height: 16px; }
 body.kp-shell-on .kp-shell-bell-n {
-    position: absolute; top: -5px; right: -5px; min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--kp-side-gold); color: #0D2A29;
+    position: absolute; top: -5px; right: -5px; min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--kp-side-gold); color: var(--kp-on-gold);
     font-family: var(--kp-mono); font-size: 0.62rem; font-weight: 700; line-height: 16px; text-align: center;
 }
 body.kp-shell-on .kp-shell-bell-n[hidden] { display: none; }
@@ -134,9 +162,9 @@ body.kp-shell-on .kp-shell-burger .ic { display: inline-flex; width: 16px; heigh
 body.kp-shell-on .kp-shell-top .tc-head-end { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; }
 body.kp-shell-on .kp-shell-top #tc-burger-btn { display: none !important; }
 
-/* Смуга тріалу над верхньою панеллю: той самий #billing-banner (логіка #111), лише тонша */
+/* Смуга тріалу над верхньою панеллю: той самий #billing-banner (логіка не змінена), лише тонша */
 body.kp-shell-on.kp-shell-strip-on .kp-shell-strip {
-    position: fixed; z-index: 3095; left: var(--kp-side-w); right: 0; top: 0; height: var(--kp-strip-h);
+    position: fixed; z-index: var(--kp-z-strip); left: var(--kp-side-w); right: 0; top: 0; height: var(--kp-strip-h);
     display: flex; align-items: stretch; box-sizing: border-box; overflow: hidden; transition: left 0.18s ease;
 }
 body.kp-shell-on .kp-shell-strip .tc-billing-banner {
@@ -146,8 +174,8 @@ body.kp-shell-on .kp-shell-strip .tc-billing-banner {
 }
 body.kp-shell-on .kp-shell-strip .tc-billing-banner > span { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.kp-shell-on .kp-shell-strip .tc-billing-banner .btn { height: 22px; padding: 0 12px; font-size: 0.74rem; line-height: 22px; }
-body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-warn { background: rgba(255, 200, 0, 0.24); border-bottom-color: #d9a400; }
-body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: rgba(179, 38, 30, 0.14); border-bottom-color: var(--danger, #b3261e); }
+body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-warn { background: var(--kp-trial-warn-bg); border-bottom-color: var(--kp-trial-warn-line); }
+body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: var(--kp-trial-bad-bg); border-bottom-color: var(--danger); }
 
 /* Мобільний: меню ховається в бургер і відкривається поверх контенту */
 @media (max-width: 899px) {
@@ -155,10 +183,10 @@ body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: rgb
     html[data-app="kp"] body.kp-shell-on.layout-studio #main-app { margin-left: 0 !important; padding: calc(var(--kp-strip-h) + var(--kp-top-h) + 12px) 12px 32px !important; }
     html[data-app="kp"] body.kp-shell-on #cabinet-screen { left: 0; }
     body.kp-shell-on .kp-shell-side { width: 264px; transform: translateX(-100%); box-shadow: none; }
-    body.kp-shell-on.kp-shell-open .kp-shell-side { transform: translateX(0); box-shadow: 0 0 40px rgba(0, 0, 0, 0.45); }
+    body.kp-shell-on.kp-shell-open .kp-shell-side { transform: translateX(0); box-shadow: 0 0 40px var(--kp-side-shadow); }
     body.kp-shell-on.kp-shell-collapsed .kp-shell-side { width: 264px; }
     body.kp-shell-on .kp-shell-collapse { display: none; }
-    body.kp-shell-on.kp-shell-open .kp-shell-backdrop { display: block; position: fixed; inset: 0; z-index: 3095; background: rgba(8, 12, 16, 0.5); }
+    body.kp-shell-on.kp-shell-open .kp-shell-backdrop { display: block; position: fixed; inset: 0; z-index: var(--kp-z-strip); background: var(--kp-scrim); }
     body.kp-shell-on .kp-shell-burger { display: inline-flex; }
     body.kp-shell-on .kp-shell-top { left: 0; padding: 0 12px; gap: 8px; }
     body.kp-shell-on.kp-shell-strip-on .kp-shell-strip { left: 0; }
@@ -180,3 +208,7 @@ body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: rgb
 @media (prefers-reduced-motion: reduce) {
     body.kp-shell-on .kp-shell-side, body.kp-shell-on .kp-shell-top, body.kp-shell-on .kp-shell-strip, html[data-app="kp"] body.kp-shell-on.layout-studio #main-app { transition: none; }
 }
+
+/* Публічний футер (оферта, політика, оплата, логотипи, реквізити ФОП) — не в розділах Контроль+. Лишається в «Налаштуваннях» (#cabinet-screen),
+   на сторінці тарифу й оплати (клон у #billing-footer-slot береться з цього вузла, тож він лишається в DOM) і на екрані входу. На сайті trip-control.com правила немає. */
+body.kp-shell-on #main-app > .tc-legal-footer { display: none; }

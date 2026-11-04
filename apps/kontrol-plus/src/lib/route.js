@@ -1,6 +1,6 @@
 // Маршрути вкладок Контроль+ усередині сторінки сайту: #/clients, #/clients/new, #/clients/<id>, #/clients/<id>/edit, #/report, #/gps,
 // #/repairs, #/repairs/new, #/repairs/stock, #/repairs/handlers, #/repairs/maintenance, #/repairs/cost,
-// #/fleet, #/fleet/trailers, #/drivers, #/report/debts, #/dashboard,
+// #/fleet, #/fleet/trailers, #/drivers, #/report/debts, #/dashboard, картки вікном: #/fleet/car/<id|new>, #/fleet/trailer/<id|new>, #/drivers/<id|new>,
 // #/docs, #/docs/tab/<contracts|ttn|acts|invoices|trip_sheets|other>, #/docs/new/<invoice|act|ttn>[/<клієнт>[/<рейс>]], #/docs/<id документа>, #/docs/ttn/<id ТТН>.
 // Старі #/docs/fleet, #/docs/debts ведуть на нові розділи (legacyRedirect). «Реквізити компанії» (#/company, #/docs/requisites) і
 // «Статистика» (#/stats) переїхали у вкладки «Особистого кабінету» сайту: ці адреси веде туди сам сайт (#/cabinet/requisites, #/cabinet/stats),
@@ -50,6 +50,12 @@ export function parseCrmHash(hash) {
     if (parts[0] === 'fleet' && parts.length === 1) return { view: 'fleet', sub: 'cars' };
     if (parts[0] === 'fleet' && parts.length === 2 && parts[1] === 'trailers') return { view: 'fleet', sub: 'trailers' };
     if (parts[0] === 'drivers' && parts.length === 1) return { view: 'drivers' };
+    // Картки авто, причепа і водія вікном над списком (як клієнт): id — UUID або «new» (створення).
+    const cardId = (p) => (p === 'new' ? null : UUID.test(p || '') ? p : undefined);
+    if (parts[0] === 'fleet' && parts.length === 3 && (parts[1] === 'car' || parts[1] === 'trailer') && cardId(parts[2]) !== undefined) {
+        return { view: 'fleet-card', kind: parts[1] === 'car' ? 'vehicle' : 'trailer', id: cardId(parts[2]) };
+    }
+    if (parts[0] === 'drivers' && parts.length === 2 && cardId(parts[1]) !== undefined) return { view: 'driver-card', id: cardId(parts[1]) };
     if (parts[0] === 'gps' && parts.length === 1) return { view: 'gps' };
     if (parts[0] === 'repairs' && parts.length === 1) return { view: 'repairs', sub: 'list' };
     if (parts[0] === 'repairs' && parts.length === 2 && ['new', 'stock', 'handlers', 'maintenance', 'cost'].includes(parts[1])) return { view: 'repairs', sub: parts[1] };
@@ -64,6 +70,8 @@ export function parseCrmHash(hash) {
 export function tabOf(route) {
     if (!route) return null;
     if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers', 'dashboard'].includes(route.view)) return route.view;
+    if (route.view === 'fleet-card') return 'fleet';
+    if (route.view === 'driver-card') return 'drivers';
     return 'clients';
 }
 
@@ -86,6 +94,15 @@ export function windowSpecOf(route, hash) {
     if (route.view === 'client-edit') return { type: 'client_form', id: route.id, key: 'client_form:' + route.id };
     if (route.view === 'client-new') return { type: 'client_form', id: '', key: 'client_form:new' };
     if (route.view === 'request') return { type: 'request', id: route.id, key: 'request:' + route.id };
+    if (route.view === 'fleet-card') return { type: route.kind, id: route.id || '', key: route.kind + ':' + (route.id || 'new') };
+    if (route.view === 'driver-card') return { type: 'driver', id: route.id || '', key: 'driver:' + (route.id || 'new') };
+    return null;
+}
+// Список, над яким відкривається вікно картки (та адреса, на яку повертаємось, якщо вікон немає — вузький екран).
+export function cardParentHash(route) {
+    if (!route) return null;
+    if (route.view === 'fleet-card') return route.kind === 'trailer' ? '#/fleet/trailers' : '#/fleet';
+    if (route.view === 'driver-card') return '#/drivers';
     return null;
 }
 export function isWindowRoute(route) {

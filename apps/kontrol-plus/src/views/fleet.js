@@ -54,6 +54,199 @@ function serviceCell(row) {
     return text;
 }
 
+function vehicleCard(app, access, st, row, ctx) {
+    const { vehicles, drivers, trailers } = st;
+    const v = row ? row.vehicle : null;
+    const fields = {};
+    const message = h('div', { 'aria-live': 'polite' });
+    const driverOptions = [{ value: '', label: '— без водія —' }].concat(drivers
+        .filter((d) => d.active || (v && d.id === v.default_driver_id))
+        .map((d) => ({ value: d.id, label: d.full_name })));
+    const attached = v ? trailers.find((t) => (t.vehicle_ids || []).includes(v.id)) : null;
+    const trailerOptions = [{ value: '', label: '— без причепа —' }].concat(trailers
+        .filter((t) => t.active || (attached && t.id === attached.id))
+        .map((t) => ({ value: t.id, label: t.plate + (t.make_model ? ' · ' + t.make_model : '') })));
+    const body = VEHICLE_FIELDS.map((spec) => {
+        if (spec.section) return h('h3', { class: 'kpc-section' }, spec.section);
+        const raw = spec.key === 'default_trailer_id' ? (attached ? attached.id : '') : (v ? v[spec.key] : '');
+        const value = NUM_KEYS.includes(spec.key) ? numText(raw) : raw;
+        const disabled = spec.owner ? !access.isOwner : !access.canWrite;
+        const f = cardField(spec, value, { disabled, options: spec.type === 'trailer' ? trailerOptions : driverOptions });
+        fields[spec.key] = f;
+        if (spec.key === 'default_trailer_id' && v && access.isOwner) {
+            const box = f.row.querySelector('.kpc-box');
+            box.style.width = 'auto';
+            f.input.style.width = '220px';
+            box.appendChild(h('button', {
+                type: 'button', class: 'btn btn-sm', id: 'kpc-unhitch',
+                onclick: async () => {
+                    const { error } = await app.supabase.from('fleet_vehicles').update({ default_trailer_id: null }).eq('id', v.id).select('id').single();
+                    if (error) return clear(message, notice(errorText(error)));
+                    f.input.value = '';
+                    toast('Причіп відчеплено');
+                },
+            }, 'Відчепити'));
+        }
+        return f.row;
+    });
+
+    async function save() {
+        const values = Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, f.input.value]));
+        const errors = {};
+        const label = values.label.trim();
+        const make = values.make_model.trim();
+        if (access.isOwner) {
+            if (!label || label.length > 40) errors.label = 'Від 1 до 40 символів';
+            if (make.length > 80) errors.make_model = 'До 80 символів';
+            if (vehicles.some((x) => (!v || x.id !== v.id) && String(x.label || '').trim().toLowerCase() === label.toLowerCase())) errors.label = 'Таке авто вже є';
+            if (!v && vehicles.length >= 100) errors.label = 'У списку вже 100 авто';
+        }
+        const ttn = validateVehicleTtn(Object.fromEntries(TTN_KEYS.map((k) => [k, values[k]])));
+        for (const key of TTN_KEYS) if (ttn.errors[key]) errors[key] = ttn.errors[key];
+        showFieldErrors(fields, errors);
+        if (Object.keys(errors).length) return clear(message, notice('Перевірте поля авто.'));
+        let id = v ? v.id : null;
+        if (access.isOwner) {
+            const dates = Object.fromEntries(DATE_KEYS.map((k) => [k, values[k] || null]));
+            const patch = { label, make_model: make || null, ...dates, default_trailer_id: values.default_trailer_id || null };
+            const op = v
+                ? app.supabase.from('fleet_vehicles').update(patch).eq('id', id).select('id').single()
+                : app.supabase.from('fleet_vehicles').insert({ org_id: app.context.org_id, ...patch }).select('id').single();
+            const { data, error } = await op;
+            if (error) return clear(message, notice(errorText(error)));
+            id = data.id;
+        }
+        if (access.canWrite && id) {
+            // Без trailer_make_model: марку причепа веде картка причепа, а не авто.
+            const { trailer_make_model: _skip, ...payload } = ttn.data;
+            const { error } = await app.supabase.rpc('kp_vehicle_save', { p_vehicle: id, p_data: payload });
+            if (error) return clear(message, notice(ttnErrorText(error)));
+        }
+        clear(message);
+        toast(v ? 'Авто збережено' : 'Авто додано');
+        ctx.close(true);
+    }
+
+    const remove = async () => {
+        const { error } = await app.supabase.from('fleet_vehicles').delete().eq('id', v.id);
+        if (error) return clear(message, notice(errorText(error)));
+        toast('Авто прибрано з автопарку');
+        ctx.close(true);
+    };
+    return cardLayout({
+        title: v ? v.label : 'Нове авто', fields: body, message, back: ctx.back,
+        actions: [
+            access.isOwner || access.canWrite ? h('button', { type: 'button', class: 'btn btn-primary', onclick: save }, 'Зберегти') : null,
+            v && access.isOwner ? confirmButton('Деактивувати', 'Точно прибрати авто з автопарку?', remove, 'btn btn-danger') : null,
+        ],
+    });
+}
+
+function trailerCard(app, access, st, row, ctx) {
+    const { trailers } = st;
+    const t = row ? row.trailer : null;
+    const fields = {};
+    const message = h('div', { 'aria-live': 'polite' });
+    const typeOptions = FLEET_TRAILER_TYPES.map((x) => ({ value: x, label: x }));
+    const body = TRAILER_FIELDS.map((spec) => {
+        if (spec.section) return h('h3', { class: 'kpc-section' }, spec.section);
+        const raw = t ? t[spec.key] : (spec.key === 'type' ? FLEET_TRAILER_TYPES[0] : '');
+        const value = NUM_KEYS.includes(spec.key) ? numText(raw) : raw;
+        const f = cardField(spec, value, { disabled: spec.owner ? !access.isOwner : !access.canWrite, options: typeOptions });
+        fields[spec.key] = f;
+        return f.row;
+    });
+    if (t && t.vehicle_labels && t.vehicle_labels.length) {
+        body.push(h('p', { class: 'muted small' }, 'Причіп за замовчуванням у тягачів: ' + t.vehicle_labels.join(', ')));
+    }
+    if (t && t.active === false) body.unshift(notice('Причіп деактивовано: він знятий з тягачів і не пропонується в ТТН.', 'info'));
+
+    async function save() {
+        const values = Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, f.input.value]));
+        const errors = {};
+        const plate = values.plate.trim();
+        const make = values.make_model.trim();
+        const cap = toNum(values.capacity_t);
+        const vol = toNum(values.volume_m3);
+        if (access.isOwner) {
+            if (!plate || plate.length > 40) errors.plate = 'Від 1 до 40 символів';
+            else if (trailers.some((x) => (!t || x.id !== t.id) && x.plate.replace(/[\s-]/g, '').toLowerCase() === plate.replace(/[\s-]/g, '').toLowerCase())) errors.plate = 'Такий причіп вже є';
+        }
+        if (make.length > 100) errors.make_model = 'До 100 символів';
+        if (Number.isNaN(cap) || (cap !== null && (cap <= 0 || cap > 100))) errors.capacity_t = 'Більше 0, до 100 т';
+        if (Number.isNaN(vol) || (vol !== null && (vol <= 0 || vol > 200))) errors.volume_m3 = 'Більше 0, до 200 м³';
+        showFieldErrors(fields, errors);
+        if (Object.keys(errors).length) return clear(message, notice('Перевірте поля причепа.'));
+        let id = t ? t.id : null;
+        if (access.isOwner) {
+            const dates = Object.fromEntries(TRAILER_DATE_KEYS.map((k) => [k, values[k] || null]));
+            const patch = { plate, type: values.type, ...dates };
+            const op = t
+                ? app.supabase.from('fleet_trailers').update(patch).eq('id', id).select('id').single()
+                : app.supabase.from('fleet_trailers').insert({ org_id: app.context.org_id, ...patch }).select('id').single();
+            const { data, error } = await op;
+            if (error) return clear(message, notice(errorText(error)));
+            id = data.id;
+        }
+        if (access.canWrite && id) {
+            const { error } = await app.supabase.rpc('kp_trailer_save', { p_trailer: id, p_data: { make_model: make, capacity_t: cap, volume_m3: vol } });
+            if (error) return clear(message, notice(ttnErrorText(error)));
+        }
+        clear(message);
+        toast(t ? 'Причіп збережено' : 'Причіп додано');
+        ctx.close(true);
+    }
+
+    const setActive = (active) => async () => {
+        const { error } = await app.supabase.from('fleet_trailers').update({ active }).eq('id', t.id).select('id').single();
+        if (error) return clear(message, notice(errorText(error)));
+        toast(active ? 'Причіп повернено' : 'Причіп деактивовано');
+        ctx.close(true);
+    };
+    return cardLayout({
+        title: t ? t.plate : 'Новий причіп', fields: body, message, back: ctx.back,
+        actions: [
+            access.isOwner || access.canWrite ? h('button', { type: 'button', class: 'btn btn-primary', onclick: save }, 'Зберегти') : null,
+            t && access.isOwner
+                ? (t.active === false ? h('button', { type: 'button', class: 'btn', onclick: setActive(true) }, 'Повернути')
+                    : confirmButton('Деактивувати', 'Точно деактивувати причіп? Його буде знято з усіх тягачів.', setActive(false), 'btn btn-danger'))
+                : null,
+        ],
+    });
+}
+
+
+// Дані автопарку для картки у вікні: ті самі запити, що й у списку.
+async function loadFleet(app, needTrailers) {
+    const [veh, drv, trl] = await Promise.all([
+        app.supabase.rpc('kp_vehicles_list'), app.supabase.rpc('kp_driver_list', { p_active_only: false }), app.supabase.rpc('kp_trailers_list'),
+    ]);
+    const error = veh.error || (needTrailers && trl.error) || null;
+    return { error, st: { vehicles: veh.data || [], drivers: drv.error ? [] : (drv.data || []), trailers: trl.error ? [] : (trl.data || []) } };
+}
+
+// Картка авто / причепа вікном над списком (#/fleet/car/<id|new>, #/fleet/trailer/<id|new>): та сама картка, що й у списку; id порожній — створення.
+export async function renderFleetCardWindow(app, kind, id) {
+    const access = docsAccess(app.context);
+    const { error, st } = await loadFleet(app, kind === 'trailer');
+    if (error) {
+        const box = h('div');
+        showError(app, box, error);
+        return box;
+    }
+    const ctx = { close: (changed) => app.closeWindow(changed), back: null };
+    if (kind === 'trailer') {
+        const t = id ? st.trailers.find((x) => x.id === id) : null;
+        if (id && !t) return notice('Причіп не знайдено. Можливо, його вже прибрано.', 'info');
+        if (!id && !access.isOwner) return notice('Додавати причепи може директор.', 'info');
+        return trailerCard(app, access, st, t ? { trailer: t } : null, ctx);
+    }
+    const v = id ? st.vehicles.find((x) => x.id === id) : null;
+    if (id && !v) return notice('Авто не знайдено. Можливо, його вже прибрано.', 'info');
+    if (!id && !access.isOwner) return notice('Додавати авто може директор.', 'info');
+    return vehicleCard(app, access, st, v ? { vehicle: v } : null, ctx);
+}
+
 export function renderFleetPage(app, sub = 'cars') {
     const access = docsAccess(app.context);
     const trailerTab = sub === 'trailers';
@@ -64,165 +257,6 @@ export function renderFleetPage(app, sub = 'cars') {
 
     const tabs = h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи автопарку' }, FLEET_TABS.map((t) =>
         h('a', { href: t.hash, class: 'kpr-tab' + (t.sub === (trailerTab ? 'trailers' : 'cars') ? ' on' : ''), 'aria-current': t.sub === (trailerTab ? 'trailers' : 'cars') ? 'page' : null }, t.label)));
-
-    function vehicleCard(row, ctx) {
-        const v = row ? row.vehicle : null;
-        const fields = {};
-        const message = h('div', { 'aria-live': 'polite' });
-        const driverOptions = [{ value: '', label: '— без водія —' }].concat(drivers
-            .filter((d) => d.active || (v && d.id === v.default_driver_id))
-            .map((d) => ({ value: d.id, label: d.full_name })));
-        const attached = v ? trailers.find((t) => (t.vehicle_ids || []).includes(v.id)) : null;
-        const trailerOptions = [{ value: '', label: '— без причепа —' }].concat(trailers
-            .filter((t) => t.active || (attached && t.id === attached.id))
-            .map((t) => ({ value: t.id, label: t.plate + (t.make_model ? ' · ' + t.make_model : '') })));
-        const body = VEHICLE_FIELDS.map((spec) => {
-            if (spec.section) return h('h3', { class: 'kpc-section' }, spec.section);
-            const raw = spec.key === 'default_trailer_id' ? (attached ? attached.id : '') : (v ? v[spec.key] : '');
-            const value = NUM_KEYS.includes(spec.key) ? numText(raw) : raw;
-            const disabled = spec.owner ? !access.isOwner : !access.canWrite;
-            const f = cardField(spec, value, { disabled, options: spec.type === 'trailer' ? trailerOptions : driverOptions });
-            fields[spec.key] = f;
-            if (spec.key === 'default_trailer_id' && v && access.isOwner) {
-                const box = f.row.querySelector('.kpc-box');
-                box.style.width = 'auto';
-                f.input.style.width = '220px';
-                box.appendChild(h('button', {
-                    type: 'button', class: 'btn btn-sm', id: 'kpc-unhitch',
-                    onclick: async () => {
-                        const { error } = await app.supabase.from('fleet_vehicles').update({ default_trailer_id: null }).eq('id', v.id).select('id').single();
-                        if (error) return clear(message, notice(errorText(error)));
-                        f.input.value = '';
-                        toast('Причіп відчеплено');
-                    },
-                }, 'Відчепити'));
-            }
-            return f.row;
-        });
-
-        async function save() {
-            const values = Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, f.input.value]));
-            const errors = {};
-            const label = values.label.trim();
-            const make = values.make_model.trim();
-            if (access.isOwner) {
-                if (!label || label.length > 40) errors.label = 'Від 1 до 40 символів';
-                if (make.length > 80) errors.make_model = 'До 80 символів';
-                if (vehicles.some((x) => (!v || x.id !== v.id) && String(x.label || '').trim().toLowerCase() === label.toLowerCase())) errors.label = 'Таке авто вже є';
-                if (!v && vehicles.length >= 100) errors.label = 'У списку вже 100 авто';
-            }
-            const ttn = validateVehicleTtn(Object.fromEntries(TTN_KEYS.map((k) => [k, values[k]])));
-            for (const key of TTN_KEYS) if (ttn.errors[key]) errors[key] = ttn.errors[key];
-            showFieldErrors(fields, errors);
-            if (Object.keys(errors).length) return clear(message, notice('Перевірте поля авто.'));
-            let id = v ? v.id : null;
-            if (access.isOwner) {
-                const dates = Object.fromEntries(DATE_KEYS.map((k) => [k, values[k] || null]));
-                const patch = { label, make_model: make || null, ...dates, default_trailer_id: values.default_trailer_id || null };
-                const op = v
-                    ? app.supabase.from('fleet_vehicles').update(patch).eq('id', id).select('id').single()
-                    : app.supabase.from('fleet_vehicles').insert({ org_id: app.context.org_id, ...patch }).select('id').single();
-                const { data, error } = await op;
-                if (error) return clear(message, notice(errorText(error)));
-                id = data.id;
-            }
-            if (access.canWrite && id) {
-                // Без trailer_make_model: марку причепа веде картка причепа, а не авто.
-                const { trailer_make_model: _skip, ...payload } = ttn.data;
-                const { error } = await app.supabase.rpc('kp_vehicle_save', { p_vehicle: id, p_data: payload });
-                if (error) return clear(message, notice(ttnErrorText(error)));
-            }
-            clear(message);
-            toast(v ? 'Авто збережено' : 'Авто додано');
-            ctx.close(true);
-        }
-
-        const remove = async () => {
-            const { error } = await app.supabase.from('fleet_vehicles').delete().eq('id', v.id);
-            if (error) return clear(message, notice(errorText(error)));
-            toast('Авто прибрано з автопарку');
-            ctx.close(true);
-        };
-        return cardLayout({
-            title: v ? v.label : 'Нове авто', fields: body, message, back: ctx.back,
-            actions: [
-                access.isOwner || access.canWrite ? h('button', { type: 'button', class: 'btn btn-primary', onclick: save }, 'Зберегти') : null,
-                v && access.isOwner ? confirmButton('Деактивувати', 'Точно прибрати авто з автопарку?', remove, 'btn btn-danger') : null,
-            ],
-        });
-    }
-
-    function trailerCard(row, ctx) {
-        const t = row ? row.trailer : null;
-        const fields = {};
-        const message = h('div', { 'aria-live': 'polite' });
-        const typeOptions = FLEET_TRAILER_TYPES.map((x) => ({ value: x, label: x }));
-        const body = TRAILER_FIELDS.map((spec) => {
-            if (spec.section) return h('h3', { class: 'kpc-section' }, spec.section);
-            const raw = t ? t[spec.key] : (spec.key === 'type' ? FLEET_TRAILER_TYPES[0] : '');
-            const value = NUM_KEYS.includes(spec.key) ? numText(raw) : raw;
-            const f = cardField(spec, value, { disabled: spec.owner ? !access.isOwner : !access.canWrite, options: typeOptions });
-            fields[spec.key] = f;
-            return f.row;
-        });
-        if (t && t.vehicle_labels && t.vehicle_labels.length) {
-            body.push(h('p', { class: 'muted small' }, 'Причіп за замовчуванням у тягачів: ' + t.vehicle_labels.join(', ')));
-        }
-        if (t && t.active === false) body.unshift(notice('Причіп деактивовано: він знятий з тягачів і не пропонується в ТТН.', 'info'));
-
-        async function save() {
-            const values = Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, f.input.value]));
-            const errors = {};
-            const plate = values.plate.trim();
-            const make = values.make_model.trim();
-            const cap = toNum(values.capacity_t);
-            const vol = toNum(values.volume_m3);
-            if (access.isOwner) {
-                if (!plate || plate.length > 40) errors.plate = 'Від 1 до 40 символів';
-                else if (trailers.some((x) => (!t || x.id !== t.id) && x.plate.replace(/[\s-]/g, '').toLowerCase() === plate.replace(/[\s-]/g, '').toLowerCase())) errors.plate = 'Такий причіп вже є';
-            }
-            if (make.length > 100) errors.make_model = 'До 100 символів';
-            if (Number.isNaN(cap) || (cap !== null && (cap <= 0 || cap > 100))) errors.capacity_t = 'Більше 0, до 100 т';
-            if (Number.isNaN(vol) || (vol !== null && (vol <= 0 || vol > 200))) errors.volume_m3 = 'Більше 0, до 200 м³';
-            showFieldErrors(fields, errors);
-            if (Object.keys(errors).length) return clear(message, notice('Перевірте поля причепа.'));
-            let id = t ? t.id : null;
-            if (access.isOwner) {
-                const dates = Object.fromEntries(TRAILER_DATE_KEYS.map((k) => [k, values[k] || null]));
-                const patch = { plate, type: values.type, ...dates };
-                const op = t
-                    ? app.supabase.from('fleet_trailers').update(patch).eq('id', id).select('id').single()
-                    : app.supabase.from('fleet_trailers').insert({ org_id: app.context.org_id, ...patch }).select('id').single();
-                const { data, error } = await op;
-                if (error) return clear(message, notice(errorText(error)));
-                id = data.id;
-            }
-            if (access.canWrite && id) {
-                const { error } = await app.supabase.rpc('kp_trailer_save', { p_trailer: id, p_data: { make_model: make, capacity_t: cap, volume_m3: vol } });
-                if (error) return clear(message, notice(ttnErrorText(error)));
-            }
-            clear(message);
-            toast(t ? 'Причіп збережено' : 'Причіп додано');
-            ctx.close(true);
-        }
-
-        const setActive = (active) => async () => {
-            const { error } = await app.supabase.from('fleet_trailers').update({ active }).eq('id', t.id).select('id').single();
-            if (error) return clear(message, notice(errorText(error)));
-            toast(active ? 'Причіп повернено' : 'Причіп деактивовано');
-            ctx.close(true);
-        };
-        return cardLayout({
-            title: t ? t.plate : 'Новий причіп', fields: body, message, back: ctx.back,
-            actions: [
-                access.isOwner || access.canWrite ? h('button', { type: 'button', class: 'btn btn-primary', onclick: save }, 'Зберегти') : null,
-                t && access.isOwner
-                    ? (t.active === false ? h('button', { type: 'button', class: 'btn', onclick: setActive(true) }, 'Повернути')
-                        : confirmButton('Деактивувати', 'Точно деактивувати причіп? Його буде знято з усіх тягачів.', setActive(false), 'btn btn-danger'))
-                    : null,
-            ],
-        });
-    }
 
     const carColumns = [
         { label: 'Номер', mono: true, cell: (r) => dash(r.plate) },
@@ -267,6 +301,7 @@ export function renderFleetPage(app, sub = 'cars') {
             if (trailerTab && trl.error) throw trl.error;
             return vehicleRows(vehicles, sub, today, trailers);
         },
-        renderCard: (row, ctx) => (trailerTab ? trailerCard(row, ctx) : vehicleCard(row, ctx)),
+        windowHash: (row) => (trailerTab ? '#/fleet/trailer/' : '#/fleet/car/') + (row ? row.id : 'new'),
+        renderCard: (row, ctx) => (trailerTab ? trailerCard(app, access, { vehicles, drivers, trailers }, row, ctx) : vehicleCard(app, access, { vehicles, drivers, trailers }, row, ctx)),
     });
 }

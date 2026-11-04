@@ -1,12 +1,18 @@
 // Менеджер вікон Контроль+ (PR 3 з 5): заявка, документи, картка клієнта відкриваються вікном ПОВЕРХ розділу (розділ не перемальовується).
 // Лише Контроль+ (<html data-app="kp">) і ширина ≥ 900px; на сайті createWindowManager() повертає null і нічого не робить.
 // Вміст вікна будує викликач (bridge.js) наявними рендерами; тут — рамка: шапка (заголовок, згорнути / розгорнути / закрити), перетягування,
-// ліміт 8, дедуплікація за ключем, панель задач (~32px), підтвердження закриття «брудної» форми, стан у sessionStorage, Back закриває верхнє вікно.
+// ліміт 8, дедуплікація за ключем, панель задач (~32px), підтвердження закриття «брудної» форми (лише якщо користувач справді щось змінив),
+// зміна розміру за 4 краї й 4 кути, розмір і позиція у sessionStorage, Back закриває верхнє вікно.
 import { h } from './ui.js';
 import { shellIcon } from './shell-icons.js';
 import {
-    MAX_WINDOWS, MIN_WIDE, TASKBAR_H, backTarget, clampPos, cleanTitle, escHtml, iconFor, initialRect, parseWindows, serializeWindows, shortLabel, storageKey,
+    MAX_WINDOWS, MIN_WIDE, TASKBAR_H, WIN_Z_BASE, backTarget, clampPos, clampRect, cleanTitle, escHtml, formSnapshot, iconFor, initialRect, parseWindows, resizeRect,
+    serializeWindows, shortLabel, storageKey,
 } from './lib/windows-core.js';
+
+// Вікна з полями введення: для них діє перевірка «є незбережені зміни».
+const FORM_TYPES = ['form', 'client_form', 'vehicle', 'trailer', 'driver'];
+const RESIZE_DIRS = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
 export function isKpApp(doc) {
     const d = doc || (typeof document !== 'undefined' ? document : null);
@@ -61,7 +67,7 @@ export function createWindowManager(env = {}) {
     function paint() {
         zorder.forEach((key, i) => {
             const w = wins.get(key);
-            w.el.style.zIndex = String(3040 + i);
+            w.el.style.zIndex = String(WIN_Z_BASE + i);
         });
         const active = topKey();
         for (const w of wins.values()) {
@@ -117,11 +123,24 @@ export function createWindowManager(env = {}) {
         const w = wins.get(key);
         if (!w) return;
         w.maximized = !w.maximized;
-        w.maxBtn.setAttribute('aria-label', w.maximized ? 'Відновити розмір' : 'Розгорнути');
-        w.maxBtn.title = w.maxBtn.getAttribute('aria-label');
+        paintMax(w);
         applyRect(w);
         paint();
         focus(key);
+        persist();
+    }
+
+    function paintMax(w) {
+        w.maxBtn.setAttribute('aria-label', w.maximized ? 'Відновити розмір' : 'Розгорнути');
+        w.maxBtn.title = w.maxBtn.getAttribute('aria-label');
+    }
+
+    // «Брудна» форма: користувач справді змінив значення відносно стану після відкриття й автозаповнення (знімок полів), а не просто торкнувся форми.
+    function isDirty(w) {
+        if (w.manualDirty) return true;
+        if (!w.edited) return false;
+        if (w.baseline === null || w.baseline === undefined) return true; // знімка немає (вміст без полів у DOM) — вважаємо змінами
+        return formSnapshot(w.bodyEl) !== w.baseline;
     }
 
     function applyRect(w) {
@@ -144,7 +163,7 @@ export function createWindowManager(env = {}) {
     async function close(key, opts = {}) {
         const w = wins.get(key);
         if (!w) return false;
-        if (w.dirty && !opts.force) {
+        if (isDirty(w) && !opts.force) {
             const answer = await confirmClose({ title: 'Закрити вікно?', text: 'У формі «' + w.title + '» є незбережені зміни. Закрити без збереження?', confirmText: 'Закрити', danger: true });
             if (!answer || !answer.ok) return false;
         }
@@ -183,7 +202,24 @@ export function createWindowManager(env = {}) {
             w.y = pos.y;
             applyRect(w);
         };
-        const up = () => { win.removeEventListener('pointermove', move); win.removeEventListener('pointerup', up); };
+        const up = () => { win.removeEventListener('pointermove', move); win.removeEventListener('pointerup', up); persist(); };
+        win.addEventListener('pointermove', move);
+        win.addEventListener('pointerup', up);
+    }
+
+    // Зміна розміру за край або кут (dir: n, s, e, w, ne, nw, se, sw). Розгорнуте вікно не змінює розмір.
+    function startResize(w, dir, event) {
+        if (w.maximized || (event.button !== undefined && event.button !== 0)) return;
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        focus(w.key);
+        const start = { x: w.x, y: w.y, w: w.w, h: w.h };
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const move = (e) => {
+            Object.assign(w, resizeRect(start, dir, e.clientX - startX, e.clientY - startY, bounds()));
+            applyRect(w);
+        };
+        const up = () => { win.removeEventListener('pointermove', move); win.removeEventListener('pointerup', up); persist(); };
         win.addEventListener('pointermove', move);
         win.addEventListener('pointerup', up);
     }
@@ -201,12 +237,14 @@ export function createWindowManager(env = {}) {
             return { ok: false, reason: 'limit' };
         }
         counter += 1;
-        const rect = initialRect(bounds(), wins.size);
+        const rect = spec.rect ? clampRect(spec.rect, bounds()) : initialRect(bounds(), wins.size);
         const w = {
             key: spec.key, type: spec.type, id: spec.id, title: spec.title || '', hash: spec.hash || null, prevHash: spec.prevHash || '', viaHash: !!spec.viaHash,
-            minimized: !!spec.minimized, maximized: false, dirty: false, cleanups: [], observer: null, ...rect, seq: counter,
+            minimized: !!spec.minimized, maximized: !!spec.maximized, manualDirty: false, edited: false, baseline: undefined, cleanups: [], observer: null, ...rect, seq: counter,
+            get dirty() { return isDirty(this); },
+            set dirty(value) { this.manualDirty = !!value; },
         };
-        const isForm = spec.type === 'form' || spec.type === 'client_form';
+        const isForm = FORM_TYPES.includes(spec.type);
         w.iconSlot = h('span', { class: 'kp-win-ic' });
         w.titleEl = h('span', { class: 'kp-win-title' });
         w.minBtn = h('button', { type: 'button', class: 'kp-win-btn', title: 'Згорнути', 'aria-label': 'Згорнути', onclick: () => minimize(w.key) }, '–');
@@ -215,7 +253,8 @@ export function createWindowManager(env = {}) {
         const head = h('header', { class: 'kp-win-head', onpointerdown: (e) => startDrag(w, e), ondblclick: (e) => { if (!(e.target && e.target.closest && e.target.closest('button'))) toggleMax(w.key); } },
             w.iconSlot, w.titleEl, h('span', { class: 'kp-win-btns' }, w.minBtn, w.maxBtn, w.closeBtn));
         w.bodyEl = h('div', { class: 'kp-win-body' });
-        w.el = h('section', { class: 'kp-win', role: 'dialog', 'aria-modal': 'false', 'data-key': w.key, onpointerdown: () => { if (topKey() !== w.key) focus(w.key); } }, head, w.bodyEl);
+        const handles = RESIZE_DIRS.map((dir) => h('span', { class: 'kp-win-rs kp-rs-' + dir, 'data-dir': dir, 'aria-hidden': 'true', onpointerdown: (e) => startResize(w, dir, e) }));
+        w.el = h('section', { class: 'kp-win', role: 'dialog', 'aria-modal': 'false', 'data-key': w.key, onpointerdown: () => { if (topKey() !== w.key) focus(w.key); } }, head, w.bodyEl, handles);
         w.taskLabel = h('span', { class: 'kp-task-lb' });
         w.taskIcon = h('span', { class: 'kp-task-ic' });
         w.task = h('button', {
@@ -226,22 +265,33 @@ export function createWindowManager(env = {}) {
         wins.set(w.key, w);
         zorder.push(w.key);
         paintTitle(w);
+        paintMax(w);
         applyRect(w);
         body.append(w.el);
         taskbar.append(w.task);
         if (isForm) {
+            const trusted = (e) => !(e && e.isTrusted === false); // подія від скрипта (автозаповнення) — не дія користувача
+            // Знімок полів беремо перед першою дією користувача (клік / клавіша): до цього форма могла автозаповнитися.
+            const takeBase = (e) => {
+                if (!trusted(e) || w.edited || w.baseline !== undefined) return;
+                w.baseline = formSnapshot(w.bodyEl);
+            };
             const onEdit = (e) => {
                 const t = e && e.target;
                 const tag = t && String(t.tagName || '').toUpperCase();
-                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') w.dirty = true;
+                if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
+                if (!trusted(e)) { if (!w.edited && w.baseline !== undefined) w.baseline = formSnapshot(w.bodyEl); return; }
+                if (w.baseline === undefined) w.baseline = null;
+                w.edited = true;
             };
+            for (const type of ['pointerdown', 'keydown', 'beforeinput']) w.bodyEl.addEventListener(type, takeBase, true);
             w.bodyEl.addEventListener('input', onEdit);
             w.bodyEl.addEventListener('change', onEdit);
         }
         const ctl = {
             key: w.key,
             setTitle(text) { const t = cleanTitle(text); if (t && t !== w.title) { w.title = t; paintTitle(w); } },
-            setDirty(value) { w.dirty = !!value; },
+            setDirty(value) { w.manualDirty = !!value; },
             close: (o) => close(w.key, o),
             onClose(fn) { w.cleanups.push(fn); },
             // Заголовок із першого h1 / h2, який зʼявиться у вмісті (картки малюються асинхронно).
@@ -310,11 +360,24 @@ export function createWindowManager(env = {}) {
         const items = parseWindows(raw);
         for (const item of items) {
             const spec = await resolve(item);
-            if (spec) open({ ...spec, minimized: item.minimized });
+            if (spec) {
+                const rect = item.w ? { x: item.x, y: item.y, w: item.w, h: item.h } : undefined;
+                open({ ...spec, minimized: item.minimized, maximized: item.max === true, rect });
+            }
         }
         paint();
         persist();
     }
+
+    // Вікно браузера змінилось: вікна лишаються в межах робочої області.
+    win.addEventListener('resize', () => {
+        for (const w of wins.values()) {
+            if (w.maximized) continue;
+            Object.assign(w, clampRect(w, bounds()));
+            applyRect(w);
+        }
+        persist();
+    });
 
     doc.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -326,7 +389,7 @@ export function createWindowManager(env = {}) {
     return {
         enabled: wide, open, focus, close, closeAll, minimize, taskClick, toggleMax, handleHash, setScope,
         count: () => wins.size,
-        list: () => [...wins.values()].map((w) => ({ key: w.key, type: w.type, id: w.id, title: w.title, minimized: w.minimized, dirty: w.dirty })),
+        list: () => [...wins.values()].map((w) => ({ key: w.key, type: w.type, id: w.id, title: w.title, minimized: w.minimized, dirty: isDirty(w), maximized: w.maximized, x: w.x, y: w.y, w: w.w, h: w.h })),
         active: topKey,
         get: (key) => wins.get(key) || null,
         taskbar,

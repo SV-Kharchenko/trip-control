@@ -9,7 +9,7 @@ body[data-kp-view] #onboard-banner,
 body[data-kp-view] #cab-warning { display: none !important; }
 
 /* Палітра trip-control.com: світла тема і темна (body[data-theme="dark"] сайту). */
-#kp-crm, #kp-toast, #kp-side {
+#kp-crm, #kp-toast, #kp-side, body.kp-shell-on .kp-win, body.kp-shell-on .tc-modal {
     --bg: #F4EFE4; --surface: #FFFDF8; --input: #FFFFFE; --row-hover: #FBF7EE;
     --text: #0D2A28; --muted: #5A6B66;
     --border: #D9D1BD; --border-soft: #E3DCCB;
@@ -19,7 +19,7 @@ body[data-kp-view] #cab-warning { display: none !important; }
     --radius-card: 14px; --radius-control: 10px;
     --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
 }
-body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-theme="dark"] #kp-side {
+body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-theme="dark"] #kp-side, body[data-theme="dark"].kp-shell-on .kp-win, body[data-theme="dark"].kp-shell-on .tc-modal {
     --bg: #0E1117; --surface: #161B22; --input: #0D1117; --row-hover: #1C222B;
     --text: #E6EDF3; --muted: #8B949E;
     --border: #30363D; --border-soft: #262C34;
@@ -134,6 +134,11 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .table-wrap + p { margin-top: 10px; }
 #kp-crm .is-none th { color: var(--muted); font-style: italic; }
 #kp-crm .is-archived td { color: var(--muted); }
+/* Сторнований ремонт: рядок приглушений, сума закреслена, плашка «сторно» з поясненням у title */
+#kp-crm .is-void { opacity: 0.72; }
+#kp-crm .is-void:hover, #kp-crm .is-void:focus-within { opacity: 1; }
+#kp-crm .kpr-void-sum { text-decoration: line-through; font-weight: 400; }
+#kp-crm .kpr-void-tag { cursor: help; text-transform: lowercase; color: var(--negative-text); background: var(--negative-bg); border-color: var(--negative); }
 #kp-crm .pos { color: var(--positive); }
 #kp-crm .neg { color: var(--negative); }
 #kp-crm .tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 700; background: var(--bg); border: 1px solid var(--border); color: var(--muted); vertical-align: 2px; }
@@ -265,6 +270,7 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .kpr-page input[type="number"] { text-align: right; }
 #kp-crm .kpr-page .toolbar > .btn, #kp-crm .kpr-page .toolbar > .check { flex: 0 0 auto; width: auto; }
 #kp-crm .kpr-page .toolbar > select, #kp-crm .kpr-page .toolbar > input:not(.grow) { flex: 0 1 340px; width: auto; min-width: 0; }
+#kp-crm .kpr-page .toolbar > input[type="date"] { flex: 0 0 auto; width: 160px; }
 #kp-crm .table tbody tr.kpr-error-row, #kp-crm .table tbody tr.kpr-error-row:hover { background: var(--negative-bg); }
 #kp-crm .kpr-error-row td { color: var(--negative-text); }
 #kp-crm .kpr-invite-sent { color: var(--positive); }
@@ -329,12 +335,32 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 #kp-crm .kpd-vat { margin-bottom: 0; }
 #kp-crm .kpd-lines { display: grid; gap: 6px; }
 #kp-crm .kpd-lines > .btn { justify-self: start; }
-#kp-crm .kpd-line { display: grid; grid-template-columns: minmax(200px, 1fr) 90px 80px 110px 130px auto; gap: 6px; align-items: center; }
-#kp-crm .kpd-line > .hint { grid-column: 1 / -1; margin: -2px 0 4px; }
-#kp-crm .kpd-line input { width: 100%; min-width: 0; }
-#kp-crm .kpd-line-head { font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); }
-#kp-crm .kpd-amount { text-align: right; white-space: nowrap; }
-#kp-crm .kpd-totals { justify-content: flex-end; }
+/* Рядки рахунку / акта: таблиця (Найменування | Од. | К-сть | Ціна | Сума | смітничок), підказка про рейс — дрібним рядком під рядком. */
+#kp-crm .kpd-lines-wrap { overflow-x: auto; }
+#kp-crm .kpd-lines-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+#kp-crm .kpd-lines-table thead th { padding: 4px 6px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--muted); text-align: left; white-space: nowrap; background: transparent; }
+#kp-crm .kpd-lines-table td { padding: 4px 6px; border-bottom: 0; vertical-align: middle; }
+#kp-crm .kpd-lines-table .kpd-c-unit { width: 84px; }
+#kp-crm .kpd-lines-table .kpd-c-num { width: 90px; text-align: right; }
+#kp-crm .kpd-lines-table .kpd-c-sum { width: 124px; text-align: right; }
+#kp-crm .kpd-lines-table .kpd-c-del { width: 44px; text-align: center; }
+#kp-crm .kpd-lines-table .kpd-c-num input { text-align: right; }
+#kp-crm .kpd-lines-table input { width: 100%; min-width: 0; }
+#kp-crm .kpd-amount { display: block; text-align: right; white-space: nowrap; }
+#kp-crm .kpd-line-hint td { padding: 0 6px 6px; }
+#kp-crm .kpd-link-hint { display: block; margin: 0; font-size: 11px; line-height: 1.3; color: var(--muted); }
+#kp-crm .btn.kpd-del { width: 30px; min-width: 30px; padding: 0; color: var(--muted); border-color: transparent; background: transparent; }
+#kp-crm .btn.kpd-del:hover { color: var(--negative); border-color: var(--negative); background: var(--negative-bg); }
+#kp-crm .btn.kpd-del svg { display: block; }
+/* Підсумки окремими рядками праворуч: підпис — значення. */
+#kp-crm .kpd-totals { display: grid; justify-content: end; justify-items: stretch; gap: 2px; padding: 8px 0 4px; font-family: inherit; }
+#kp-crm .kpd-total-row { display: grid; grid-template-columns: minmax(80px, auto) minmax(110px, auto); column-gap: 16px; align-items: baseline; }
+#kp-crm .kpd-total-label { color: var(--muted); text-align: right; }
+#kp-crm .kpd-total-value { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+#kp-crm .kpd-total-row.is-grand { margin-top: 2px; padding-top: 4px; border-top: 1px solid var(--border); }
+#kp-crm .kpd-total-row.is-grand .kpd-total-label { color: var(--text); font-weight: 700; }
+#kp-crm .kpd-total-row.is-grand .kpd-total-value { font-size: 1.1em; }
+#kp-crm .kpd-total-note { text-align: right; font-size: 11px; }
 #kp-crm .kpd-parties { margin: 0 0 14px; }
 #kp-crm .kpd-parties p { margin: 0 0 4px; }
 #kp-crm .kpd-party-title { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
@@ -394,10 +420,18 @@ body[data-theme="dark"] .tc-studio-nav #kp-nav-repairs .kpr-nav-badge-red { back
 }
 @media (max-width: 767px) {
     #kp-crm .kpd-grid, #kp-crm .kpd-rate { grid-template-columns: 1fr; }
-    #kp-crm .kpd-line { grid-template-columns: 1fr 1fr; padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--bg); }
-    #kp-crm .kpd-line > .kpd-title { grid-column: 1 / -1; }
-    #kp-crm .kpd-line-head { display: none; }
-    #kp-crm .kpd-totals { justify-content: flex-start; }
+    #kp-crm .kpd-lines-table, #kp-crm .kpd-lines-table tbody { display: block; }
+    #kp-crm .kpd-lines-table thead { display: none; }
+    #kp-crm .kpd-lines-table .kpd-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 8px; border: 1px solid var(--border-soft); border-radius: var(--radius-control); background: var(--bg); }
+    #kp-crm .kpd-lines-table .kpd-row > td { display: block; width: auto; padding: 0; text-align: left; }
+    #kp-crm .kpd-lines-table .kpd-row > .kpd-c-title { grid-column: 1 / -1; }
+    #kp-crm .kpd-lines-table .kpd-row > .kpd-c-sum { align-self: center; text-align: right; }
+    #kp-crm .kpd-lines-table .kpd-row > .kpd-c-del { text-align: right; }
+    #kp-crm .kpd-lines-table .kpd-line-hint { display: block; margin: -4px 0 6px; }
+    #kp-crm .kpd-lines-table .kpd-line-hint td { display: block; padding: 0 2px; }
+    #kp-crm .kpd-totals { justify-content: stretch; }
+    /* Таблиці розділів із відступом 16px по краях (kpg-table): у картках вузького екрана відступ як в інших рядків */
+    #kp-crm .kpg-page .kpr-cards .kpg-table td:first-child, #kp-crm .kpg-page .kpr-cards .kpg-table td:last-child { padding-left: 12px !important; padding-right: 12px !important; }
 }
 
 /* Звіт план/факт: компактні дати в одну лінію, «Експорт CSV» — звичайна кнопка поруч із заголовком */
