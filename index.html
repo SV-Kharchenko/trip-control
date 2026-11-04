@@ -18271,12 +18271,22 @@
         var bar = document.getElementById('tc-kpi-bar');
         if (!cols || !left) return;
         var vh = window.innerHeight, sy = window.scrollY;
-        var top0 = cols.getBoundingClientRect().top + sy;
-        var strip = bar ? bar.getBoundingClientRect().height : 0;
-        var slack = Math.max(0, document.documentElement.scrollHeight - (left.getBoundingClientRect().bottom + sy));
-        var room = Math.min(vh - top0 - 8, vh - slack - strip - 8);
+        // Верх колонок — поточний (змінюється зі скролом), а не початковий: після прокрутки карта прилипає на висоті stickyTop і має
+        // доходити до низу вікна. Високий початковий верх (vh − top0) лишав під нею порожнє місце.
+        var frame = document.querySelector('#studio-right > .tc-map-frame');
+        var stickyTop = frame ? (parseFloat(getComputedStyle(frame).top) || 0) : 0;
+        var colsTop = cols.getBoundingClientRect().top;
+        // slack — вільне місце у вікні під лівою колонкою (є лише коли її низ уже видно, тобто наприкінці сторінки): мапа не заходить нижче колонки.
+        var slack = Math.max(0, vh - left.getBoundingClientRect().bottom);
+        var room = vh - Math.max(colsTop, stickyTop) - 8 - slack;
         document.documentElement.style.setProperty('--cc-room', Math.max(360, Math.round(room)) + 'px');
     }
+    // Перерахунок на scroll (від 901px; на телефоні карта 40vh з CSS): passive + один requestAnimationFrame на кадр.
+    var scrollRaf = 0;
+    window.addEventListener('scroll', function () {
+        if (scrollRaf || window.innerWidth <= 900) return;
+        scrollRaf = requestAnimationFrame(function () { scrollRaf = 0; room(); });
+    }, { passive: true });
     var ro = new ResizeObserver(function () {
         cancelAnimationFrame(raf);
         raf = requestAnimationFrame(function () { room(); window.dispatchEvent(new Event('resize')); });
