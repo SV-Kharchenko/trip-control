@@ -75,7 +75,7 @@ export function mountShell(env = {}) {
         oninput: () => forwardSearch(searchIn.value), onkeydown: (e) => { if (e.key === 'Escape') setSearchOpen(false); } });
     const searchX = h('button', { type: 'button', class: 'kp-shell-search-x', 'aria-label': 'Закрити пошук', onclick: () => setSearchOpen(false) }, '×');
     const burger = h('button', { type: 'button', class: 'kp-shell-burger', 'aria-label': 'Меню', 'aria-expanded': 'false', onclick: () => setMobile(!body.classList.contains('kp-shell-open')) }, shellIcon('burger'));
-    const top = h('header', { id: 'kp-shell-top', class: 'kp-shell-top' }, burger, companyEl, searchBtn, searchIn, searchX, h('span', { class: 'kp-shell-grow' }), bell, who);
+    const top = h('header', { id: 'kp-shell-top', class: 'kp-shell-top' }, burger, searchBtn, searchIn, searchX, h('span', { class: 'kp-shell-grow' }), companyEl, bell, who);
     // «← Назад» на повноекранних сторінках карток і форм (телефон): ті самі hash-маршрути, Back браузера працює.
     const backBtn = h('button', { type: 'button', class: 'kp-shell-back-btn', onclick: goBack }, '← Назад');
     const backBar = h('div', { id: 'kp-shell-back', class: 'kp-shell-back', hidden: true }, backBtn);
@@ -139,6 +139,8 @@ export function mountShell(env = {}) {
     }
 
     function setSearchOpen(open) {
+        // Закриваємо й очищаємо лише мобільний пошук, що справді був відкритий; значення полів розділу (#registry-q тощо) не чіпаємо.
+        if (!open && !body.classList.contains('kp-shell-search-open')) return;
         body.classList.toggle('kp-shell-search-open', open);
         if (open) { setMobile(false); searchIn.focus(); } else { searchIn.value = ''; forwardSearch(''); }
     }

@@ -9,6 +9,14 @@ body.kp-shell-on .kp-flt-toggle, body.kp-shell-on .kp-more-btn, body.kp-shell-on
 @media (max-width: 899px) {
     /* --- Шапка: бургер, назва компанії, пошук іконкою, сповіщення, тема, аватар --- */
     body.kp-shell-on .kp-shell-top { padding-top: env(safe-area-inset-top, 0px); height: calc(var(--kp-top-h) + env(safe-area-inset-top, 0px)); }
+    /* Порядок у шапці лише для телефона (на комп'ютері DOM і вигляд як були): бургер, компанія, пошук, сповіщення, акаунт */
+    body.kp-shell-on .kp-shell-burger { order: 0; }
+    body.kp-shell-on .kp-shell-company { order: 1; }
+    body.kp-shell-on .kp-shell-search { order: 2; }
+    body.kp-shell-on .kp-shell-search-in { order: 3; }
+    body.kp-shell-on .kp-shell-search-x { order: 4; }
+    body.kp-shell-on .kp-shell-bell { order: 5; }
+    body.kp-shell-on .tc-head-end { order: 6; }
     body.kp-shell-on .kp-shell-company { display: block; flex: 1 1 auto; min-width: 0; max-width: none; font-size: 0.9rem; }
     body.kp-shell-on .kp-shell-company[hidden] { display: none; }
     body.kp-shell-on .kp-shell-grow { display: none; }
@@ -44,6 +52,11 @@ body.kp-shell-on .kp-flt-toggle, body.kp-shell-on .kp-more-btn, body.kp-shell-on
     /* --- Розрахунок рейсу: мапа ~40vh --- */
     html[data-app="kp"] body.kp-shell-on.layout-studio[data-theme][data-studio-view] #studio-right > .tc-map-frame,
     html[data-app="kp"] body.kp-shell-on.layout-studio .tc-map-frame { height: 40vh !important; min-height: 220px !important; max-height: none; } /* сайт ставить height: auto !important, тож тут теж !important */
+
+    /* --- Огляд: KPI-картки по дві в ряд на всьому діапазоні мобільної оболонки (<900px) --- */
+    body.kp-shell-on .kpd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    body.kp-shell-on .kpd-kpi, body.kp-shell-on .kpd-kpi:nth-child(n + 4) { grid-column: auto; }
+    body.kp-shell-on .kpd-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 
 @media (max-width: 699px) {
@@ -103,9 +116,7 @@ body.kp-shell-on .kp-flt-toggle, body.kp-shell-on .kp-more-btn, body.kp-shell-on
     #kp-crm .kp-flt.is-open .kpd-f input, #kp-crm .kp-flt.is-open .kpd-f select { width: 100%; max-width: 100%; }
 
     /* --- Огляд: KPI-картки по дві в ряд, графік на всю ширину --- */
-    .kpd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .kpd-kpi, .kpd-kpi:nth-child(n + 4) { grid-column: auto; }
-    .kpd-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
-    .kpd-kpi-value, .kpd-kpi-value .kpd-mono { font-size: 16px; }
-    .kpd-chart svg, .kpd-chart { max-width: 100%; }
+
+    body.kp-shell-on .kpd-kpi-value, body.kp-shell-on .kpd-kpi-value .kpd-mono { font-size: 16px; }
+    body.kp-shell-on .kpd-chart svg, body.kp-shell-on .kpd-chart { max-width: 100%; }
 }

@@ -288,11 +288,60 @@ test('знімки екранів (KP_SHOTS_DIR): 390 / 768 / 1366 × light / da
                     await page.screenshot({ path: path.join(shots, `${view}-${w}-${theme}.png`) });
                     await page.close();
                 }
+                if (w === 1366) { const bar = await open(w, h, 'dashboard', theme); await bar.screenshot({ path: path.join(shots, `header-${w}-${theme}.png`), clip: { x: 0, y: 0, width: w, height: 60 } }); await bar.close(); }
                 const menu = await open(w, h, 'client', theme);
                 if (w < 900) { await menu.click('.kp-shell-burger'); await menu.waitForTimeout(350); }
                 await menu.screenshot({ path: path.join(shots, `menu-${w}-${theme}.png`) });
                 await menu.close();
             }
         }
+    });
+});
+
+test('браузер: шапка на ≥900px — порядок як до PR (компанія справа перед дзвіночком); на телефоні — компанія зліва', async (t) => {
+    await withBrowser(t, async ({ open }) => {
+        const order = (page) => page.evaluate(() => {
+            const top = document.getElementById('kp-shell-top');
+            const left = (sel) => Math.round(top.querySelector(sel).getBoundingClientRect().left);
+            return { dom: [...top.children].map((c) => c.className.split(' ')[0]), company: left('.kp-shell-company'), bell: left('.kp-shell-bell'), search: left('.kp-shell-search') };
+        });
+        const desk = await open(1366, 768, 'dashboard');
+        const d = await order(desk);
+        assert.deepEqual(d.dom.slice(0, 2), ['kp-shell-burger', 'kp-shell-search'], 'DOM як у PR 1');
+        assert.ok(d.dom.indexOf('kp-shell-company') > d.dom.indexOf('kp-shell-grow') && d.dom.indexOf('kp-shell-company') < d.dom.indexOf('kp-shell-bell'));
+        assert.ok(d.search < d.company && d.company < d.bell, 'пошук зліва, компанія справа перед дзвіночком');
+        const phone = await open(390, 844, 'dashboard');
+        const p = await order(phone);
+        assert.ok(p.company < p.search && p.search < p.bell, 'телефон: компанія, пошук, дзвіночок');
+    });
+});
+
+test('браузер: пошук розділу не скидається на hashchange (1366 і 390); мобільний пошук чиститься лише коли був відкритий', async (t) => {
+    await withBrowser(t, async ({ open }) => {
+        for (const [w, h] of [[1366, 768], [390, 844]]) {
+            const page = await open(w, h, 'dashboard');
+            await page.evaluate(() => { const i = document.createElement('input'); i.type = 'search'; i.id = 'registry-q'; document.getElementById('kp-crm').prepend(i); });
+            await page.fill('#registry-q', 'Умань');
+            await page.evaluate(() => { location.hash = '#/clients/00000000-0000-4000-8000-000000000001'; });
+            await page.evaluate(() => { location.hash = '#/dashboard'; });
+            await page.waitForTimeout(200);
+            assert.equal(await page.inputValue('#registry-q'), 'Умань', 'значення збережено (' + w + ')');
+            if (w < 900) {
+                await page.click('.kp-shell-search');
+                await page.fill('.kp-shell-search-in', 'Київ');
+                assert.equal(await page.inputValue('#registry-q'), 'Київ', 'відкритий мобільний пошук пересилає текст');
+                await page.keyboard.press('Escape');
+                assert.equal(await page.inputValue('#registry-q'), '', 'закриття відкритого пошуку очищає');
+            }
+        }
+    });
+});
+
+test('браузер: KPI по дві в ряд на 768 і 390 (уся мобільна оболонка), на 1366 — як було', async (t) => {
+    await withBrowser(t, async ({ open }) => {
+        const cols = async (w, h) => { const p = await open(w, h, 'dashboard'); return p.evaluate(() => getComputedStyle(document.querySelector('.kpd-kpis')).gridTemplateColumns.split(' ').length); };
+        assert.equal(await cols(768, 1024), 2);
+        assert.equal(await cols(390, 844), 2);
+        assert.ok(await cols(1366, 768) > 2);
     });
 });
