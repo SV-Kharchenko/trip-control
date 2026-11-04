@@ -100,7 +100,7 @@ export function renderStock(app, access) {
         if (error) return fail(error);
         clear(panel, h('div', { class: 'card' }, h('div', { class: 'page-head' }, h('h3', null, 'Рух: ' + p.name),
             h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => clear(panel) }, 'Закрити')),
-        (data || []).length ? h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
+        (data || []).length ? h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table kpg-table' },
             h('thead', null, h('tr', null, ['Дата', 'Рух', 'Кількість', 'Ціна / собівартість', 'Сума', 'Деталі'].map((t) => h('th', null, t)))),
             h('tbody', null, data.map((m) => h('tr', { class: m.reversed ? 'is-archived' : '' },
                 h('td', { 'data-label': 'Дата' }, fmtDate(m.on_date)),
@@ -119,7 +119,7 @@ export function renderStock(app, access) {
         }
         const total = state.parts.reduce((s, p) => s + stockValue(p), 0);
         clear(list,
-            h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
+            h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table kpg-table' },
                 h('thead', null, h('tr', null, ['Запчастина', 'Артикул', 'Залишок', 'Середня собівартість', 'Вартість залишку', ''].map((t) => h('th', null, t)))),
                 h('tbody', null, rows.map((p) => h('tr', { class: p.archived_at ? 'is-archived' : '' },
                     h('td', { 'data-label': 'Запчастина' }, p.name),

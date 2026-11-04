@@ -1,23 +1,52 @@
-/* Вікна поверх розділу й панель задач (PR 3 з 5). Діють лише в Контроль+ (body.kp-shell-on, каркас PR 1); на сайті цього файлу немає.
-   Ширше 900px; вужче вікон і панелі задач немає (документ відкривається на всю сторінку, як раніше). */
+/* Вікна поверх розділу й панель задач (PR 3 з 5), полірування вікон. Діють лише в Контроль+ (body.kp-shell-on, каркас PR 1); на сайті цього файлу немає.
+   Ширше 900px; вужче вікон і панелі задач немає (документ відкривається на всю сторінку, як раніше).
+   Стилі форм, кнопок і таблиць у вікнах дає kp-win-scope.css (копія правил crm.css під `.kp-win`, генерується); тут — рамка вікна, діалоги й
+   компактний вигляд вмісту. Перебивають згенеровані правила подвоєним класом `.kp-win.kp-win` (специфічність), без !important.
+   Кольори — лише змінні палітри (--surface, --text, --border, --accent, --negative…) і --kp-*, щоб тема й white-label міняли їх в одному місці. */
 
 body.kp-shell-on .kp-win, body.kp-shell-on .kp-taskbar { display: none; }
 
+/* ===== Діалоги, тости: завжди над вікнами й панеллю задач (шкала --kp-z-* у kp-shell.css), діють на будь-якій ширині ===== */
+body.kp-shell-on .tc-modal {
+    z-index: var(--kp-z-modal); background: var(--kp-scrim); font-family: var(--kp-font, inherit);
+}
+body.kp-shell-on .tc-modal-card {
+    background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px 16px; gap: 10px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+}
+body.kp-shell-on .tc-modal-card h3 { font-size: 1rem; color: var(--text); }
+body.kp-shell-on .tc-modal-card p { color: var(--muted); font-size: 0.85rem; }
+body.kp-shell-on .tc-modal-actions { gap: 8px; margin-top: 4px; }
+/* Кнопки діалогу: «Скасувати» — другорядна, підтвердження — основна, а для небезпечної дії (закрити без збереження, видалити) — червона. */
+body.kp-shell-on .tc-modal .tc-modal-actions .btn {
+    flex: 0 0 auto; width: auto; min-width: 0; height: 28px; min-height: 28px; margin: 0; padding: 0 14px; box-sizing: border-box;
+    display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; border: 1px solid var(--border);
+    font: inherit; font-size: 13px; font-weight: 600; line-height: 1; text-decoration: none; box-shadow: none; transform: none; filter: none;
+    background: transparent; color: var(--text); cursor: pointer;
+}
+body.kp-shell-on .tc-modal .tc-modal-actions .btn:hover { border-color: var(--accent); background: var(--row-hover); color: var(--text); }
+body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-success { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-success:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-danger { background: var(--negative); border-color: var(--negative); color: var(--kp-on-danger, #fff); }
+body.kp-shell-on .tc-modal .tc-modal-actions .btn.btn-danger:hover { background: var(--negative); border-color: var(--negative); color: var(--kp-on-danger, #fff); filter: brightness(0.92); }
+body.kp-shell-on .tc-modal .tc-modal-actions .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp-z-toast); }
+
 @media (min-width: 900px) {
     body.kp-shell-on .kp-win {
-        position: fixed; display: flex; flex-direction: column; box-sizing: border-box; min-width: 320px; min-height: 220px; overflow: hidden;
+        position: fixed; display: flex; flex-direction: column; box-sizing: border-box; min-width: 480px; min-height: 320px; overflow: hidden;
         background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; font-family: var(--kp-font, inherit);
         box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
     }
     body.kp-shell-on .kp-win[hidden] { display: none; }
-    body.kp-shell-on .kp-win.is-active { border-color: var(--kp-side-gold, #B08A4C); box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32); }
+    body.kp-shell-on .kp-win.is-active { border-color: var(--kp-side-gold, var(--gold)); box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32); }
     body.kp-shell-on .kp-win.is-max {
         left: var(--kp-side-w, 0px); top: calc(var(--kp-strip-h, 0px) + var(--kp-top-h, 52px)); right: 0; bottom: 32px; width: auto; height: auto; border-radius: 0;
     }
 
     body.kp-shell-on .kp-win-head {
         display: flex; align-items: center; gap: 8px; flex: none; height: 36px; padding: 0 6px 0 12px; box-sizing: border-box; cursor: move; user-select: none; touch-action: none;
-        background: var(--kp-side-bg, #0D2A29); color: #F4EFE5;
+        background: var(--kp-side-bg); color: var(--kp-side-ink-strong);
     }
     body.kp-shell-on .kp-win.is-max .kp-win-head { cursor: default; }
     body.kp-shell-on .kp-win-ic, body.kp-shell-on .kp-task-ic { display: inline-flex; flex: none; width: 16px; height: 16px; }
@@ -26,18 +55,30 @@ body.kp-shell-on .kp-win, body.kp-shell-on .kp-taskbar { display: none; }
     body.kp-shell-on .kp-win-btns { display: inline-flex; gap: 2px; flex: none; }
     body.kp-shell-on .kp-win-btn {
         width: 28px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px;
-        background: transparent; color: #F4EFE5; font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
+        background: transparent; color: var(--kp-side-ink-strong); font: inherit; font-size: 1rem; line-height: 1; cursor: pointer;
     }
     body.kp-shell-on .kp-win-btn:hover { background: rgba(244, 239, 229, 0.14); }
-    body.kp-shell-on .kp-win-btn.is-close:hover { background: #B3261E; }
-    body.kp-shell-on .kp-win-btn:focus-visible { outline: 2px solid var(--kp-side-gold, #B08A4C); outline-offset: -2px; }
-    body.kp-shell-on .kp-win-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px 18px 18px; }
+    body.kp-shell-on .kp-win-btn.is-close:hover { background: var(--negative); color: var(--kp-on-danger, #fff); }
+    body.kp-shell-on .kp-win-btn:focus-visible { outline: 2px solid var(--kp-side-gold, var(--gold)); outline-offset: -2px; }
+    body.kp-shell-on .kp-win-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 16px 16px; container: kpwin / inline-size; font-size: 13px; }
     body.kp-shell-on .kp-win-body .page, body.kp-shell-on .kp-win-body .page.narrow { padding: 0; max-width: none; margin: 0; }
-    body.kp-shell-on .kp-win-error { color: var(--kp-bad, #B3261E); }
+    body.kp-shell-on .kp-win-error { color: var(--kp-bad, var(--negative)); }
+
+    /* Ручки зміни розміру: 4 краї й 4 кути (кутові — над крайовими). Розгорнуте вікно не ресайзиться. */
+    body.kp-shell-on .kp-win-rs { position: absolute; z-index: 5; touch-action: none; }
+    body.kp-shell-on .kp-rs-n { top: 0; left: 12px; right: 12px; height: 5px; cursor: ns-resize; }
+    body.kp-shell-on .kp-rs-s { bottom: 0; left: 12px; right: 12px; height: 5px; cursor: ns-resize; }
+    body.kp-shell-on .kp-rs-e { right: 0; top: 12px; bottom: 12px; width: 5px; cursor: ew-resize; }
+    body.kp-shell-on .kp-rs-w { left: 0; top: 12px; bottom: 12px; width: 5px; cursor: ew-resize; }
+    body.kp-shell-on .kp-rs-ne { top: 0; right: 0; width: 12px; height: 12px; cursor: nesw-resize; z-index: 6; }
+    body.kp-shell-on .kp-rs-sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: nesw-resize; z-index: 6; }
+    body.kp-shell-on .kp-rs-nw { top: 0; left: 0; width: 12px; height: 12px; cursor: nwse-resize; z-index: 6; }
+    body.kp-shell-on .kp-rs-se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: nwse-resize; z-index: 6; }
+    body.kp-shell-on .kp-win.is-max .kp-win-rs { display: none; }
 
     /* Панель задач */
     body.kp-shell-on .kp-taskbar {
-        position: fixed; z-index: 3095; left: var(--kp-side-w, 0px); right: 0; bottom: 0; height: 32px; box-sizing: border-box;
+        position: fixed; z-index: var(--kp-z-taskbar, 3095); left: var(--kp-side-w, 0px); right: 0; bottom: 0; height: 32px; box-sizing: border-box;
         display: flex; align-items: center; gap: 4px; padding: 0 8px; overflow-x: auto; background: var(--surface); border-top: 1px solid var(--border); font-family: var(--kp-font, inherit);
     }
     body.kp-shell-on .kp-taskbar[hidden] { display: none; }
@@ -46,17 +87,141 @@ body.kp-shell-on .kp-win, body.kp-shell-on .kp-taskbar { display: none; }
         border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer;
     }
     body.kp-shell-on .kp-task:hover { background: color-mix(in srgb, var(--border-soft) 60%, transparent); }
-    body.kp-shell-on .kp-task.on { background: var(--kp-side-bg, #0D2A29); border-color: var(--kp-side-bg, #0D2A29); color: #F4EFE5; }
+    body.kp-shell-on .kp-task.on { background: var(--kp-side-bg); border-color: var(--kp-side-bg); color: var(--kp-side-ink-strong); }
     body.kp-shell-on .kp-task.is-min { opacity: 0.65; font-style: italic; }
     body.kp-shell-on .kp-task-lb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     body.kp-shell-on.kp-win-open #main-app { padding-bottom: 72px !important; }
+
+    /* ===== Вміст вікон: компактні кнопки, поля й заголовки (стилі розділу в kp-win-scope.css) ===== */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body h1 { font-size: 17px; margin: 0 0 4px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body h2 { font-size: 15px; margin: 0 0 8px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body h3 { font-size: 13px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .back { display: none; } /* «← До …»: у вікні є «×» */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .page-head { margin-bottom: 10px; gap: 8px 12px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .card { padding: 12px 14px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .section-title { margin-top: 16px; }
+
+    /* Кнопки: 28px, шрифт 13px, проміжок 8px, переносяться в кілька рядків; без підкреслення. Основна одна — решта вторинні / ghost. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .actions,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 0; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .page-head > .actions { flex: 1 1 100%; justify-content: flex-start; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-sm,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body a.btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 0 0 auto; width: auto; min-width: 0; height: 28px; min-height: 28px; margin: 0;
+        padding: 0 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text);
+        font: inherit; font-size: 13px; font-weight: 600; line-height: 1; text-decoration: none; white-space: nowrap; box-shadow: none; transform: none; filter: none;
+    }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn:hover,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body a.btn:hover { text-decoration: none; border-color: var(--accent); background: var(--row-hover); color: var(--text); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn:disabled { opacity: 0.5; cursor: default; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-ghost { border-color: transparent; color: var(--muted); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-ghost:hover { border-color: var(--border); color: var(--text); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-danger { color: var(--negative); border-color: var(--negative); background: transparent; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-danger:hover { background: var(--negative-bg); border-color: var(--negative); color: var(--negative-text); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.btn-danger.is-armed { background: var(--negative); color: var(--kp-on-danger, #fff); }
+    /* «В архів» і «Видалити» — окремо, праворуч від решти дій; «Видалити» червона. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kp-act-end { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    /* Прапорець біля кнопок («3 примірники»): свій відступ, не затиснутий між кнопками. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .actions > .check,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .actions > label.check { margin: 0 6px; padding: 0 4px; font-size: 13px; line-height: 28px; white-space: nowrap; }
+
+    /* Поля: 30px, шрифт 13px. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+    body.kp-shell-on .kp-win.kp-win .kp-win-body select { height: 30px; min-height: 30px; padding: 4px 8px; border-radius: 6px; font-size: 13px; }
+    /* Текст у полях — зліва (сайтовий input вирівнює праворуч, це лише для числових полів калькулятора). */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body input:not([type="number"]):not([type="checkbox"]):not([type="radio"]),
+    body.kp-shell-on .kp-win.kp-win .kp-win-body select,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body textarea { text-align: left; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body textarea { min-height: 60px; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .field label,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpr-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .form,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-grid { gap: 8px 14px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .form-section { margin: 10px 0 2px; font-size: 12px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .hint { font-size: 12px; min-height: 0; }
+
+    /* Реквізити й картки перегляду: «назва: значення» у два стовпчики (назва 12px muted); у вузькому вікні — в один. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body dl { gap: 0; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kv,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpt-dl .kv,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-view .kpt-dl .kv {
+        display: grid; grid-template-columns: minmax(110px, 190px) minmax(0, 1fr); align-items: baseline; gap: 2px 14px; padding: 5px 0; border-bottom: 1px solid var(--border-soft);
+    }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body dl > .kv:last-child { border-bottom: 0; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kv dt,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpt-dl dt { margin: 0; font-size: 12px; font-weight: 400; color: var(--muted); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kv dd,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpt-dl dd { margin: 0; font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-view { max-width: none; padding: 8px 14px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .grid-2 { gap: 12px; align-items: start; }
+
+    /* Картки авто / причепа / водія: підпис зліва, поля парами (короткі по два в ряд), довгі — на всю ширину. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc.card { max-width: none; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-head { margin-bottom: 8px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 28px; align-items: start; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > .kpc-section { grid-column: 1 / -1; margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--border-soft); font-size: 12px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > .kpc-section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > .kpc-row { grid-template-columns: minmax(96px, 128px) minmax(0, 1fr); margin: 0; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > .kpc-row:has(.kpc-w-l),
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > .kpc-row:has(.kpc-w-xl),
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > .kpc-row:has(.kpc-w-xxl) { grid-column: 1 / -1; grid-template-columns: minmax(96px, 128px) minmax(0, 1fr); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-row label { font-size: 12px; color: var(--muted); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-row .hint { grid-column: 2; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box.kpc-w-s,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box.kpc-w-m,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box.kpc-w-ph,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box.kpc-w-l,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box.kpc-w-xl,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box.kpc-w-xxl { width: 100%; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-box.kpc-w-s input { width: 100%; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > .notice,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-body > p { grid-column: 1 / -1; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpc-actions { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-soft); }
+
+    /* Форма рахунку / акта: ПДВ — сегмент з двох кнопок, обрана чітко видна. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-vat-field { gap: 4px; justify-items: start; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented { display: inline-flex; flex-wrap: nowrap; gap: 0; padding: 2px; margin-bottom: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button {
+        height: 26px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button:hover { color: var(--text); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button.is-on,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .segmented button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+    /* Рядки документа й підсумки (база — crm.css): у вікні поля 30px, підсумки 13px, смітничок 28px. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-lines { gap: 8px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-lines-table .kpd-amount,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-total-label,
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-total-value { font-size: 13px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-total-row.is-grand .kpd-total-value { font-size: 15px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .btn.kpd-del { width: 28px; padding: 0; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-lines-table .kpd-c-num input { text-align: right; }
+
+    /* «Рейси клієнта»: «з» і «по» в один ряд з підписами, «Показати рейси» поруч. */
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-trips-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 8px; }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-trips-filter .kpd-f { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+    body.kp-shell-on .kp-win.kp-win .kp-win-body .kpd-trips-filter .kpd-f input { width: 140px; flex: 0 0 auto; }
+
+    /* Вузьке вікно: усе в один стовпчик (контейнерний запит по ширині вмісту вікна). */
+    @container kpwin (max-width: 640px) {
+        body.kp-shell-on .kv, body.kp-shell-on .kpt-dl .kv, body.kp-shell-on .kpc-view .kpt-dl .kv { grid-template-columns: minmax(0, 1fr) !important; gap: 0 !important; }
+        body.kp-shell-on .grid-2, body.kp-shell-on .form, body.kp-shell-on .kpd-grid, body.kp-shell-on .kpd-rate, body.kp-shell-on .kpc-body { grid-template-columns: minmax(0, 1fr) !important; }
+        body.kp-shell-on .kpc-body > .kpc-row, body.kp-shell-on .kpc-body > .kpc-row:has(.kpc-w-l), body.kp-shell-on .kpc-body > .kpc-row:has(.kpc-w-xl), body.kp-shell-on .kpc-body > .kpc-row:has(.kpc-w-xxl) { grid-template-columns: minmax(0, 1fr) !important; }
+        body.kp-shell-on .kpc-row .hint { grid-column: 1 !important; }
+        body.kp-shell-on .kpd-total-row { grid-template-columns: 1fr auto; }
+    }
 
     /* Вікно «Заявка» */
     body.kp-shell-on .kp-req-grid, body.kp-shell-on .kp-req-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; margin: 12px 0; }
     body.kp-shell-on .kp-req-docs { padding-top: 10px; border-top: 1px solid var(--border-soft); }
     body.kp-shell-on .kp-req-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    body.kp-shell-on .kp-req-fact small { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
-    body.kp-shell-on .kp-req-fact b { font-size: 0.92rem; }
+    body.kp-shell-on .kp-req-fact small { font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
+    body.kp-shell-on .kp-req-fact b { font-size: 13px; }
     body.kp-shell-on .kp-req .kp-mono { font-family: var(--kp-mono, 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace); font-variant-numeric: tabular-nums; }
     body.kp-shell-on .kp-req .kp-fact.is-ok { color: var(--kp-ok, #1E7F4F); }
     body.kp-shell-on .kp-req .kp-fact.is-low { color: var(--kp-bad, #B3261E); }

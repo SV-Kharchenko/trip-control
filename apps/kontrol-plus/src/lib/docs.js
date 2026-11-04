@@ -38,8 +38,8 @@ export function docStatusLabel(kind, payStatus, signed = false) {
 export const CURRENCIES = ['UAH', 'USD', 'EUR'];
 export const CURRENCY_SHORT = { UAH: 'грн', USD: 'USD', EUR: 'EUR' };
 export const VAT_MODES = [
-    { value: 'net', label: 'Ціна без ПДВ (+20 % зверху)' },
-    { value: 'gross', label: 'Ціна вже з ПДВ (виділяємо ПДВ всередині)' },
+    { value: 'net', label: 'Ціна без ПДВ (+20 % зверху)', short: 'Без ПДВ, +20% зверху' },
+    { value: 'gross', label: 'Ціна вже з ПДВ (виділяємо ПДВ всередині)', short: 'ПДВ всередині ціни' },
 ];
 export const MAX_LINES = 200;
 export const ASSET_MAX_BYTES = 524288;

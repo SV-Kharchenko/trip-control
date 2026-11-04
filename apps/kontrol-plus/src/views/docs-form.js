@@ -1,6 +1,6 @@
 // Створення рахунку або акта (окремі документи, кожен — зі своїм номером). З рейсу (#/docs/new/<вид>/<клієнт>/<рейс>)
 // або з клієнта за період (кілька рейсів). Рядки можна правити; суми в формі — попередній показ, рахує сервер.
-import { h, clear, spinner, notice, toast } from '../ui.js';
+import { h, clear, spinner, notice, toast, svgEl } from '../ui.js';
 import { fmtDate, kyivDate, monthRange } from '../lib/format.js';
 import { callKpApi } from '../lib/gps-client.js';
 import {
@@ -8,9 +8,16 @@ import {
     tripRoute, tripsToLines, validateLines, docNumberText, MAX_LINES,
 } from '../lib/docs.js';
 import { showError } from './docs.js';
+import { totalRows } from './docs-totals.js';
 import { docsBackHash } from '../lib/docs-requests.js';
 import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
 import { linkClientPanel } from './docs-link-client.js';
+
+// Смітничок «Видалити рядок» (16px, stroke = currentColor).
+function trashIcon() {
+    return svgEl('svg', { viewBox: '0 0 16 16', width: 16, height: 16, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' },
+        svgEl('path', { d: 'M2.5 4h11M6 4V2.5h4V4M4 4l.7 9h6.6L12 4M6.8 6.5v4.5M9.2 6.5v4.5' }));
+}
 
 function shiftDays(iso, days) {
     return new Date(Date.parse(iso + 'T00:00:00Z') + days * 86400000).toISOString().slice(0, 10);
@@ -79,7 +86,7 @@ function buildForm(app, kind, route, requisites, clients) {
     const vatBox = h('div', { class: 'segmented kpd-vat', role: 'radiogroup', 'aria-label': 'Режим ПДВ' });
     const linesBox = h('div', { class: 'kpd-lines' });
     const totalsBox = h('div', { class: 'kpr-totals kpd-totals', 'aria-live': 'polite' });
-    const tripsBox = h('div', { class: 'kpd-trips' });
+    const tripsBox = h('div', { class: 'kpd-trips', 'data-no-dirty': '' }); // вибір рейсів для додавання — ще не зміна документа
     const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, kind === 'invoice' ? 'Створити рахунок' : 'Створити акт');
 
     const range = route.calc ? { from: shiftDays(today, -700), to: shiftDays(today, 30) } : monthRange(today);
@@ -92,7 +99,7 @@ function buildForm(app, kind, route, requisites, clients) {
         clear(vatBox, VAT_MODES.map((m) => h('button', {
             type: 'button', role: 'radio', 'aria-checked': String(m.value === state.vatMode), class: m.value === state.vatMode ? 'is-on' : '',
             onclick: () => { state.vatMode = m.value; drawVat(); drawTotals(); },
-        }, m.label)));
+        }, m.short || m.label)));
     }
 
     function drawTotals() {
@@ -102,41 +109,48 @@ function buildForm(app, kind, route, requisites, clients) {
             clear(totalsBox, h('span', { class: 'hint hint-error' }, 'Перевірте кількість і ціну в рядках'));
             return;
         }
+        // Підсумки окремими рядками праворуч: підпис — значення (значення не злипається з підписом).
         clear(totalsBox,
-            h('span', null, vatPayer ? 'Без ПДВ: ' : 'Разом: ', h('b', null, fmtAmount(t.subtotal, cur))),
-            vatPayer ? h('span', null, 'ПДВ 20 %: ', h('b', null, fmtAmount(t.vat, cur))) : h('span', { class: 'muted' }, 'Без ПДВ'),
-            h('span', null, 'Всього: ', h('b', null, fmtAmount(t.total, cur))),
-            h('span', { class: 'muted small' }, '(попередньо; остаточні суми рахує сервер)'));
+            totalRows({ vat: vatPayer, subtotal: fmtAmount(t.subtotal, cur), vatAmount: fmtAmount(t.vat, cur), total: fmtAmount(t.total, cur) }),
+            h('div', { class: 'kpd-total-note muted small' }, 'Попередньо; остаточні суми рахує сервер'));
     }
 
+    // Рядок документа — рядок таблиці (Найменування | Од. | К-сть | Ціна | Сума | смітничок); підказка про рейс — дрібним рядком під ним.
     function lineRow(line, index) {
         const amount = h('span', { class: 'mono kpd-amount' });
         const paint = () => {
             const t = previewTotals([line], { vatPayer: false });
             amount.textContent = Number.isFinite(t.total) ? fmtAmount(t.total, currency.value) : '—';
         };
+        const cell = (cls, ...children) => h('td', { class: cls }, ...children);
         const field = (key, attrs) => h('input', Object.assign({
             value: line[key] === undefined || line[key] === null ? '' : String(line[key]), autocomplete: 'off',
             oninput: (event) => { line[key] = event.target.value; paint(); drawTotals(); },
         }, attrs));
         paint();
-        return h('div', { class: 'kpd-line' },
-            field('title', { type: 'text', maxlength: 500, 'aria-label': 'Найменування, рядок ' + (index + 1), class: 'kpd-title', placeholder: 'Найменування послуги' }),
-            field('unit', { type: 'text', maxlength: 20, 'aria-label': 'Одиниця', placeholder: 'послуга' }),
-            field('qty', { type: 'text', inputmode: 'decimal', 'aria-label': 'Кількість', placeholder: '1' }),
-            field('price', { type: 'text', inputmode: 'decimal', 'aria-label': 'Ціна', placeholder: '0,00' }),
-            amount,
-            h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'aria-label': 'Прибрати рядок ' + (index + 1),
-                onclick: () => { state.lines.splice(index, 1); drawLines(); } }, '✕'),
-            line.calculation_id ? h('span', { class: 'hint' }, 'Рядок повʼязаний з рейсом (рейс не потрапить в інший активний документ цього типу)') : null);
+        const main = h('tr', { class: 'kpd-row' },
+            cell('kpd-c-title', field('title', { type: 'text', maxlength: 500, 'aria-label': 'Найменування, рядок ' + (index + 1), class: 'kpd-title', placeholder: 'Найменування послуги' })),
+            cell('kpd-c-unit', field('unit', { type: 'text', maxlength: 20, 'aria-label': 'Одиниця', placeholder: 'послуга' })),
+            cell('kpd-c-num', field('qty', { type: 'text', inputmode: 'decimal', 'aria-label': 'Кількість', placeholder: '1' })),
+            cell('kpd-c-num', field('price', { type: 'text', inputmode: 'decimal', 'aria-label': 'Ціна', placeholder: '0,00' })),
+            cell('kpd-c-sum', amount),
+            cell('kpd-c-del', h('button', {
+                type: 'button', class: 'btn btn-ghost kpd-del', title: 'Видалити рядок', 'aria-label': 'Видалити рядок ' + (index + 1),
+                onclick: () => { state.lines.splice(index, 1); drawLines(); },
+            }, trashIcon())));
+        if (!line.calculation_id) return [main];
+        return [main, h('tr', { class: 'kpd-line-hint' },
+            h('td', { colspan: 6 }, h('span', { class: 'hint kpd-link-hint' }, 'Рядок повʼязаний з рейсом (рейс не потрапить в інший активний документ цього типу)')))];
     }
 
     function drawLines() {
         clear(linesBox,
-            state.lines.length ? h('div', { class: 'kpd-line kpd-line-head', 'aria-hidden': 'true' },
-                h('span', null, 'Найменування'), h('span', null, 'Од.'), h('span', null, 'К-сть'), h('span', null, 'Ціна'), h('span', null, 'Сума'), h('span', null, ''))
+            state.lines.length ? h('div', { class: 'table-wrap kpd-lines-wrap' }, h('table', { class: 'table kpd-lines-table' },
+                h('thead', null, h('tr', { class: 'kpd-line-head' },
+                    h('th', { class: 'kpd-c-title' }, 'Найменування'), h('th', { class: 'kpd-c-unit' }, 'Од.'), h('th', { class: 'kpd-c-num' }, 'К-сть'),
+                    h('th', { class: 'kpd-c-num' }, 'Ціна'), h('th', { class: 'kpd-c-sum' }, 'Сума'), h('th', { class: 'kpd-c-del', 'aria-label': 'Дії' }))),
+                h('tbody', null, state.lines.flatMap(lineRow))))
                 : h('p', { class: 'muted' }, 'Рядків ще немає — додайте рейси нижче або рядок вручну.'),
-            state.lines.map(lineRow),
             h('button', {
                 type: 'button', class: 'btn btn-sm', disabled: state.lines.length >= MAX_LINES,
                 onclick: () => { state.lines.push({ title: '', unit: 'послуга', qty: '1', price: '' }); drawLines(); },
@@ -325,7 +339,9 @@ function buildForm(app, kind, route, requisites, clients) {
     linesBox,
     totalsBox,
     h('h2', { class: 'form-section' }, 'Рейси клієнта'),
-    h('div', { class: 'toolbar' }, tripsFrom, tripsTo, h('button', { type: 'button', class: 'btn btn-sm', onclick: loadTrips }, 'Показати рейси')),
+    h('div', { class: 'toolbar kpd-trips-filter', 'data-no-dirty': '' },
+        h('label', { class: 'kpd-f' }, 'з', tripsFrom), h('label', { class: 'kpd-f' }, 'по', tripsTo),
+        h('button', { type: 'button', class: 'btn btn-sm', onclick: loadTrips }, 'Показати рейси')),
     tripsBox,
     message,
     h('div', { class: 'actions kpr-sticky' }, submit, h('a', { class: 'btn btn-ghost', href: docsBackHash(kind) }, 'Скасувати')));

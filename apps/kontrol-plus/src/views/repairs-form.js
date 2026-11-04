@@ -2,7 +2,7 @@
 // Підсумок «Запчастини / СТО / Разом» — за поточною середньою собівартістю, як спише сервер (усе або нічого).
 // Ремонт, списання і «Виконане ТО» — один виклик kp_repair_save_with_maintenance (одна транзакція).
 import { h, clear, notice, toast } from '../ui.js';
-import { fmtMoney, fmtMoneyCents, fmtNumber, kyivDate } from '../lib/format.js';
+import { fmtDate, fmtMoney, fmtMoneyCents, fmtNumber, kyivDate } from '../lib/format.js';
 import { repairTotals, validateRepairForm, repairPartsPayload, repairErrorText } from '../lib/repairs.js';
 
 export function partOptionLabel(part) {
@@ -35,7 +35,24 @@ export function repairSavePayload(values, typeIds) {
     };
 }
 
+// «Створити копію» сторнованого ремонту: дані переходять у форму нового ремонту (дата — сьогодні, одометр порожній: його треба внести заново).
+let pendingCopy = null;
+export function repairCopyData(row) {
+    if (!row) return null;
+    return {
+        vehicle_id: row.vehicle_id || '',
+        works: row.works || '',
+        provider: row.provider || '',
+        service_cost: row.service_cost === null || row.service_cost === undefined || Number(row.service_cost) === 0 ? '' : String(row.service_cost),
+        lines: (row.parts || []).filter((p) => p.part_id && Number(p.qty) > 0).map((p) => ({ part_id: p.part_id, qty: String(p.qty) })),
+        from: row.repair_date || '',
+    };
+}
+export function setRepairCopy(row) { pendingCopy = repairCopyData(row); }
+
 export function renderRepairForm(app) {
+    const copy = pendingCopy;
+    pendingCopy = null;
     const state = { parts: [], partsById: new Map(), lines: [], types: [], checked: new Set() };
     const maintenanceBox = h('div', { class: 'field kpr-wide', hidden: true });
     const vehicle = h('select', { id: 'kpr-vehicle', required: true }, h('option', { value: '' }, '— оберіть авто —'));
@@ -118,6 +135,14 @@ export function renderRepairForm(app) {
         for (const v of vehicles.data || []) vehicle.append(h('option', { value: v.id }, v.label));
         state.parts = parts.data || [];
         state.partsById = new Map(state.parts.map((p) => [p.id, p]));
+        if (copy) {
+            if ((vehicles.data || []).some((v) => v.id === copy.vehicle_id)) vehicle.value = copy.vehicle_id;
+            works.value = copy.works;
+            provider.value = copy.provider;
+            service.value = copy.service_cost;
+            state.lines = copy.lines.filter((l) => state.partsById.has(l.part_id));
+            clear(message, notice('Копія сторнованого ремонту' + (copy.from ? ' від ' + fmtDate(copy.from) : '') + ': дата — сьогодні, одометр внесіть заново. Перевірте дані перед збереженням.', 'info'));
+        }
         drawLines();
         // Без міграції 3b (або без типів ТО) блок «Виконане ТО» просто не показується.
         const types = await app.supabase.from('maintenance_types').select('id, name, is_active, sort').eq('is_active', true)

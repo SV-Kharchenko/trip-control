@@ -194,12 +194,12 @@ test('«брудна» форма: закриття питає підтверд�
         assert.equal(m.get('doc:id5').dirty, false);
         assert.equal(w.title, 'Рахунок № 1');
         const src = read('src/bridge.js');
-        assert.match(src, /confirm: \(options\) => \(typeof tcModal === 'function' \? tcModal\(options\)/, 'діалог — наявний tcModal, не confirm()');
+        assert.match(src, /confirm: \(options\) => \{[\s\S]*?const answer = tcModal\(options\)/, 'діалог — наявний tcModal, не confirm()');
         assert.equal(/\bconfirm\(|\balert\(/.test(read('src/kp-windows.js').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n').replace(/confirmClose|env\.confirm/g, '')), false, 'без confirm() і alert()');
     });
 });
 
-test('sessionStorage: лише тип, id і «згорнуте»; відновлення; скидання при зміні компанії / користувача', async () => {
+test('sessionStorage: тип, id, «згорнуте» і розмір / позиція (без вмісту); відновлення; скидання при зміні компанії / користувача', async () => {
     await withDom(async () => {
         const e = setup();
         const m = createWindowManager(e.env);
@@ -209,8 +209,10 @@ test('sessionStorage: лише тип, id і «згорнуте»; віднов�
         m.open(spec(1)); m.open(spec(2)); m.minimize('doc:id2');
         const key = 'tc_kp_windows:org1:u1';
         assert.equal(storageKey('org1', 'u1'), key);
-        assert.deepEqual(JSON.parse(e.store.get(key)), [{ type: 'doc', id: 'id1', minimized: false }, { type: 'doc', id: 'id2', minimized: true }]);
-        assert.equal(/x"|y"|left|top|html|title/i.test(e.store.get(key)), false, 'без позицій і вмісту');
+        const saved = JSON.parse(e.store.get(key));
+        assert.deepEqual(saved.map(({ type, id, minimized }) => ({ type, id, minimized })), [{ type: 'doc', id: 'id1', minimized: false }, { type: 'doc', id: 'id2', minimized: true }]);
+        assert.ok(saved.every((x) => [x.x, x.y, x.w, x.h].every(Number.isFinite)), 'розмір і позиція зберігаються');
+        assert.equal(/html|title|Рахунок/i.test(e.store.get(key)), false, 'без вмісту й заголовків');
         // «Перезавантаження»: новий менеджер на тому ж сховищі відновлює вікна (з «згорнутим» станом).
         const e2 = setup();
         e2.store.set(key, e.store.get(key));
@@ -227,7 +229,7 @@ test('sessionStorage: лише тип, id і «згорнуте»; віднов�
         await m2.setScope('org1', 'u2', resolve);
         assert.equal(m2.count(), 0);
         m2.open(spec(7));
-        assert.deepEqual(JSON.parse(e2.store.get('tc_kp_windows:org1:u2')), [{ type: 'doc', id: 'id7', minimized: false }]);
+        assert.deepEqual(JSON.parse(e2.store.get('tc_kp_windows:org1:u2')).map(({ type, id, minimized }) => ({ type, id, minimized })), [{ type: 'doc', id: 'id7', minimized: false }]);
         // Повернення до першої пари — її збережені вікна відновлюються.
         await m2.setScope('org1', 'u1', resolve);
         assert.equal(m2.count(), 2);
@@ -237,7 +239,7 @@ test('sessionStorage: лише тип, id і «згорнуте»; віднов�
         assert.equal(JSON.parse(e2.store.get(key)).length, 2);
         // Сміття у сховищі відкидається.
         assert.deepEqual(parseWindows('не json'), []);
-        assert.deepEqual(parseWindows(JSON.stringify([{ type: 'evil', id: 'x' }, { type: 'doc', id: 5 }, { type: 'doc', id: 'a' }, { type: 'doc', id: 'a' }])), [{ type: 'doc', id: 'a', minimized: false }]);
+        assert.deepEqual(parseWindows(JSON.stringify([{ type: 'evil', id: 'x' }, { type: 'doc', id: 5 }, { type: 'doc', id: 'a', x: 'bad' }, { type: 'doc', id: 'a' }])), [{ type: 'doc', id: 'a', minimized: false }]);
         assert.equal(parseWindows(JSON.stringify(Array.from({ length: 20 }, (_, i) => ({ type: 'doc', id: 'x' + i })))).length, MAX_WINDOWS);
         assert.equal(storageKey(null, 'u'), null);
         assert.equal(serializeWindows([{ type: 'doc', id: 'a', minimized: false, x: 1, title: 'T' }]), '[{"type":"doc","id":"a","minimized":false}]');

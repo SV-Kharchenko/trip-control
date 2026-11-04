@@ -4,7 +4,9 @@
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { fmtMoney, fmtNumber, fmtDate, kyivDate, monthRange } from '../lib/format.js';
 import { repairsAccess, repairErrorText, REPAIR_ROLE_LABELS } from '../lib/repairs.js';
-import { renderRepairForm } from './repairs-form.js';
+import { renderRepairForm, setRepairCopy } from './repairs-form.js';
+
+const VOID_TITLE = 'Ремонт сторновано, не враховується у витратах';
 import { renderStock } from './repairs-stock.js';
 import { renderHandlers } from './repairs-handlers.js';
 import { renderMaintenance } from './repairs-maintenance.js';
@@ -65,18 +67,23 @@ function renderList(app, access) {
         const posted = rows.filter((r) => r.status === 'posted');
         const sum = posted.reduce((s, r) => s + Number(r.total || 0), 0);
         clear(list,
-            h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table' },
+            h('div', { class: 'table-wrap kpr-cards' }, h('table', { class: 'table kpg-table' },
                 h('thead', null, h('tr', null, ['Дата', 'Авто', 'Одометр', 'Роботи', 'СТО', 'Запчастини', 'Разом', ''].map((t) => h('th', null, t)))),
-                h('tbody', null, rows.map((r) => h('tr', { class: r.status === 'void' ? 'is-archived' : '' },
-                    h('td', { 'data-label': 'Дата' }, fmtDate(r.repair_date), r.status === 'void' ? h('span', { class: 'tag' }, 'сторно') : null),
+                h('tbody', null, rows.map((r) => h('tr', { class: r.status === 'void' ? 'is-archived is-void' : '' },
+                    h('td', { 'data-label': 'Дата' }, fmtDate(r.repair_date), r.status === 'void' ? h('span', { class: 'tag kpr-void-tag', title: VOID_TITLE }, 'сторно') : null),
                     h('td', { 'data-label': 'Авто' }, r.vehicle_label || '—'),
                     h('td', { 'data-label': 'Одометр', class: 'mono' }, r.odometer_km === null ? '—' : fmtNumber(r.odometer_km) + ' км'),
                     h('td', { 'data-label': 'Роботи', class: 'kpr-works' }, r.works,
                         maintenance.has(r.id) ? h('span', { class: 'hint kpr-done-to' }, 'ТО: ' + maintenance.get(r.id)) : null),
                     h('td', { 'data-label': 'СТО' }, r.provider ? r.provider + ' · ' + fmtMoney(r.service_cost) : (Number(r.service_cost) ? fmtMoney(r.service_cost) : '—')),
                     h('td', { 'data-label': 'Запчастини' }, r.parts && r.parts.length ? partsSummary(r.parts) + ' · ' + fmtMoney(r.parts_cost) : '—'),
-                    h('td', { 'data-label': 'Разом', class: 'mono' }, h('b', null, fmtMoney(r.total))),
-                    h('td', { 'data-label': '' }, access.canWrite && r.can_void ? confirmButton('Сторнувати', 'Точно сторнувати?', async () => {
+                    h('td', { 'data-label': 'Разом', class: 'mono' }, r.status === 'void'
+                        ? h('s', { class: 'kpr-void-sum', title: VOID_TITLE }, fmtMoney(r.total)) : h('b', null, fmtMoney(r.total))),
+                    // Сторнований: «Створити копію» (нова форма з цими даними). «Скасувати сторно» потребувало б змін у БД (повернення списання) — не робимо.
+                    h('td', { 'data-label': '' }, access.canWrite && r.status === 'void'
+                        ? h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { setRepairCopy(r); app.go('#/repairs/new'); } }, 'Створити копію')
+                        : null,
+                    access.canWrite && r.can_void ? confirmButton('Сторнувати', 'Точно сторнувати?', async () => {
                         const { error: voidError } = await app.supabase.rpc('kp_repair_void', { p_repair: r.id, p_reason: null });
                         if (voidError) clear(message, notice(repairErrorText(voidError)));
                         else {
@@ -105,7 +112,7 @@ export function renderRepairs(app, sub) {
     else if (sub === 'cost') body = renderCost(app);
     else if (sub === 'handlers') body = access.canManage ? renderHandlers(app, access) : notice('Розділ доступний директору і менеджеру.', 'info');
     else body = renderList(app, access);
-    return h('section', { class: 'page kpr-page' },
+    return h('section', { class: 'page kpr-page kpg-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'Ремонти і склад'),
             // Роль owner / director вже в шапці Контроль+; тут — лише роль, специфічна для ремонтів.
             access.role === 'repair_manager' ? h('span', { class: 'badge' }, REPAIR_ROLE_LABELS.repair_manager)

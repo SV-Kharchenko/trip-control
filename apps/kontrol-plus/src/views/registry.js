@@ -34,7 +34,7 @@ export function showFieldErrors(fields, errors) {
 
 export function cardLayout({ title, fields, message, actions, back }) {
     return h('div', { class: 'card kpc' },
-        h('div', { class: 'kpc-head' }, h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: back }, '← До списку'), h('h2', null, title)),
+        h('div', { class: 'kpc-head' }, back ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: back }, '← До списку') : null, h('h2', null, title)),
         h('div', { class: 'kpc-body' }, fields),
         message,
         h('div', { class: 'actions kpc-actions' }, actions));
@@ -87,11 +87,25 @@ export function renderRegistry(app, cfg) {
         else drawList();
     }
 
+    // Вікна ввімкнено (Контроль+ від 900px) і розділ задає hash вікна: картка відкривається вікном над списком (як клієнт), без дублів.
+    const windowsOn = () => typeof cfg.windowHash === 'function' && typeof window !== 'undefined' && typeof window.kpWindowsOn === 'function' && window.kpWindowsOn();
+
     function openCard(row) {
+        if (windowsOn()) {
+            app.go(cfg.windowHash(row));
+            return;
+        }
         listWrap.hidden = true;
         cardBox.hidden = false;
         clear(cardBox, cfg.renderCard(row, { close: closeCard, back: () => closeCard(false) }));
         window.scrollTo(0, 0);
+    }
+
+    // Вікно картки зберегло зміни — список під ним перечитується.
+    if (typeof cfg.windowHash === 'function' && typeof window !== 'undefined' && window.addEventListener) {
+        const onChanged = () => { load(); };
+        window.addEventListener('kp:registry-changed', onChanged);
+        if (typeof app.onCleanup === 'function') app.onCleanup(() => window.removeEventListener('kp:registry-changed', onChanged));
     }
 
     query.addEventListener('input', drawList);
