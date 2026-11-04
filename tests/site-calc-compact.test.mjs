@@ -191,3 +191,37 @@ test('браузер: перемикач «покроково / усе одра�
         assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('tc-cascade')).display !== 'none'), true);
     });
 });
+
+test('браузер: ДЕМО-стан (банер першого запуску + демо-блоки) 1366×768 light/dark — останнє поле кроку 1 і «Підставити демо-рейс» без скролу; банер тонкий; 390 без h-скролу', async (t) => {
+    await withSite(t, async (open) => {
+        for (const theme of ['light', 'dark']) {
+            const page = await open(1366, 768, theme);
+            const m = await page.evaluate(() => {
+                const r = (s) => document.querySelector(s).getBoundingClientRect();
+                const list = document.getElementById('setup-checks');
+                return {
+                    demo: document.body.classList.contains('demo-mode'), bannerVisible: r('#onboard-banner').height > 0, banner: Math.round(r('#onboard-banner').height),
+                    action: r('#onboard-banner .btn'), close: r('#onboard-banner .hint-close'), truck: r('#tc-op .tc-f-truck'), scroll: window.scrollY, vh: innerHeight,
+                    chipsFit: [...list.children].every((c) => c.getBoundingClientRect().right <= list.getBoundingClientRect().right + 1),
+                    note: getComputedStyle(document.getElementById('tc-demo-fields-note')).display !== 'none', over: document.documentElement.scrollWidth - innerWidth,
+                };
+            });
+            assert.equal(m.demo, true);
+            assert.ok(m.bannerVisible && m.banner <= 64, theme + ': банер — тонкий блок: ' + m.banner);
+            assert.ok(m.action.top >= 0 && m.action.bottom <= m.vh && m.action.height >= 24, theme + ': «Підставити демо-рейс» видно ' + JSON.stringify(m.action));
+            assert.ok(m.close.bottom <= m.vh, theme + ': хрестик на місці');
+            assert.ok(m.truck.bottom <= m.vh, theme + ': останнє поле кроку 1 без скролу: ' + m.truck.bottom);
+            assert.equal(m.scroll, 0);
+            assert.equal(m.chipsFit, true, theme + ': статуси налаштувань не обрізані');
+            assert.equal(m.note, true, 'демо-підказка на місці (зміст не прибрано)');
+            assert.ok(m.over <= 0);
+            await page.close();
+        }
+        for (const theme of ['light', 'dark']) {
+            const page = await open(390, 844, theme);
+            assert.ok(await page.evaluate(() => document.body.classList.contains('demo-mode')));
+            assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, theme + ': демо на 390 без горизонтального скролу');
+            await page.close();
+        }
+    });
+});
