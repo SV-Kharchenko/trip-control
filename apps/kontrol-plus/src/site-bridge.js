@@ -8,6 +8,7 @@ import './kp-windows.css';
 import './kp-calc.css';
 import './kp-dashboard.css';
 import './kp-report.css';
+import './kp-mobile.css';
 import { startBridge } from './bridge.js';
 import { watchCalcMap } from './kp-calc.js';
 

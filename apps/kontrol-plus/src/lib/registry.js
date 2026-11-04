@@ -61,6 +61,4 @@ export const DRIVER_FIELDS = [
     { key: 'address', label: 'Адреса', width: 'xxl', maxlength: 300, details: true },
 ];
 
-export const REGISTRY_SPECS = { vehicles: VEHICLE_FIELDS, trailers: TRAILER_FIELDS, drivers: DRIVER_FIELDS };
-
 export const numText = (value) => (value === null || value === undefined || value === '' ? '' : String(value).replace('.', ','));

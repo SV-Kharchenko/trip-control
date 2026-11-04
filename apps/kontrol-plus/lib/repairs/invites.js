@@ -198,7 +198,7 @@ export function createRepairInvitesHandler({ store, secret, env = {}, fetch: doF
     }
 
     // Як kp_repairs_require_manage(): не заблокований; організація — як kp_org_id() (спершу власна на control_plus,
-    // і тоді лише власник; інакше — перша організація на control_plus, де користувач директор).
+    // і тоді лише owner; інакше — перша організація на control_plus, де користувач директор).
     async function inviter(user) {
         const forbidden = new HttpError(403, 'REPAIRS_FORBIDDEN', 'Запрошувати відповідальних за ремонти може директор або менеджер компанії на тарифі Контроль+.');
         if (blocked(user)) throw new HttpError(403, 'USER_BLOCKED', 'Акаунт заблоковано.');

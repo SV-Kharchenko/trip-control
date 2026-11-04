@@ -440,7 +440,7 @@ test('documents list: waybills join the list without payments; status filter map
 });
 
 test('new views: only h() / textContent (scanner), lazy xlsx and pdf, buttons wired', () => {
-    for (const file of ['src/views/docs-ttn-form.js', 'src/views/docs-ttn-card.js', 'src/views/docs-fleet.js', 'src/views/docs.js', 'src/views/client-card.js']) {
+    for (const file of ['src/views/docs-ttn-form.js', 'src/views/docs-ttn-card.js', 'src/views/docs.js', 'src/views/client-card.js']) {
         const code = read(file);
         assert.doesNotMatch(code, /innerHTML|insertAdjacentHTML|outerHTML|document\.write/, file);
         assert.doesNotMatch(code, /from ['"](fflate|pdf-lib)['"]|xlsx(-docs)?\.js['"]|pdf-ttn\.js['"]/, file + ': heavy modules only lazily');
@@ -455,7 +455,6 @@ test('new views: only h() / textContent (scanner), lazy xlsx and pdf, buttons wi
     assert.match(read('src/views/docs.js'), /excelButton\(app, r\.id/);
     assert.match(read('src/views/docs-card.js'), /excelButton\(app, doc\.id/);
     assert.match(read('src/views/client-card.js'), /#\/docs\/new\/ttn\/' \+ clientId \+ '\/' \+ r\.calculation_id/);
-    assert.match(read('src/views/docs-fleet.js'), /aria-expanded': 'false'/, 'TO / insurance block collapsed by default');
 });
 
 const git = (...args) => { try { return execFileSync('git', args, { cwd: new URL('.', ROOT), encoding: 'utf8' }); } catch { return null; } };

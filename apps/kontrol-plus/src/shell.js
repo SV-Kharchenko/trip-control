@@ -5,6 +5,9 @@ import { h } from './ui.js';
 import { SHELL_GROUPS, SITE_BUTTONS, activeKey, counterText, isEditableTarget, parseCount, refreshesUnpaid, parseSidebarPref, roleLabel, sidebarKey } from './shell-menu.js';
 import { shellIcon } from './shell-icons.js';
 import { parseCrmHash, windowSpecOf } from './lib/route.js';
+import { MOBILE_MAX, backFallback, isBackRoute, swipeAction } from './lib/mobile-core.js';
+
+const SEARCH_SELECTORS = ['#registry-q', '#history-search', '#kp-crm input[type="search"]', '#main-app input[type="search"]'];
 
 export function isKpApp(doc) {
     const d = doc || (typeof document !== 'undefined' ? document : null);
@@ -51,12 +54,15 @@ export function mountShell(env = {}) {
         nav.append(box);
     }
     const collapseBtn = h('button', { type: 'button', class: 'kp-shell-collapse', title: 'Згорнути меню', 'aria-label': 'Згорнути меню', onclick: () => setCollapsed(!body.classList.contains('kp-shell-collapsed')) }, shellIcon('collapse'));
+    const sideName = h('span', { class: 'kp-shell-side-name' });
+    const sideRole = h('span', { class: 'kp-shell-side-role' });
     const side = h('aside', { id: 'kp-shell-side', class: 'kp-shell-side', 'aria-label': 'Меню Контроль+' },
         h('div', { class: 'kp-shell-brand' }, h('span', { class: 'kp-shell-logo' }, 'Контроль', h('b', null, '+')), collapseBtn),
+        h('div', { class: 'kp-shell-side-who' }, sideName, sideRole),
         nav);
 
     // ---- верхня панель ----
-    const searchBtn = h('button', { type: 'button', class: 'kp-shell-search', 'aria-label': 'Пошук (Ctrl+K)', onclick: focusSearch },
+    const searchBtn = h('button', { type: 'button', class: 'kp-shell-search', 'aria-label': 'Пошук (Ctrl+K)', onclick: onSearchClick },
         shellIcon('search'), h('span', { class: 'kp-shell-search-t' }, 'Пошук'), h('kbd', null, 'Ctrl K'));
     const companyEl = h('span', { class: 'kp-shell-company', title: 'Компанія' });
     const bellCount = h('span', { class: 'kp-shell-bell-n', hidden: true });
@@ -64,8 +70,15 @@ export function mountShell(env = {}) {
     const whoName = h('span', { class: 'kp-shell-who-name' });
     const whoRole = h('span', { class: 'kp-shell-who-role' });
     const who = h('div', { class: 'kp-shell-who' }, whoName, whoRole);
+    // Телефон: пошук — іконка, що розгортається в поле; текст пересилається в поле пошуку поточного розділу.
+    const searchIn = h('input', { type: 'search', class: 'kp-shell-search-in', 'aria-label': 'Пошук по розділу', placeholder: 'Пошук', autocomplete: 'off',
+        oninput: () => forwardSearch(searchIn.value), onkeydown: (e) => { if (e.key === 'Escape') setSearchOpen(false); } });
+    const searchX = h('button', { type: 'button', class: 'kp-shell-search-x', 'aria-label': 'Закрити пошук', onclick: () => setSearchOpen(false) }, '×');
     const burger = h('button', { type: 'button', class: 'kp-shell-burger', 'aria-label': 'Меню', 'aria-expanded': 'false', onclick: () => setMobile(!body.classList.contains('kp-shell-open')) }, shellIcon('burger'));
-    const top = h('header', { id: 'kp-shell-top', class: 'kp-shell-top' }, burger, searchBtn, h('span', { class: 'kp-shell-grow' }), companyEl, bell, who);
+    const top = h('header', { id: 'kp-shell-top', class: 'kp-shell-top' }, burger, searchBtn, searchIn, searchX, h('span', { class: 'kp-shell-grow' }), companyEl, bell, who);
+    // «← Назад» на повноекранних сторінках карток і форм (телефон): ті самі hash-маршрути, Back браузера працює.
+    const backBtn = h('button', { type: 'button', class: 'kp-shell-back-btn', onclick: goBack }, '← Назад');
+    const backBar = h('div', { id: 'kp-shell-back', class: 'kp-shell-back', hidden: true }, backBtn);
     const strip = h('div', { id: 'kp-shell-strip', class: 'kp-shell-strip' });
     const backdrop = h('div', { id: 'kp-shell-backdrop', class: 'kp-shell-backdrop', onclick: () => setMobile(false) });
 
@@ -76,7 +89,7 @@ export function mountShell(env = {}) {
     const banner = $('billing-banner');
     if (banner) strip.append(banner);
 
-    body.append(strip, side, top, backdrop);
+    body.append(strip, side, top, backBar, backdrop);
     body.classList.add('kp-shell-on');
     body.classList.remove('kp-nav-on'); // відступи старого лівого меню більше не потрібні: меню тепер це каркас
 
@@ -109,7 +122,7 @@ export function mountShell(env = {}) {
 
     // Фокус на наявне поле пошуку поточного розділу. Немає поля — нічого не робимо (в інший розділ не переходимо).
     function focusSearch() {
-        const sel = ['#registry-q', '#history-search', '#kp-crm input[type="search"]', '#main-app input[type="search"]'];
+        const sel = SEARCH_SELECTORS;
         const visible = (el) => !!el && (el.offsetParent !== null || el.getClientRects().length > 0);
         for (const s of sel) {
             const el = doc.querySelector(s);
@@ -118,10 +131,58 @@ export function mountShell(env = {}) {
         return false;
     }
 
+    const narrow = () => (typeof win.matchMedia === 'function' ? !!win.matchMedia('(max-width: ' + MOBILE_MAX + 'px)').matches : (win.innerWidth || 1280) <= MOBILE_MAX);
+
     function setMobile(open) {
         body.classList.toggle('kp-shell-open', open);
         burger.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
+
+    function setSearchOpen(open) {
+        // Закриваємо й очищаємо лише мобільний пошук, що справді був відкритий; значення полів розділу (#registry-q тощо) не чіпаємо.
+        if (!open && !body.classList.contains('kp-shell-search-open')) return;
+        body.classList.toggle('kp-shell-search-open', open);
+        if (open) { setMobile(false); searchIn.focus(); } else { searchIn.value = ''; forwardSearch(''); }
+    }
+    function forwardSearch(text) {
+        for (const s of SEARCH_SELECTORS) {
+            const el = doc.querySelector(s);
+            if (el && el !== searchIn && (el.offsetParent !== null || el.getClientRects().length > 0)) {
+                el.value = text;
+                el.dispatchEvent(new win.Event('input', { bubbles: true }));
+                return true;
+            }
+        }
+        return false;
+    }
+    function onSearchClick() {
+        if (narrow()) setSearchOpen(!body.classList.contains('kp-shell-search-open'));
+        else focusSearch();
+    }
+
+    // Назад: повернутись в історію; без історії (прямий захід за посиланням) — у список розділу.
+    function goBack() {
+        const fallback = backFallback(win.location.hash);
+        if (win.history && win.history.length > 1) win.history.back();
+        else win.location.hash = fallback;
+    }
+    function paintBack() {
+        const on = narrow() && isBackRoute(win.location.hash);
+        backBar.hidden = !on;
+        body.classList.toggle('kp-shell-back-on', on);
+    }
+
+    // Свайп: вліво по відкритій шторці або по фону — закрити; вправо від лівого краю — відкрити.
+    let touch = null;
+    doc.addEventListener('touchstart', (e) => { const t = e.touches && e.touches[0]; touch = t ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+    doc.addEventListener('touchend', (e) => {
+        const t = e.changedTouches && e.changedTouches[0];
+        if (!touch || !t || !narrow()) { touch = null; return; }
+        const act = swipeAction({ dx: t.clientX - touch.x, dy: t.clientY - touch.y, startX: touch.x, open: body.classList.contains('kp-shell-open') });
+        touch = null;
+        if (act === 'close') setMobile(false);
+        else if (act === 'open') setMobile(true);
+    }, { passive: true });
 
     function setCollapsed(on, persist = true) {
         body.classList.toggle('kp-shell-collapsed', on);
@@ -209,6 +270,8 @@ export function mountShell(env = {}) {
         const text = (id) => { const el = $(id); return el ? String(el.textContent || '').trim() : ''; };
         whoName.textContent = text('tc-menu-name') || text('tc-menu-email');
         whoRole.textContent = roleLabel(win.tcKpRole, text('tc-menu-role'));
+        sideName.textContent = whoName.textContent;
+        sideRole.textContent = whoRole.textContent;
         companyEl.textContent = win.tcKpOrgName || text('tc-menu-company') || '';
         companyEl.hidden = !companyEl.textContent;
         const unread = $('tc-menu-unread');
@@ -219,6 +282,7 @@ export function mountShell(env = {}) {
 
     function update() {
         pending = null;
+        paintBack();
         paintAccess();
         paintActive();
         paintPeople();
@@ -235,7 +299,8 @@ export function mountShell(env = {}) {
         pending = win.setTimeout(update, 100);
     }
 
-    win.addEventListener('hashchange', update);
+    win.addEventListener('hashchange', () => { setMobile(false); setSearchOpen(false); update(); });
+    win.addEventListener('resize', paintBack);
     win.addEventListener('tc:cabinet-tab', scheduleUpdate);
     win.addEventListener('tc:kp-context', () => { loadUser(); update(); refreshUnpaid(); });
     doc.addEventListener('keydown', (event) => {

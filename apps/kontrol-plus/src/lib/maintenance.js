@@ -119,10 +119,6 @@ export function periodError(range) {
     return '';
 }
 
-export function periodDays(range) {
-    return daysBetween(range.from, range.to) + 1;
-}
-
 export function costTotals(rows) {
     const sum = (key) => Math.round((rows || []).reduce((s, r) => s + (num(r[key]) || 0), 0) * 100) / 100;
     const cost = sum('cost');

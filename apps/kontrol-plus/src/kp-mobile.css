@@ -1,0 +1,122 @@
+/* Мобільна версія Контроль+ (PR 5 з 5): оболонка (< 900px) і картки / форми / фільтри (< 700px). Лише Контроль+ (body.kp-shell-on); сайт не чіпаємо.
+   Спільні правила в медіа-запитах, без копіпасти по екранах. Кольори — тільки змінні (--surface, --border, --kp-* …). Підключається після kp-shell / crm,
+   тож при рівній специфічності ці правила виграють. Межі: 899px — шторка й повноекранні сторінки замість вікон, 699px — картки замість таблиць. */
+
+/* Елементи, потрібні лише на телефоні, на комп'ютері не показуються */
+body.kp-shell-on .kp-shell-side-who, body.kp-shell-on .kp-shell-search-in, body.kp-shell-on .kp-shell-search-x, body.kp-shell-on .kp-shell-back { display: none; }
+body.kp-shell-on .kp-flt-toggle, body.kp-shell-on .kp-more-btn, body.kp-shell-on .kp-more-menu { display: none; }
+
+@media (max-width: 899px) {
+    /* --- Шапка: бургер, назва компанії, пошук іконкою, сповіщення, тема, аватар --- */
+    body.kp-shell-on .kp-shell-top { padding-top: env(safe-area-inset-top, 0px); height: calc(var(--kp-top-h) + env(safe-area-inset-top, 0px)); }
+    /* Порядок у шапці лише для телефона (на комп'ютері DOM і вигляд як були): бургер, компанія, пошук, сповіщення, акаунт */
+    body.kp-shell-on .kp-shell-burger { order: 0; }
+    body.kp-shell-on .kp-shell-company { order: 1; }
+    body.kp-shell-on .kp-shell-search { order: 2; }
+    body.kp-shell-on .kp-shell-search-in { order: 3; }
+    body.kp-shell-on .kp-shell-search-x { order: 4; }
+    body.kp-shell-on .kp-shell-bell { order: 5; }
+    body.kp-shell-on .tc-head-end { order: 6; }
+    body.kp-shell-on .kp-shell-company { display: block; flex: 1 1 auto; min-width: 0; max-width: none; font-size: 0.9rem; }
+    body.kp-shell-on .kp-shell-company[hidden] { display: none; }
+    body.kp-shell-on .kp-shell-grow { display: none; }
+    body.kp-shell-on .kp-shell-search { flex: none; width: 36px; height: 36px; }
+    body.kp-shell-on .kp-shell-burger { width: 36px; height: 36px; }
+    body.kp-shell-on.kp-shell-search-open .kp-shell-search-in { display: block; flex: 1 1 auto; min-width: 0; height: 36px; padding: 0 10px; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; background: var(--input, var(--surface)); color: var(--text); font: inherit; font-size: 16px; }
+    body.kp-shell-on.kp-shell-search-open .kp-shell-search-x { display: inline-flex; flex: none; width: 36px; height: 36px; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--muted); font-size: 1.4rem; cursor: pointer; }
+    body.kp-shell-on.kp-shell-search-open .kp-shell-company, body.kp-shell-on.kp-shell-search-open .kp-shell-search,
+    body.kp-shell-on.kp-shell-search-open .kp-shell-bell, body.kp-shell-on.kp-shell-search-open .tc-head-end { display: none; }
+
+    /* --- Шторка: хто увійшов, safe-area, свайп (touch-action) --- */
+    body.kp-shell-on .kp-shell-side { padding-bottom: env(safe-area-inset-bottom, 0px); overscroll-behavior: contain; }
+    body.kp-shell-on .kp-shell-side-who { display: flex; flex-direction: column; gap: 2px; padding: 12px 20px; border-bottom: 1px solid var(--kp-side-line); }
+    body.kp-shell-on .kp-shell-side-name { font-size: 0.9rem; font-weight: 700; color: var(--kp-side-ink-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    body.kp-shell-on .kp-shell-side-role { font-size: 0.74rem; color: var(--kp-side-faint); }
+    body.kp-shell-on .kp-shell-item { height: 44px; }
+
+    /* --- «← Назад»: картки й форми відкриваються повноекранною сторінкою (вікна < 900px не використовуються) --- */
+    body.kp-shell-on .kp-shell-back {
+        position: fixed; z-index: var(--kp-z-top); left: 0; right: 0; top: calc(var(--kp-strip-h) + var(--kp-top-h) + env(safe-area-inset-top, 0px)); height: 40px;
+        display: flex; align-items: center; padding: 0 12px; box-sizing: border-box; background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    body.kp-shell-on .kp-shell-back[hidden] { display: none; }
+    body.kp-shell-on .kp-shell-back-btn { height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 0.95rem; font-weight: 700; cursor: pointer; }
+    body.kp-shell-on .kp-shell-back-btn:active { background: var(--row-hover, var(--border-soft)); }
+    html[data-app="kp"] body.kp-shell-on.layout-studio.kp-shell-back-on #main-app { padding-top: calc(var(--kp-strip-h) + var(--kp-top-h) + 52px + env(safe-area-inset-top, 0px)) !important; }
+    body.kp-shell-on.kp-shell-back-on #kp-crm .back { display: none; } /* «← До …» дублює «← Назад» */
+
+    /* --- Нижній відступ під safe-area (PWA на iPhone) --- */
+    html[data-app="kp"] body.kp-shell-on.layout-studio #main-app { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important; }
+    body.kp-shell-on .kp-taskbar { display: none; }
+
+    /* --- Розрахунок рейсу: мапа ~40vh --- */
+    html[data-app="kp"] body.kp-shell-on.layout-studio[data-theme][data-studio-view] #studio-right > .tc-map-frame,
+    html[data-app="kp"] body.kp-shell-on.layout-studio .tc-map-frame { height: 40vh !important; min-height: 220px !important; max-height: none; } /* сайт ставить height: auto !important, тож тут теж !important */
+
+    /* --- Огляд: KPI-картки по дві в ряд на всьому діапазоні мобільної оболонки (<900px) --- */
+    body.kp-shell-on .kpd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    body.kp-shell-on .kpd-kpi, body.kp-shell-on .kpd-kpi:nth-child(n + 4) { grid-column: auto; }
+    body.kp-shell-on .kpd-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+
+@media (max-width: 699px) {
+    /* --- Ніякого горизонтального скролу сторінки: скролиться лише .table-wrap / звіт усередині --- */
+    html[data-app="kp"] body.kp-shell-on { overflow-x: clip; }
+    #kp-crm { min-width: 0; max-width: 100%; }
+    #kp-crm .page, #kp-crm .card { min-width: 0; max-width: 100%; }
+
+    /* --- Форми: поля на всю ширину, 40px, шрифт 16px (iOS не зумить), пари полів в один стовпчик --- */
+    #kp-crm input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), #kp-crm select { min-height: 40px; height: 40px; font-size: 16px; width: 100%; max-width: 100%; }
+    #kp-crm input:not([type="number"]):not([type="checkbox"]):not([type="radio"]), #kp-crm select, #kp-crm textarea { text-align: left; }
+    #kp-crm textarea { min-height: 80px; font-size: 16px; width: 100%; }
+    #kp-crm .btn, #kp-crm button.btn { min-height: 40px; font-size: 15px; }
+    #kp-crm .form, #kp-crm .kpd-grid, #kp-crm .kpd-rate, #kp-crm .kpc-body, #kp-crm .grid-2 { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .kpc-body > .kpc-row, #kp-crm .kpc-row { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .kpc-row .hint { grid-column: 1; }
+    #kp-crm .kpc-box, #kp-crm .kpc-box[class*="kpc-w-"] { width: 100%; }
+    #kp-crm .kpc-box[class*="kpc-w-"] input, #kp-crm .kpc-box[class*="kpc-w-"] select { width: 100%; }
+    #kp-crm input[type="date"] { min-width: 0; }
+    /* Основна дія форми — закріплена знизу, з safe-area */
+    #kp-crm .kpr-sticky, #kp-crm .kpc-actions, #kp-crm .form > .actions {
+        position: sticky; bottom: 0; z-index: 5; margin: 0 -4px; padding: 10px 4px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--border-soft);
+    }
+    #kp-crm .kpr-sticky .btn-primary, #kp-crm .kpc-actions .btn-primary, #kp-crm .form > .actions .btn-primary { flex: 1 1 auto; }
+
+    /* --- Рядок таблиці → картка: головне зверху, дії в меню «⋯» --- */
+    #kp-crm .kp-more, .tc-history-cards .kp-more { position: relative; display: flex; justify-content: flex-end; }
+    body.kp-shell-on .kp-more-btn {
+        display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 40px; padding: 0; border: 1px solid var(--border); border-radius: 10px;
+        background: var(--surface); color: var(--text); font-size: 1.3rem; line-height: 1; cursor: pointer;
+    }
+    body.kp-shell-on .kp-more-menu {
+        position: absolute; right: 0; bottom: calc(100% + 4px); z-index: var(--kp-z-dropdown); display: flex; flex-direction: column; min-width: 200px; padding: 6px;
+        background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 28px var(--kp-dialog-shadow);
+    }
+    body.kp-shell-on .kp-more-menu[hidden] { display: none; }
+    body.kp-shell-on .kp-more-menu > * { display: flex; align-items: center; justify-content: flex-start; width: 100%; min-height: 44px; margin: 0; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 0.95rem; text-align: left; text-decoration: none; }
+    body.kp-shell-on .kp-more-menu > *:hover, body.kp-shell-on .kp-more-menu > *:active { background: var(--row-hover, var(--border-soft)); }
+    body.kp-shell-on .kp-more-menu > .is-danger, body.kp-shell-on .kp-more-menu > .btn-danger { color: var(--negative); }
+
+    /* Картка: перша комірка (номер / дата) — заголовок без підпису, решта "підпис: значення", дії — в меню ⋯ */
+    #kp-crm .kpr-cards td { font-size: 13px; }
+    #kp-crm .kpr-cards td::before { flex: 0 0 34%; }
+    #kp-crm .kpr-cards td:first-child { font-size: 15px; font-weight: 700; border-bottom: 0; padding-bottom: 2px; }
+    #kp-crm .kpr-cards td:first-child::before { display: none; }
+    #kp-crm .kpr-cards td.kp-more, #kp-crm .kpr-cards td .kp-more { justify-content: flex-end; }
+
+    /* --- Фільтри: висувна панель «Фільтри (N)» --- */
+    body.kp-shell-on .kp-flt-toggle {
+        display: inline-flex; align-items: center; justify-content: center; height: 40px; margin: 0 0 10px; padding: 0 16px; border: 1px solid var(--border); border-radius: 10px;
+        background: var(--surface); color: var(--text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
+    }
+    body.kp-shell-on .kp-flt-toggle[aria-expanded="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    #kp-crm .kp-flt:not(.is-open) { display: none; }
+    #kp-crm .kp-flt.is-open { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 0 0 12px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    #kp-crm .kp-flt.is-open > *, #kp-crm .kp-flt.is-open .kpd-f { width: 100%; max-width: 100%; }
+    #kp-crm .kp-flt.is-open .kpd-f input, #kp-crm .kp-flt.is-open .kpd-f select { width: 100%; max-width: 100%; }
+
+    /* --- Огляд: KPI-картки по дві в ряд, графік на всю ширину --- */
+
+    body.kp-shell-on .kpd-kpi-value, body.kp-shell-on .kpd-kpi-value .kpd-mono { font-size: 16px; }
+    body.kp-shell-on .kpd-chart svg, body.kp-shell-on .kpd-chart { max-width: 100%; }
+}

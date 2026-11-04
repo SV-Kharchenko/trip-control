@@ -31,8 +31,8 @@
 #kp-crm .kp-report .kpq tr.kpq-detail td { text-align: left; white-space: normal; background: var(--bg); color: var(--muted); font-size: 12px; }
 #kp-crm .kp-report .kpq tr.kpq-detail[hidden] { display: none; }
 
-/* Перша колонка липка на широких (≥721px) */
-@media (min-width: 721px) {
+/* Перша колонка липка (на телефоні — разом із прокруткою всередині таблиці) */
+@media all {
     #kp-crm .kp-report .kpq tbody tr > :first-child, #kp-crm .kp-report .kpq tfoot tr > :first-child, #kp-crm .kp-report .kpq thead tr:first-child > :first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
     #kp-crm .kp-report .kpq thead tr:first-child > :first-child { z-index: 2; background: var(--bg); }
     #kp-crm .kp-report .kpq thead tr:nth-child(2) > :first-child { position: static; box-shadow: none; z-index: auto; }
@@ -45,21 +45,10 @@
     #kp-crm .kp-report .kpq .kpq-all { display: none; }
 }
 
-/* Вузькі: картка на рядок групи */
+/* Вузькі (телефон): та сама таблиця; перша колонка (група) липка, решта прокручується всередині таблиці, а не сторінки */
 @media (max-width: 720px) {
     #kp-crm .kp-report .kpq-cards { grid-template-columns: minmax(0, 1fr); }
-    #kp-crm .kp-report .kpq-wrap { border: 0; background: transparent; }
-    #kp-crm .kp-report .kpq, #kp-crm .kp-report .kpq tbody, #kp-crm .kp-report .kpq tfoot, #kp-crm .kp-report .kpq tr, #kp-crm .kp-report .kpq td, #kp-crm .kp-report .kpq th { display: block; width: 100%; }
-    #kp-crm .kp-report .kpq thead { display: none; }
-    #kp-crm .kp-report .kpq tr { margin: 0 0 8px; padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
-    #kp-crm .kp-report .kpq tr.kpq-detail { margin: -4px 0 8px; }
-    #kp-crm .kp-report .kpq tr.kpq-detail[hidden] { display: none; }
-    #kp-crm .kp-report .kpq tr > :first-child { position: static; box-shadow: none; background: transparent; }
-    #kp-crm .kp-report .kpq th.text { padding: 4px 0 6px; font-size: 13px; border-bottom: 1px solid var(--border-soft); }
-    #kp-crm .kp-report .kpq td { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 4px 0; border-bottom: 0; text-align: right; }
-    #kp-crm .kp-report .kpq td::before { content: attr(data-label); color: var(--muted); font-family: var(--font-ui, inherit); font-size: 11.5px; text-align: left; flex: 1 1 auto; }
-    #kp-crm .kp-report .kpq td.kpq-all { display: flex; }
-    #kp-crm .kp-report .kpq tr.kpq-detail td { display: block; text-align: left; }
-    #kp-crm .kp-report .kpq tr.kpq-detail td::before { content: none; }
-    #kp-crm .kp-report .kpq tfoot tr { background: var(--bg); }
+    #kp-crm .kp-report .kpq-wrap { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; border: 1px solid var(--border-soft); border-radius: var(--radius-card); background: var(--surface); }
+    #kp-crm .kp-report .kpq { min-width: 560px; }
+    #kp-crm .kp-report .kpq th.text, #kp-crm .kp-report .kpq tbody th { min-width: 120px; max-width: 150px; }
 }
