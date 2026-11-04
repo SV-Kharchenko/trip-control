@@ -25,7 +25,7 @@ test('висота карти не використовує --tc-map-h; нови
     assert.equal(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/.test(block.replace(/\/\*[\s\S]*?\*\//g, '').replace(/#(tc-|route-|swap-|studio-|podacha-|vehicle-|demo)[\w-]*/g, '')), false, 'лише змінні тем');
 });
 
-test('розмітка калькулятора і id полів на сайті ті самі', () => {
+test('розмітка розрахунку рейсу і id полів на сайті ті самі', () => {
     for (const id of ['route-name', 'dist', 'podacha-dist', 'volume', 'rate', 'swap-ab-btn', 'route-calc-btn', 'waypoints-list', 'osm-base-wrap', 'tc-kpi-bar']) {
         assert.ok(html.includes('id="' + id + '"') || html.includes("'" + id + "'") || html.includes('"' + id + '"'), id);
     }

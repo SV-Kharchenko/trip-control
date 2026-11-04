@@ -1,5 +1,5 @@
 // Контроль+ поверх копії сайту trip-control.com: вкладки «Клієнти», «Звіт план/факт», «GPS», «Ремонти» і «Документи» у навігації сайту.
-// Сайт працює як є (калькулятор, огляд, історія, кабінет, команда, тариф…); тут лише додаткові розділи CRM.
+// Сайт працює як є (розрахунок рейсу, огляд, історія, кабінет, команда, тариф…); тут лише додаткові розділи CRM.
 // Один клієнт Supabase на сторінку — той, що створив сайт (const supabaseClient у його класичному скрипті).
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
 import { h, clear, spinner, notice, toast } from './ui.js';
@@ -60,7 +60,7 @@ function app() {
         user: state.session && state.session.user,
         ...crmPermissions(state.context),
         go: (hash) => { location.hash = hash; },
-        // Розділи сайту (калькулятор, реєстр, «Огляд компанії») для дашборда: ті самі кнопки, що й меню (leave() + setStudioView).
+        // Розділи сайту (розрахунок рейсу, реєстр, «Огляд компанії») для дашборда: ті самі кнопки, що й меню (leave() + setStudioView).
         openSite: (view) => openSite(view)(),
         repairs: state.repairs,
         // Бейдж ТО на вкладці «Ремонти»: з рядків, що вже завантажив розділ «ТО», або новим запитом.
@@ -117,13 +117,13 @@ function watchHeader() {
     if (head && typeof ResizeObserver === 'function') new ResizeObserver(syncNavTop).observe(head);
 }
 
-// Кнопки «Калькулятор» / «Огляд» / «Заявки» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
+// Кнопки «Розрахунок рейсу» / «Огляд» / «Заявки» сайту гасимо самі, поки відкрито розділ Контроль+ (сайт підсвічує їх у applyTheme()).
 function syncNav() {
     syncNavTop();
     const tab = tabOf(state.route);
     if (tab) document.body.setAttribute('data-kp-view', tab);
     else document.body.removeAttribute('data-kp-view');
-    // Поза розділами Контроль+ підсвічуємо сайт: «Огляд» або «Розрахунки» (калькулятор з історією заявок).
+    // Поза розділами Контроль+ підсвічуємо сайт: «Огляд» або «Розрахунки» (розрахунок рейсу з історією заявок).
     const siteView = document.body.getAttribute('data-studio-view');
     const active = tab === 'dashboard' ? 'overview' : tab || (siteView === 'overview' ? 'overview' : 'calc');
     const historyTab = document.getElementById('kp-calc-tab-history');
@@ -221,7 +221,7 @@ async function loadRepairsBadge() {
     if (state.session && state.session.user.id === userId) paintRepairsBadge(tabs.repairs, rows);
 }
 
-// «Фура» калькулятора: якщо сайт (RLS) не дав жодного авто, а Контроль+ дає, підставляємо парк із kp_vehicles_list.
+// «Фура» розрахунку рейсу: якщо сайт (RLS) не дав жодного авто, а Контроль+ дає, підставляємо парк із kp_vehicles_list.
 async function topUpSiteFleet() {
     try {
         if (!state.supabase || !state.session) return;
@@ -604,7 +604,7 @@ function onHash() {
         route = parseCrmHash(parent);
     }
     if (route && route.view === 'request' && !(windows && windows.enabled())) {
-        // Вікон немає (вузький екран): заявка відкривається, як раніше, — у калькуляторі.
+        // Вікон немає (вузький екран): заявка відкривається, як раніше, — у розрахунку рейсу.
         history.replaceState(null, '', location.pathname + location.search);
         if (typeof window.openRegistryRow === 'function') window.openRegistryRow(route.id);
         return;
@@ -656,12 +656,12 @@ function mount() {
     main.insertBefore(root, document.getElementById('studio-overview'));
     // «Розрахунок» і «Заявки» — вкладки всередині «Розрахунків» (кнопки з верхньої шапки сайту прибрано, щоб не дублювати меню).
     const calcTabs = h('nav', { id: 'kp-calc-tabs', class: 'kp-calc-tabs', 'aria-label': 'Розрахунки' },
-        h('button', { type: 'button', id: 'kp-calc-tab-calc', onclick: openSite('calc') }, 'Розрахунок'),
+        h('button', { type: 'button', id: 'kp-calc-tab-calc', onclick: openSite('calc') }, 'Розрахунок рейсу'),
         h('button', { type: 'button', id: 'kp-calc-tab-history', onclick: openSite('history') }, 'Заявки'),
         h('button', { type: 'button', id: 'kp-calc-tab-registry', onclick: openSite('registry') }, 'Реєстр заявок'));
-    // Одразу під шапкою, над калькулятором (#studio-columns сайт перебудовує, тому прив'язуємось до шапки, а не до нього).
+    // Одразу під шапкою, над розрахунком рейсу (#studio-columns сайт перебудовує, тому прив'язуємось до шапки, а не до нього).
     insertAfterHeader(main, calcTabs, document.getElementById('sticky-top'), root);
-    // «Калькулятор» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
+    // «Розрахунок рейсу» / «Огляд» / логотип / «Історія» з меню — усе, що кличе setStudioView() сайту, закриває розділ Контроль+.
     // Зміна розділу сайту: закриваємо розділ Контроль+ і завжди перемальовуємо підсвітку (leave() без відкритого розділу нічого не робить).
     new MutationObserver((records) => {
         if (records.some((r) => r.attributeName === 'data-studio-view')) leave();

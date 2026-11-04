@@ -18,7 +18,7 @@ const css = read('src/kp-shell.css');
 
 test('меню: три групи без «Ще», пункти за макетом, лише наявні розділи', () => {
     assert.deepEqual(SHELL_GROUPS.map((g) => g.label), ['Робота', 'Документи', 'Компанія'], 'групи «Ще» немає');
-    assert.deepEqual(SHELL_GROUPS[0].items.map((i) => i.label), ['Огляд', 'Реєстр заявок', 'Заявки', 'Розрахунок', 'План/факт']);
+    assert.deepEqual(SHELL_GROUPS[0].items.map((i) => i.label), ['Огляд', 'Реєстр заявок', 'Заявки', 'Розрахунок рейсу', 'План/факт']);
     assert.deepEqual(SHELL_GROUPS[1].items.map((i) => i.label), ['Договори', 'Рахунки', 'Акти', 'ТТН', 'Подорожні листи']);
     assert.deepEqual(SHELL_GROUPS[2].items.map((i) => i.label), ['Клієнти', 'Автопарк', 'Водії', 'GPS', 'Ремонти', 'Команда', 'Статистика', 'Налаштування']);
     assert.equal(SHELL_ITEMS.some((i) => i.label === 'Ще' || i.kind === 'soon'), false, 'заглушки «скоро» немає: Огляд компанії і є дашбордом');

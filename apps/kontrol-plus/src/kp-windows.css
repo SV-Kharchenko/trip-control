@@ -131,7 +131,7 @@ body.kp-shell-on #kp-toast, body.kp-shell-on #kp-invite-hint { z-index: var(--kp
     /* Поля: 30px, шрифт 13px. */
     body.kp-shell-on .kp-win.kp-win .kp-win-body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
     body.kp-shell-on .kp-win.kp-win .kp-win-body select { height: 30px; min-height: 30px; padding: 4px 8px; border-radius: 6px; font-size: 13px; }
-    /* Текст у полях — зліва (сайтовий input вирівнює праворуч, це лише для числових полів калькулятора). */
+    /* Текст у полях — зліва (сайтовий input вирівнює праворуч, це лише для числових полів розрахунку рейсу). */
     body.kp-shell-on .kp-win.kp-win .kp-win-body input:not([type="number"]):not([type="checkbox"]):not([type="radio"]),
     body.kp-shell-on .kp-win.kp-win .kp-win-body select,
     body.kp-shell-on .kp-win.kp-win .kp-win-body textarea { text-align: left; }

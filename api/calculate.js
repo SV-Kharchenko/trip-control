@@ -838,7 +838,7 @@ export function tripFactBasis(body) {
 // Факт рейсу: той самий розрахунок, що й POST /api/calculate, з фактичними км, добами на ходку,
 // оплаченим простоєм і незапланованими витратами. fact — перевірений lib/trip-fact.js;
 // tripDays / loadedKm / emptyKm = null — «як у плані» (рівно планові доби й пробіг кожного авто).
-// Без fact — рівно результат калькулятора для цих вхідних даних.
+// Без fact — рівно результат розрахунку рейсу для цих вхідних даних.
 export function calculateTripFact(body, fact) {
     const b = body || {};
     const split = vehicleAssignmentsFromBody(b);
@@ -857,7 +857,7 @@ const TRIP_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // POST /api/calculate?mode=fact  { calculationId, fact: { tripDays, loadedKm, emptyKm, paidIdleDays, idleRate,
 // extraCosts, extraCostsNote } } — факт збереженого рейсу. Вхідні дані беремо лише з calculations.inputs,
-// не з запиту, тож це не обхід демо-ліміту калькулятора (його лічильник не чіпаємо). Нічого не пише:
+// не з запиту, тож це не обхід демо-ліміту розрахунку рейсу (його лічильник не чіпаємо). Нічого не пише:
 // рядок trip_actuals зберігає клієнт під RLS і тригером trip_actuals_guard.
 async function tripFactRequest(req, res) {
     const fail = (status, code, error, extra) => res.status(status).json(Object.assign({ code, error }, extra || {}));
@@ -1000,7 +1000,7 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
-    // Факт рейсу (редактор «Факт»): окремий шлях, розрахунок калькулятора нижче не змінюється.
+    // Факт рейсу (редактор «Факт»): окремий шлях, розрахунок рейсу нижче не змінюється.
     if (req.query && req.query.mode === 'fact') return tripFactRequest(req, res);
 
     try {

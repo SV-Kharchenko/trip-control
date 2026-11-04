@@ -51,7 +51,7 @@ test('розкладка: форма clamp(380px, 34vw, 480px), карта stick
     assert.match(css, /--kpc-kpi-h: var\(--tc-strip-h, 49px\)/);
 });
 
-test('розмітка калькулятора на сайті не змінилась: ті самі групи, id і пари полів', () => {
+test('розмітка розрахунку рейсу на сайті не змінилась: ті самі групи, id і пари полів', () => {
     for (const frag of ["opCell('tc-f-podacha', 'Подача авто'", "opCell('tc-f-a', 'Звідки'", "opCell('tc-f-b', 'Куди'",
         "opCell('tc-f-dist', 'Відстань'", "opCell('tc-f-weight', 'Вага вантажу'", "opCell('tc-f-return', 'Повернення'",
         "opCell('tc-f-truck', 'ТЗ (транспортний засіб)'", "opCell('tc-f-rate', 'Тариф'", 'id="kb-be"', 'id="kb-margin"', 'id="kb-detail"',

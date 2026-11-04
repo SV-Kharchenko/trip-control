@@ -13,7 +13,7 @@ test('меню стартує під шапкою: висота шапки ра�
     assert.equal(navTopPx(-40), 0, 'шапка пролистана геть — меню біля верху вікна');
     assert.equal(navTopPx(undefined), 0);
     assert.equal(navTopPx('abc'), 0);
-    const watch = bridge.slice(bridge.indexOf('function watchHeader()'), bridge.indexOf('// Кнопки «Калькулятор»'));
+    const watch = bridge.slice(bridge.indexOf('function watchHeader()'), bridge.indexOf('// Кнопки «Розрахунок рейсу»'));
     assert.match(watch, /syncNavTop\(\);\s+if \(typeof requestAnimationFrame === 'function'\) requestAnimationFrame\(syncNavTop\);/);
     assert.match(watch, /new ResizeObserver\(syncNavTop\)\.observe\(head\)/);
     assert.match(bridge, /function syncNav\(\) \{\n    syncNavTop\(\);/, 'і при зміні маршруту');
@@ -57,10 +57,10 @@ test('заголовок звіту — «План/факт» (як у меню)
     assert.equal(/h\('h1', null, 'Звіт план\/факт'\)/.test(report), false);
 });
 
-test('шапка сайту в кабінеті: без «Калькулятор» / «Заявки» / «Огляд»; вони — у лівому меню і вкладках «Розрахунків»', () => {
+test('шапка сайту в кабінеті: без «Розрахунок рейсу» / «Заявки» / «Огляд»; вони — у лівому меню і вкладках «Розрахунків»', () => {
     assert.match(css, /body\.kp-nav-on #studio-nav-calc, body\.kp-nav-on #studio-nav-overview, body\.kp-nav-on #studio-nav-history, body\.kp-nav-on #studio-nav-registry, body\.kp-nav-on \.tc-studio-nav \{ display: none !important; \}/);
     assert.match(css, /@media \(min-width: 901px\) \{\s+body\.kp-nav-on\.layout-studio \.tc-topbar \{ flex-wrap: nowrap; \}/);
-    assert.match(bridge, /id: 'kp-calc-tab-calc', onclick: openSite\('calc'\) \}, 'Розрахунок'\)/);
+    assert.match(bridge, /id: 'kp-calc-tab-calc', onclick: openSite\('calc'\) \}, 'Розрахунок рейсу'\)/);
     assert.match(bridge, /id: 'kp-calc-tab-history', onclick: openSite\('history'\) \}, 'Заявки'\)/);
     assert.match(bridge, /id: 'kp-calc-tab-registry', onclick: openSite\('registry'\) \}, 'Реєстр заявок'\)/);
     assert.match(css, /body\.kp-nav-on\[data-studio-view="registry"\]:not\(\[data-kp-view\]\) \.kp-calc-tabs/);
@@ -75,21 +75,21 @@ test('статистика: значення KPI не переносяться',
     assert.match(read('src/views/stats.js'), /' грн\/км'/);
 });
 
-test('вкладки «Розрахунок / Заявки» вставляються одразу після шапки, над калькулятором', async () => {
+test('вкладки «Розрахунок / Заявки» вставляються одразу після шапки, над розрахунком рейсу', async () => {
     const { insertAfterHeader } = await import('../src/bridge.js');
     const calls = [];
     const main = { insertBefore: (node, ref) => calls.push([node, ref]) };
     const root = { name: 'kp-crm' };
     const afterHeader = { name: 'tc-kpi-bar-or-columns' };
     insertAfterHeader(main, 'tabs', { nextSibling: afterHeader }, root);
-    assert.deepEqual(calls[0], ['tabs', afterHeader], 'перед тим, що йде за шапкою (#studio-columns / KPI-смуга), а не після калькулятора');
+    assert.deepEqual(calls[0], ['tabs', afterHeader], 'перед тим, що йде за шапкою (#studio-columns / KPI-смуга), а не після розрахунку рейсу');
     insertAfterHeader(main, 'tabs', null, root);
     assert.deepEqual(calls[1], ['tabs', root], 'без шапки — старе місце перед #kp-crm');
     assert.match(bridge, /insertAfterHeader\(main, calcTabs, document\.getElementById\('sticky-top'\), root\);/);
     assert.equal(/main\.insertBefore\(calcTabs, root\)/.test(bridge), false);
 });
 
-test('історія заявок і огляд мають той самий бічний відступ від меню, що й калькулятор', () => {
+test('історія заявок і огляд мають той самий бічний відступ від меню, що й розрахунок рейсу', () => {
     assert.match(css, /body\.kp-nav-on\.layout-studio #main-app \{ max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; padding-left: calc\(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\) !important;/);
     assert.match(css, /body\.kp-nav-on\.layout-studio #sticky-top \{ margin-left: calc\(-1 \* \(var\(--kp-nav-w, 224px\) \+ var\(--kp-gap, 24px\)\)\) !important;/);
     assert.match(bridge, /\}\)\.observe\(document\.body, \{ attributes: true, attributeFilter: \['data-studio-view', 'data-theme'\] \}\);\n    syncNav\(\);\n    return true;/, 'підсвітка при першому рендері');

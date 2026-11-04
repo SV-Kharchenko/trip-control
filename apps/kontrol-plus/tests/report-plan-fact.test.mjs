@@ -124,12 +124,12 @@ test('report.js і CSS звіту: лише змінні тем — без hex /
     assert.match(read('src/views/report.js'), /kpd-periods kpq-groups/, 'групування — легкий segment як період дашборда');
 });
 
-test('дашборд: «Розрахунок рейсу» у режимі лише читання лишається disabled — калькулятор зберігає в організацію користувача, а не відмовляє', () => {
+test('дашборд: «Розрахунок рейсу» у режимі лише читання лишається disabled — розрахунок рейсу зберігає в організацію користувача, а не відмовляє', () => {
     const src = read('src/views/dashboard.js');
     assert.match(src, /id: 'kpd-calc', onclick: openSite\('calc'\), \.\.\.disabledAttrs/);
     const policy = fs.readFileSync(path.join(APP, '../../supabase/migrations/20261012161314_owner_logist_team_hardening.sql'), 'utf8');
     assert.match(policy, /CREATE POLICY calculations_insert_role ON public\.calculations\s+FOR INSERT TO authenticated\s+WITH CHECK \(\s+org_id = public\.current_org_id\(\)\s+AND user_id = auth\.uid\(\)/,
-        'сервер дозволяє запис у власну організацію — режим лише читання сервер для калькулятора не забезпечує');
+        'сервер дозволяє запис у власну організацію — режим лише читання сервер для розрахунку рейсу не забезпечує');
 });
 
 // ---------------- Браузер ----------------
