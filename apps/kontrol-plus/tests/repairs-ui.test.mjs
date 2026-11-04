@@ -65,8 +65,8 @@ test('repairErrorText: STOCK_INSUFFICIENT names the part; codes map to Ukrainian
 });
 
 test('seatsText, importStatusLabel, importCanCommit, stockValue', () => {
-    assert.equal(seatsText({ used: 2, limit: 2, pending: 1 }), 'Менеджерів з ремонтів: 2 з 2 (з них очікують: 1)');
-    assert.equal(seatsText({ used: 0, limit: 2, pending: 0 }), 'Менеджерів з ремонтів: 0 з 2');
+    assert.equal(seatsText({ used: 2, limit: 2, pending: 1 }), 'Відповідальних за ремонти: 2 з 2 (з них очікують: 1)');
+    assert.equal(seatsText({ used: 0, limit: 2, pending: 0 }), 'Відповідальних за ремонти: 0 з 2');
     assert.equal(seatsText(null), '');
     assert.equal(importStatusLabel('new_part'), 'Нова запчастина');
     assert.equal(importStatusLabel('error'), 'Помилка');

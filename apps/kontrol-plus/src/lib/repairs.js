@@ -76,7 +76,7 @@ export function repairPartsPayload(lines) {
 
 const REPAIR_ERRORS = [
     [/REPAIRS_FORBIDDEN/, 'Немає права вносити ремонти. Попросіть директора призначити вас відповідальним.'],
-    [/REPAIR_VOID_EXPIRED/, 'Минуло 24 години — сторнувати може лише Директор або Менеджер.'],
+    [/REPAIR_VOID_EXPIRED/, 'Минуло 24 години — сторнувати може лише директор або менеджер.'],
     [/REPAIR_ALREADY_VOID/, 'Ремонт уже сторновано.'],
     [/RECEIPT_ALREADY_USED/, 'Запчастини з цього приходу вже використано — сторно неможливе. Зробіть коригування.'],
     [/RECEIPT_ALREADY_REVERSED/, 'Прихід уже сторновано.'],
@@ -133,7 +133,7 @@ export const INVITE_STATUS_LABELS = {
 
 export function seatsText(seats) {
     if (!seats) return '';
-    return 'Менеджерів з ремонтів: ' + seats.used + ' з ' + seats.limit + (seats.pending ? ' (з них очікують: ' + seats.pending + ')' : '');
+    return 'Відповідальних за ремонти: ' + seats.used + ' з ' + seats.limit + (seats.pending ? ' (з них очікують: ' + seats.pending + ')' : '');
 }
 
 export function importStatusLabel(status) {

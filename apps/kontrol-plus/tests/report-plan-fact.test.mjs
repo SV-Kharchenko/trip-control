@@ -95,7 +95,7 @@ test('ролі: owner — «Директор», director — «Менеджер�
     assert.equal(roleLabel('x', 'запасний'), 'запасний');
     assert.equal(roleLabel('owner') === roleLabel('director'), false, 'owner і director — різні підписи');
     assert.equal(REPAIR_ROLE_LABELS.repair_manager, ROLE_LABELS.repair_manager);
-    assert.match(read('src/views/repairs-handlers.js'), /Директор і Менеджер вносять ремонти завжди/, 'director реально пише ремонти (kp_repairs_can_write)');
+    assert.match(read('src/views/repairs-handlers.js'), /Директор і менеджер вносять ремонти завжди/, 'director реально пише ремонти (kp_repairs_can_write)');
     // «Власник» з великої літери — як підпис ролі — ніде в UI Контроль+
     const hits = [];
     const walk = (dir) => { for (const f of fs.readdirSync(path.join(APP, dir), { withFileTypes: true })) {

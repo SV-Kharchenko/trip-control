@@ -68,7 +68,7 @@ export function renderClients(app) {
         h('div', { class: 'page-head' },
             h('h1', null, 'Клієнти'),
             app.canWrite ? h('a', { class: 'btn btn-primary', href: '#/clients/new' }, '+ Додати клієнта') : null),
-        app.canWrite ? null : notice('Режим перегляду: директор бачить дані організації, але не змінює їх.', 'info'),
+        app.canWrite ? null : notice('Режим перегляду: менеджер бачить дані організації, але не змінює їх.', 'info'),
         h('div', { class: 'toolbar' }, search,
             h('label', { class: 'check', for: 'show-archived' }, archived, ' Показати архів')),
         list);

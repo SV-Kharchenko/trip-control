@@ -302,7 +302,7 @@ export function renderGps(app) {
 
     load();
 
-    // Карта (етап 2c) — для всіх ролей організації на control_plus; власника «До форми підключення» веде до форми нижче.
+    // Карта (етап 2c) — для всіх ролей організації на control_plus; owner «До форми підключення» веде до форми нижче.
     const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
 
     return h('section', { class: 'page gps-page' },

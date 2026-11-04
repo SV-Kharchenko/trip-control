@@ -66,7 +66,7 @@ export function orderText(order) {
     return [date, route, order.client_name].filter(Boolean).join(' · ');
 }
 
-// Повідомлення над картою за станом відповіді. kind: 'info' | 'error'; action: 'connect' — кнопка до форми (власник).
+// Повідомлення над картою за станом відповіді. kind: 'info' | 'error'; action: 'connect' — кнопка до форми (owner).
 export function mapStateNotice({ status, vehicles, networkError, refreshError, canManage }) {
     if (networkError) return { kind: 'error', text: 'Не вдалося завантажити карту. Перевірте інтернет і спробуйте ще раз.' };
     if (status === 'not_connected' || status === 'pending' || !status) {

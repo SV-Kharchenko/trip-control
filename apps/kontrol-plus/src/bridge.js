@@ -236,7 +236,7 @@ async function topUpSiteFleet() {
     } catch { /* лишається порожній список, як було */ }
 }
 
-// Підміна loadFleetVehicles сайту доповнює його, а не замінює: власник і логіст отримують свої рядки як і раніше.
+// Підміна loadFleetVehicles сайту доповнює його, а не замінює: owner і логіст отримують свої рядки як і раніше.
 function patchSiteFleet() {
     const original = window.loadFleetVehicles;
     if (typeof original !== 'function' || original.kpPatched) return;

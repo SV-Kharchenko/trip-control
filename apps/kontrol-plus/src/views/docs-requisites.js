@@ -1,5 +1,5 @@
 // Реквізити компанії (продавець у документах), префікси номерів, валюта й режим ПДВ за замовчуванням, підпис і печатка.
-// Змінює лише власник; логіст і директор бачать реквізити для перевірки. Підпис / печатка — приватний бакет kp-doc-assets
+// Змінює лише owner; логіст і director бачать реквізити для перевірки. Підпис / печатка — приватний бакет kp-doc-assets
 // (PNG / JPEG ≤ 512 КБ, шлях <org>/(signature|stamp).(png|jpg)); перегляд — через data: URL (CSP без blob: в img-src).
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { LEGAL_FORMS } from '../lib/validate.js';

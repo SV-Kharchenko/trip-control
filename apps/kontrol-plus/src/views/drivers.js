@@ -1,7 +1,7 @@
 // «Водії»: той самий шаблон, що й «Автопарк» (views/registry.js). Пошук ТІЛЬКИ за ПІБ + «Додати водія», список лише для
 // читання, клік — картка водія (ПІБ, посвідчення, телефон, паспорт, ІПН, адреса). ПІБ і посвідчення — kp_driver_save
-// (власник і логіст, як і для ТТН); телефон / паспорт / ІПН / адреса — персональні дані, kp_driver_details_save (лише
-// власник), у ТТН не потрапляють. «Деактивувати» — active = false (водія не видаляємо, він зникає з вибору в ТТН).
+// (owner і логіст, як і для ТТН); телефон / паспорт / ІПН / адреса — персональні дані, kp_driver_details_save (лише
+// owner), у ТТН не потрапляють. «Деактивувати» — active = false (водія не видаляємо, він зникає з вибору в ТТН).
 import { h, clear, notice, toast, confirmButton } from '../ui.js';
 import { docsAccess, isMissingFeature } from '../lib/docs.js';
 import { validateDriver, validateDriverDetails } from '../lib/fleet.js';

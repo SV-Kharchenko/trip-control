@@ -325,6 +325,6 @@ export function renderDocs(app, route) {
         h('div', { class: 'page-head' }, h('h1', null, 'Документи')),
         h('nav', { class: 'kpr-tabs', 'aria-label': 'Розділи документів' }, docsTabs().map((t) =>
             h('a', { href: t.hash, class: 'kpr-tab' + (t.key === currentKey ? ' on' : ''), 'aria-current': t.key === currentKey ? 'page' : null }, t.label))),
-        access.canWrite ? null : notice('Режим перегляду: директор бачить документи, ТТН, оплати, борги й авто, але не змінює їх.', 'info'),
+        access.canWrite ? null : notice('Режим перегляду: менеджер бачить документи, ТТН, оплати, борги й авто, але не змінює їх.', 'info'),
         body);
 }
