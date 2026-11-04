@@ -69,7 +69,15 @@ export const supabase = {
             case 'kp_vehicles_list': return ok(vehicles);
             case 'kp_driver_list': return ok(drivers);
             case 'kp_trailers_list': return ok(trailers);
-            case 'kp_repairs_list': return ok(repairRows);
+            case 'kp_repairs_list': return ok(repairRows.map((r) => ({ ...r })));
+            case 'repair_unstorno': {
+                const row = repairRows.find((r) => r.id === arguments[1].p_repair_id);
+                (globalThis.__rpcCalls = globalThis.__rpcCalls || []).push([name, arguments[1]]);
+                if (globalThis.__unstornoError) return Promise.resolve({ data: null, error: { message: globalThis.__unstornoError } });
+                if (!row || row.status !== 'void') return Promise.resolve({ data: null, error: { message: 'REPAIR_NOT_VOID' } });
+                row.status = 'posted';
+                return ok('posted');
+            }
             case 'kp_repair_vehicles': return ok([{ id: UUID(31), label: 'BH 4821 CK' }]);
             default: return ok([]);
         }

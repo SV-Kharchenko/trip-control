@@ -11,10 +11,10 @@ import { partOptionLabel } from '../src/views/repairs-form.js';
 const APP = new URL('../', import.meta.url);
 
 test('repairsAccess: hidden without context; repair manager without own Контроль+ → repairs only', () => {
-    assert.deepEqual(repairsAccess(null, { control_plus: true }), { visible: false, role: null, canWrite: false, canManage: false, repairsOnly: false });
+    assert.deepEqual(repairsAccess(null, { control_plus: true }), { visible: false, role: null, canWrite: false, canManage: false, canUnstorno: false, repairsOnly: false });
     assert.equal(repairsAccess({ org_id: null }, null).visible, false);
     const owner = repairsAccess({ org_id: 'o', role: 'owner', can_write: true, can_manage_handlers: true }, { control_plus: true });
-    assert.deepEqual(owner, { visible: true, role: 'owner', canWrite: true, canManage: true, repairsOnly: false });
+    assert.deepEqual(owner, { visible: true, role: 'owner', canWrite: true, canManage: true, canUnstorno: true, repairsOnly: false });
     const viewer = repairsAccess({ org_id: 'o', role: 'logist', can_write: false, can_manage_handlers: false }, { control_plus: true });
     assert.equal(viewer.canWrite, false, 'logist not assigned → read only');
     const manager = repairsAccess({ org_id: 'o', role: 'repair_manager', can_write: true, can_manage_handlers: false }, { control_plus: false });

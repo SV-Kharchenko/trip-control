@@ -43,6 +43,9 @@ export const SCOPE_ALLOWLIST = [
     /^api\/calculate\.js$/,
     // Картка Open Graph, яку перегенерував scripts/gen-og-image.mjs з новим підписом.
     /^assets\/brand\/og-1200x630\.png$/,
+    // Скасування сторно ремонту: міграція й pgTAP-тест.
+    /^supabase\/migrations\/\d{14}_repair_unstorno\.sql$/,
+    /^supabase\/tests\/repairs_unstorno\.sql$/,
 ];
 
 export function isAllowedOutside(file) {

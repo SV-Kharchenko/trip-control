@@ -7,6 +7,13 @@ import { repairsAccess, repairErrorText, REPAIR_ROLE_LABELS } from '../lib/repai
 import { renderRepairForm, setRepairCopy } from './repairs-form.js';
 
 const VOID_TITLE = 'Ремонт сторновано, не враховується у витратах';
+export const UNSTORNO_TEXT = 'Ремонт знову стане активним і враховуватиметься у витратах. Запчастини ремонту буде знову списано зі складу за поточною собівартістю; '
+    + 'якщо їх не вистачає, дію буде відхилено. Пов\'язані документи (якщо їх коригували після сторно) автоматично не відновлюються — перевірте їх вручну.';
+
+// Підтвердження — діалог сайту (tcModal, над вікнами, з напівпрозорим фоном); без нього (тести без сайту) — одразу підтверджено.
+function confirmDialog(options) {
+    return typeof window !== 'undefined' && typeof window.tcModal === 'function' ? window.tcModal(options) : Promise.resolve({ ok: true });
+}
 import { renderStock } from './repairs-stock.js';
 import { renderHandlers } from './repairs-handlers.js';
 import { renderMaintenance } from './repairs-maintenance.js';
@@ -79,9 +86,20 @@ function renderList(app, access) {
                     h('td', { 'data-label': 'Запчастини' }, r.parts && r.parts.length ? partsSummary(r.parts) + ' · ' + fmtMoney(r.parts_cost) : '—'),
                     h('td', { 'data-label': 'Разом', class: 'mono' }, r.status === 'void'
                         ? h('s', { class: 'kpr-void-sum', title: VOID_TITLE }, fmtMoney(r.total)) : h('b', null, fmtMoney(r.total))),
-                    // Сторнований: «Створити копію» (нова форма з цими даними). «Скасувати сторно» потребувало б змін у БД (повернення списання) — не робимо.
+                    // Сторнований: «Створити копію» (нова форма з цими даними) і «Скасувати сторно» (repair_unstorno: owner і repair_manager).
                     h('td', { 'data-label': '' }, access.canWrite && r.status === 'void'
                         ? h('button', { type: 'button', class: 'btn btn-sm', onclick: () => { setRepairCopy(r); app.go('#/repairs/new'); } }, 'Створити копію')
+                        : null,
+                    access.canUnstorno && r.status === 'void'
+                        ? h('button', { type: 'button', class: 'btn btn-sm', 'data-act': 'unstorno', onclick: async () => {
+                            const answer = await confirmDialog({ title: 'Скасувати сторно?', text: UNSTORNO_TEXT, confirmText: 'Скасувати сторно' });
+                            if (!answer || !answer.ok) return;
+                            const { error: unError } = await app.supabase.rpc('repair_unstorno', { p_repair_id: r.id });
+                            if (unError) { clear(message, notice(repairErrorText(unError))); return; }
+                            clear(message);
+                            toast('Сторно скасовано');
+                            await load();
+                        } }, 'Скасувати сторно')
                         : null,
                     access.canWrite && r.can_void ? confirmButton('Сторнувати', 'Точно сторнувати?', async () => {
                         const { error: voidError } = await app.supabase.rpc('kp_repair_void', { p_repair: r.id, p_reason: null });

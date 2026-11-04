@@ -20,6 +20,8 @@ export function repairsAccess(rctx, kpctx) {
         role,
         canWrite: visible && rctx.can_write === true,
         canManage: visible && rctx.can_manage_handlers === true,
+        // «Скасувати сторно»: лише директор (owner) і відповідальний за ремонти (repair_manager) своєї організації — так само перевіряє repair_unstorno.
+        canUnstorno: visible && rctx.can_write === true && (role === 'owner' || role === 'repair_manager'),
         // Відповідальний за ремонти без власного Контроль+: лише вкладка «Ремонти», без «Клієнтів», «Звіту», «GPS» і без екрана тарифу.
         repairsOnly: visible && !(kpctx && kpctx.control_plus === true),
     };
@@ -78,6 +80,7 @@ const REPAIR_ERRORS = [
     [/REPAIRS_FORBIDDEN/, 'Немає права вносити ремонти. Попросіть директора призначити вас відповідальним.'],
     [/REPAIR_VOID_EXPIRED/, 'Минуло 24 години — сторнувати може лише директор або менеджер.'],
     [/REPAIR_ALREADY_VOID/, 'Ремонт уже сторновано.'],
+    [/REPAIR_NOT_VOID/, 'Ремонт не сторновано: скасовувати нічого. Оновіть сторінку.'],
     [/RECEIPT_ALREADY_USED/, 'Запчастини з цього приходу вже використано — сторно неможливе. Зробіть коригування.'],
     [/RECEIPT_ALREADY_REVERSED/, 'Прихід уже сторновано.'],
     [/PART_ARTICLE_EXISTS/, 'Запчастина з таким артикулом уже є.'],

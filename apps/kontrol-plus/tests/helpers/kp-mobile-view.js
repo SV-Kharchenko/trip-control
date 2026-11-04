@@ -30,6 +30,18 @@ mountShell({ supabase: { ...supabase, auth: { getSession: () => Promise.resolve(
 mountMobile();
 window.__wm = createWindowManager({ storage: sessionStorage, confirm: async () => ({ ok: true }), notify() {} });
 
+// Діалог — копія tcModal сайту (розмітка й класи ті самі): над вікнами, з напівпрозорим фоном (--kp-scrim).
+window.tcModal = (o) => new Promise((resolve) => {
+    const el = document.createElement('div');
+    el.className = 'tc-modal';
+    el.innerHTML = '<div class="tc-modal-card"><h3></h3><p></p><div class="tc-modal-actions"><button type="button" class="btn" data-act="cancel">Скасувати</button><button type="button" class="btn btn-success" data-act="ok"></button></div></div>';
+    el.querySelector('h3').textContent = o.title;
+    el.querySelector('p').textContent = o.text || '';
+    el.querySelector('[data-act="ok"]').textContent = o.confirmText || 'Так';
+    el.addEventListener('click', (e) => { const a = e.target.getAttribute('data-act'); if (a) { el.remove(); resolve({ ok: a === 'ok' }); } });
+    document.body.append(el);
+});
+
 const page = (cls, el) => { const s = h('section', { class: 'page ' + cls }); s.append(el); return s; };
 const views = {
     client: async () => (await import('/src/views/client-card.js')).renderClientCard({ ...app, go: (x) => { location.hash = x; } }, client.id),
@@ -48,7 +60,7 @@ const views = {
         const a = { supabase: { rpc: async () => ({ data: OCT, error: null }) }, onPlanLost() {} };
         return (await import('/src/views/report.js')).renderReport(a, 'main');
     },
-    repairs: async () => { app.repairs = { org_id: UUID(9), role: 'owner', can_write: true, can_manage_handlers: true }; return (await import('/src/views/repairs.js')).renderRepairs(app, 'list'); },
+    repairs: async () => { const role = q.get('role') || 'owner'; app.repairs = { org_id: UUID(9), role, can_write: role !== 'viewer', can_manage_handlers: role === 'owner' }; return (await import('/src/views/repairs.js')).renderRepairs(app, 'list'); },
 };
 const el = await views[view]();
 root.append(el);
