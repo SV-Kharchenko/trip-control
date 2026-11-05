@@ -71,6 +71,7 @@ import { createServer } from 'node:http';
 import { existsSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handleFakeConfig } from './helpers/fake-config.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const MIME = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.json': 'application/json', '.webmanifest': 'application/json', '.jpg': 'image/jpeg' };
@@ -81,6 +82,7 @@ async function withSite(t, fn) {
     let browser;
     try { browser = await pw.chromium.launch({ headless: true }); } catch { t.skip('no Chromium'); return; }
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         let p = new URL(req.url, 'http://x').pathname;
         if (p === '/') p = '/index.html';
         const f = join(ROOT, decodeURIComponent(p));

@@ -15,6 +15,7 @@ const ENTRY = `
 import { cardField, cardLayout } from './src/views/registry.js';
 import { VEHICLE_FIELDS } from './src/lib/registry.js';
 import { h } from './src/ui.js';
+import { handleFakeConfig } from '../../../tests/helpers/fake-config.mjs';
 document.body.setAttribute('data-kp-view', 'fleet');
 const main = document.createElement('main'); main.id = 'kp-crm'; document.body.append(main);
 const rows = VEHICLE_FIELDS.map((spec) => (spec.section ? h('h3', { class: 'kpc-section' }, spec.section) : cardField(spec, '', { options: [] }).row));
@@ -34,6 +35,7 @@ async function run(t, theme, viewport, fn) {
     const js = built.outputFiles[0].text;
     esbuild.stop();
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         const url = new URL(req.url, 'http://x');
         if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE(theme)); return; }
         if (url.pathname === '/site.css') { res.writeHead(200, { 'content-type': 'text/css' }); res.end(siteCss); return; }

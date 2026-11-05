@@ -12,6 +12,7 @@ import {
 import { parseCrmHash, tabOf, windowSpecOf } from '../src/lib/route.js';
 import { SHELL_ITEMS, activeKey } from '../src/shell-menu.js';
 import { makeFixture, makeRows, TODAY } from './helpers/dashboard-fixture.mjs';
+import { handleFakeConfig } from '../../../tests/helpers/fake-config.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => fs.readFileSync(path.join(APP, file), 'utf8');
@@ -326,6 +327,7 @@ async function withDashboard(t, fn) {
     const browser = await loadBrowser();
     if (!browser) { t.skip('no playwright-core / Chrome'); return; }
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         const url = new URL(req.url, 'http://x');
         if (url.pathname === '/') { res.writeHead(200, { 'content-type': MIME['.html'] }); res.end(PAGE); return; }
         const file = path.join(APP, decodeURIComponent(url.pathname));

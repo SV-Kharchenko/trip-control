@@ -65,6 +65,7 @@ function fixtures(now) {
 const ENTRY = `
 import { renderOwnFleet, renderOwnFleetCard, renderRequestersBlock } from './src/views/own-fleet/index.js';
 import { createWindowManager } from './src/kp-windows.js';
+import { handleFakeConfig } from '../../../tests/helpers/fake-config.mjs';
 const cfg = window.__cfg;
 const fx = window.__fx;
 const calls = [];
@@ -150,6 +151,7 @@ async function run(t, cfg, viewport, fn) {
     const js = built.outputFiles[0].text;
     const fx = fixtures(Date.now());
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         const url = new URL(req.url, 'http://x');
         if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE(cfg, fx)); return; }
         if (url.pathname === '/site.css') { res.writeHead(200, { 'content-type': 'text/css' }); res.end(siteCss); return; }

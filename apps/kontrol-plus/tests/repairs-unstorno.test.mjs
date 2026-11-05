@@ -7,6 +7,7 @@ import path from 'node:path';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { repairsAccess, repairErrorText } from '../src/lib/repairs.js';
+import { handleFakeConfig } from '../../../tests/helpers/fake-config.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => fs.readFileSync(path.join(APP, f), 'utf8');
@@ -49,6 +50,7 @@ async function withBrowser(t, fn) {
     const browser = await launch();
     if (!browser) { t.skip('no playwright-core / Chromium'); return; }
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         const url = new URL(req.url, 'http://x');
         if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE); return; }
         if (url.pathname === '/site.css') { res.writeHead(200, { 'content-type': 'text/css' }); res.end(siteCss); return; }
