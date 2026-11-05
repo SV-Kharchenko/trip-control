@@ -79,11 +79,11 @@ class FakeNode {
         this.tagName = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.style = {}; this.hidden = false;
         this.className = ''; this._text = ''; this.parent = null;
         const set = new Set();
-        this.classList = { add: (c) => set.add(c), remove: (c) => set.delete(c), contains: (c) => set.has(c) };
+        this.classList = { add: (c) => set.add(c), remove: (c) => set.delete(c), contains: (c) => set.has(c), toggle: (c, on) => (on ? set.add(c) : set.delete(c)) };
     }
     setAttribute(k, v) { this.attrs[k] = String(v); }
     getAttribute(k) { return this.attrs[k]; }
-    append(...kids) { for (const k of kids) { k.parent = this; this.children.push(k); } }
+    append(...kids) { for (const k of kids) { if (k.parent) k.parent.children = k.parent.children.filter((c) => c !== k); k.parent = this; this.children.push(k); } }
     set textContent(v) { this._text = String(v); }
     get textContent() { return this._text; }
     addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
@@ -98,9 +98,10 @@ function withFakeDom(run) {
     const doc = new FakeNode('document');
     doc.createElement = (tag) => new FakeNode(tag);
     doc.createTextNode = (t) => ({ text: t });
+    doc.body = new FakeNode('body');
     const keep = { document: globalThis.document, window: globalThis.window };
     Object.defineProperty(globalThis, 'document', { value: doc, configurable: true, writable: true });
-    Object.defineProperty(globalThis, 'window', { value: { innerWidth: 390, innerHeight: 800 }, configurable: true, writable: true });
+    Object.defineProperty(globalThis, 'window', { value: Object.assign(new FakeNode('window'), { innerWidth: 390, innerHeight: 800 }), configurable: true, writable: true });
     return Promise.resolve(run(doc)).finally(() => {
         for (const [k, v] of Object.entries(keep)) { if (v === undefined) delete globalThis[k]; else globalThis[k] = v; }
     });
@@ -165,21 +166,51 @@ test('підказка: фокус з клавіатури відкриває, �
     });
 });
 
-test('підказка: біля краю екрана поповер зсувається всередину, внизу — відкривається вгору', async () => {
-    await withFakeDom(async () => {
+test('підказка: поповер переїжджає в <body>, стоїть біля «?» і не виходить за вікно браузера', async () => {
+    await withFakeDom(async (doc) => {
         const { fieldHint } = await import('../src/lib/field-hint.js');
-        const [btn, pop] = fieldHint('Сума', 'Рахується автоматично').children;
-        pop.rect = { left: 300, right: 460, top: 100, bottom: 160, height: 60, width: 160 };
+        const wrap = fieldHint('Сума', 'Рахується автоматично');
+        const [btn, pop] = wrap.children;
+        btn.rect = { left: 340, right: 360, top: 100, bottom: 120, height: 20, width: 20 };
+        pop.rect = { left: 0, right: 160, top: 0, bottom: 60, height: 60, width: 160 };
         btn.dispatch('click');
-        assert.equal(pop.style.transform, 'translateX(-78px)', 'правий край 390 - 8 = 382');
+        assert.equal(pop.parent, doc.body, 'відкрита підказка лежить у body');
+        assert.equal(pop.style.left, '200px', 'правий край: 360 - 160, всередині 390 - 8');
+        assert.equal(pop.style.top, '126px', 'під «?» з проміжком 6');
         btn.dispatch('click');
-        pop.rect = { left: 100, right: 260, top: 760, bottom: 820, height: 60, width: 160 };
+        assert.equal(pop.parent, wrap, 'закрита повертається до свого «?»');
+        btn.rect = { left: 100, right: 120, top: 760, bottom: 780, height: 20, width: 20 };
         btn.dispatch('click');
-        assert.equal(pop.classList.contains('kp-hint-up'), true);
+        assert.equal(pop.classList.contains('kp-hint-up'), true, 'знизу тісно — вгору');
+        assert.equal(pop.style.top, '694px');
         btn.dispatch('click');
-        pop.rect = { left: -30, right: 100, top: 100, bottom: 160, height: 60, width: 130 };
+        btn.rect = { left: -30, right: -10, top: 100, bottom: 120, height: 20, width: 20 };
         btn.dispatch('click');
-        assert.equal(pop.style.transform, 'translateX(38px)');
+        assert.equal(pop.style.left, '8px', 'лівий край вікна');
+    });
+});
+
+test('підказка: відкрита лише одна; скрол і resize закривають; слухачі знімаються', async () => {
+    await withFakeDom(async (doc) => {
+        const { fieldHint } = await import('../src/lib/field-hint.js');
+        const [b1, p1] = fieldHint('А', 'Перша').children;
+        const [b2, p2] = fieldHint('Б', 'Друга').children;
+        b1.dispatch('click');
+        b2.dispatch('click');
+        assert.equal(p1.hidden, true, 'відкриття другої закриває першу');
+        assert.equal(p2.hidden, false);
+        assert.equal(b1.getAttribute('aria-expanded'), 'false');
+        window.dispatch('scroll', { target: doc });
+        assert.equal(p2.hidden, false, 'скрол одразу після відкриття (браузер докручує до «?») лише переставляє підказку');
+        const realNow = Date.now;
+        Date.now = () => realNow() + 1000;
+        try { window.dispatch('scroll', { target: doc }); } finally { Date.now = realNow; }
+        assert.equal(p2.hidden, true, 'скрол закриває');
+        b1.dispatch('click');
+        window.dispatch('resize');
+        assert.equal(p1.hidden, true);
+        assert.equal((window.listeners.scroll || []).length, 0);
+        assert.equal((window.listeners.resize || []).length, 0);
     });
 });
 
