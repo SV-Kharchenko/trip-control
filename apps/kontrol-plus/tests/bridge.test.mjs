@@ -32,7 +32,7 @@ class FakeElement extends FakeNode {
 
 function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null,
     url = 'https://app.trip-control.com/', stored = null, acceptResponse = { status: 200, body: { ok: true, org_name: 'Агро А' } },
-    maintenance = [], fetchGate = null, docs = 'ok' } = {}) {
+    maintenance = [], fetchGate = null, docs = 'ok', ownFleet = null } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
@@ -76,6 +76,11 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
                 if (name === 'kp_doc_next_number') {
                     calls.docsProbe += 1;
                     return docs === 'missing' ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } } : { data: 1, error: null };
+                }
+                // «Власний парк»: own_fleet_context() — порожньо без прапорця own_fleet (ownFleet: рядок { org_id, role, unit_ids }).
+                if (name === 'own_fleet_context') {
+                    calls.rpcs[name] = (calls.rpcs[name] || 0) + 1;
+                    return { data: ownFleet ? [ownFleet] : [], error: null };
                 }
                 // Етап 3b: бейдж ТО — kp_maintenance_status, лише коли «Ремонти» видно.
                 assert.ok(['kp_context', 'kp_repairs_context', 'kp_maintenance_status'].includes(name), 'unexpected rpc ' + name);
@@ -147,9 +152,9 @@ test('bridge: site with nav, #main-app and supabaseClient → five tabs and #kp-
         assert.equal(await startBridge(), true);
         const items = navItems(env);
         assert.deepEqual(items.map((b) => b.id.replace('kp-nav-', '')),
-            ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report']);
+            ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'own_fleet', 'gps', 'docs', 'report']);
         const hidden = Object.fromEntries(items.map((b) => [b.id.replace('kp-nav-', ''), b.hidden === true]));
-        assert.deepEqual(hidden, { overview: false, calc: false, clients: false, fleet: true, drivers: true, repairs: true, gps: true, docs: true, report: false },
+        assert.deepEqual(hidden, { overview: false, calc: false, clients: false, fleet: true, drivers: true, repairs: true, own_fleet: true, gps: true, docs: true, report: false },
             'без сесії: GPS, Ремонти, Документи, Автопарк, Водії, Реквізити сховані');
         assert.equal(env.body.classList.contains('kp-nav-on'), true);
         assert.equal(env.navEl.children.length, 0, 'the site nav is left alone');
@@ -234,7 +239,7 @@ for (const [name, context, repairs, expected] of [
             assert.deepEqual({ repairs: tab('kp-nav-repairs'), clients: tab('kp-nav-clients'), gps: tab('kp-nav-gps') }, expected, 'hidden flags');
             assert.equal(tab('kp-nav-report'), expected.clients, 'Звіт hidden together with Клієнти');
             const badge = expected.repairs ? {} : { kp_maintenance_status: 1 };
-            assert.deepEqual(env.calls.rpcs, { kp_context: 1, kp_repairs_context: 1, ...badge }, 'badge asked only when Ремонти is visible');
+            assert.deepEqual(env.calls.rpcs, { kp_context: 1, own_fleet_context: 1, kp_repairs_context: 1, ...badge }, 'badge asked only when Ремонти is visible');
         } finally {
             env.restore();
         }
@@ -369,7 +374,7 @@ test('bridge: repair invite — start and onAuthStateChange at once → one acce
     }
 });
 
-const NAV_ORDER = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report'];
+const NAV_ORDER = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'own_fleet', 'gps', 'docs', 'report'];
 // Ліве меню (Реквізити й Статистика переїхали у вкладки Особистого кабінету сайту): Автопарк, Водії з'являються разом з «Документами» (функції 4a/4b); менеджер ремонтів бачить лише «Ремонти».
 const visibleKeys = (env) => navItems(env).filter((b) => b.hidden !== true).map((b) => b.id.replace('kp-nav-', ''));
 for (const [name, opts, expected] of [
@@ -442,5 +447,104 @@ test('bridge: active menu item and calc tabs follow data-studio-view from the fi
         assert.deepEqual(tabs(), ['kp-calc-tab-calc']);
     } finally {
         env.restore();
+    }
+});
+
+// ---- «Власний парк» (own_fleet_context): пункт меню й роути лише з прапорцем own_fleet ----
+const OF_ROW = (role, unit_ids = []) => ({ org_id: 'o1', role, unit_ids });
+const OWNER_CTX = { control_plus: true, role: 'owner' };
+const BASE_VISIBLE = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'gps', 'docs', 'report'];
+
+test('bridge: «Власний парк» — без прапорця пункту меню немає, видимі пункти ті самі, що на main', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null, ownFleet: null });
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.deepEqual(visibleKeys(env), BASE_VISIBLE);
+        assert.equal(navItems(env).find((b) => b.id === 'kp-nav-own_fleet').hidden, true);
+        assert.equal(env.calls.rpcs.own_fleet_context, 1, 'контекст питається один раз');
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: «Власний парк» — з прапорцем пункт з’являється для директора, менеджера й логіста; решта меню без змін', async () => {
+    for (const role of ['owner', 'logist']) {
+        const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: true, role }, docs: 'ok', repairs: null, ownFleet: OF_ROW(role) });
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            await ticks();
+            assert.deepEqual(visibleKeys(env), NAV_ORDER.filter((k) => [...BASE_VISIBLE, 'own_fleet'].includes(k)), role);
+        } finally {
+            env.restore();
+        }
+    }
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: true, role: 'director' }, docs: 'ok', repairs: null, ownFleet: OF_ROW('director') });
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.ok(visibleKeys(env).includes('own_fleet'), 'director («Менеджер»)');
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: замовник підрозділу без власного Контроль+ бачить лише «Власний парк»', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: null,
+        ownFleet: OF_ROW('requester', ['81000000-0000-0000-0000-000000000001']) });
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.deepEqual(visibleKeys(env), ['own_fleet']);
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: прямий URL #/own-fleet без прапорця веде на огляд; з прапорцем лишається; замовника з чужого розділу повертає до «Власного парку»', async () => {
+    const off = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null, ownFleet: null });
+    off.loc.hash = '#/own-fleet';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.equal(off.loc.hash, '#/dashboard', 'без прапорця розділу не існує');
+    } finally {
+        off.restore();
+    }
+    const card = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null, ownFleet: null });
+    card.loc.hash = '#/own-fleet/unit/new';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.equal(card.loc.hash, '#/dashboard', 'картки теж');
+    } finally {
+        card.restore();
+    }
+    const on = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null, ownFleet: OF_ROW('owner') });
+    on.loc.hash = '#/own-fleet';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.equal(on.loc.hash, '#/own-fleet');
+    } finally {
+        on.restore();
+    }
+    const req = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: null,
+        ownFleet: OF_ROW('requester', ['81000000-0000-0000-0000-000000000001']) });
+    req.loc.hash = '#/clients';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.equal(req.loc.hash, '#/own-fleet', 'клієнти замовнику не показуються');
+    } finally {
+        req.restore();
     }
 });

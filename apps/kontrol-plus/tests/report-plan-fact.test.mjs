@@ -87,7 +87,7 @@ test('CSV: ті самі колонки й назви, що в таблиці, �
 });
 
 test('ролі: owner — «Директор», director — «Менеджер»; шапка Контроль+ і меню узгоджені', () => {
-    assert.deepEqual(ROLE_LABELS, { owner: 'Директор', logist: 'Логіст', director: 'Менеджер', repair_manager: 'Відповідальний за ремонти' });
+    assert.deepEqual(ROLE_LABELS, { owner: 'Директор', logist: 'Логіст', director: 'Менеджер', repair_manager: 'Відповідальний за ремонти', requester: 'Замовник підрозділу' });
     for (const role of ['owner', 'logist', 'director']) {
         assert.equal(roleLabel(role), ROLE_LABELS[role], 'шапка (shell-menu): ' + role);
         if (role !== 'logist' || REPAIR_ROLE_LABELS.logist) assert.equal(REPAIR_ROLE_LABELS[role], ROLE_LABELS[role], 'ремонти: ' + role);

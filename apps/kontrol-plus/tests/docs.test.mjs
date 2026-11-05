@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import { cspLines } from './helpers/csp.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { listFiles } from './helpers/files.mjs';
 import { execFileSync } from 'node:child_process';
 import { amountInWords, integerWords, pluralForm, toCents } from '../src/lib/amount-words.js';
 import {
@@ -271,7 +273,7 @@ test('documents views: only h() / textContent, no innerHTML / outerHTML / insert
 });
 
 test('PDF is lazy: pdf-lib only in pdf-docs.js, loaded by dynamic import', () => {
-    for (const file of fs.readdirSync(new URL('src/views/', APP)).map((f) => 'src/views/' + f).concat(['src/bridge.js', 'src/lib/docs.js', 'src/lib/pdf-docs-text.js'])) {
+    for (const file of listFiles(fileURLToPath(APP), 'src/views').concat(['src/bridge.js', 'src/lib/docs.js', 'src/lib/pdf-docs-text.js'])) {
         assert.doesNotMatch(read(file), /from ['"](pdf-lib|@pdf-lib\/fontkit)['"]|pdf-docs\.js['"]/, file);
     }
     assert.match(read('src/lib/docs-pdf-client.js'), /import\('\.\/pdf-docs\.js'\)/);
