@@ -72,7 +72,7 @@ test('маршрути: нові розділи, підвкладки і ред�
 test('меню: порядок, підписи, іконки inline SVG, згортання до іконок на ≤1024', async () => {
     const { NAV_ITEMS } = await import('../src/bridge.js');
     assert.deepEqual(NAV_ITEMS.map((item) => item[1]),
-        ['Огляд', 'Розрахунки', 'Клієнти', 'Автопарк', 'Водії', 'Ремонти', 'Власний парк', 'GPS', 'Документи', 'План/факт']);
+        ['Огляд', 'Розрахунки', 'Клієнти', 'Автопарк', 'Водії', 'Ремонти', 'Власний парк', 'Платформа', 'GPS', 'Документи', 'План/факт']);
     for (const [key] of NAV_ITEMS) assert.ok(NAV_ICON_NAMES.includes(key), 'іконка для ' + key);
     const icons = read('src/nav-icons.js');
     assert.match(icons, /svgEl\('svg', \{ viewBox: '0 0 16 16', width: 16, height: 16, fill: 'none', stroke: 'currentColor'/);

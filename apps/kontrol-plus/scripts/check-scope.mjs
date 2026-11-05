@@ -60,6 +60,10 @@ export const SCOPE_ALLOWLIST = [
     /^tests\/osm-geo\.test\.mjs$/,
     /^supabase\/migrations\/\d{14}_app_settings_kill_switch\.sql$/,
     /^supabase\/tests\/app_settings\.sql$/,
+    // Кабінет суперадміна (#/superadmin): міграція, pgTAP і документація.
+    /^supabase\/migrations\/\d{14}_superadmin\.sql$/,
+    /^supabase\/tests\/superadmin\.sql$/,
+    /^docs\/SUPERADMIN\.md$/,
     // Корінний тест перебирав файли src/views/ без підтек; «Власний парк» лежить у views/own-fleet/ — тест читає теки рекурсивно.
     /^tests\/idle-label\.test\.mjs$/,
     // Модуль «Власний парк» (етап 1): міграція й pgTAP-тест.

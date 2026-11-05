@@ -42,7 +42,7 @@ function siteSupabase() {
 // repairs — kp_repairs_context() (етап 3a): відповідальний за ремонти має доступ лише до «Ремонтів» чужої організації.
 // docs — чи є в базі функції документів (етап 4a): null — ще не перевіряли, false — міграцію не застосовано.
 // ownFleet — own_fleet_context() («Власний парк»): null без прапорця own_fleet в організації; сам модуль — lazy-чанк views/own-fleet/.
-const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null, ownFleet: null };
+const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null, ownFleet: null, superadmin: false, superadminUser: null };
 // Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
 let cleanups = [];
 function runCleanups() {
@@ -100,6 +100,7 @@ export const NAV_ITEMS = [
     ['drivers', 'Водії', go('#/drivers'), true],
     ['repairs', 'Ремонти', go('#/repairs'), true],
     ['own_fleet', 'Власний парк', go('#/own-fleet'), true],
+    ['superadmin', 'Платформа', go('#/superadmin'), true],
     ['gps', 'GPS', go('#/gps'), true],
     ['docs', 'Документи', go('#/docs'), true],
     ['report', 'План/факт', go('#/report'), false],
@@ -170,14 +171,19 @@ function syncGpsTab() {
     // «Власний парк» — лише з прапорцем own_fleet; замовник підрозділу без власного Контроль+ бачить тільки цю вкладку.
     const fleetAccess = ownFleetAccess(current ? state.ownFleet : null);
     if (tabs.own_fleet) tabs.own_fleet.hidden = !fleetAccess.enabled;
+    // «Платформа» — лише суперадміну (is_platform_superadmin()); решта пункту не бачить.
     if (ownFleetOnly(fleetAccess, current)) for (const key of Object.keys(tabs)) if (key !== 'own_fleet') tabs[key].hidden = true;
+    // «Платформа» — лише суперадміну (is_platform_superadmin()); не залежить ні від організації й тарифу, ні від режиму «лише власний парк».
+    if (tabs.superadmin) tabs.superadmin.hidden = !(state.session && state.superadminUser === state.session.user.id && state.superadmin);
 }
 
 async function refreshGpsTab() {
     if (!state.session) {
+        await ensureSuperadmin();
         syncGpsTab();
         return;
     }
+    await ensureSuperadmin();
     if (!state.context || state.contextUser !== state.session.user.id) {
         try {
             await loadContext();
@@ -282,6 +288,27 @@ async function loadRepairsContext() {
         return row && row.org_id ? row : null;
     } catch {
         return null;
+    }
+}
+
+// Суперадмін перевіряється окремо від контексту компанії (суперадмін може не мати організації): один раз на користувача.
+async function ensureSuperadmin() {
+    if (!state.session) { state.superadmin = false; state.superadminUser = null; return; }
+    const userId = state.session.user.id;
+    if (state.superadminUser === userId) return;
+    const value = await loadSuperadmin();
+    if (!state.session || state.session.user.id !== userId) return;
+    state.superadmin = value;
+    state.superadminUser = userId;
+}
+
+// Чи поточний користувач — суперадмін платформи. Помилка (немає міграції, мережа) = ні. Лише для показу пункту меню: усі sa_* перевіряє база.
+async function loadSuperadmin() {
+    try {
+        const { data, error } = await state.supabase.rpc('is_platform_superadmin');
+        return !error && data === true;
+    } catch {
+        return false;
     }
 }
 
@@ -426,6 +453,26 @@ async function render() {
     syncNav();
     if (!state.session) {
         clear(root, h('section', { class: 'page narrow' }, notice('Увійдіть, щоб відкрити розділ Контроль+.', 'info')));
+        return;
+    }
+    // Кабінет суперадміна не залежить від організації й тарифу: перевіряємо до kp_context. Не суперадмін — сторінки не існує, редирект на огляд.
+    if (route.view === 'superadmin') {
+        await ensureSuperadmin();
+        if (state.route !== route) return;
+        // Меню рахується за контекстом компанії, але сторінка від нього не залежить: помилка контексту її не блокує.
+        if (!state.context || state.contextUser !== state.session.user.id) {
+            try { await loadContext(); } catch { /* пункти компанії лишаються схованими */ }
+            if (state.route !== route) return;
+        }
+        syncGpsTab();
+        if (!state.superadmin) {
+            location.hash = '#/dashboard';
+            return;
+        }
+        runCleanups();
+        clear(root, head(), lazyView(() => import('./views/superadmin/index.js').then((m) => m.renderSuperadmin(app()))));
+        root.focus({ preventScroll: true });
+        window.scrollTo(0, 0);
         return;
     }
     if (!state.context || state.contextUser !== state.session.user.id) {
@@ -815,6 +862,8 @@ export async function startBridge() {
             state.contextUser = null;
             state.repairs = null;
             state.ownFleet = null;
+            state.superadmin = false;
+            state.superadminUser = null;
             state.docs = null;
             if (windows) windows.setScope(null, null).catch(() => {});
             syncGpsTab();
