@@ -125,11 +125,12 @@ test('маршрути: #/own-fleet, підрозділи, точки, карт�
 const sha = (t) => createHash('sha256').update(t).digest('hex');
 function fakeStore(over = {}) {
     const calls = { reserve: [], revoke: [], accept: [] };
+    const staffRole = over.staffRole || 'owner';
     const store = {
         calls,
         getUser: async (jwt) => (jwt === 'good' ? { id: 'staff', email: 'boss@example.com', email_confirmed_at: '2026-01-01' } : jwt === 'req' ? { id: 'req-user', email: 'New@Example.com', email_confirmed_at: '2026-01-01' }
             : jwt === 'unconfirmed' ? { id: 'req-user', email: 'new@example.com' } : jwt === 'banned' ? { id: 'b', email: 'b@example.com', banned_until: '2999-01-01' } : null),
-        access: async (id) => (id === 'staff' ? { org_id: 'org1', role: 'logist' } : id === 'req-user' ? { org_id: 'org1', role: 'requester' } : null),
+        access: async (id) => (id === 'staff' ? { org_id: 'org1', role: staffRole } : id === 'req-user' ? { org_id: 'org1', role: 'requester' } : null),
         orgName: async () => 'Агрохолдинг',
         listInvites: async () => [{ id: 'i1', email: 'a@example.com', unit_ids: [UUID], expires_at: '2999-01-01', accepted_at: null, revoked_at: null, created_at: '2026-01-01' },
             { id: 'i2', email: 'b@example.com', unit_ids: [UUID], expires_at: '2000-01-01', accepted_at: null, revoked_at: null, created_at: '2026-01-01' }],
@@ -159,9 +160,26 @@ test('API запрошень: без входу 401, не POST 405, заблок
     assert.equal((await call(h, { body: { action: 'list' } })).headers['Cache-Control'], 'no-store');
 });
 
-test('API запрошень: запрошувати можуть лише owner / director / logist; замовник і чужі — 403', async () => {
-    const h = createOwnFleetInvitesHandler({ store: fakeStore({ access: async (id) => (id === 'staff' ? null : { org_id: 'org1', role: 'requester' }) }), log: quiet });
-    for (const action of ['create', 'list', 'resend', 'revoke']) assert.equal((await call(h, { body: { action, email: 'x@example.com', unit_ids: [UUID], id: UUID } })).code, 403, action);
+test('API запрошень: замовниками керують лише директор (owner) і менеджер (director); логіст, замовник і чужі — 403 на всіх діях', async () => {
+    const body = { email: 'x@example.com', unit_ids: [UUID], id: '81000000-0000-0000-0000-0000000000ff' };
+    for (const role of ['owner', 'director']) {
+        const h = createOwnFleetInvitesHandler({ store: fakeStore({ staffRole: role }), log: quiet });
+        for (const action of ['list', 'create', 'resend', 'revoke']) assert.equal((await call(h, { body: { action, ...body } })).code, 200, role + ': ' + action);
+    }
+    const logist = createOwnFleetInvitesHandler({ store: fakeStore({ staffRole: 'logist' }), log: quiet });
+    for (const action of ['list', 'create', 'resend', 'revoke']) {
+        const out = await call(logist, { body: { action, ...body } });
+        assert.equal(out.code, 403, 'logist: ' + action);
+        assert.equal(out.body.code, 'OWN_FLEET_FORBIDDEN');
+    }
+    const list = await call(logist, { body: { action: 'list' } });
+    assert.equal(list.code, 403, 'logist отримує 403 на list');
+    assert.equal(JSON.stringify(list.body).includes('@'), false, 'у відповіді 403 немає пошт запрошень');
+    const requester = createOwnFleetInvitesHandler({ store: fakeStore({ staffRole: 'requester' }), log: quiet });
+    const stranger = createOwnFleetInvitesHandler({ store: fakeStore({ access: async () => null }), log: quiet });
+    for (const h of [requester, stranger]) for (const action of ['list', 'create', 'resend', 'revoke']) assert.equal((await call(h, { body: { action, ...body } })).code, 403, action);
+    const calls = fakeStore({ staffRole: 'logist' }).calls;
+    assert.deepEqual([calls.reserve.length, calls.revoke.length], [0, 0]);
 });
 
 test('API запрошень: create — токен лише в посиланні, у БД тільки sha256; без пошти листа немає, посилання повертається ініціатору', async () => {

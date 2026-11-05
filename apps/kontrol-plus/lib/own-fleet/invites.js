@@ -1,6 +1,6 @@
 // Запрошення замовника підрозділу («Власний парк», етап 1). Токен — 32 випадкові байти (base64url), у БД лише sha256 (як у запрошень
 // repair_manager, але без HMAC: підпис нічого не додає до випадкового 256-бітного токена). Права перевіряє БД (own_fleet_invite_reserve
-// з p_invited_by): запрошувати можуть owner / director / logist організації з прапорцем own_fleet. Токен і email не логуємо.
+// з p_invited_by): запрошувати можуть лише owner / director організації з прапорцем own_fleet. Токен і email не логуємо.
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
     APP_URL, HttpError, INVITE_TTL_MS, createSendLimiter, mailProvider, normalizeEmail, sendInviteEmail, validEmail,
@@ -12,7 +12,7 @@ const sha256 = (text) => createHash('sha256').update(String(text)).digest('hex')
 const INVITE_COLUMNS = 'id, org_id, email, unit_ids, expires_at, accepted_at, revoked_at, created_at, last_sent_at';
 
 const DB_ERRORS = {
-    OWN_FLEET_FORBIDDEN: [403, 'Запрошувати замовників може директор, менеджер або логіст компанії з модулем «Власний парк».'],
+    OWN_FLEET_FORBIDDEN: [403, 'Замовниками підрозділів керують директор і менеджер компанії з модулем «Власний парк».'],
     OWN_FLEET_UNIT_NOT_IN_ORG: [400, 'Оберіть хоча б один підрозділ компанії (не з архіву).'],
     REQUESTER_LIMIT: [409, 'Досягнуто ліміт замовників підрозділів (30, разом із відкритими запрошеннями).'],
     REQUESTER_REQUIRES_OWN_FLEET: [409, 'Модуль «Власний парк» не ввімкнено для компанії.'],
@@ -124,10 +124,11 @@ export function createOwnFleetInvitesHandler({ store, env = {}, fetch: doFetch, 
         return user;
     }
 
-    // Керувати запрошеннями: owner / director / logist організації з прапорцем own_fleet (та сама логіка, що в БД).
+    // Замовниками (список, запрошення, повтор, скасування) керують лише директор (owner) і менеджер (director) організації з прапорцем own_fleet;
+    // логіст, замовник і сторонні — 403 (та сама межа, що в БД: own_fleet_invite_reserve / own_fleet_requesters_list).
     async function inviter(user) {
         const access = await store.access(user.id);
-        if (!access || !['owner', 'director', 'logist'].includes(access.role)) throw new HttpError(403, 'OWN_FLEET_FORBIDDEN', DB_ERRORS.OWN_FLEET_FORBIDDEN[1]);
+        if (!access || !['owner', 'director'].includes(access.role)) throw new HttpError(403, 'OWN_FLEET_FORBIDDEN', DB_ERRORS.OWN_FLEET_FORBIDDEN[1]);
         return access.org_id;
     }
 

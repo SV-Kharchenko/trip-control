@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(45);
+SELECT plan(56);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d1f00a1","role":"service_role"}', true);
 
@@ -121,8 +121,11 @@ SELECT pg_temp.fx_as('a4');
 SELECT is(pg_temp.fx_err($$SELECT public.fleet_request_transition((SELECT id FROM t_fx WHERE k = 'R1'), 'accepted')$$), 'FLEET_REQUEST_FORBIDDEN', 'requester cannot unassign (even a request of own unit)');
 SELECT pg_temp.fx_as('b1');
 SELECT is(pg_temp.fx_err($$SELECT public.fleet_request_transition((SELECT id FROM t_fx WHERE k = 'R1'), 'accepted')$$), 'FLEET_REQUEST_NOT_FOUND', 'another org cannot unassign');
+SELECT is((SELECT accepted_at > now() - interval '1 minute' FROM public.fleet_requests WHERE id = (SELECT id FROM t_fx WHERE k = 'R1')), true, 'new → accepted sets accepted_at');
+UPDATE public.fleet_requests SET accepted_at = TIMESTAMPTZ '2026-01-01 10:00:00+00' WHERE id = (SELECT id FROM t_fx WHERE k = 'R1');
 SELECT pg_temp.fx_as('a2');
 SELECT is(pg_temp.fx_err($$SELECT public.fleet_request_transition((SELECT id FROM t_fx WHERE k = 'R1'), 'accepted')$$), 'no error', 'logist unassigns');
+SELECT is((SELECT accepted_at FROM public.fleet_requests WHERE id = (SELECT id FROM t_fx WHERE k = 'R1')), TIMESTAMPTZ '2026-01-01 10:00:00+00', 'unassign (assigned → accepted) does not overwrite accepted_at');
 SELECT is((SELECT concat_ws('|', status, vehicle_id, trailer_id, driver_id, vehicle_label, trailer_label, driver_name, assigned_at, trip_id) FROM public.fleet_requests WHERE id = (SELECT id FROM t_fx WHERE k = 'R1')),
   'accepted', 'status accepted; vehicle, trailer, driver, labels, assigned_at and trip link are cleared');
 SELECT is((SELECT to_status || ':' || from_status || ':' || coalesce(note, '') FROM public.fleet_request_log WHERE request_id = (SELECT id FROM t_fx WHERE k = 'R1') ORDER BY id DESC LIMIT 1),
@@ -163,9 +166,22 @@ SELECT is((SELECT count(*)::integer FROM public.own_fleet_requesters_list()), 2,
 SELECT pg_temp.fx_as('b1');
 SELECT is((SELECT count(*)::integer FROM public.own_fleet_requesters_list()), 0, 'another org sees none');
 SELECT pg_temp.fx_as('a4');
-SELECT is((SELECT count(*)::integer FROM public.own_fleet_requesters_list()), 0, 'a requester gets an empty list (no emails of colleagues)');
+SELECT is(pg_temp.fx_err($$SELECT * FROM public.own_fleet_requesters_list()$$), 'OWN_FLEET_FORBIDDEN', 'a requester cannot list requesters (no emails of colleagues)');
 SELECT pg_temp.fx_as('c1');
-SELECT is((SELECT count(*)::integer FROM public.own_fleet_requesters_list()), 0, 'a user without access gets nothing');
+SELECT is(pg_temp.fx_err($$SELECT * FROM public.own_fleet_requesters_list()$$), 'OWN_FLEET_FORBIDDEN', 'a user without access cannot list');
+SELECT pg_temp.fx_as('a2');
+SELECT is(pg_temp.fx_err($$SELECT * FROM public.own_fleet_requesters_list()$$), 'OWN_FLEET_FORBIDDEN', 'a logist cannot list requesters');
+SELECT throws_ok($$SELECT * FROM public.own_fleet_requesters_list()$$, '42501', NULL, 'the refusal is an access error (42501)');
+SELECT is(pg_temp.fx_err($$SELECT public.own_fleet_requester_set_units('00000000-0000-0000-0000-00000d1f00c3', ARRAY[]::uuid[])$$), 'OWN_FLEET_FORBIDDEN', 'a logist cannot change the units of a requester');
+SELECT is(pg_temp.fx_err($$SELECT public.own_fleet_requester_remove('00000000-0000-0000-0000-00000d1f00c3')$$), 'OWN_FLEET_FORBIDDEN', 'a logist cannot remove a requester');
+SELECT is((SELECT count(*)::integer FROM public.org_requesters WHERE user_id = '00000000-0000-0000-0000-00000d1f00c3'), 1, 'the requester is still there');
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d1f00a1","role":"service_role"}', true);
+SELECT is(pg_temp.fx_err($$SELECT public.own_fleet_invite_reserve('9f000000-0000-0000-0000-00000000000a', gen_random_uuid(), 'fx-new@example.com', 'fx-hash-new', '00000000-0000-0000-0000-00000d1f00a2', now() + interval '7 days', ARRAY['9f100000-0000-0000-0000-000000000001']::uuid[])$$), 'OWN_FLEET_FORBIDDEN', 'a logist cannot invite a requester (reserve)');
+SELECT is(pg_temp.fx_err($$SELECT public.own_fleet_invite_reserve('9f000000-0000-0000-0000-00000000000a', gen_random_uuid(), 'fx-new2@example.com', 'fx-hash-new2', '00000000-0000-0000-0000-00000d1f00a3', now() + interval '7 days', ARRAY['9f100000-0000-0000-0000-000000000001']::uuid[])$$), 'no error', 'a director (Менеджер) can');
+SELECT pg_temp.fx_as('a3');
+SELECT is(pg_temp.fx_err($$SELECT public.own_fleet_requester_set_units('00000000-0000-0000-0000-00000d1f00c3', ARRAY['9f100000-0000-0000-0000-000000000001']::uuid[])$$), 'no error', 'a director changes units');
+SELECT pg_temp.fx_as('a1');
+SELECT is(pg_temp.fx_err($$SELECT * FROM public.own_fleet_requesters_list()$$), 'no error', 'the owner (Директор) can list');
 SELECT is(has_function_privilege('anon', 'public.own_fleet_requesters_list()', 'EXECUTE'), false, 'anon cannot call it');
 
 SELECT * FROM finish();

@@ -103,7 +103,8 @@ export function renderUnitCard(app, id) {
             row('Назва', name, ids.name), row('Тип', kind, ids.kind), row('Центр витрат', cc, ids.cc),
             unit ? h('div', { class: 'field kpc-row' }, h('label', { for: archived.id }, 'В архіві'), h('span', { class: 'kpc-box' }, archived)) : null,
             message, h('div', { class: 'actions' }, save, h('button', { type: 'button', class: 'btn', onclick: () => closeCard(app, false) }, 'Закрити'))];
-        if (unit) body.push(requestersBlock(app, unit));
+        // Запрошення замовників — лише директор і менеджер (API й БД відмовляють логісту).
+        if (unit && app.ownFleet && (app.ownFleet.role === 'owner' || app.ownFleet.role === 'director')) body.push(requestersBlock(app, unit));
         clear(root, body);
     })();
     return root;

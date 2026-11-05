@@ -708,8 +708,10 @@ check(/^-- Apply manually after review\. This file is not applied to production 
 check(!/(DROP|ALTER) (POLICY|TABLE)\b[^;]*\bpublic\.(profiles|clients|fleet_vehicles|kp_drivers|fleet_trailers|org_directors)\b/i.test(ownFleetCode),
     'own fleet: no policies or tables of existing modules are altered');
 // Виправлення за рев'ю (нова міграція поверх; стара не змінена): застосовується після повторного прогону старої, двічі.
-const OWN_FLEET_FIXES = all.find((f) => /^\d{14}_own_fleet_fixes\.sql$/.test(f));
-if (!OWN_FLEET_FIXES) throw new Error('немає міграції *_own_fleet_fixes.sql');
+// Усі міграції виправлень по черзі (за мітками): кожна двічі; наступна переозначає функції попередньої.
+const OWN_FLEET_FIXES_ALL = all.filter((f) => /^\d{14}_own_fleet_fixes\.sql$/.test(f));
+if (!OWN_FLEET_FIXES_ALL.length) throw new Error('немає міграції *_own_fleet_fixes.sql');
+for (const OWN_FLEET_FIXES of OWN_FLEET_FIXES_ALL) {
 const ownFleetFixesSql = fs.readFileSync(new URL(OWN_FLEET_FIXES, DIR), 'utf8');
 await db.exec(ownFleetFixesSql);
 await db.exec(ownFleetFixesSql);
@@ -718,6 +720,7 @@ check(OWN_FLEET_FIXES > OWN_FLEET && /^-- Apply manually after review\. This fil
     && !/CREATE EXTENSION/i.test(ownFleetFixesCode)
     && !/(DROP|ALTER) (POLICY|TABLE)\b[^;]*\bpublic\.(profiles|clients|fleet_vehicles|kp_drivers|fleet_trailers|org_directors|organizations|kp_doc_trip_sheet)\b/i.test(ownFleetFixesCode),
 'own fleet fixes: ' + OWN_FLEET_FIXES + ' (after ' + OWN_FLEET + ') applied twice, manual-apply header, no existing tables or policies altered');
+}
 const ofTapSql = fs.readFileSync(new URL('../../../supabase/tests/own_fleet.sql', import.meta.url), 'utf8')
     .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
 const ofPlanned = Number((ofTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
