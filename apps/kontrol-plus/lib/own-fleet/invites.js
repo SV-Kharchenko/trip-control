@@ -5,6 +5,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
     APP_URL, HttpError, INVITE_TTL_MS, createSendLimiter, mailProvider, normalizeEmail, sendInviteEmail, validEmail,
 } from '../repairs/invites.js';
+import { isFeatureDisabled } from '../public-config.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN_RE = /^r1\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{20,}$/i;
@@ -202,6 +203,10 @@ export function createOwnFleetInvitesHandler({ store, env = {}, fetch: doFetch, 
         if (req.method !== 'POST') {
             res.setHeader('Allow', 'POST');
             return res.status(405).json({ code: 'METHOD_NOT_ALLOWED', error: 'Дозволено лише POST.' });
+        }
+        // Аварійний вимикач KP_DISABLED_FEATURES: модуль вимкнено — жодних дій із замовниками, зрозуміла відповідь (503, без запитів до БД).
+        if (isFeatureDisabled(env, 'own_fleet')) {
+            return res.status(503).json({ code: 'FEATURE_DISABLED', error: 'Модуль «Власний парк» тимчасово вимкнено адміністратором платформи.' });
         }
         const body = bodyOf(req);
         const action = String(body.action || '');

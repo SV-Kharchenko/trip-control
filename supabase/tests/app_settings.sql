@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(29);
+SELECT plan(33);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d2f00a1","role":"service_role"}', true);
 
@@ -70,6 +70,27 @@ RESET ROLE;
 -- 5. service_role пише в app_settings.
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d2f00a2","role":"service_role"}', true);
 SELECT lives_ok($$UPDATE public.app_settings SET enabled = true WHERE key = 'as_other'$$, 'service_role writes app_settings');
+
+-- 6. Глобальний вимикач керує справжнім модулем «Власний парк»: прапорець організації без рядка app_settings нічого не вмикає.
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d2f00a1","role":"service_role"}', true);
+UPDATE public.profiles SET org_id = '9a000000-0000-0000-0000-00000000000a', org_role = 'owner', member_status = 'active', is_approved = true WHERE id = '00000000-0000-0000-0000-00000d2f00a1';
+SELECT public.set_org_plan('9a000000-0000-0000-0000-00000000000a', 'control_plus');
+UPDATE public.organizations SET features = '{"own_fleet": true}' WHERE id = '9a000000-0000-0000-0000-00000000000a';
+DELETE FROM public.app_settings WHERE key = 'own_fleet';
+SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d2f00a1","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT is((SELECT count(*)::integer FROM public.own_fleet_context()), 0, 'own_fleet: прапорець організації є, рядка app_settings немає → модуль вимкнено (контексту немає)');
+RESET ROLE;
+INSERT INTO public.app_settings (key, enabled) VALUES ('own_fleet', true);
+SET LOCAL ROLE authenticated;
+SELECT is((SELECT role FROM public.own_fleet_context()), 'owner', 'own_fleet: рядок app_settings увімкнено + прапорець → директор бачить модуль');
+RESET ROLE;
+UPDATE public.app_settings SET enabled = false WHERE key = 'own_fleet';
+SET LOCAL ROLE authenticated;
+SELECT is((SELECT count(*)::integer FROM public.own_fleet_context()), 0, 'own_fleet: один UPDATE enabled = false вимикає модуль для всіх');
+SELECT is((SELECT count(*)::integer FROM public.org_units), 0, 'own_fleet: і таблиці модуля віддають 0 рядків');
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: рівно дев’ять шаблонів для staging / вимикача, сусіди закриті', () => {
-    assert.equal(SCOPE_ALLOWLIST.slice(-9).map(String).length, 9);
+    assert.equal(SCOPE_ALLOWLIST.slice(-12, -3).map(String).length, 9, 'дев’ять шаблонів стоять перед хвостом #128 (idle-label, own_fleet)');
     for (const ok of [
         'api/config.js', 'lib/public-config.js', 'docs/STAGING.md', 'scripts/staging-seed/seed.mjs', 'scripts/staging-seed/index.mjs',
         'tests/public-config.test.mjs', 'tests/staging-seed.test.mjs', 'tests/security-grants.test.mjs', 'tests/osm-geo.test.mjs',

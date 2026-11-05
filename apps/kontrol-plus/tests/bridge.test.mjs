@@ -32,7 +32,7 @@ class FakeElement extends FakeNode {
 
 function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null,
     url = 'https://app.trip-control.com/', stored = null, acceptResponse = { status: 200, body: { ok: true, org_name: 'Агро А' } },
-    maintenance = [], fetchGate = null, docs = 'ok', ownFleet = null } = {}) {
+    maintenance = [], fetchGate = null, docs = 'ok', ownFleet = null, tcConfig = null } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
@@ -52,7 +52,7 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
     const globals = {
         Node: FakeNode,
         document: doc,
-        window: { addEventListener: () => { calls.listeners += 1; }, scrollTo() {} },
+        window: { addEventListener: () => { calls.listeners += 1; }, scrollTo() {}, TC_CONFIG: tcConfig },
         location: loc,
         history: { replaceState(_s, _t, path) { calls.replaced.push(path); loc.href = new URL(path, url).href; } },
         fetch: async (path, init) => {
@@ -546,5 +546,62 @@ test('bridge: прямий URL #/own-fleet без прапорця веде на
         assert.equal(req.loc.hash, '#/own-fleet', 'клієнти замовнику не показуються');
     } finally {
         req.restore();
+    }
+});
+
+// ---- Аварійний вимикач KP_DISABLED_FEATURES (window.TC_CONFIG.disabledFeatures): «Власний парк» гасне, навіть якщо прапорець і app_settings увімкнені ----
+test('bridge: own_fleet у disabledFeatures — пункту меню немає, контекст модуля не питається, меню як без прапорця', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null,
+        ownFleet: OF_ROW('owner'), tcConfig: { disabledFeatures: ['own_fleet'] } });
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.deepEqual(visibleKeys(env), BASE_VISIBLE, 'меню як без модуля');
+        assert.equal(navItems(env).find((b) => b.id === 'kp-nav-own_fleet').hidden, true);
+        assert.equal(env.calls.rpcs.own_fleet_context, undefined, 'own_fleet_context не викликається');
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: own_fleet вимкнено env — прямий URL (розділ і картки) веде на огляд; замовник без Контроль+ теж не потрапляє в модуль', async () => {
+    for (const hash of ['#/own-fleet', '#/own-fleet/units', '#/own-fleet/request/new']) {
+        const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null,
+            ownFleet: OF_ROW('owner'), tcConfig: { disabledFeatures: ['own_fleet'] } });
+        env.loc.hash = hash;
+        try {
+            const { startBridge } = await freshBridge();
+            assert.equal(await startBridge(), true);
+            await ticks();
+            assert.equal(env.loc.hash, '#/dashboard', hash);
+        } finally {
+            env.restore();
+        }
+    }
+    const req = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: null,
+        ownFleet: OF_ROW('requester', ['81000000-0000-0000-0000-000000000001']), tcConfig: { disabledFeatures: ['own_fleet'] } });
+    req.loc.hash = '#/own-fleet';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.deepEqual(visibleKeys(req), ['overview', 'calc', 'clients', 'report'], 'замовник без Контроль+ при вимкненому модулі — як звичайний акаунт без модуля (пункту «Власний парк» немає)');
+        assert.notEqual(req.loc.hash, '#/own-fleet');
+    } finally {
+        req.restore();
+    }
+});
+
+test('bridge: інший модуль у disabledFeatures «Власний парк» не чіпає', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null,
+        ownFleet: OF_ROW('owner'), tcConfig: { disabledFeatures: ['gps'] } });
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.ok(visibleKeys(env).includes('own_fleet'));
+    } finally {
+        env.restore();
     }
 });

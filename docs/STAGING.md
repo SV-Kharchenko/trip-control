@@ -59,25 +59,39 @@
 
 ## Глобальний вимикач модулів
 
-Таблиця `app_settings(key, enabled, updated_at)` (міграція `*_app_settings_kill_switch.sql`): читати можуть authenticated, писати — лише service_role.
-`feature_enabled(key)` повертає `enabled`; **немає рядка → вимкнено**. `org_has_feature(org, key) = feature_enabled(key) AND прапорець організації`
-(`organizations.features ->> key = 'true'`). Тобто модуль працює, лише коли ввімкнено **і** глобально, **і** для організації.
+Таблиця `app_settings(key, enabled, updated_at)` (міграція `20261122090000_app_settings_kill_switch.sql`): читати можуть authenticated, писати — лише
+service_role / SQL-редактор. `feature_enabled(key)` повертає `enabled`; **немає рядка → вимкнено**. `org_has_feature(org, key) = feature_enabled(key) AND
+прапорець організації` (`organizations.features ->> key = 'true'`). Модуль працює, лише коли ввімкнено **і** глобально, **і** для організації.
 
-Увімкнути «Власний парк» глобально (після міграцій модуля й прапорця організації):
+### ⚠ Після цієї міграції «Власний парк» вимкнений для всіх
+
+Міграція **не вставляє** рядок `own_fleet` в `app_settings`, а «немає рядка» означає «вимкнено». Тому одразу після її застосування модуль «Власний парк»
+зникає у **всіх** організацій — навіть у тих, у кого вже стоїть прапорець `features.own_fleet` (пункт меню, роути, вікна, блок «Замовники підрозділів»,
+RLS-таблиці модуля віддають 0 рядків). Дані не втрачаються. Щоб повернути модуль, вставте рядок явно:
 
 ```sql
+-- Увімкнути «Власний парк» глобально (після цього він працює в організаціях із прапорцем features.own_fleet = true):
 INSERT INTO public.app_settings (key, enabled) VALUES ('own_fleet', true)
 ON CONFLICT (key) DO UPDATE SET enabled = true;
-```
 
-Вимкнути «Власний парк» для всіх одним UPDATE (дані лишаються, усі RLS-таблиці модуля одразу віддають 0 рядків, навіть директору):
-
-```sql
+-- Вимкнути для всіх одним UPDATE (дані лишаються, усі таблиці модуля одразу віддають 0 рядків, навіть директору):
 UPDATE public.app_settings SET enabled = false WHERE key = 'own_fleet';
+
+-- Прапорець однієї організації (потрібен на додачу до глобального):
+UPDATE public.organizations SET features = features || '{"own_fleet": true}'::jsonb WHERE id = '<org uuid>';
 ```
 
-### Вимкнути без міграції (env)
+Staging-засів (`scripts/staging-seed`) сам вставляє `own_fleet = true`. Якщо на проді «Власний парк» уже використовується, **виконайте INSERT вище в тому самому
+вікні, що й міграцію**, інакше модуль на якийсь час зникне.
 
-`KP_DISABLED_FEATURES=own_fleet` (через кому для кількох модулів) у env Vercel + редеплой. Список потрапляє у `window.TC_CONFIG.disabledFeatures`
-(перевірка на фронті: `src/lib/features.js` → `featureDisabled('own_fleet')`) і доступний API через `isFeatureDisabled(process.env, 'own_fleet')`
-з `lib/public-config.js`. Це швидкий запасний вимикач, коли SQL недоступний; БД-вимикач вище надійніший, бо діє й на RLS.
+### Аварійний вимикач: env KP_DISABLED_FEATURES
+
+`KP_DISABLED_FEATURES=own_fleet` (через кому для кількох модулів) у env Vercel — запасний вимикач, коли SQL недоступний. Він **діє після редеплою** (env читаються
+при старті функцій; `/api/config` додатково кешується браузером до хвилини) і гасить модуль, навіть якщо прапорець організації й `app_settings` увімкнені:
+- **фронт «Контроль+»:** `window.TC_CONFIG.disabledFeatures` → `featureDisabled('own_fleet')`: контекст модуля не запитується, тож немає пункту меню, роути
+  (`#/own-fleet…`) ведуть на огляд, не відкриваються вікна карток і не показується блок «Замовники підрозділів» у «Команді»;
+- **API `/api/own-fleet/invites`:** будь-яка дія (включно з `accept`) повертає 503 `FEATURE_DISABLED` з текстом «Модуль «Власний парк» тимчасово вимкнено
+  адміністратором платформи», до БД запит не доходить.
+
+Це лише інтерфейс і API: на рівні БД (RLS) модуль гасить тільки `app_settings` — він надійніший. Тому для повного вимкнення використовуйте SQL вище, а env —
+як швидкий запасний варіант. Повернути модуль: прибрати `own_fleet` зі змінної й зробити редеплой.

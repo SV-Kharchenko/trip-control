@@ -101,6 +101,8 @@ export function createConfigHandler(getEnv = () => process.env, log = console) {
             res.setHeader('Content-Type', 'text/plain; charset=utf-8');
             return res.status(503).send('Public config is not set up on the server.');
         }
+        // Конфіг змінюється лише з env + редеплоєм: хвилина приватного кешу браузера знімає зайві запити; помилки (405 / 503) не кешуються (no-store вище).
+        res.setHeader('Cache-Control', 'private, max-age=60');
         res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
         return res.status(200).send(renderConfigScript(built.config));
     };
