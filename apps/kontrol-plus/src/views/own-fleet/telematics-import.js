@@ -2,7 +2,7 @@
 // на сервер (RPC tm_import_*) йдуть лише розпізнані рядки. Попередній перегляд, мапінг колонок, шаблон мапінгу, звіт про імпорт.
 import { h, clear, notice, toast } from '../../ui.js';
 import { CsvError, parseCsv } from '../../lib/csv.js';
-import { FIELDS, IMPORT_KINDS, MAX_IMPORT_ROWS, applyTemplate, buildFuelRows, buildReportRows, missingRequired } from '../../lib/telematics/import.js';
+import { FIELDS, IMPORT_KINDS, MAX_IMPORT_ROWS, applyTemplate, buildFuelRows, buildReportRows, chunkByRef, missingRequired, partialImportText } from '../../lib/telematics/import.js';
 import { XlsxError, decodeCsvBytes, readXlsx } from '../../lib/telematics/xlsx-read.js';
 import { telematicsErrorText } from '../../lib/telematics/summary.js';
 
@@ -94,12 +94,24 @@ export function renderTelematicsImport(app, ctx) {
         const sourceId = await ctx.ensureSource('file_import');
         let server = null;
         if (sourceId) {
-            const { data, error } = await app.supabase.rpc(state.kind === 'reports' ? 'tm_import_reports' : 'tm_import_fuel_events', { p_source: sourceId, p_rows: built.rows });
-            if (error) clear(live, notice(telematicsErrorText(error)));
-            else server = data;
+            // Пачками: рядки одного авто лишаються разом. Якщо пачка впала посередині — кажемо, скільки вже імпортовано (повтор безпечний: upsert).
+            const total = built.rows.length;
+            const rpcName = state.kind === 'reports' ? 'tm_import_reports' : 'tm_import_fuel_events';
+            const sum = { added: 0, updated: 0, skipped: 0, unmapped: 0 };
+            let done = 0;
+            let failed = null;
+            for (const chunk of chunkByRef(built.rows)) {
+                const { data, error } = await app.supabase.rpc(rpcName, { p_source: sourceId, p_rows: chunk });
+                if (error) { failed = error; break; }
+                for (const k of Object.keys(sum)) sum[k] += Number(data[k] || 0);
+                done += chunk.length;
+            }
+            if (failed) clear(live, notice(partialImportText(done, total) + ' ' + telematicsErrorText(failed)));
+            else clear(live);
+            if (!failed || done > 0) { server = sum; ctx.onImported(); }
         }
         state.busy = false;
-        if (server) { state.result = { ...built, server }; clear(live); ctx.onImported(); }
+        if (server) state.result = { ...built, server };
         paint();
     }
 

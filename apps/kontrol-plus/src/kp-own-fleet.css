@@ -147,3 +147,5 @@
     .kpt-import-top .kpt-opt { flex: 1 1 100%; }
     .kpt-map { grid-template-columns: 1fr; }
 }
+.kpt-mock { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+#kp-crm .kpof-filters .kpt-mock-toggle input, .kpof-filters .kpt-mock-toggle input { flex: 0 0 18px; width: 18px; }

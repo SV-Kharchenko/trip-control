@@ -9,9 +9,10 @@ import { parseCsv } from '../src/lib/csv.js';
 import { buildXlsx } from '../src/lib/xlsx.js';
 import { normPlate } from '../src/lib/plates.js';
 import { parseCsv as parseCsvText } from '../src/lib/csv.js';
-import { excelSerialParts, parseDate, parseDateTime, parseEventKind, parseIdleMinutes, parseNumber } from '../src/lib/telematics/parse.js';
-import { decodeCsvBytes, readXlsx } from '../src/lib/telematics/xlsx-read.js';
-import { FIELDS, applyTemplate, buildFuelRows, buildReportRows, guessMapping, missingRequired } from '../src/lib/telematics/import.js';
+import { zipSync, strToU8 } from 'fflate';
+import { excelSerialParts, toKyivWall, parseDate, parseDateTime, parseEventKind, parseIdleMinutes, parseNumber } from '../src/lib/telematics/parse.js';
+import { BAD_FILE_TEXT, XlsxError, decodeCsvBytes, readXlsx } from '../src/lib/telematics/xlsx-read.js';
+import { FIELDS, applyTemplate, buildFuelRows, buildReportRows, chunkByRef, guessMapping, missingRequired, partialImportText } from '../src/lib/telematics/import.js';
 import { createAgrocontrolMock, eachDate, hashSeed } from '../src/lib/telematics/agrocontrol-mock.js';
 import { API_NOT_CONNECTED, createAgrocontrolApi } from '../src/lib/telematics/agrocontrol-api.js';
 import { canSyncMock, createAdapter } from '../src/lib/telematics/adapter.js';
@@ -57,7 +58,7 @@ test('дати: дд.мм.рррр, ISO, час, серійне число Excel
 
 test('момент події: дата + час', () => {
     assert.equal(parseDateTime('31.12.2025 08:05'), '2025-12-31T08:05:00');
-    assert.equal(parseDateTime('2025-12-31T08:05:30Z'), '2025-12-31T08:05:30');
+    assert.equal(parseDateTime('2025-12-31T08:05:30Z'), '2025-12-31T10:05:30');
     assert.equal(parseDateTime('31.12.2025'), '2025-12-31T00:00:00');
     assert.equal(parseDateTime('45992.75'), '2025-12-01T18:00:00');
     assert.equal(parseDateTime('31.12.2025 25:00'), null);
@@ -135,7 +136,7 @@ test('xlsx: читання файлу, зібраного buildXlsx (рядки,
 });
 
 test('xlsx / csv: некоректний файл → зрозуміла помилка; кодування windows-1251', () => {
-    assert.throws(() => readXlsx(new Uint8Array([1, 2, 3, 4])), (e) => e.code === 'BAD_FILE' && /Не вдалося відкрити/.test(e.message));
+    assert.throws(() => readXlsx(new Uint8Array([1, 2, 3, 4])), (e) => e instanceof XlsxError && e.code === 'BAD_FILE' && e.message === 'Файл пошкоджений або не схожий на xlsx');
     assert.throws(() => readXlsx(new Uint8Array(6 * 1024 * 1024)), (e) => e.code === 'TOO_LARGE');
     const cp1251 = new Uint8Array([0xC4, 0xE0, 0xF2, 0xE0, 0x3B, 0xCF, 0xF0, 0xEE, 0xE1, 0xB3, 0xE3]);
     assert.equal(decodeCsvBytes(cp1251), 'Дата;Пробіг');
@@ -222,7 +223,73 @@ test('статично: без токенів і секретів, без пря
     }
     const rpcs = new Set();
     for (const f of ['src/views/own-fleet/telematics.js', 'src/views/own-fleet/telematics-import.js']) for (const m of read(f).matchAll(/rpc\('([a-z_]+)'/g)) rpcs.add(m[1]);
-    assert.deepEqual([...rpcs].sort(), ['tm_ensure_source', 'tm_import_fuel_events', 'tm_import_reports', 'tm_save_template', 'tm_set_vehicle_map', 'tm_set_vehicle_unit', 'tm_summary']);
+    assert.deepEqual([...rpcs].sort(), ['tm_clear_mock', 'tm_drains', 'tm_ensure_source', 'tm_import_fuel_events', 'tm_import_reports', 'tm_save_template', 'tm_set_vehicle_map', 'tm_set_vehicle_unit', 'tm_summary']);
     assert.match(read('src/views/own-fleet/telematics-import.js'), /нікуди не надсилається/, 'пояснення, що файл не йде на сторонні сервіси');
     assert.match(read('src/views/own-fleet/units.js'), /Код підрозділу в 1С\/BAS для звітів собівартості\. Можна лишити порожнім\./);
+});
+
+test('часовий пояс: усе трактується як Europe/Kyiv, зима UTC+2 і літо UTC+3', () => {
+    assert.equal(toKyivWall(Date.parse('2026-01-15T20:30:00Z')), '2026-01-15T22:30:00', 'зима: 20:30 UTC = 22:30 Київ');
+    assert.equal(toKyivWall(Date.parse('2026-07-15T19:30:00Z')), '2026-07-15T22:30:00', 'літо: 19:30 UTC = 22:30 Київ');
+    assert.equal(toKyivWall(Date.parse('2026-07-15T21:30:00Z')), '2026-07-16T00:30:00', 'літо: північ за Києвом — вже наступна доба');
+    assert.equal(toKyivWall(Date.parse('2026-03-29T01:00:00Z')), '2026-03-29T04:00:00', 'перехід на літній час 29.03.2026 о 03:00 → 04:00');
+    // без пояса — київський настінний час як є; з поясом — переведення
+    assert.equal(parseDateTime('15.07.2026 22:30'), '2026-07-15T22:30:00');
+    assert.equal(parseDateTime('2026-07-15 22:30'), '2026-07-15T22:30:00');
+    assert.equal(parseDateTime('2026-01-15T20:30:00Z'), '2026-01-15T22:30:00');
+    assert.equal(parseDateTime('2026-07-15T19:30:00Z'), '2026-07-15T22:30:00');
+    assert.equal(parseDateTime('2026-07-15T22:30:00+03:00'), '2026-07-15T22:30:00');
+    assert.equal(parseDateTime('2026-07-15T22:30:00+0300'), '2026-07-15T22:30:00');
+    assert.equal(parseDateTime('2026-07-15T21:30:00-00:00'), '2026-07-16T00:30:00');
+    // злив о 22:30 за Києвом лишається в тому самому дні
+    const { records } = parseCsv('Час;Авто;Тип;Літри\n15.01.2026 22:30;AA1111AA;Злив;10\n15.07.2026 22:30;AA1111AA;Злив;11\n');
+    const out = buildFuelRows(records, guessMapping('fuel_events', records[0].cells));
+    assert.deepEqual(out.rows.map((x) => x.ts.slice(0, 10)), ['2026-01-15', '2026-07-15']);
+    // тестові дані також київські (без Z)
+    const mock = createAgrocontrolMock({ orgId: 'o', vehicles: Array.from({ length: 20 }, (_, i) => ({ id: 'v' + i, label: 'AA ' + (2000 + i) + ' AA' })) });
+    return mock.fetchFuelEvents({ from: '2026-05-01', to: '2026-05-31' }).then((events) => {
+        assert.ok(events.length > 0);
+        for (const e of events) assert.match(e.ts, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/, 'без Z і зсуву: ' + e.ts);
+    });
+});
+
+test('простій: частка доби з xlsx (0 < x < 1 → ×1440), год:хв(:сек)', () => {
+    assert.equal(parseIdleMinutes('0.0625'), '90', '0,0625 доби = 1:30');
+    assert.equal(parseIdleMinutes('0,0625'), '90');
+    assert.equal(parseIdleMinutes('0.5'), '720');
+    assert.equal(parseIdleMinutes('1:30'), '90');
+    assert.equal(parseIdleMinutes('01:30:00'), '90');
+    assert.equal(parseIdleMinutes('0'), '0');
+    assert.equal(parseIdleMinutes('45'), '45', 'ціле число лишається хвилинами');
+    assert.equal(parseIdleMinutes('2', 'h'), '120');
+    const bytes = buildXlsx({ name: 'Звіт', columns: [12, 14, 10], rows: [['Дата', 'Держномер', 'Простій'], [{ date: '2026-01-02' }, 'AA 1111 AA', 0.0625]] });
+    const { records } = readXlsx(bytes);
+    const out = buildReportRows(records, guessMapping('reports', records[0].cells));
+    assert.equal(out.rows[0].idle_minutes, '90', 'число з xlsx 0.0625 → 90 хв');
+});
+
+test('xlsx: битий файл → XlsxError з людським текстом; rid із спецсимволами не ламає RegExp', () => {
+    assert.equal(BAD_FILE_TEXT, 'Файл пошкоджений або не схожий на xlsx');
+    for (const bad of [new Uint8Array([1, 2, 3]), new Uint8Array(0), null, undefined, strToU8('PK\u0003\u0004 not really'), new Uint8Array(200).fill(80)]) {
+        assert.throws(() => readXlsx(bad), (e) => e instanceof XlsxError && e.message === BAD_FILE_TEXT, String(bad && bad.length));
+    }
+    const weird = zipSync({
+        'xl/workbook.xml': strToU8('<workbook><sheets><sheet name="S" sheetId="1" r:id="rId(1[*"/></sheets></workbook>'),
+        'xl/_rels/workbook.xml.rels': strToU8('<Relationships><Relationship Id="rId(1[*" Type="x" Target="worksheets/sheet1.xml"/></Relationships>'),
+        'xl/worksheets/sheet1.xml': strToU8('<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>ok</t></is></c></row></sheetData></worksheet>'),
+    });
+    assert.equal(readXlsx(weird).records[0].cells[0], 'ok', 'rid порівнюється рядком, а не RegExp');
+    assert.doesNotMatch(read('src/lib/telematics/xlsx-read.js'), /new RegExp/, 'у xlsx-read.js немає new RegExp');
+});
+
+test('пачки імпорту не розривають рядки одного авто; текст при обриві', () => {
+    const rows = [];
+    for (let i = 0; i < 30; i++) rows.push({ ref: i % 2 ? 'AA 1111 AA' : 'АА-1111-АА' }, { ref: 'KE ' + i });
+    const chunks = chunkByRef(rows, 10);
+    assert.equal(chunks.flat().length, rows.length);
+    assert.ok(chunks.every((c) => c.length <= 30));
+    const aa = chunks.filter((c) => c.some((x) => x.ref.includes('1111')));
+    assert.equal(aa.length, 1, 'усі 30 рядків AA1111AA (кирилиця й латиниця) в одній пачці');
+    assert.equal(chunkByRef([], 10).length, 0);
+    assert.equal(partialImportText(1000, 1500), 'Імпортовано 1000 з 1500 рядків. Повторний імпорт цього ж файлу безпечний — дублікатів не буде.');
 });

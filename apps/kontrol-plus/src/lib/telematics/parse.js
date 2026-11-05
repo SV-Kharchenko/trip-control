@@ -38,6 +38,14 @@ export function parseDate(value) {
     return parseCsvDate(s.replace(/[T ]\d{1,2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/, ''));
 }
 
+// Усі дати й часи з файлів і тестових даних — київські (Europe/Kyiv). Момент з явним поясом (Z / +03:00) переводимо в київський настінний час
+// (з урахуванням літнього / зимового часу); без пояса — вважаємо київським як є. Сервер так само читає ts без пояса як Europe/Kyiv.
+const KYIV = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Kyiv', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+export function toKyivWall(ms) {
+    const p = Object.fromEntries(KYIV.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return p.year + '-' + p.month + '-' + p.day + 'T' + p.hour + ':' + p.minute + ':' + p.second;
+}
+
 // Момент події: дата + необов'язковий час → 'YYYY-MM-DDTHH:MM:00' (час за замовчуванням 00:00; без часового поясу — як у звіті); інше → null.
 export function parseDateTime(value) {
     const s = String(value ?? '').trim();
@@ -45,6 +53,12 @@ export function parseDateTime(value) {
     if (/^\d{5}(\.\d+)?$/.test(s)) {
         const parts = excelSerialParts(s);
         return parts ? parts.date + 'T' + parts.time : null;
+    }
+    const zone = s.match(/(Z|[+-]\d{2}:?\d{2})$/);
+    if (zone && /[T ]\d{1,2}:\d{2}/.test(s)) {
+        const iso = s.replace(' ', 'T').replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
+        const ms = Date.parse(iso);
+        return Number.isFinite(ms) ? toKyivWall(ms) : null;
     }
     const t = s.match(/[T ](\d{1,2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/);
     const date = parseCsvDate(t ? s.slice(0, t.index).trim() : s);
@@ -57,7 +71,7 @@ export function parseDateTime(value) {
     return date + 'T' + String(hh).padStart(2, '0') + ':' + t[2] + ':' + String(ss).padStart(2, '0');
 }
 
-// Простій у хвилинах. «1:30» / «01:30:00» — години:хвилини; число — у одиницях unit ('min' | 'h'). → ціле число-рядок, '' або null.
+// Простій у хвилинах. «1:30» / «01:30:00» — години:хвилини(:секунди); число між 0 і 1 — частка доби; інше число — у одиницях unit ('min' | 'h'). → ціле число-рядок, '' або null.
 export function parseIdleMinutes(value, unit = 'min') {
     const s = String(value ?? '').trim();
     if (!s) return '';
@@ -68,7 +82,10 @@ export function parseIdleMinutes(value, unit = 'min') {
     }
     const num = parseNumber(s);
     if (num === null || num === '') return num;
-    return String(Math.round(Number(num) * (unit === 'h' ? 60 : 1)));
+    const n = Number(num);
+    // Excel зберігає тривалість часткою доби: 0 < x < 1 → ×1440 хв (0,0625 = 1:30).
+    if (n > 0 && n < 1) return String(Math.round(n * 1440));
+    return String(Math.round(n * (unit === 'h' ? 60 : 1)));
 }
 
 // Вид події за текстом: «Заправка» → refuel, «Злив» → drain; інше → null.

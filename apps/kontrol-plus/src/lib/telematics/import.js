@@ -1,6 +1,6 @@
 // Телематика: мапінг колонок файлу звіту й перетворення рядків у формат RPC tm_import_reports / tm_import_fuel_events.
 // Валідація по рядках: порожні рядки пропускаємо, помилки збираємо списком { line, message } (номер рядка файлу), без alert.
-import { parseDate, parseDateTime, parseEventKind, parseIdleMinutes, parseNumber } from './parse.js';
+import { normPlate, parseDate, parseDateTime, parseEventKind, parseIdleMinutes, parseNumber } from './parse.js';
 
 export const IMPORT_KINDS = {
     reports: 'Денні звіти (пробіг, пальне, простій)',
@@ -135,4 +135,27 @@ function rawOf(headers, cells) {
     const raw = {};
     headers.slice(0, 12).forEach((h, i) => { if (h) raw[h.slice(0, 60)] = String(cells[i] ?? '').slice(0, 120); });
     return raw;
+}
+
+// Пачки для RPC: рядки одного авто не розривають між пачками (тоді «незмеплено» по пачках додається без подвійного підрахунку).
+export const IMPORT_CHUNK = 1000;
+export function chunkByRef(rows, size = IMPORT_CHUNK) {
+    const groups = new Map();
+    for (const row of rows) {
+        const key = normPlate(row.ref);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+    }
+    const chunks = [];
+    let current = [];
+    for (const group of groups.values()) {
+        if (current.length && current.length + group.length > size) { chunks.push(current); current = []; }
+        current = current.concat(group);
+    }
+    if (current.length) chunks.push(current);
+    return chunks;
+}
+
+export function partialImportText(done, total) {
+    return 'Імпортовано ' + done + ' з ' + total + ' рядків. Повторний імпорт цього ж файлу безпечний — дублікатів не буде.';
 }

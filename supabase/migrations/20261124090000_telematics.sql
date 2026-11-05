@@ -263,7 +263,8 @@ BEGIN
   FROM (
     SELECT public.telematics_norm_plate(e ->> 'ref') AS ref,
            CASE WHEN e ->> 'ts' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}([T ][0-9]{2}:[0-9]{2}(:[0-9]{2})?(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$'
-                THEN (e ->> 'ts')::timestamptz END AS t,
+                THEN CASE WHEN e ->> 'ts' ~ '(Z|[+-][0-9]{2}:?[0-9]{2})$' THEN (e ->> 'ts')::timestamptz
+                          ELSE ((e ->> 'ts')::timestamp AT TIME ZONE 'Europe/Kyiv') END END AS t,
            CASE WHEN e ->> 'kind' IN ('refuel', 'drain') THEN e ->> 'kind' END AS k,
            CASE WHEN e ->> 'liters' ~ '^[0-9]{1,8}(\.[0-9]+)?$' THEN (e ->> 'liters')::numeric END AS lit,
            left(nullif(btrim(e ->> 'location'), ''), 200) AS loc,
@@ -367,7 +368,10 @@ END;
 $$;
 
 -- Зведення по авто за період: пробіг, пальне, простій, мотогодини, кількість і обсяг зливів. p_unit — лише авто цього підрозділу.
-CREATE OR REPLACE FUNCTION public.tm_summary(p_from date, p_to date, p_unit uuid DEFAULT NULL, p_vehicle uuid DEFAULT NULL)
+-- Тестові дані (джерело agrocontrol_mock) не змішуються з реальними: p_mock = false (за замовчуванням) — лише реальні, true — лише тестові.
+-- Межі періоду для подій — київська доба (Europe/Kyiv, з літнім / зимовим часом); денні звіти мають звичайну дату.
+DROP FUNCTION IF EXISTS public.tm_summary(date, date, uuid, uuid);
+CREATE OR REPLACE FUNCTION public.tm_summary(p_from date, p_to date, p_unit uuid DEFAULT NULL, p_vehicle uuid DEFAULT NULL, p_mock boolean DEFAULT false)
 RETURNS TABLE (ref text, vehicle_id uuid, unit_id uuid, days integer, mileage_km numeric, fuel_used_l numeric, idle_minutes bigint,
                engine_hours numeric, drain_count integer, drain_l numeric, refuel_l numeric)
 LANGUAGE plpgsql
@@ -378,20 +382,24 @@ AS $$
 #variable_conflict use_column
 DECLARE
   v_org uuid := public.tm_org();
+  v_mock boolean := coalesce(p_mock, false);
 BEGIN
   RETURN QUERY
   WITH rep AS (
     SELECT r.external_vehicle_ref AS rref, r.vehicle_id AS rveh, count(DISTINCT r.date)::integer AS rdays, sum(r.mileage_km) AS km, sum(r.fuel_used_l) AS fuel,
            sum(r.idle_minutes)::bigint AS idle, sum(r.engine_hours) AS eng
     FROM public.telematics_reports AS r
-    WHERE r.org_id = v_org AND r.date BETWEEN p_from AND p_to
+    JOIN public.telematics_sources AS s ON s.id = r.source_id AND s.org_id = v_org
+    WHERE r.org_id = v_org AND r.date BETWEEN p_from AND p_to AND (s.kind = 'agrocontrol_mock') = v_mock
     GROUP BY r.external_vehicle_ref, r.vehicle_id
   ), ev AS (
     SELECT f.external_vehicle_ref AS eref, f.vehicle_id AS eveh,
            (count(*) FILTER (WHERE f.kind = 'drain'))::integer AS dn, coalesce(sum(f.liters) FILTER (WHERE f.kind = 'drain'), 0) AS dl,
            coalesce(sum(f.liters) FILTER (WHERE f.kind = 'refuel'), 0) AS rl
     FROM public.telematics_fuel_events AS f
-    WHERE f.org_id = v_org AND f.ts >= p_from::timestamptz AND f.ts < (p_to + 1)::timestamptz
+    JOIN public.telematics_sources AS s ON s.id = f.source_id AND s.org_id = v_org
+    WHERE f.org_id = v_org AND (s.kind = 'agrocontrol_mock') = v_mock
+      AND f.ts >= (p_from::timestamp AT TIME ZONE 'Europe/Kyiv') AND f.ts < ((p_to + 1)::timestamp AT TIME ZONE 'Europe/Kyiv')
     GROUP BY f.external_vehicle_ref, f.vehicle_id
   ), joined AS (
     SELECT coalesce(a.rref, b.eref) AS jref, coalesce(a.rveh, b.eveh) AS jveh, a.rdays, a.km, a.fuel, a.idle, a.eng, b.dn, b.dl, b.rl
@@ -408,13 +416,61 @@ BEGIN
 END;
 $$;
 
+-- Зливи за період (київська доба), без змішування тестових і реальних даних; day — київський календарний день події.
+CREATE OR REPLACE FUNCTION public.tm_drains(p_from date, p_to date, p_mock boolean DEFAULT false)
+RETURNS TABLE (id uuid, ts timestamptz, day date, ref text, vehicle_id uuid, liters numeric, location text)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+#variable_conflict use_column
+DECLARE
+  v_org uuid := public.tm_org();
+BEGIN
+  RETURN QUERY
+  SELECT f.id, f.ts, (f.ts AT TIME ZONE 'Europe/Kyiv')::date, f.external_vehicle_ref, f.vehicle_id, f.liters, f.location
+  FROM public.telematics_fuel_events AS f
+  JOIN public.telematics_sources AS s ON s.id = f.source_id AND s.org_id = v_org
+  WHERE f.org_id = v_org AND f.kind = 'drain' AND (s.kind = 'agrocontrol_mock') = coalesce(p_mock, false)
+    AND f.ts >= (p_from::timestamp AT TIME ZONE 'Europe/Kyiv') AND f.ts < ((p_to + 1)::timestamp AT TIME ZONE 'Europe/Kyiv')
+  ORDER BY f.ts DESC
+  LIMIT 100;
+END;
+$$;
+
+-- Видалення ТІЛЬКИ тестових даних (джерела agrocontrol_mock) своєї організації. Лише owner / director. → {reports, events} — скільки видалено.
+CREATE OR REPLACE FUNCTION public.tm_clear_mock()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_org uuid := public.tm_org();
+  v_reports integer;
+  v_events integer;
+BEGIN
+  IF public.own_fleet_role() NOT IN ('owner', 'director') THEN
+    RAISE EXCEPTION 'TELEMATICS_FORBIDDEN' USING ERRCODE = '42501';
+  END IF;
+  DELETE FROM public.telematics_reports AS r
+  WHERE r.org_id = v_org AND r.source_id IN (SELECT s.id FROM public.telematics_sources AS s WHERE s.org_id = v_org AND s.kind = 'agrocontrol_mock');
+  GET DIAGNOSTICS v_reports = ROW_COUNT;
+  DELETE FROM public.telematics_fuel_events AS f
+  WHERE f.org_id = v_org AND f.source_id IN (SELECT s.id FROM public.telematics_sources AS s WHERE s.org_id = v_org AND s.kind = 'agrocontrol_mock');
+  GET DIAGNOSTICS v_events = ROW_COUNT;
+  RETURN jsonb_build_object('reports', v_reports, 'events', v_events);
+END;
+$$;
+
 DO $$
 DECLARE
   f text;
 BEGIN
   FOREACH f IN ARRAY ARRAY['public.tm_org()', 'public.tm_ensure_source(text)', 'public.tm_import_reports(uuid, jsonb)', 'public.tm_import_fuel_events(uuid, jsonb)',
                            'public.tm_set_vehicle_map(text, uuid)', 'public.tm_set_vehicle_unit(uuid, uuid)', 'public.tm_save_template(text, jsonb)',
-                           'public.tm_summary(date, date, uuid, uuid)'] LOOP
+                           'public.tm_summary(date, date, uuid, uuid, boolean)', 'public.tm_drains(date, date, boolean)', 'public.tm_clear_mock()'] LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon', f);
     EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated, service_role', f);
   END LOOP;

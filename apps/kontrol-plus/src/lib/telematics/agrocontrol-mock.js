@@ -66,12 +66,12 @@ export function createAgrocontrolMock(ctx) {
                     const r = rng(orgId + '|ev|' + v.label + '|' + date);
                     if (r() < 0.3) {
                         const hh = String(Math.floor(between(r(), 5, 20))).padStart(2, '0');
-                        rows.push({ ts: date + 'T' + hh + ':' + String(Math.floor(r() * 60)).padStart(2, '0') + ':00Z', ref: v.label, kind: 'refuel',
+                        rows.push({ ts: date + 'T' + hh + ':' + String(Math.floor(r() * 60)).padStart(2, '0') + ':00', ref: v.label, kind: 'refuel',
                             liters: round1(between(r(), 80, 350)), location: 'АЗС', raw: { source: 'agrocontrol_mock' } });
                     }
                     if (r() < 0.02) {
                         const hh = String(Math.floor(between(r(), 0, 24))).padStart(2, '0');
-                        rows.push({ ts: date + 'T' + hh + ':' + String(Math.floor(r() * 60)).padStart(2, '0') + ':00Z', ref: v.label, kind: 'drain',
+                        rows.push({ ts: date + 'T' + hh + ':' + String(Math.floor(r() * 60)).padStart(2, '0') + ':00', ref: v.label, kind: 'drain',
                             liters: round1(between(r(), 20, 80)), location: 'Поза маршрутом', raw: { source: 'agrocontrol_mock' } });
                     }
                 }

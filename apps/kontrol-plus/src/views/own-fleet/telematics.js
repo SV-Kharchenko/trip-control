@@ -8,6 +8,7 @@ import { fmtMinutes, fmtNum, isoDaysAgo, summaryRow, telematicsErrorText } from 
 import { renderTelematicsImport } from './telematics-import.js';
 
 const SYNC_DAYS = 30;
+const KYIV_TZ = 'Europe/Kyiv'; // усі дати й часи телематики — київські
 const CHUNK = 4000;
 const MODES = [
     { key: 'overview', label: 'Огляд' },
@@ -30,7 +31,7 @@ export function renderTelematics(app) {
     const today = isoDaysAgo(0);
     let importNode = null;
     const state = {
-        mode: 'overview', from: isoDaysAgo(29), to: today, unit: '', vehicle: '',
+        mode: 'overview', from: isoDaysAgo(29), to: today, unit: '', vehicle: '', showMock: false,
         sources: [], templates: [], units: [], vehicles: [], vehicleUnits: [], summary: [], drains: [], unmapped: [], busy: false,
     };
 
@@ -53,11 +54,11 @@ export function renderTelematics(app) {
     }
 
     async function loadOverview() {
-        const args = { p_from: state.from, p_to: state.to, p_unit: state.unit || null, p_vehicle: state.vehicle || null };
+        // Тестові й реальні дані не змішуємо: p_mock вибирає одне з двох. Межі періоду для подій рахує база по київській добі.
+        const args = { p_from: state.from, p_to: state.to, p_unit: state.unit || null, p_vehicle: state.vehicle || null, p_mock: state.showMock };
         const [summary, drains] = await Promise.all([
             sb.rpc('tm_summary', args),
-            sb.from('telematics_fuel_events').select('id, ts, external_vehicle_ref, vehicle_id, liters, location').eq('kind', 'drain')
-                .gte('ts', state.from + 'T00:00:00Z').lt('ts', isoDaysAfter(state.to) + 'T00:00:00Z').order('ts', { ascending: false }).limit(100),
+            sb.rpc('tm_drains', { p_from: state.from, p_to: state.to, p_mock: state.showMock }),
         ]);
         const error = summary.error || drains.error;
         if (error) return error;
@@ -86,10 +87,6 @@ export function renderTelematics(app) {
         }
         state.unmapped = [...byRef.values()].sort((a, b) => a.ref.localeCompare(b.ref)).map((e) => ({ ref: e.ref, days: e.days.size, events: e.events }));
         return null;
-    }
-
-    function isoDaysAfter(iso) {
-        return new Date(Date.parse(iso + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10);
     }
 
     async function reload() {
@@ -131,7 +128,7 @@ export function renderTelematics(app) {
                 failed = (await sb.rpc('tm_import_fuel_events', { p_source: source.id, p_rows: events.slice(i, i + CHUNK) })).error;
             }
             if (failed) toast(telematicsErrorText(failed), 'error');
-            else toast('Тестові дані за ' + SYNC_DAYS + ' днів оновлено');
+            else toast('Тестові дані за ' + SYNC_DAYS + ' днів оновлено. Щоб побачити їх, увімкніть «Показати тестові дані».');
         } catch (e) {
             toast(telematicsErrorText(e), 'error');
         }
@@ -139,16 +136,29 @@ export function renderTelematics(app) {
         await reload();
     }
 
+    async function clearMock() {
+        const answer = typeof window !== 'undefined' && typeof window.tcModal === 'function'
+            ? await window.tcModal({ title: 'Видалити тестові дані?', text: 'Буде видалено лише тестові звіти й події Агроконтролю (mock) вашої компанії. Реальні дані з файлів не зачіпаються.', confirmText: 'Видалити', danger: true })
+            : { ok: false };
+        if (!answer || !answer.ok) return;
+        const { data, error } = await sb.rpc('tm_clear_mock');
+        if (error) { toast(telematicsErrorText(error), 'error'); return; }
+        toast('Видалено тестових даних: звітів ' + data.reports + ', подій ' + data.events);
+        await reload();
+    }
+
     function sourcesBlock() {
         const mock = state.sources.find((s) => s.kind === 'agrocontrol_mock');
         const api = state.sources.find((s) => s.kind === 'agrocontrol_api');
+        const canClear = Boolean(app.ownFleet && (app.ownFleet.role === 'owner' || app.ownFleet.role === 'director')); // логіст не видаляє (сервер теж відмовить)
         const rows = state.sources.map((s) => h('li', { class: 'kpt-source', 'data-kind': s.kind },
             h('span', { class: 'kpt-source-name' }, s.name || SOURCE_KINDS[s.kind]),
-            h('span', { class: 'muted small' }, s.last_sync_at ? 'оновлено ' + new Date(s.last_sync_at).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' }) : 'даних ще не було'),
+            h('span', { class: 'muted small' }, s.last_sync_at ? 'оновлено ' + new Date(s.last_sync_at).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short', timeZone: KYIV_TZ }) : 'даних ще не було'),
             canSyncMock(s) ? h('button', { type: 'button', class: 'btn btn-sm', 'data-act': 'sync-mock', disabled: state.busy, onclick: () => syncMock(s) }, 'Синхронізувати (тестові дані)') : null));
         return h('div', { class: 'kpt-sources' },
             state.sources.length ? h('ul', { class: 'kpt-source-list' }, rows) : h('p', { class: 'muted' }, 'Джерел даних ще немає. Завантажте файл звіту у вкладці «Імпорт» або підключіть тестові дані.'),
             api ? h('p', { class: 'muted small' }, 'API Агроконтролю ще не підключено.') : null,
+            mock && canClear ? h('button', { type: 'button', class: 'btn btn-sm btn-danger', 'data-act': 'clear-mock', disabled: state.busy, onclick: clearMock }, 'Видалити тестові дані') : null,
             mock ? null : h('button', { type: 'button', class: 'btn', 'data-act': 'connect-mock', disabled: state.busy, onclick: connectMock }, 'Підключити тестові дані (Агроконтроль)'));
     }
 
@@ -161,7 +171,10 @@ export function renderTelematics(app) {
             h('select', { 'aria-label': 'Підрозділ', onchange: change('unit') }, h('option', { value: '' }, 'Усі підрозділи'),
                 state.units.map((u) => h('option', { value: u.id, selected: u.id === state.unit }, u.name))),
             h('select', { 'aria-label': 'Авто', onchange: change('vehicle') }, h('option', { value: '' }, 'Усі авто'),
-                state.vehicles.map((v) => h('option', { value: v.id, selected: v.id === state.vehicle }, v.label))));
+                state.vehicles.map((v) => h('option', { value: v.id, selected: v.id === state.vehicle }, v.label))),
+            h('label', { class: 'kpt-mock-toggle' },
+                h('input', { type: 'checkbox', id: 'kpt-show-mock', checked: state.showMock, onchange: async (e) => { state.showMock = e.target.checked; await refreshOverview(); } }),
+                ' Показати тестові дані'));
     }
 
     async function refreshOverview() {
@@ -171,10 +184,12 @@ export function renderTelematics(app) {
         paint();
     }
 
+    const mockBadge = (title = 'Тестові дані (Агроконтроль, mock)') => h('span', { class: 'kpof-badge kpt-mock', title }, 'тестові дані');
+
     function overviewBlock() {
         const drainTotal = state.summary.reduce((n, r) => n + r.drainCount, 0);
         const cols = [
-            { label: 'Авто', cell: (r) => (r.mapped ? r.label : h('span', null, r.label, ' ', h('span', { class: 'kpof-badge kpof-late', title: 'Не зіставлено з авто автопарку' }, 'не зіставлено'))) },
+            { label: 'Авто', cell: (r) => h('span', null, r.label, state.showMock ? [' ', mockBadge()] : null, r.mapped ? null : [' ', h('span', { class: 'kpof-badge kpof-late', title: 'Не зіставлено з авто автопарку' }, 'не зіставлено')]) },
             { label: 'Підрозділ', cell: (r) => r.unit || '—' },
             { label: 'Пробіг, км', cell: (r) => fmtNum(r.mileage, 1) },
             { label: 'Пальне, л', cell: (r) => fmtNum(r.fuel, 1) },
@@ -184,7 +199,7 @@ export function renderTelematics(app) {
         ];
         return h('div', null,
             filtersBlock(),
-            h('div', { class: 'kpof-stats kpt-total' }, h('span', { class: 'kpof-stat on' + (drainTotal ? ' kpof-stat-late' : '') }, h('b', null, String(drainTotal)), ' ' + plural(drainTotal, 'злив', 'зливи', 'зливів') + ' за період')),
+            h('div', { class: 'kpof-stats kpt-total' }, state.showMock ? mockBadge('Лише тестові дані — у реальних звітах їх немає') : null, h('span', { class: 'kpof-stat on' + (drainTotal ? ' kpof-stat-late' : '') }, h('b', null, String(drainTotal)), ' ' + plural(drainTotal, 'злив', 'зливи', 'зливів') + ' за період')),
             state.summary.length
                 ? h('div', { class: 'table-wrap' }, h('table', { class: 'table kpof-table kpt-table', 'aria-label': 'Телематика по авто' },
                     h('thead', null, h('tr', null, cols.map((c) => h('th', null, c.label)))),
@@ -196,12 +211,12 @@ export function renderTelematics(app) {
     function drainsBlock() {
         const label = (d) => {
             const v = d.vehicle_id ? state.vehicles.find((x) => x.id === d.vehicle_id) : null;
-            return v ? v.label : d.external_vehicle_ref;
+            return v ? v.label : d.ref;
         };
         return h('div', { class: 'kpt-drains' },
             h('h3', { class: 'kpof-sub-h' }, 'Зливи за період'),
             h('ul', { class: 'kpt-drain-list' }, state.drains.map((d) => h('li', { class: 'kpt-drain-item' },
-                h('b', null, label(d)), ' · ', new Date(d.ts).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' }), ' · ', h('span', { class: 'kpt-drain' }, fmtNum(d.liters, 1) + ' л'),
+                h('b', null, label(d)), ' · ', new Date(d.ts).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short', timeZone: KYIV_TZ }), ' · ', h('span', { class: 'kpt-drain' }, fmtNum(d.liters, 1) + ' л'), state.showMock ? [' ', mockBadge()] : null,
                 d.location ? h('span', { class: 'muted' }, ' · ' + d.location) : null))));
     }
 

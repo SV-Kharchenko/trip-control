@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(56);
+SELECT plan(81);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d6f00a1","role":"service_role"}', true);
 
@@ -208,6 +208,59 @@ UPDATE public.organizations SET features = '{"own_fleet": true}' WHERE id = '6f0
 -- 11. У таблиці джерел немає місця для токена: api_secret_name — лише ім'я змінної.
 SELECT is(left(pg_temp.tm_err($$UPDATE public.telematics_sources SET api_secret_name = 'my secret token 123'$$), 5), '23514', 'api_secret_name приймає лише ім''я змінної середовища');
 SELECT is((SELECT count(*)::integer FROM information_schema.columns WHERE table_name = 'telematics_sources' AND column_name ~* '(token|password|key$)'), 0, 'у telematics_sources немає колонок token / password / key');
+
+-- 12. Тестові дані (agrocontrol_mock) окремо від реальних.
+SELECT pg_temp.tm_as('a1');
+CREATE TEMP TABLE tm_mock AS SELECT public.tm_ensure_source('agrocontrol_mock') AS id;
+GRANT ALL ON tm_mock TO PUBLIC;
+SELECT public.tm_import_reports((SELECT id FROM tm_mock), '[{"date":"2026-05-10","ref":"AA 1234 BB","mileage_km":"500","fuel_used_l":"100"}]');
+SELECT public.tm_import_fuel_events((SELECT id FROM tm_mock), '[{"ts":"2026-05-10 12:00","ref":"AA 1234 BB","kind":"drain","liters":"70"}]');
+SELECT is((SELECT mileage_km FROM public.tm_summary('2026-05-01', '2026-05-31') WHERE ref = 'AA1234BB'), 261.0, 'за замовчуванням зведення не рахує тестові дані (500 км не додано)');
+SELECT is((SELECT drain_count FROM public.tm_summary('2026-05-01', '2026-05-31') WHERE ref = 'AA1234BB'), 1, 'за замовчуванням тестовий злив не рахується');
+SELECT is((SELECT mileage_km FROM public.tm_summary('2026-05-01', '2026-05-31', NULL, NULL, true) WHERE ref = 'AA1234BB'), 500.0, 'p_mock = true: лише тестові дані, без змішування');
+SELECT is((SELECT count(*)::integer FROM public.tm_summary('2026-05-01', '2026-05-31', NULL, NULL, true)), 1, 'у тестовому зведенні лише тестові рядки');
+SELECT is((SELECT count(*)::integer FROM public.tm_drains('2026-05-01', '2026-05-31')), 2, 'список зливів за замовчуванням — лише реальні (2)');
+SELECT is((SELECT liters FROM public.tm_drains('2026-05-01', '2026-05-31', true)), 70.0, 'список зливів p_mock = true — лише тестовий');
+
+-- 13. Київська доба: зима (UTC+2) і літо (UTC+3), події без пояса — за Києвом, явний зсув / Z зберігається.
+SELECT public.tm_import_fuel_events((SELECT id FROM tm_src), $j$[
+  {"ts":"2026-01-15 22:30","ref":"KE 5555 AX","kind":"drain","liters":"11"},
+  {"ts":"2026-07-15 22:30","ref":"KE 5555 AX","kind":"drain","liters":"12"},
+  {"ts":"2026-07-16 00:30","ref":"KE 5555 AX","kind":"drain","liters":"13"},
+  {"ts":"2026-07-15T21:00:00Z","ref":"KE 5555 AX","kind":"drain","liters":"14"}]$j$::jsonb);
+SELECT is((SELECT to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') FROM public.telematics_fuel_events WHERE liters = 11), '2026-01-15 20:30', 'зима: 22:30 за Києвом = 20:30 UTC');
+SELECT is((SELECT to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI') FROM public.telematics_fuel_events WHERE liters = 12), '2026-07-15 19:30', 'літо: 22:30 за Києвом = 19:30 UTC');
+SELECT is((SELECT drain_count FROM public.tm_summary('2026-01-15', '2026-01-15', NULL, '6f300000-0000-0000-0000-000000000002')), 1, 'зима: злив 22:30 лишається у своєму дні (15 січня)');
+SELECT is((SELECT count(*)::integer FROM public.tm_summary('2026-01-16', '2026-01-16', NULL, '6f300000-0000-0000-0000-000000000002')), 0, 'зима: у 16 січня зливу немає');
+SELECT is((SELECT drain_l FROM public.tm_summary('2026-07-15', '2026-07-15', NULL, '6f300000-0000-0000-0000-000000000002')), 12.0, 'літо: 15 липня лише злив 22:30 (00:30 і 00:00 за Києвом — вже 16-те)');
+SELECT is((SELECT drain_l FROM public.tm_summary('2026-07-16', '2026-07-16', NULL, '6f300000-0000-0000-0000-000000000002')), 27.0, 'літо: 16 липня — 00:30 і 21:00Z (= 00:00 за Києвом)');
+SELECT is((SELECT day FROM public.tm_drains('2026-07-01', '2026-07-31') WHERE liters = 12), '2026-07-15'::date, 'tm_drains: київський день події 22:30 — 15 липня');
+
+-- 14. Видалення тестових даних: лише owner / director, лише своя організація, лише mock.
+SELECT pg_temp.tm_as('c1');
+CREATE TEMP TABLE tm_mock_c AS SELECT public.tm_ensure_source('agrocontrol_mock') AS id;
+GRANT ALL ON tm_mock_c TO PUBLIC;
+SELECT public.tm_import_reports((SELECT id FROM tm_mock_c), '[{"date":"2026-05-10","ref":"CC 7777 CC","mileage_km":"10"}]');
+SELECT pg_temp.tm_as('a2');
+SELECT is(pg_temp.tm_err($$SELECT public.tm_clear_mock()$$), '42501 TELEMATICS_FORBIDDEN', 'логіст не видаляє тестові дані');
+SELECT pg_temp.tm_as('a4');
+SELECT is(pg_temp.tm_err($$SELECT public.tm_clear_mock()$$), '42501 TELEMATICS_FORBIDDEN', 'замовник підрозділу: tm_clear_mock → 42501');
+SELECT is(pg_temp.tm_err($$SELECT * FROM public.tm_drains('2026-05-01', '2026-05-31')$$), '42501 TELEMATICS_FORBIDDEN', 'замовник підрозділу: tm_drains → 42501');
+SELECT pg_temp.tm_as('b1');
+SELECT is(pg_temp.tm_err($$SELECT public.tm_clear_mock()$$), '42501 TELEMATICS_FORBIDDEN', 'компанія без own_fleet: tm_clear_mock → 42501');
+SET LOCAL ROLE anon;
+SELECT throws_ok($$SELECT public.tm_clear_mock()$$, '42501', NULL, 'anon: tm_clear_mock');
+RESET ROLE;
+SELECT pg_temp.tm_as('c1');
+SELECT is(public.tm_clear_mock()::text, '{"events": 0, "reports": 1}', 'owner іншої організації видаляє лише власні тестові дані');
+SELECT pg_temp.tm_as('a1');
+SELECT is((SELECT count(*)::integer FROM public.tm_summary('2026-05-01', '2026-05-31', NULL, NULL, true)), 1, 'тестові дані організації A після цього лишились');
+SELECT is(public.tm_clear_mock()::text, '{"events": 1, "reports": 1}', 'owner A: видалено 1 звіт і 1 подію (кількість у відповіді)');
+SELECT is((SELECT count(*)::integer FROM public.tm_summary('2026-05-01', '2026-05-31', NULL, NULL, true)), 0, 'тестових даних більше немає');
+SELECT is((SELECT count(*)::integer FROM public.telematics_reports WHERE org_id = '6f000000-0000-0000-0000-00000000000a'), 6, 'реальні звіти не зачеплено');
+SELECT is((SELECT count(*)::integer FROM public.telematics_sources WHERE org_id = '6f000000-0000-0000-0000-00000000000a' AND kind = 'agrocontrol_mock'), 1, 'саме джерело лишається');
+SELECT pg_temp.tm_as('a3');
+SELECT is(public.tm_clear_mock()::text, '{"events": 0, "reports": 0}', 'director (Менеджер) теж може видаляти тестові дані');
 
 SELECT * FROM finish();
 ROLLBACK;

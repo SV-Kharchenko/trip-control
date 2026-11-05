@@ -50,7 +50,7 @@ function firstSheetPath(files) {
     const rid = sheet && (sheet[0].match(/\br:id="([^"]+)"/) || [])[1];
     if (rid) {
         for (const rel of rels.matchAll(/<Relationship\b[^>]*>/g)) {
-            if (new RegExp('\\bId="' + rid + '"').test(rel[0])) {
+            if ((rel[0].match(/\bId="([^"]*)"/) || [])[1] === rid) { // рядки порівнюємо напряму, rid у RegExp не підставляємо
                 const target = (rel[0].match(/\bTarget="([^"]+)"/) || [])[1];
                 if (target) return target.startsWith('/') ? target.slice(1) : 'xl/' + target.replace(/^\.\//, '');
             }
@@ -59,16 +59,19 @@ function firstSheetPath(files) {
     return Object.keys(files).filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0] || null;
 }
 
-// bytes: Uint8Array вмісту .xlsx.
-export function readXlsx(bytes, limits = {}) {
+export const BAD_FILE_TEXT = 'Файл пошкоджений або не схожий на xlsx';
+
+// bytes: Uint8Array вмісту .xlsx. Будь-яка помилка розбору стає XlsxError з людським текстом.
+function parseXlsx(bytes, limits = {}) {
     const maxBytes = limits.maxBytes || XLSX_MAX_BYTES;
     const maxRows = limits.maxRows || XLSX_MAX_ROWS;
-    if (!bytes || bytes.length > maxBytes) throw new XlsxError('TOO_LARGE', 'Файл більший за ' + Math.round(maxBytes / 1048576) + ' МБ.');
+    if (!bytes || !bytes.length) throw new XlsxError('BAD_FILE', BAD_FILE_TEXT);
+    if (bytes.length > maxBytes) throw new XlsxError('TOO_LARGE', 'Файл більший за ' + Math.round(maxBytes / 1048576) + ' МБ.');
     let files;
     try {
         files = unzipSync(bytes, { filter: (f) => /^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|worksheets\/sheet\d+\.xml)$/.test(f.name) && f.originalSize < 40 * 1048576 });
     } catch {
-        throw new XlsxError('BAD_FILE', 'Не вдалося відкрити файл. Збережіть звіт як .xlsx або .csv і спробуйте ще раз.');
+        throw new XlsxError('BAD_FILE', BAD_FILE_TEXT);
     }
     const path = firstSheetPath(files);
     if (!path || !files[path]) throw new XlsxError('NO_SHEET', 'У файлі немає аркуша з даними.');
@@ -106,5 +109,14 @@ export function decodeCsvBytes(bytes) {
         return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     } catch {
         return new TextDecoder('windows-1251').decode(bytes);
+    }
+}
+
+export function readXlsx(bytes, limits = {}) {
+    try {
+        return parseXlsx(bytes, limits);
+    } catch (e) {
+        if (e instanceof XlsxError) throw e;
+        throw new XlsxError('BAD_FILE', BAD_FILE_TEXT);
     }
 }

@@ -32,6 +32,15 @@ function fixtures() {
             { id: 'e2', kind: 'drain', ts: iso(5), external_vehicle_ref: 'ZZ0000ZZ', vehicle_id: null, liters: '30.5', location: null },
         ],
         telematics_reports: [{ external_vehicle_ref: 'ZZ0000ZZ', date: '2026-05-01', vehicle_id: null }, { external_vehicle_ref: 'ZZ0000ZZ', date: '2026-05-02', vehicle_id: null }],
+        mock_summary: [
+            { ref: 'AA1111AA', vehicle_id: V1, unit_id: U1, days: 30, mileage_km: '5000.0', fuel_used_l: '1750.0', idle_minutes: 2400, engine_hours: '200.0', drain_count: 2, drain_l: '90.0', refuel_l: '2000.0' },
+            { ref: 'KE5555AX', vehicle_id: V2, unit_id: null, days: 25, mileage_km: '3000.0', fuel_used_l: '900.0', idle_minutes: 1200, engine_hours: '150.0', drain_count: 0, drain_l: '0', refuel_l: '1500.0' },
+        ],
+        drains: [
+            { id: 'd1', ts: '2026-07-15T19:30:00Z', day: '2026-07-15', ref: 'AA1111AA', vehicle_id: V1, liters: '46.0', location: 'Поле 12' },
+            { id: 'd2', ts: '2026-07-10T08:00:00Z', day: '2026-07-10', ref: 'ZZ0000ZZ', vehicle_id: null, liters: '30.5', location: null },
+        ],
+        mock_drains: [{ id: 'm1', ts: '2026-07-12T10:00:00Z', day: '2026-07-12', ref: 'AA1111AA', vehicle_id: V1, liters: '55.0', location: 'Поза маршрутом' }],
         summary: [
             { ref: 'AA1111AA', vehicle_id: V1, unit_id: U1, days: 20, mileage_km: '2610.0', fuel_used_l: '914.0', idle_minutes: 1850, engine_hours: '120.0', drain_count: 1, drain_l: '46.0', refuel_l: '1200.0' },
             { ref: 'KE5555AX', vehicle_id: V2, unit_id: null, days: 18, mileage_km: '1500.0', fuel_used_l: '450.0', idle_minutes: 300, engine_hours: '80.5', drain_count: 0, drain_l: '0', refuel_l: '600.0' },
@@ -59,6 +68,8 @@ function table(name) {
     };
     return q;
 }
+window.tcModal = async (o) => { calls.push(['modal', o]); return { ok: cfg.modalOk !== false }; };
+let importCalls = 0;
 const known = new Set(['AA1111AA', 'KE5555AX']);
 const CYR = { 'А': 'A', 'В': 'B', 'Е': 'E', 'І': 'I', 'К': 'K', 'М': 'M', 'Н': 'H', 'О': 'O', 'Р': 'P', 'С': 'C', 'Т': 'T', 'Х': 'X' };
 const norm = (s) => String(s).toUpperCase().replace(/[\\s-]+/g, '').replace(/[АВЕІКМНОРСТХ]/g, (c) => CYR[c]);
@@ -70,7 +81,9 @@ const supabase = {
         if (name === 'kp_vehicles_list') return { data: [{ id: 'v1', label: 'AA 1111 AA', make_model: 'DAF XF' }, { id: 'v2', label: 'KE 5555 AX' }], error: null };
         if (name === 'kp_trailers_list') return { data: [], error: null };
         if (name === 'kp_driver_list') return { data: [], error: null };
-        if (name === 'tm_summary') return { data: fx.summary.filter((r) => (!args.p_unit || r.unit_id === args.p_unit) && (!args.p_vehicle || r.vehicle_id === args.p_vehicle)), error: null };
+        if (name === 'tm_summary') return { data: (args.p_mock ? fx.mock_summary : fx.summary).filter((r) => (!args.p_unit || r.unit_id === args.p_unit) && (!args.p_vehicle || r.vehicle_id === args.p_vehicle)), error: null };
+        if (name === 'tm_drains') return { data: args.p_mock ? fx.mock_drains : fx.drains, error: null };
+        if (name === 'tm_clear_mock') return { data: { reports: 12, events: 3 }, error: null };
         if (name === 'tm_ensure_source') {
             const kind = args.p_kind;
             const id = 'src-' + kind;
@@ -78,6 +91,8 @@ const supabase = {
             return { data: id, error: null };
         }
         if (name === 'tm_import_reports' || name === 'tm_import_fuel_events') {
+            importCalls += 1;
+            if (cfg.failSecondChunk && importCalls >= 2) return { data: null, error: { message: 'boom' } };
             const rows = args.p_rows;
             const refs = new Set(rows.map((r) => norm(r.ref)));
             return { data: { added: rows.length, updated: 0, skipped: 0, unmapped: [...refs].filter((r) => !known.has(r)).length }, error: null };
@@ -87,7 +102,7 @@ const supabase = {
         return { data: null, error: null };
     },
 };
-const ownFleet = { org_id: 'o1', role: 'owner', unit_ids: [] };
+const ownFleet = { org_id: 'o1', role: cfg.role || 'owner', unit_ids: [] };
 const app = { supabase, ownFleet, user: { id: 'u1' }, go: (hash) => { location.hash = hash; }, onCleanup() {} };
 const root = document.createElement('main'); root.id = 'kp-crm';
 document.body.setAttribute('data-kp-view', 'own-fleet');
@@ -188,6 +203,7 @@ test('огляд: фільтри (підрозділ, авто, період) в
         await page.dispatchEvent('input[aria-label="Період з"]', 'change');
         await page.waitForFunction(() => window.__calls.filter((c) => c[1] === 'tm_summary').at(-1)[2].p_from === '2026-01-01');
         assert.ok(await page.locator('.kpt-drain-list li').count() >= 1, 'перелік зливів за період');
+        assert.match(await page.textContent('.kpt-drain-list li'), /22:30/, 'час зливу — київський: 19:30 UTC влітку = 22:30');
     });
 });
 
@@ -314,7 +330,7 @@ test('імпорт: неправильний файл — повідомленн
         await page.click('button[data-mode="import"]');
         await page.setInputFiles('#kpt-file', { name: 'broken.xlsx', mimeType: 'application/octet-stream', buffer: Buffer.from('not a zip') });
         await page.waitForSelector('.kpt-import .notice');
-        assert.match(await page.textContent('.kpt-import .notice'), /Не вдалося відкрити файл/);
+        assert.match(await page.textContent('.kpt-import .notice'), /Файл пошкоджений або не схожий на xlsx/);
         await page.setInputFiles('#kpt-file', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
         await page.waitForFunction(() => /Підтримуються файли/.test(document.querySelector('.kpt-import .notice').textContent));
         assert.equal(dialogs, 0);
@@ -372,5 +388,63 @@ test('підрозділ: біля «Центр витрат» є підказк
         const pop = await page.textContent('.kp-hint-pop');
         assert.equal(pop.trim(), 'Код підрозділу в 1С/BAS для звітів собівартості. Можна лишити порожнім.');
         assert.equal(await page.locator('.kpc-row:has(label:text-is("Назва")) .kp-hint-btn').count(), 0, 'підказка лише біля «Центр витрат»');
+    });
+});
+
+test('тестові дані: перемикач вимкнений за замовчуванням, показує лише mock з бейджем «тестові дані», без змішування', async (t) => {
+    await run(t, cfgOf('light'), { width: 1366, height: 800 }, async (page) => {
+        await page.waitForSelector('.kpt-table tbody tr');
+        assert.equal(await page.isChecked('#kpt-show-mock'), false);
+        assert.equal((await rpcCalls(page, 'tm_summary')).at(-1).p_mock, false, 'за замовчуванням p_mock = false');
+        assert.equal(await page.locator('.kpt-mock').count(), 0, 'реальні дані без бейджа');
+        assert.equal(await page.locator('.kpt-table tbody tr').count(), 3);
+        await page.check('#kpt-show-mock');
+        await page.waitForFunction(() => document.querySelectorAll('.kpt-table tbody tr').length === 2);
+        assert.equal((await rpcCalls(page, 'tm_summary')).at(-1).p_mock, true);
+        assert.equal((await rpcCalls(page, 'tm_drains')).at(-1).p_mock, true);
+        assert.equal(await page.locator('.kpt-table .kpt-mock').count(), 2, 'бейдж біля кожного тестового рядка');
+        assert.equal(await page.locator('.kpt-total .kpt-mock').count(), 1, 'бейдж у зведенні');
+        assert.equal(await page.locator('.kpt-drain-item .kpt-mock').count(), 1, 'і біля тестового зливу');
+        assert.match(await page.textContent('.kpt-table tbody tr'), /5\s?000,0/);
+        assert.doesNotMatch(await page.textContent('.kpt-table'), /ZZ0000ZZ|2\s?610,0/, 'реальних рядків у тестовому режимі немає');
+        await shot(page, 'telematics-mock-1366-light.png');
+        await page.uncheck('#kpt-show-mock');
+        await page.waitForFunction(() => document.querySelectorAll('.kpt-table tbody tr').length === 3);
+        assert.equal(await page.locator('.kpt-mock').count(), 0);
+    });
+});
+
+test('«Видалити тестові дані»: підтвердження через tcModal, відповідь з кількістю; скасування нічого не робить; логіст кнопки не бачить', async (t) => {
+    await run(t, cfgOf('light', { modalOk: false }), { width: 1366, height: 800 }, async (page) => {
+        await page.waitForSelector('[data-act="clear-mock"]');
+        await page.click('[data-act="clear-mock"]');
+        await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'modal'));
+        assert.equal((await page.evaluate(() => window.__calls.find((c) => c[0] === 'modal')[1])).danger, true);
+        assert.equal(await page.evaluate(() => window.__calls.some((c) => c[1] === 'tm_clear_mock')), false, 'без підтвердження RPC не викликається');
+    });
+    await run(t, cfgOf('light'), { width: 1366, height: 800 }, async (page) => {
+        await page.waitForSelector('[data-act="clear-mock"]');
+        await page.click('[data-act="clear-mock"]');
+        await page.waitForFunction(() => window.__calls.some((c) => c[1] === 'tm_clear_mock'));
+        await page.waitForSelector('text=звітів 12, подій 3');
+    });
+    await run(t, cfgOf('light', { role: 'logist' }), { width: 1366, height: 800 }, async (page) => {
+        await page.waitForSelector('.kpt-source');
+        assert.equal(await page.locator('[data-act="clear-mock"]').count(), 0);
+    });
+});
+
+test('імпорт пачками: пачка впала посередині → «Імпортовано N з M рядків…»', async (t) => {
+    const lines = ['Дата;Держномер;Пробіг'];
+    for (let i = 0; i < 1500; i++) lines.push('01.01.2026;AB ' + String(1000 + i) + ' CD;10');
+    await run(t, cfgOf('light', { failSecondChunk: true }), { width: 1366, height: 800 }, async (page) => {
+        await page.waitForSelector('.kpt-table tbody tr');
+        await page.click('button[data-mode="import"]');
+        await page.setInputFiles('#kpt-file', csvFile(lines.join('\n')));
+        await page.waitForSelector('.kpt-preview');
+        await page.click('[data-act="import"]');
+        await page.waitForSelector('.kpt-import .notice');
+        assert.match(await page.textContent('.kpt-import .notice'), /Імпортовано 1000 з 1500 рядків\. Повторний імпорт цього ж файлу безпечний — дублікатів не буде\./);
+        assert.equal((await rpcCalls(page, 'tm_import_reports')).length, 2);
     });
 });
