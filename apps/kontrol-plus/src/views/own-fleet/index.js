@@ -8,6 +8,7 @@ import { renderBoard, renderRequesterList } from './board.js';
 import { renderRequestCard, renderRequestForm } from './request-card.js';
 import { renderPointCard, renderPointsList, renderUnitCard, renderUnitsList } from './units.js';
 import { renderRequestersBlock } from './requesters.js';
+import { renderTelematics } from './telematics.js';
 
 // Блок «Замовники підрозділів» для вкладки «Команда» кабінету (bridge.js вставляє його лише директору / менеджеру з прапорцем own_fleet).
 export { renderRequestersBlock };
@@ -17,6 +18,7 @@ const TABS = [
     { sub: 'list', hash: '#/own-fleet/list', label: 'Заявки' },
     { sub: 'units', hash: '#/own-fleet/units', label: 'Підрозділи' },
     { sub: 'points', hash: '#/own-fleet/points', label: 'Поля й точки' },
+    { sub: 'telematics', hash: '#/own-fleet/telematics', label: 'Телематика' },
 ];
 
 function tabs(sub) {
@@ -42,6 +44,7 @@ export function renderOwnFleet(app, route) {
     let body;
     if (sub === 'units') body = renderUnitsList(app);
     else if (sub === 'points') body = renderPointsList(app);
+    else if (sub === 'telematics') body = renderTelematics(app);
     else body = renderBoard(app, access, sub === 'list' ? 'list' : 'board');
     return h('section', { class: 'page kpof' }, title, tabs(sub), body);
 }

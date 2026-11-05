@@ -194,7 +194,7 @@ test('site API needs no Origin/Host checks for the proxy; requests carry Authori
 
 test('CRM tabs reuse the site Supabase client and never register a service worker', () => {
     const sources = ['src/site-bridge.js', 'src/bridge.js', 'src/ui.js', ...listFiles(APP, 'src/views'),
-        ...fs.readdirSync(path.join(APP, 'src/lib')).map((f) => 'src/lib/' + f)];
+        ...listFiles(APP, 'src/lib')];
     for (const file of sources) {
         const code = read(file);
         assert.doesNotMatch(code, /createClient|@supabase\/supabase-js|serviceWorker\.register/, file);

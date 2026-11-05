@@ -780,6 +780,25 @@ const saTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')
 for (const row of saTap) check(row.ok, 'pgTAP superadmin.sql: ' + row.label);
 check(saTap.length === saPlanned, 'pgTAP superadmin.sql: ran ' + saTap.length + ' of plan(' + saPlanned + ')');
 
+// Телематика (Агроконтроль, етап 2 «Власного парку»): міграція двічі (ідемпотентність) і pgTAP через той самий shim.
+const TM = all.find((f) => /^\d{14}_telematics\.sql$/.test(f));
+if (!TM) throw new Error('немає міграції *_telematics.sql');
+const tmSql = fs.readFileSync(new URL(TM, DIR), 'utf8');
+await db.exec(tmSql);
+await db.exec(tmSql);
+const tmCode = tmSql.replace(/^\s*--.*$/gm, '');
+check(TM > SA && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(tmSql) && !/CREATE EXTENSION/i.test(tmCode)
+    && !/GRANT (INSERT|UPDATE|DELETE|ALL)[^;]*TO authenticated/i.test(tmCode.replace(/GRANT EXECUTE[^;]*;/gi, '')),
+'telematics: ' + TM + ' applied twice, manual-apply header, no write grants to authenticated');
+const tmTapSql = fs.readFileSync(new URL('../../../supabase/tests/telematics.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const tmPlanned = Number((tmTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const tmBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(tmTapSql);
+const tmTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(tmBefore);
+for (const row of tmTap) check(row.ok, 'pgTAP telematics.sql: ' + row.label);
+check(tmTap.length === tmPlanned, 'pgTAP telematics.sql: ran ' + tmTap.length + ' of plan(' + tmPlanned + ')');
+
 // Скасування сторно ремонту: міграція ПІСЛЯ повторного прогону 3a (той повертає стару kp_repair_void) — двічі поспіль, потім pgTAP.
 const UNSTORNO = all.find((f) => /^\d{14}_repair_unstorno\.sql$/.test(f));
 if (!UNSTORNO) throw new Error('немає міграції *_repair_unstorno.sql');
