@@ -53,6 +53,9 @@ export const SCOPE_ALLOWLIST = [
     /^docs\/STAGING\.md$/,
     /^scripts\/staging-seed\/(seed|index)\.mjs$/,
     /^tests\/(public-config|staging-seed)\.test\.mjs$/,
+    // Спільний фейковий /api/config для stub-серверів тестів і сайтовий тест, якому він потрібен.
+    /^tests\/helpers\/fake-config\.mjs$/,
+    /^tests\/calc-v3\.test\.mjs$/,
     /^tests\/security-grants\.test\.mjs$/,
     /^tests\/osm-geo\.test\.mjs$/,
     /^supabase\/migrations\/\d{14}_app_settings_kill_switch\.sql$/,

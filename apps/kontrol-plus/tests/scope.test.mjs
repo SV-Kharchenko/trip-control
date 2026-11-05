@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 44); // 35 з #128 («Власний парк», idle-label) + 9 для staging і глобального вимикача (tests/staging-scope.test.mjs)
+    assert.equal(SCOPE_ALLOWLIST.length, 46); // 35 з #128 («Власний парк», idle-label) + 11 для staging, глобального вимикача і фейкового /api/config (tests/staging-scope.test.mjs)
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
