@@ -11,6 +11,7 @@ import {
 } from '../src/lib/own-fleet.js';
 import { ROLE_LABELS } from '../src/lib/gate.js';
 import { cardParentHash, ownFleetParentHash, parseCrmHash, tabOf, windowSpecOf } from '../src/lib/route.js';
+import { SHELL_ITEMS } from '../src/shell-menu.js';
 import { createRequesterInviteAcceptor, REQUESTER_INVITE_KEY, storedRequesterInvite, takeRequesterInviteFromUrl } from '../src/lib/own-fleet-invite.js';
 import { createOwnFleetInvitesHandler, inviteStatus } from '../lib/own-fleet/invites.js';
 
@@ -82,7 +83,7 @@ test('дії: замовник — лише скасувати свою нову
     for (const role of ['owner', 'director', 'logist']) {
         assert.deepEqual(labels(row(1, 'new'), role), ['accepted', 'cancelled'], role);
         assert.deepEqual(labels(row(1, 'accepted'), role), ['assigned*', 'cancelled'], role);
-        assert.deepEqual(labels(row(1, 'assigned'), role), ['in_progress', 'assigned*', 'cancelled'], role);
+        assert.deepEqual(labels(row(1, 'assigned'), role), ['in_progress', 'assigned*', 'accepted', 'cancelled'], role + ': «Зняти призначення» = assigned → accepted');
         assert.deepEqual(labels(row(1, 'in_progress'), role), ['done', 'cancelled'], role);
         assert.deepEqual(labels(row(1, 'done'), role), [], role);
         assert.deepEqual(labels(row(1, 'cancelled'), role), [], role);
@@ -357,4 +358,45 @@ test('built dist/: код «Власного парку» лише в окрем
     assert.equal(lazy.length, 1, 'модуль — рівно один окремий чанк');
     assert.equal(main.some(([name]) => name === lazy[0][0]), false);
     assert.ok(files.length > 3);
+});
+
+test('дії: «Зняти призначення» лише для персоналу й лише з assigned', () => {
+    const unassign = (r, role) => nextActions(r, role, 'u-req').find((a) => a.to === 'accepted');
+    for (const role of ['owner', 'director', 'logist']) assert.equal(unassign(row(1, 'assigned'), role).label, 'Зняти призначення', role);
+    assert.equal(unassign(row(1, 'assigned'), 'requester'), undefined);
+    for (const st of ['new', 'accepted', 'in_progress', 'done']) assert.equal(unassign(row(1, st), 'owner') === undefined || st === 'new', true, st);
+    assert.equal(nextActions(row(1, 'new'), 'owner').find((a) => a.to === 'accepted').label, 'Прийняти', 'у new «accepted» — це «Прийняти»');
+});
+
+test('тексти помилок рев\'ю: причіп в архіві, чужий подорожній, акаунт працює в іншій компанії', () => {
+    assert.match(ownFleetErrorText({ message: 'FLEET_REQUEST_TRAILER_ARCHIVED' }), /Причіп в архіві/);
+    assert.match(ownFleetErrorText({ message: 'FLEET_REQUEST_BAD_TRIP' }), /Подорожній лист не знайдено/);
+    assert.match(ownFleetErrorText({ message: 'REQUESTER_WORKS_ELSEWHERE' }), /уже працює в іншій компанії/);
+});
+
+test('API запрошень: акаунт, що вже працює в іншій компанії, — 409 REQUESTER_WORKS_ELSEWHERE з окремим текстом', async () => {
+    const token = 'r1.' + UUID + '.' + 'A'.repeat(32);
+    const h = createOwnFleetInvitesHandler({ store: fakeStore({ accept: async () => { throw new Error('REQUESTER_WORKS_ELSEWHERE'); } }), log: quiet });
+    const out = await call(h, { auth: 'Bearer req', body: { action: 'accept', token } });
+    assert.equal(out.code, 409);
+    assert.equal(out.body.code, 'REQUESTER_WORKS_ELSEWHERE');
+    assert.match(out.body.error, /уже працює в іншій компанії/);
+});
+
+test('меню: «Власний парк» має власну іконку, не таку, як «Автопарк»', () => {
+    const own = SHELL_ITEMS.find((i) => i.key === 'own_fleet');
+    const fleet = SHELL_ITEMS.find((i) => i.key === 'fleet');
+    assert.equal(own.icon, 'own_fleet');
+    assert.notEqual(own.icon, fleet.icon);
+    assert.equal(own.label, 'Власний парк');
+});
+
+test('«Команда»: блок «Замовники підрозділів» вставляє міст лише директору й менеджеру з прапорцем; інакше блоку немає', () => {
+    const bridge = read('src/bridge.js');
+    assert.match(bridge, /if \(tab === 'team'\) fillRequestersBlock\(\);/, 'з вкладки «Команда» кабінету');
+    assert.match(bridge, /const allowed = access\.enabled && \(access\.role === 'owner' \|\| access\.role === 'director'\);/);
+    assert.match(bridge, /if \(!allowed\) \{ if \(slot\) slot\.remove\(\); return; \}/, 'без прапорця чи без прав блок прибирається');
+    assert.match(bridge, /host\.after\(slot\)/, 'міст вставляє слот сам: index.html сайту не змінюється');
+    assert.match(read('src/views/own-fleet/requesters.js'), /if \(role !== 'owner' && role !== 'director'\) return h\('div', \{ hidden: true \}\);/, 'і сам блок перевіряє роль');
+    assert.doesNotMatch(read('src/site-bridge.js'), /requesters/);
 });

@@ -90,3 +90,20 @@
     .kpof .kpof-dl, body.kp-shell-on .kp-win .kpof .kpof-dl { grid-template-columns: 1fr; gap: 0; }
     .kpof-dl dt { margin-top: 6px; font-size: 0.8rem; }
 }
+
+/* Блок «Замовники підрозділів» у «Команді» кабінету. */
+.kpof-team { margin-top: 16px; }
+.kpof-reqs { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.kpof-req { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; padding: 8px 10px; border: 1px solid var(--border-soft, var(--border)); border-radius: var(--radius-control, 8px); background: var(--surface); }
+.kpof-req-main { min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; }
+.kpof-req .actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.kpof-req .kpof-slot { grid-column: 1 / -1; }
+.kpof-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.kpof-chip { padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.75rem; }
+.kpof-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 12px; }
+.kpof-check { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+.kpof-sub-h { margin: 14px 0 6px; font-size: 0.95rem; }
+@media (max-width: 560px) {
+    .kpof-req { grid-template-columns: 1fr; }
+    .kpof-req .actions { justify-content: flex-start; }
+}

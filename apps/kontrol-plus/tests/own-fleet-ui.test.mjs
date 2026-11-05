@@ -39,6 +39,14 @@ function fixtures(now) {
             { id: 'p3', org_id: 'o1', unit_id: null, name: 'Спільний елеватор', kind: 'elevator', lat: null, lng: null, crop: null, area_ha: null, archived: false },
         ],
         org_unit_members: [{ unit_id: U1, user_id: USER_REQ }],
+        requesters: [
+            { user_id: 'r1', email: 'ivan@agro.ua', full_name: 'Іван Петренко', unit_ids: [U1], created_at: iso(-100) },
+            { user_id: 'r2', email: 'olena@agro.ua', full_name: null, unit_ids: [U1, U2], created_at: iso(-50) },
+        ],
+        invites: [
+            { id: 'i1', email: 'new@agro.ua', unit_ids: [U2], status: 'sent', expires_at: iso(100) },
+            { id: 'i2', email: 'old@agro.ua', unit_ids: [U1], status: 'expired', expires_at: iso(-10) },
+        ],
         fleet_requests: [
             req(1, U1, 'new', { priority: 'urgent', wanted_at: iso(-3), note: 'Під зерновоз до 10:00' }),
             req(2, U1, 'new', { cargo: 'Соняшник', qty_t: 18.5 }),
@@ -55,7 +63,7 @@ function fixtures(now) {
 }
 
 const ENTRY = `
-import { renderOwnFleet, renderOwnFleetCard } from './src/views/own-fleet/index.js';
+import { renderOwnFleet, renderOwnFleetCard, renderRequestersBlock } from './src/views/own-fleet/index.js';
 import { createWindowManager } from './src/kp-windows.js';
 const cfg = window.__cfg;
 const fx = window.__fx;
@@ -83,10 +91,19 @@ function table(name) {
     };
     return q;
 }
+window.fetch = async (path, init) => {
+    const body = JSON.parse(init.body);
+    calls.push(['fetch', path, body]);
+    const json = body.action === 'list' ? { ok: true, invites: fx.invites }
+        : body.action === 'create' || body.action === 'resend' ? { ok: true, mail_sent: false, link: 'https://app.trip-control.com/?requester_invite=r1.test-link', invite: {} } : { ok: true };
+    return { ok: true, status: 200, json: async () => json };
+};
 const supabase = {
+    auth: { getSession: async () => ({ data: { session: { access_token: 'jwt' } } }) },
     from: table,
     rpc: async (name, args) => {
         calls.push(['rpc', name, args]);
+        if (name === 'own_fleet_requesters_list') return { data: fx.requesters, error: null };
         if (name === 'fleet_request_conflicts') return { data: cfg.conflicts ? [{ request_id: 'x', number: 5, kind: 'vehicle', wanted_at: new Date().toISOString() }] : [], error: null };
         if (name === 'kp_vehicles_list') return { data: [{ id: 'v1', label: 'AA 1111 AA', make_model: 'DAF XF' }, { id: 'v2', label: 'AA 2222 AA' }], error: null };
         if (name === 'kp_trailers_list') return { data: [{ id: 't1', plate: 'AA 9999 XX' }], error: null };
@@ -101,7 +118,13 @@ const root = document.createElement('main'); root.id = 'kp-crm';
 document.body.setAttribute('data-kp-view', 'own-fleet');
 document.body.append(root);
 const route = { view: 'own-fleet', sub: cfg.sub || 'board' };
-root.append(renderOwnFleet(app, route));
+if (cfg.mode === 'team') {
+    // Вкладка «Команда» кабінету сайту: наш блок стоїть у слоті після картки команди.
+    const cab = document.createElement('div'); cab.id = 'cabinet-screen'; cab.style.display = 'block'; document.body.append(cab);
+    const panel = document.createElement('div'); panel.className = 'cab-panel active'; cab.append(panel);
+    const slot = document.createElement('div'); slot.className = 'cab-slot'; panel.append(slot);
+    slot.append(renderRequestersBlock(app));
+} else root.append(renderOwnFleet(app, route));
 if (matchMedia('(min-width: 900px)').matches) {
     const wm = createWindowManager({ storage: sessionStorage, confirm: async () => ({ ok: true }), notify() {} });
     window.__open = (id) => wm.open({ type: 'of_request', id: id || '', key: 'of_request:' + (id || 'new'), title: 'Заявка на рейс', build: (box) => {
@@ -270,4 +293,74 @@ test('замовник підрозділу 390: лише заявки свог�
         assert.equal(await noOverflow(page), true);
         await shot(page, 'fleet-requester-390-light.png');
     });
+});
+
+// ---- «Команда»: блок «Замовники підрозділів» ----
+const teamCfg = (theme, role = 'owner') => ({ role, userId: 'staff-1', unitIds: [], theme, mode: 'team' });
+const U2_ID = '81000000-0000-0000-0000-000000000002';
+const fetchCall = (page, action) => page.evaluate((a) => (window.__calls.find((c) => c[0] === 'fetch' && c[2].action === a) || [])[2], action);
+const rpcCall = (page, name) => page.evaluate((n) => (window.__calls.filter((c) => c[0] === 'rpc' && c[1] === n).at(-1) || [])[2], name);
+
+for (const [name, viewport] of [['1366', { width: 1366, height: 800 }], ['390', { width: 390, height: 844 }]]) {
+    test(`«Команда» ${name}: блок «Замовники підрозділів» — список, запрошення, підрозділи, без горизонтального скролу; скріншот`, async (t) => {
+        await run(t, teamCfg('light'), viewport, async (page) => {
+            await page.waitForSelector('.kpof-team .kpof-req');
+            assert.equal(await page.locator('.kpof-team .kpof-req[data-user]').count(), 2, 'два замовники');
+            assert.equal(await page.locator('.kpof-team .kpof-req[data-invite]').count(), 2, 'два запрошення');
+            assert.match(await page.textContent('.kpof-req[data-user="r1"]'), /Іван Петренко · ivan@agro\.ua/);
+            const second = await page.textContent('.kpof-req[data-user="r2"]');
+            assert.ok(second.includes('olena@agro.ua') && second.includes('Агро Північ') && second.includes('Елеватор Центральний'), 'без ПІБ — пошта; підрозділи чипами');
+            assert.match(await page.textContent('.kpof-req[data-invite="i1"]'), /очікує відповіді/);
+            assert.match(await page.textContent('.kpof-req[data-invite="i2"]'), /строк минув/);
+            assert.equal(await page.locator('.kpof-req[data-invite="i1"] [data-act="revoke"]').count(), 1);
+            assert.equal(await page.locator('.kpof-req[data-invite="i2"] [data-act="revoke"]').count(), 0, 'прострочене не скасовують, лише повторюють');
+            assert.equal(await noOverflow(page), true);
+            await shot(page, `fleet-requesters-${name}-light.png`);
+        });
+    });
+}
+
+test('«Команда»: змінити підрозділи, прибрати, запросити, повторити й скасувати запрошення — виклики RPC та API', async (t) => {
+    await run(t, teamCfg('light'), { width: 1366, height: 800 }, async (page) => {
+        await page.waitForSelector('.kpof-team .kpof-req');
+        await page.click('.kpof-req[data-user="r2"] [data-act="edit-units"]');
+        await page.waitForSelector('.kpof-req[data-user="r2"] .kpof-checks');
+        assert.deepEqual(await page.$$eval('.kpof-req[data-user="r2"] .kpof-checks input', (i) => i.map((x) => x.checked)), [true, true, false], 'поточні підрозділи позначені');
+        await page.uncheck('.kpof-req[data-user="r2"] .kpof-checks input >> nth=0');
+        await page.click('.kpof-req[data-user="r2"] [data-act="save-units"]');
+        await page.waitForFunction(() => window.__calls.some((c) => c[1] === 'own_fleet_requester_set_units'));
+        assert.deepEqual(await rpcCall(page, 'own_fleet_requester_set_units'), { p_user: 'r2', p_unit_ids: [U2_ID] });
+        await page.waitForSelector('.kpof-team .kpof-req');
+        await page.click('.kpof-req[data-user="r1"] button:has-text("Прибрати")');
+        await page.click('.kpof-req[data-user="r1"] button:has-text("Точно")');
+        await page.waitForFunction(() => window.__calls.some((c) => c[1] === 'own_fleet_requester_remove'));
+        assert.deepEqual(await rpcCall(page, 'own_fleet_requester_remove'), { p_user: 'r1' });
+        await page.click('.kpof-invite [data-act="invite"]');
+        assert.match(await page.textContent('.kpof-team .notice'), /пошту/, 'без пошти запрошення не йде');
+        await page.fill('.kpof-invite input[type="email"]', 'boss@agro.ua');
+        await page.click('.kpof-invite [data-act="invite"]');
+        assert.match(await page.textContent('.kpof-team .notice'), /підрозділ/, 'без підрозділу запрошення не йде');
+        await page.check('.kpof-invite .kpof-checks input >> nth=1');
+        await page.click('.kpof-invite [data-act="invite"]');
+        await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'fetch' && c[2].action === 'create'));
+        assert.deepEqual(await fetchCall(page, 'create'), { action: 'create', email: 'boss@agro.ua', unit_ids: [U2_ID] });
+        assert.match(await page.textContent('.kpof-team .kpof-link'), /requester_invite=r1\.test-link/, 'пошта не налаштована — посилання для копіювання');
+        await page.click('.kpof-req[data-invite="i1"] [data-act="resend"]');
+        await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'fetch' && c[2].action === 'resend'));
+        assert.deepEqual(await fetchCall(page, 'resend'), { action: 'resend', id: 'i1' });
+        await page.click('.kpof-req[data-invite="i1"] [data-act="revoke"]');
+        await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'fetch' && c[2].action === 'revoke'));
+        assert.deepEqual(await fetchCall(page, 'revoke'), { action: 'revoke', id: 'i1' });
+    });
+});
+
+test('«Команда»: блок бачать лише директор і менеджер; логіст і замовник — ні, і без запитів за списками', async (t) => {
+    for (const [role, visible] of [['owner', true], ['director', true], ['logist', false], ['requester', false]]) {
+        await run(t, { ...teamCfg('light', role), unitIds: role === 'requester' ? [U1] : [] }, { width: 1366, height: 800 }, async (page) => {
+            await page.waitForFunction(() => document.querySelector('.cab-slot').children.length > 0);
+            if (visible) await page.waitForSelector('.kpof-team .kpof-req');
+            assert.equal(await page.locator('.kpof-team').count(), visible ? 1 : 0, role);
+            assert.equal(await page.evaluate(() => window.__calls.filter((c) => c[1] === 'own_fleet_requesters_list' || c[0] === 'fetch').length), visible ? 2 : 0, role);
+        });
+    }
 });

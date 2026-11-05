@@ -543,9 +543,36 @@ export async function fillCabinetSlot(tab) {
     }
 }
 
+// «Команда» кабінету: в організації з own_fleet директор і менеджер бачать блок «Замовники підрозділів» (після таблиці команди сайту).
+// Блок вставляється з боку моста: сайт (index.html) не змінюється. Без прапорця чи без прав блоку немає (старий прибирається).
+let teamTicket = 0;
+export async function fillRequestersBlock() {
+    const list = document.getElementById('team-members-list');
+    const host = list && (list.closest('.cab-card') || list.parentElement);
+    let slot = document.getElementById('cab-requesters-slot');
+    if (!host || !state.session) { if (slot) slot.remove(); return; }
+    const ticket = ++teamTicket;
+    if (!state.context || state.contextUser !== state.session.user.id) await loadContext();
+    const access = ownFleetAccess(state.ownFleet);
+    const allowed = access.enabled && (access.role === 'owner' || access.role === 'director');
+    if (ticket !== teamTicket) return;
+    if (!allowed) { if (slot) slot.remove(); return; }
+    if (!slot) {
+        slot = h('div', { id: 'cab-requesters-slot', class: 'cab-slot' });
+        host.after(slot);
+    }
+    try {
+        const module = await import('./views/own-fleet/index.js');
+        if (ticket === teamTicket) clear(slot, module.renderRequestersBlock(app()));
+    } catch {
+        clear(slot, notice('Не вдалося завантажити блок «Замовники підрозділів». Оновіть сторінку.'));
+    }
+}
+
 function onCabinetTab(event) {
     const tab = event && event.detail && event.detail.tab;
     if (tab === 'requisites' || tab === 'stats') fillCabinetSlot(tab);
+    if (tab === 'team') fillRequestersBlock();
 }
 
 // ===== Вікна поверх розділу (PR 3): картки документів, форми, клієнт, заявка. Лише Контроль+ ≥900px (createWindowManager сам вирішує). =====
@@ -800,6 +827,7 @@ export async function startBridge() {
     // Кабінет міг відкритися на «Реквізитах» (#/cabinet/requisites) раніше, ніж міст був готовий.
     const openTab = document.querySelector && document.querySelector('#cabinet-screen .cab-tab.active');
     if (openTab && SLOT_IDS[openTab.getAttribute('data-tab')]) fillCabinetSlot(openTab.getAttribute('data-tab'));
+    if (openTab && openTab.getAttribute('data-tab') === 'team') fillRequestersBlock();
     patchSiteFleet();
     if (!state.route) await refreshGpsTab();
     await topUpSiteFleet();

@@ -707,6 +707,17 @@ check(/^-- Apply manually after review\. This file is not applied to production 
 'own fleet: ' + OWN_FLEET + ' applied again (idempotent), manual-apply header, no CREATE EXTENSION');
 check(!/(DROP|ALTER) (POLICY|TABLE)\b[^;]*\bpublic\.(profiles|clients|fleet_vehicles|kp_drivers|fleet_trailers|org_directors)\b/i.test(ownFleetCode),
     'own fleet: no policies or tables of existing modules are altered');
+// Виправлення за рев'ю (нова міграція поверх; стара не змінена): застосовується після повторного прогону старої, двічі.
+const OWN_FLEET_FIXES = all.find((f) => /^\d{14}_own_fleet_fixes\.sql$/.test(f));
+if (!OWN_FLEET_FIXES) throw new Error('немає міграції *_own_fleet_fixes.sql');
+const ownFleetFixesSql = fs.readFileSync(new URL(OWN_FLEET_FIXES, DIR), 'utf8');
+await db.exec(ownFleetFixesSql);
+await db.exec(ownFleetFixesSql);
+const ownFleetFixesCode = ownFleetFixesSql.replace(/^\s*--.*$/gm, '');
+check(OWN_FLEET_FIXES > OWN_FLEET && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(ownFleetFixesSql)
+    && !/CREATE EXTENSION/i.test(ownFleetFixesCode)
+    && !/(DROP|ALTER) (POLICY|TABLE)\b[^;]*\bpublic\.(profiles|clients|fleet_vehicles|kp_drivers|fleet_trailers|org_directors|organizations|kp_doc_trip_sheet)\b/i.test(ownFleetFixesCode),
+'own fleet fixes: ' + OWN_FLEET_FIXES + ' (after ' + OWN_FLEET + ') applied twice, manual-apply header, no existing tables or policies altered');
 const ofTapSql = fs.readFileSync(new URL('../../../supabase/tests/own_fleet.sql', import.meta.url), 'utf8')
     .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
 const ofPlanned = Number((ofTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
@@ -715,6 +726,16 @@ await db.exec(ofTapSql);
 const ofTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(ofBefore);
 for (const row of ofTap) check(row.ok, 'pgTAP own_fleet.sql: ' + row.label);
 check(ofTap.length === ofPlanned, `pgTAP own_fleet.sql: ran ${ofTap.length} of plan(${ofPlanned})`);
+
+// supabase/tests/own_fleet_fixes.sql — виправлення за рев'ю: той самий shim pgTAP.
+const ofxTapSql = fs.readFileSync(new URL('../../../supabase/tests/own_fleet_fixes.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const ofxPlanned = Number((ofxTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const ofxBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+await db.exec(ofxTapSql);
+const ofxTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(ofxBefore);
+for (const row of ofxTap) check(row.ok, 'pgTAP own_fleet_fixes.sql: ' + row.label);
+check(ofxTap.length === ofxPlanned, `pgTAP own_fleet_fixes.sql: ran ${ofxTap.length} of plan(${ofxPlanned})`);
 
 // Скасування сторно ремонту: міграція ПІСЛЯ повторного прогону 3a (той повертає стару kp_repair_void) — двічі поспіль, потім pgTAP.
 const UNSTORNO = all.find((f) => /^\d{14}_repair_unstorno\.sql$/.test(f));

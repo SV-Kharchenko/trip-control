@@ -49,8 +49,8 @@ export const SCOPE_ALLOWLIST = [
     // Корінний тест перебирав файли src/views/ без підтек; «Власний парк» лежить у views/own-fleet/ — тест читає теки рекурсивно.
     /^tests\/idle-label\.test\.mjs$/,
     // Модуль «Власний парк» (етап 1): міграція й pgTAP-тест.
-    /^supabase\/migrations\/\d{14}_own_fleet\.sql$/,
-    /^supabase\/tests\/own_fleet\.sql$/,
+    /^supabase\/migrations\/\d{14}_own_fleet(_fixes)?\.sql$/,
+    /^supabase\/tests\/own_fleet(_fixes)?\.sql$/,
 ];
 
 export function isAllowedOutside(file) {

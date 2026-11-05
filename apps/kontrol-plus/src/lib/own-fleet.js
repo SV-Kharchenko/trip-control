@@ -69,6 +69,7 @@ export function nextActions(request, role, userId) {
     if (request.status === 'assigned') {
         out.push({ to: 'in_progress', label: 'Почати рейс' });
         out.push({ to: 'assigned', label: 'Змінити призначення', assign: true });
+        out.push({ to: 'accepted', label: 'Зняти призначення' });
     }
     if (request.status === 'in_progress') out.push({ to: 'done', label: 'Завершити' });
     out.push({ to: 'cancelled', label: 'Скасувати', needsReason: true, danger: true });
@@ -90,6 +91,10 @@ const BY_CODE = [
     [/FLEET_REQUEST_REASON_REQUIRED/, 'Вкажіть причину скасування.'],
     [/FLEET_REQUEST_USE_ASSIGN/, 'Авто й водія призначайте кнопкою «Призначити».'],
     [/FLEET_REQUEST_BAD_ASSIGNMENT/, 'Оберіть авто та водія з вашого автопарку (причіп — за потреби).'],
+    [/FLEET_REQUEST_TRAILER_ARCHIVED/, 'Причіп в архіві: оберіть активний причіп.'],
+    [/FLEET_REQUEST_BAD_TRIP/, 'Подорожній лист не знайдено або він належить іншій компанії.'],
+    [/REQUESTER_WORKS_ELSEWHERE/, 'Цей акаунт уже працює в іншій компанії. Запросіть замовника на іншу пошту.'],
+    [/REQUESTER_IS_MEMBER/, 'Ця людина вже учасник або менеджер компанії — замовником підрозділу бути не може.'],
     [/FLEET_REQUEST_BAD_POINT/, 'Ця точка недоступна для вашого підрозділу.'],
     [/FLEET_REQUEST_INVALID/, 'Перевірте бажаний час і пріоритет.'],
     [/OWN_FLEET_UNIT_NOT_IN_ORG/, 'Підрозділ не знайдено або він в архіві.'],

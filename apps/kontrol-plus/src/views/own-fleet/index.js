@@ -7,6 +7,10 @@ import { ownFleetAccess } from '../../lib/own-fleet-gate.js';
 import { renderBoard, renderRequesterList } from './board.js';
 import { renderRequestCard, renderRequestForm } from './request-card.js';
 import { renderPointCard, renderPointsList, renderUnitCard, renderUnitsList } from './units.js';
+import { renderRequestersBlock } from './requesters.js';
+
+// Блок «Замовники підрозділів» для вкладки «Команда» кабінету (bridge.js вставляє його лише директору / менеджеру з прапорцем own_fleet).
+export { renderRequestersBlock };
 
 const TABS = [
     { sub: 'board', hash: '#/own-fleet', label: 'Дошка' },

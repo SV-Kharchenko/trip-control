@@ -210,7 +210,7 @@ SELECT throws_ok($$SELECT public.fleet_request_assign((SELECT id FROM t_r WHERE 
 SELECT is((public.fleet_request_assign((SELECT id FROM t_r WHERE k = 'R1'), '8f300000-0000-0000-0000-000000000001', NULL, '8f400000-0000-0000-0000-000000000001') ->> 'ok'), 'true',
   'accepted → assigned with vehicle and driver');
 SELECT is((SELECT vehicle_label || '/' || driver_name FROM public.fleet_requests WHERE id = (SELECT id FROM t_r WHERE k = 'R1')), 'AA 1111 AA/Іваненко Іван', 'vehicle number and driver name are snapshotted');
-SELECT lives_ok($$SELECT public.fleet_request_set_trip((SELECT id FROM t_r WHERE k = 'R1'), gen_random_uuid())$$, 'trip link on an assigned request');
+SELECT lives_ok($$SELECT public.fleet_request_set_trip((SELECT id FROM t_r WHERE k = 'R1'), NULL)$$, 'trip link call on an assigned request (a real trip sheet is checked in own_fleet_fixes.sql)');
 RESET ROLE;
 
 -- requester бачить номер авто й ПІБ водія в призначеній заявці, але не довідники.
