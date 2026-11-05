@@ -6,6 +6,8 @@
 import { h, clear, spinner, notice, toast, uniqueId } from '../ui.js';
 import { kyivDate } from '../lib/format.js';
 import { docsAccess } from '../lib/docs.js';
+import { labelHint } from '../lib/field-hint.js';
+import { TS_HINTS } from '../lib/form-hints.js';
 import {
     TS_FIELD_LABELS, TS_REQUIRED, changedPaths, emptyTripSheet, getPath, prefillSnapshot, setPath, tripSheetPayload, tsErrorField, tsErrorText,
     tsFromPrefill, validateTripSheet,
@@ -112,7 +114,7 @@ function build(app, route, pre, today, vehicles, trailers, drivers, access) {
         const mark = h('span', { class: 'kpts-changed', hidden: true }, 'змінено ', reset);
         const req = TS_REQUIRED.includes(path) ? h('span', { class: 'req', 'aria-hidden': 'true' }, ' *') : null;
         const wrap = h('div', { class: 'field kpc-row', 'data-path': path },
-            h('label', { for: id }, TS_FIELD_LABELS[path] || path, req), h('span', { class: 'kpc-box kpc-w-' + width }, input), mark, hint);
+            labelHint(h('label', { for: id }, TS_FIELD_LABELS[path] || path, req), TS_HINTS[path]), h('span', { class: 'kpc-box kpc-w-' + width }, input), mark, hint);
         fields[path] = { input, hint, wrap, mark };
         return wrap;
     }
@@ -216,8 +218,8 @@ function build(app, route, pre, today, vehicles, trailers, drivers, access) {
     },
     h('div', { class: 'kpts-section' },
         h('h2', { class: 'form-section' }, 'Номер і дата'),
-        h('div', { class: 'field kpc-row' }, h('label', { for: 'ts-date' }, TS_FIELD_LABELS.doc_date), h('span', { class: 'kpc-box kpc-w-m' }, docDate)),
-        h('div', { class: 'field kpc-row' }, h('label', { for: 'ts-number' }, TS_FIELD_LABELS.number), h('span', { class: 'kpc-box kpc-w-s' }, number), numberHint)),
+        h('div', { class: 'field kpc-row' }, labelHint(h('label', { for: 'ts-date' }, TS_FIELD_LABELS.doc_date), TS_HINTS.doc_date), h('span', { class: 'kpc-box kpc-w-m' }, docDate)),
+        h('div', { class: 'field kpc-row' }, labelHint(h('label', { for: 'ts-number' }, TS_FIELD_LABELS.number), TS_HINTS.number), h('span', { class: 'kpc-box kpc-w-s' }, number), numberHint)),
     message,
     body,
     h('p', { class: 'muted small' }, h('span', { class: 'req' }, '*'), ' — обовʼязкові поля. Після видачі шапка, ТЗ, водій і завдання не змінюються; на поверненні вносяться лише спідометр, залишок пального й час. Телефон, паспорт, ІПН і адреса водія в лист не потрапляють.'),

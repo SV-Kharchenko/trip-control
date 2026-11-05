@@ -12,6 +12,8 @@ import { totalRows } from './docs-totals.js';
 import { docsBackHash } from '../lib/docs-requests.js';
 import { requestPicker, requestDocsNotice } from './docs-request-picker.js';
 import { linkClientPanel } from './docs-link-client.js';
+import { labelHint } from '../lib/field-hint.js';
+import { DOC_HINTS } from '../lib/form-hints.js';
 
 // Смітничок «Видалити рядок» (16px, stroke = currentColor).
 function trashIcon() {
@@ -77,8 +79,8 @@ function buildForm(app, kind, route, requisites, clients) {
     const rateHint = h('div', { class: 'hint', 'aria-live': 'polite' });
     const rateBtn = h('button', { type: 'button', class: 'btn btn-sm', onclick: () => fetchRate(true) }, 'Оновити курс НБУ');
     const rateRow = h('div', { class: 'kpd-rate' },
-        h('div', { class: 'field' }, h('label', { for: 'd-rate' }, 'Курс НБУ, грн'), rate),
-        h('div', { class: 'field' }, h('label', { for: 'd-rate-date' }, 'Дата курсу'), rateDate),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'd-rate' }, 'Курс НБУ, грн'), DOC_HINTS.rate), rate),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'd-rate-date' }, 'Дата курсу'), DOC_HINTS.rate_date), rateDate),
         h('div', { class: 'field kpd-rate-btn' }, h('span', { class: 'kpr-label' }, ' '), rateBtn),
         rateHint);
     const due = h('input', { type: 'date', id: 'd-due', oninput: () => { state.dueTouched = true; } });
@@ -326,13 +328,13 @@ function buildForm(app, kind, route, requisites, clients) {
     },
     h('div', { class: 'field kpr-wide' }, requestPicker(app, kind, { current: route.calc }), requestDocsNotice(app, kind, route.calc)),
     h('div', { class: 'kpd-grid' },
-        h('div', { class: 'field kpr-wide' }, h('label', { for: 'd-client' }, 'Клієнт', h('span', { class: 'req', 'aria-hidden': 'true' }, ' *')), clientSel),
-        h('div', { class: 'field' }, h('label', { for: 'd-date' }, 'Дата документа'), docDate),
-        h('div', { class: 'field' }, h('label', { for: 'd-number' }, 'Номер'), number, numberHint),
-        h('div', { class: 'field' }, h('label', { for: 'd-currency' }, 'Валюта'), currency),
+        h('div', { class: 'field kpr-wide' }, labelHint(h('label', { for: 'd-client' }, 'Клієнт', h('span', { class: 'req', 'aria-hidden': 'true' }, ' *')), DOC_HINTS.client), clientSel),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'd-date' }, 'Дата документа'), DOC_HINTS.date), docDate),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'd-number' }, 'Номер'), DOC_HINTS.number), number, numberHint),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'd-currency' }, 'Валюта'), DOC_HINTS.currency), currency),
         kind === 'invoice'
-            ? h('div', { class: 'field' }, h('label', { for: 'd-due' }, 'Оплатити до'), due, h('div', { class: 'hint' }, 'За замовчуванням — строк оплати клієнта (5 днів, якщо не вказано).'))
-            : h('div', { class: 'field' }, h('label', { for: 'd-parent' }, 'До рахунку (необовʼязково)'), parentSel)),
+            ? h('div', { class: 'field' }, labelHint(h('label', { for: 'd-due' }, 'Оплатити до'), DOC_HINTS.due), due, h('div', { class: 'hint' }, 'За замовчуванням — строк оплати клієнта (5 днів, якщо не вказано).'))
+            : h('div', { class: 'field' }, labelHint(h('label', { for: 'd-parent' }, 'До рахунку (необовʼязково)'), DOC_HINTS.parent), parentSel)),
     rateRow,
     vatPayer ? h('div', { class: 'field kpd-vat-field' }, h('span', { class: 'kpr-label' }, 'ПДВ 20 %'), vatBox) : h('p', { class: 'muted small' }, 'Компанія не є платником ПДВ — документ без ПДВ.'),
     h('h2', { class: 'form-section' }, 'Рядки документа'),

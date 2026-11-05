@@ -237,3 +237,13 @@ body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: var
 /* Публічний футер (оферта, політика, оплата, логотипи, реквізити ФОП) — не в розділах Контроль+. Лишається в «Налаштуваннях» (#cabinet-screen),
    на сторінці тарифу й оплати (клон у #billing-footer-slot береться з цього вузла, тож він лишається в DOM) і на екрані входу. На сайті trip-control.com правила немає. */
 body.kp-shell-on #main-app > .tc-legal-footer { display: none; }
+
+/* Підказка «?» (src/lib/field-hint.js): при відкритті переїжджає в <body> і лежить окремим шаром над полями й вікнами, нижче діалогів (шкала --kp-z-*).
+   Місце (left/top) ставить скрипт біля свого «?»; фон суцільний, кольори й тінь — з токенів теми. */
+html[data-app="kp"] body.kp-shell-on .kp-hint-pop {
+    position: fixed; z-index: var(--kp-z-dropdown); left: 0; top: 0; box-sizing: border-box; width: max-content; max-width: min(280px, calc(100vw - 16px)); padding: 8px 10px;
+    border: 1px solid var(--border-soft); border-radius: var(--radius-control, 6px); background: var(--surface, var(--bg)); box-shadow: 0 6px 18px var(--kp-pop-shadow); color: var(--text);
+    font-family: var(--kp-font, inherit); font-size: 0.8rem; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; overflow-wrap: anywhere; pointer-events: auto;
+}
+html[data-app="kp"] body.kp-shell-on .kp-hint-pop[hidden] { display: none; }
+html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-pop-shadow: rgba(0, 0, 0, 0.55); }

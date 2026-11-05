@@ -2,6 +2,7 @@
 // (без полів редагування в таблиці), клік по рядку відкриває картку об'єкта в компактному стилі 1С (підпис зліва, вузьке поле).
 // Дані й збереження — у викликаючому view (cfg.load / cfg.renderCard), тут лише оболонка.
 import { h, clear, spinner } from '../ui.js';
+import { labelHint } from '../lib/field-hint.js';
 
 // Поле картки за специфікацією (lib/registry.js): { row, input }.
 export function cardField(spec, value, { disabled = false, options = [] } = {}) {
@@ -18,7 +19,7 @@ export function cardField(spec, value, { disabled = false, options = [] } = {}) 
     const hint = h('div', { class: 'hint', id: id + '-hint', 'aria-live': 'polite' });
     const box = h('span', { class: 'kpc-box kpc-w-' + (spec.width || 'm') }, input, spec.suffix ? h('em', { class: 'kpc-suffix' }, spec.suffix) : null);
     const row = h('div', { class: 'field kpc-row' },
-        h('label', { for: id }, spec.label, spec.required ? h('span', { class: 'req', 'aria-hidden': 'true' }, ' *') : null), box, hint);
+        labelHint(h('label', { for: id }, spec.label, spec.required ? h('span', { class: 'req', 'aria-hidden': 'true' }, ' *') : null), spec.hint), box, hint);
     return { row, input, hint };
 }
 

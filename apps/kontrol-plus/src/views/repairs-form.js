@@ -3,6 +3,8 @@
 // Ремонт, списання і «Виконане ТО» — один виклик kp_repair_save_with_maintenance (одна транзакція).
 import { h, clear, notice, toast } from '../ui.js';
 import { fmtDate, fmtMoney, fmtMoneyCents, fmtNumber, kyivDate } from '../lib/format.js';
+import { labelHint } from '../lib/field-hint.js';
+import { REPAIR_HINTS } from '../lib/form-hints.js';
 import { repairTotals, validateRepairForm, repairPartsPayload, repairErrorText } from '../lib/repairs.js';
 
 export function partOptionLabel(part) {
@@ -179,12 +181,12 @@ export function renderRepairForm(app) {
     } },
     h('h2', null, 'Новий ремонт'),
     h('div', { class: 'form' },
-        h('div', { class: 'field' }, h('label', { for: 'kpr-vehicle' }, 'Авто'), vehicle),
-        h('div', { class: 'field' }, h('label', { for: 'kpr-date' }, 'Дата'), date),
-        h('div', { class: 'field' }, h('label', { for: 'kpr-odometer' }, 'Одометр, км'), odometer),
-        h('div', { class: 'field kpr-wide' }, h('label', { for: 'kpr-works' }, 'Роботи'), works),
-        h('div', { class: 'field' }, h('label', { for: 'kpr-provider' }, 'СТО'), provider),
-        h('div', { class: 'field' }, h('label', { for: 'kpr-service' }, 'Вартість СТО, ₴'), service),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'kpr-vehicle' }, 'Авто'), REPAIR_HINTS.vehicle), vehicle),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'kpr-date' }, 'Дата'), REPAIR_HINTS.date), date),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'kpr-odometer' }, 'Одометр, км'), REPAIR_HINTS.odometer), odometer),
+        h('div', { class: 'field kpr-wide' }, labelHint(h('label', { for: 'kpr-works' }, 'Роботи'), REPAIR_HINTS.works), works),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'kpr-provider' }, 'СТО'), REPAIR_HINTS.provider), provider),
+        h('div', { class: 'field' }, labelHint(h('label', { for: 'kpr-service' }, 'Вартість СТО, ₴'), REPAIR_HINTS.service), service),
         maintenanceBox,
         h('div', { class: 'field kpr-wide' }, h('span', { class: 'kpr-label' }, 'Запчастини зі складу'), linesBox)),
     totals,
