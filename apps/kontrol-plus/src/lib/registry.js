@@ -26,7 +26,7 @@ export const VEHICLE_FIELDS = [
     { key: 'length_m', label: 'Довжина автопоїзда', width: 's', suffix: 'м', inputmode: 'decimal', hint: 'Довжина автопоїзда (авто з причепом), м. Потрапляє в ТТН.' },
     { key: 'width_m', label: 'Ширина', width: 's', suffix: 'м', inputmode: 'decimal', hint: 'Ширина автопоїзда, м. Потрапляє в ТТН.' },
     { key: 'height_m', label: 'Висота', width: 's', suffix: 'м', inputmode: 'decimal', hint: 'Висота автопоїзда, м. Потрапляє в ТТН.' },
-    { key: 'tare_t', label: 'Тара', width: 's', suffix: 'т', inputmode: 'decimal', hint: 'Маса порожнього авто без вантажу, т.' },
+    { key: 'tare_t', label: 'Тара', width: 's', suffix: 'т', inputmode: 'decimal', hint: 'Власна маса порожнього авто за техпаспортом, т.' },
     { key: 'max_mass_t', label: 'Макс. дозволена маса', width: 's', suffix: 'т', inputmode: 'decimal', hint: 'Максимально дозволена повна маса за техпаспортом, т.' },
     { key: 'default_driver_id', label: 'Водій за замовчуванням', width: 'l', type: 'driver', hint: 'Водій, який підставляється в документи для цього авто.' },
     { key: 'default_trailer_id', label: 'Причіп за замовчуванням', width: 'l', type: 'trailer', owner: true, hint: 'Причіп, який зазвичай ходить з цим авто. Підставляється в документи.' },
@@ -35,7 +35,7 @@ export const VEHICLE_FIELDS = [
     { key: 'kasko_on', label: 'КАСКО до', width: 'm', type: 'date', owner: true, hint: 'Дата, до якої діє поліс КАСКО.' },
     { key: 'green_card_on', label: 'Зелена карта до', width: 'm', type: 'date', owner: true, hint: 'Дата, до якої діє «Зелена карта» (міжнародне страхування).' },
     { key: 'inspection_on', label: 'Техогляд до', width: 'm', type: 'date', owner: true, hint: 'Дата, до якої дійсний технічний огляд.' },
-    { key: 'tachograph_on', label: 'Тахограф до', width: 'm', type: 'date', owner: true, hint: 'Дата наступної перевірки тахографа.' },
+    { key: 'tachograph_on', label: 'Тахограф до', width: 'm', type: 'date', owner: true, hint: 'Дата наступного калібрування (повірки) тахографа.' },
     { key: 'service_on', label: 'ТО до', width: 'm', type: 'date', owner: true, hint: 'Дата наступного планового ТО.' },
 ];
 
@@ -46,7 +46,7 @@ export const TRAILER_FIELDS = [
     { key: 'capacity_t', label: 'Вантажопідйомність', width: 's', suffix: 'т', inputmode: 'decimal', hint: 'Вантажопідйомність причепа, т.' },
     { key: 'volume_m3', label: 'Обʼєм', width: 's', suffix: 'м³', inputmode: 'decimal', hint: 'Обʼєм кузова причепа, м³.' },
     { section: 'Строки ТО й страхування' },
-    { key: 'oscpv_on', label: 'ОСЦПВ до', width: 'm', type: 'date', owner: true, hint: 'Дата, до якої діє поліс ОСЦПВ.' },
+    { key: 'oscpv_on', label: 'ОСЦПВ до', width: 'm', type: 'date', owner: true, hint: 'Дата, до якої діє поліс ОСЦПВ (якщо причіп застраховано окремо).' },
     { key: 'kasko_on', label: 'КАСКО до', width: 'm', type: 'date', owner: true, hint: 'Дата, до якої діє поліс КАСКО.' },
     { key: 'green_card_on', label: 'Зелена карта до', width: 'm', type: 'date', owner: true, hint: 'Дата, до якої діє «Зелена карта» (міжнародне страхування).' },
 ];
