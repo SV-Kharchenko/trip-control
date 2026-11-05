@@ -640,3 +640,32 @@ test('bridge: суперадмін бачить пункт «Платформа�
         env.restore();
     }
 });
+
+test('bridge: суперадмін без організації бачить «Платформа» і відкриває #/superadmin (контекст компанії не потрібен)', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false, role: null, own_org_plan: null }, docs: 'ok', repairs: null, superadmin: true });
+    env.loc.hash = '#/superadmin';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.equal(visibleKeys(env).includes('superadmin'), true);
+        assert.equal(env.loc.hash, '#/superadmin', 'без тарифу не кидає на екран тарифу й не редиректить');
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: суперадмін у режимі «лише власний парк» (замовник підрозділу) бачить «Платформа» поруч із «Власним парком»', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: { control_plus: false, role: null, own_org_plan: 'company' }, docs: 'ok', repairs: null,
+        ownFleet: OF_ROW('requester', ['81000000-0000-0000-0000-000000000001']), superadmin: true });
+    env.loc.hash = '#/superadmin';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.deepEqual(visibleKeys(env), ['own_fleet', 'superadmin']);
+        assert.equal(env.loc.hash, '#/superadmin');
+    } finally {
+        env.restore();
+    }
+});

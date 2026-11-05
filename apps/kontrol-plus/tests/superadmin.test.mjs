@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseCrmHash, tabOf } from '../src/lib/route.js';
 import { SHELL_ITEMS } from '../src/shell-menu.js';
-import { auditValue, orgModuleNote, settingRows, settingState, superadminErrorText } from '../src/lib/superadmin.js';
+import { auditValue, featureOn, orgModuleNote, settingRows, settingState, superadminErrorText } from '../src/lib/superadmin.js';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(APP, p), 'utf8');
@@ -54,4 +54,12 @@ test('bridge: сторінка вантажиться lazy і лише для с
     const bridge = read('src/bridge.js');
     assert.match(bridge, /route\.view === 'superadmin'[\s\S]*?if \(!state\.superadmin\)[\s\S]*?location\.hash = '#\/dashboard'[\s\S]*?import\('\.\/views\/superadmin\/index\.js'\)/);
     assert.match(bridge, /rpc\('is_platform_superadmin'\)/);
+});
+
+test('featureOn: true або рядок "true" — як features ->> key у базі', () => {
+    assert.equal(featureOn({ own_fleet: true }, 'own_fleet'), true);
+    assert.equal(featureOn({ own_fleet: 'true' }, 'own_fleet'), true);
+    for (const v of [false, 'false', 'TRUE', 1, null, undefined, 'yes']) assert.equal(featureOn({ own_fleet: v }, 'own_fleet'), false, String(v));
+    assert.equal(featureOn(null, 'own_fleet'), false);
+    assert.equal(featureOn({}, 'own_fleet'), false);
 });

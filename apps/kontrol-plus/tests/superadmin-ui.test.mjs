@@ -16,6 +16,7 @@ const siteCss = [...SITE.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) =
 
 const ORG_A = '9c000000-0000-0000-0000-00000000000a';
 const ORG_B = '9c000000-0000-0000-0000-00000000000b';
+const ORG_C = '9c000000-0000-0000-0000-00000000000c';
 
 function fixtures() {
     const audit = Array.from({ length: 120 }, (_, i) => ({
@@ -24,8 +25,10 @@ function fixtures() {
         before: i % 2 ? { own_fleet: false } : { enabled: false }, after: i % 2 ? { own_fleet: true } : { enabled: true }, total: 120,
     }));
     const orgs = [
-        { id: ORG_A, name: 'Агро Північ ТОВ', edrpou: '90909091', legal_form: 'ТОВ', members: 7, features: { own_fleet: true }, total: 2 },
-        { id: ORG_B, name: 'Транс Захід ФОП із дуже довгою назвою для перевірки переносу рядків', edrpou: null, legal_form: 'ФОП', members: 1, features: {}, total: 2 },
+        { id: ORG_A, name: 'Агро Північ ТОВ', edrpou: '90909091', legal_form: 'ТОВ', members: 7, features: { own_fleet: true }, total: 3 },
+        { id: ORG_B, name: 'Транс Захід ФОП із дуже довгою назвою для перевірки переносу рядків', edrpou: null, legal_form: 'ФОП', members: 1, features: {}, total: 3 },
+        // База вважає «увімкнено» і булеве true, і рядок "true" (features ->> key = 'true').
+        { id: ORG_C, name: 'Рядковий прапорець', edrpou: '12345678', legal_form: 'ТОВ', members: 2, features: { own_fleet: 'true' }, total: 3 },
     ];
     return { audit, orgs };
 }
@@ -192,3 +195,14 @@ for (const theme of ['light', 'dark']) {
         });
     }
 }
+
+test('features {own_fleet:"true"} (рядок) показується як увімкнено — так само, як у базі; false-рядок — вимкнено', async (t) => {
+    await run(t, GLOBAL_OFF, { width: 1366, height: 900 }, async (page) => {
+        assert.equal(await page.isChecked(`.kpsa-org[data-org="${ORG_C}"] input[type="checkbox"]`), true);
+        assert.match(await page.textContent(`.kpsa-org[data-org="${ORG_C}"] .kpsa-warn`), /Не працює, бо вимкнено глобально/);
+        assert.equal(await page.isChecked(`.kpsa-org[data-org="${ORG_B}"] input[type="checkbox"]`), false);
+        await page.click(`.kpsa-org[data-org="${ORG_C}"] input[type="checkbox"]`);
+        await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'sa_set_org_feature'));
+        assert.deepEqual(await callsOf(page, 'sa_set_org_feature'), [{ p_org: ORG_C, p_key: 'own_fleet', p_enabled: false }], 'вимикаємо те, що було увімкнено');
+    });
+});

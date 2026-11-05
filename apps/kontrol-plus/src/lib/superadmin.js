@@ -30,6 +30,12 @@ export function settingRows(settings) {
     return keys.map((key) => ({ ...moduleInfo(key), row: byKey.get(key) || null, state: settingState(byKey.get(key)) }));
 }
 
+// Прапорець компанії «увімкнено» — так само, як у базі (features ->> key = 'true'): булеве true або рядок "true".
+export function featureOn(features, key) {
+    const v = features && typeof features === 'object' ? features[key] : undefined;
+    return v === true || v === 'true';
+}
+
 // Підказка в рядку компанії: прапорець увімкнено, а глобально модуль вимкнено (чи рядка немає).
 export function orgModuleNote(orgOn, globalState) {
     if (orgOn && globalState !== 'on') return 'Не працює, бо вимкнено глобально.';

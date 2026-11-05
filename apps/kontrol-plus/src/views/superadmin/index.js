@@ -3,7 +3,7 @@
 import '../../kp-superadmin.css';
 import { h, clear, notice, spinner, toast } from '../../ui.js';
 import {
-    AUDIT_PAGE, MODULES, ORGS_PAGE, actionLabel, auditTarget, auditValue, formatWhen, moduleInfo, orgModuleNote, settingRows, superadminErrorText,
+    AUDIT_PAGE, MODULES, ORGS_PAGE, actionLabel, auditTarget, auditValue, formatWhen, featureOn, moduleInfo, orgModuleNote, settingRows, superadminErrorText,
 } from '../../lib/superadmin.js';
 
 // Підтвердження — діалог сайту (tcModal); без нього дію НЕ виконуємо.
@@ -90,7 +90,7 @@ export function renderSuperadmin(app) {
     }
     function orgRow(org) {
         const modules = MODULES.map((m) => {
-            const on = Boolean(org.features) && org.features[m.key] === true;
+            const on = featureOn(org.features, m.key);
             const note = orgModuleNote(on, globalState(m.key));
             return h('div', { class: 'kpsa-mod', 'data-key': m.key },
                 h('label', { class: 'kpsa-switch' },

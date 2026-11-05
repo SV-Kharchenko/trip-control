@@ -41,6 +41,10 @@ GRANT ALL ON public.platform_audit_log TO service_role;
 GRANT USAGE ON SEQUENCE public.platform_audit_log_id_seq TO service_role;
 
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS updated_by uuid NULL;
+-- Клієнтам пряме читання app_settings не потрібне: модулі перевіряє feature_enabled() (SECURITY DEFINER), а кабінет читає через sa_list_settings().
+-- Тому прибираємо SELECT для authenticated (політику й грант із міграції вимикача); service_role і SECURITY DEFINER-функції працюють як раніше.
+DROP POLICY IF EXISTS app_settings_select ON public.app_settings;
+REVOKE ALL ON public.app_settings FROM PUBLIC, anon, authenticated;
 INSERT INTO public.app_settings (key, enabled) VALUES ('own_fleet', false) ON CONFLICT (key) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION public.is_platform_superadmin()

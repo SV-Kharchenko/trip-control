@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(80);
+SELECT plan(86);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d3f00a1","role":"service_role"}', true);
 
@@ -178,6 +178,18 @@ SELECT is((SELECT concat_ws('|', action, admin_id, after ->> 'enabled') FROM pub
   'setting.create|00000000-0000-0000-0000-00000d3f00a1|false', 'журнал: створення рядка');
 SELECT is(pg_temp.sax_err($$SELECT public.sa_create_setting('own_fleet')$$), 'P0001 SA_ALREADY_EXISTS', 'другий раз — рядок уже є');
 SELECT is(pg_temp.sax_err($$SELECT public.sa_create_setting('made_up')$$), 'P0001 SA_UNKNOWN_MODULE', 'довільний ключ не створюється');
+
+-- 6. app_settings клієнтам напряму не читається (політику й грант знято): модулі перевіряє feature_enabled() (SECURITY DEFINER).
+SELECT pg_temp.sax_as('a2');
+SET LOCAL ROLE authenticated;
+SELECT throws_ok($$SELECT * FROM public.app_settings$$, '42501', NULL, 'authenticated без суперадміна не читає app_settings напряму');
+SELECT is(public.feature_enabled('sa_demo'), true, 'feature_enabled() для нього працює (SECURITY DEFINER)');
+SELECT is(public.feature_enabled('no_such_module'), false, 'немає рядка → вимкнено');
+RESET ROLE;
+SELECT is((SELECT count(*)::integer FROM pg_policies WHERE schemaname = 'public' AND tablename = 'app_settings' AND roles::text ~ 'authenticated'), 0, 'політики SELECT для authenticated на app_settings немає');
+SELECT is(has_table_privilege('authenticated', 'public.app_settings', 'SELECT'), false, 'гранту SELECT для authenticated немає');
+SELECT pg_temp.sax_as('a1');
+SELECT is((SELECT count(*)::integer FROM public.sa_list_settings() WHERE key = 'sa_demo'), 1, 'суперадмін читає перемикачі через sa_list_settings()');
 
 -- Звичайний користувач далі нічого не бачить (навіть після змін).
 SELECT pg_temp.sax_as('a2');
