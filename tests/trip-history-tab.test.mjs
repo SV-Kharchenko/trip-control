@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { handleFakeConfig } from './helpers/fake-config.mjs';
 
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -67,7 +68,7 @@ test('browser: #saved-section is sized and usable in history, hidden in calc/ove
     const exe = process.env.PLAYWRIGHT_CHROME || ['C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find((p) => fs.existsSync(p));
     if (!exe) { t.skip('no Chrome'); return; }
     const http = await import('node:http');
-    const server = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+    const server = http.createServer((req, res) => { if (handleFakeConfig(req, res)) return; res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
     await new Promise((r) => server.listen(0, '127.0.0.1', r));
     const browser = await chromium.launch({ executablePath: exe });
     try {

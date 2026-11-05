@@ -53,6 +53,8 @@ SELECT public.set_org_plan('9f000000-0000-0000-0000-00000000000a', 'control_plus
 SELECT public.set_org_plan('9f000000-0000-0000-0000-00000000000b', 'control_plus');
 SELECT public.set_org_plan('9f000000-0000-0000-0000-00000000000d', 'control_plus');
 UPDATE public.organizations SET features = '{"own_fleet": true}' WHERE id IN ('9f000000-0000-0000-0000-00000000000a', '9f000000-0000-0000-0000-00000000000b');
+-- Глобальний вимикач (app_settings) увімкнено: org_has_feature = feature_enabled AND прапорець організації; без рядка модуль вимкнено для всіх.
+INSERT INTO public.app_settings (key, enabled) VALUES ('own_fleet', true) ON CONFLICT (key) DO UPDATE SET enabled = true;
 INSERT INTO public.org_directors (org_id, user_id) VALUES ('9f000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-00000d1f00a3');
 -- c4: директор організації Y (власний профіль у Y прибираємо: директор не може бути її учасником).
 UPDATE public.profiles SET org_id = '9f000000-0000-0000-0000-00000000000c', org_role = 'owner' WHERE id = '00000000-0000-0000-0000-00000d1f00c4';

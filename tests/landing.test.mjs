@@ -72,7 +72,7 @@ test('pricing pay note: plata by mono logo (light / dark) before Visa and Master
 
 test('entry script: session key or an auth flow in the URL → app, otherwise landing', () => {
     const script = sliceBetween(html, '<body class="layout-studio" data-theme="light">\n<script>', '</script>');
-    assert.match(script, /localStorage\.getItem\('sb-qkfqjorzsxcajcneohoy-auth-token'\)/);
+    assert.match(script, /localStorage\.getItem\('sb-' \+ new URL\(cfg\.supabaseUrl\)\.hostname\.split\('\.'\)\[0\] \+ '-auth-token'\)/, 'the session key is built from the environment config (same key on prod)');
     assert.match(script, /document\.documentElement\.setAttribute\('data-entry', entry\);/);
     assert.match(script, /if \(entry === 'landing'\) document\.documentElement\.setAttribute\('data-screen', 'landing'\);/);
     const entry = new Function(functionSource(script, 'tcEntryScreen') + '\nreturn tcEntryScreen;')();

@@ -22,6 +22,7 @@ const ENTRY = `
 import { createWindowManager } from './src/kp-windows.js';
 import { MIN_WIDE } from './src/lib/windows-core.js';
 import { renderTtnForm } from './src/views/docs-ttn-form.js';
+import { handleFakeConfig } from '../../../tests/helpers/fake-config.mjs';
 const chain = () => { const p = new Proxy(function () {}, { get: (_, k) => (k === 'then' ? (res) => res({ data: [{ id: 'c1', name: 'Клієнт Тест', archived_at: null }], error: null }) : p), apply: () => p }); return p; };
 const supabase = {
     rpc: async (name) => ({ data: name === 'kp_requisites_get' ? [{ edrpou: '12345678', name: 'ТОВ Тест' }] : [], error: null }),
@@ -53,6 +54,7 @@ async function withPage(t, theme, viewport, fn) {
     const js = built.outputFiles[0].text;
     esbuild.stop();
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         const url = new URL(req.url, 'http://x');
         if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE(theme)); return; }
         if (url.pathname === '/site.css') { res.writeHead(200, { 'content-type': 'text/css' }); res.end(siteCss); return; }

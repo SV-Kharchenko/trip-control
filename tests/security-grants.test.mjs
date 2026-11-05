@@ -111,7 +111,8 @@ test('no service_role key, secret key or JWT secret in anything the browser gets
         }
     }
     // The browser gets the publishable key only.
-    assert.match(read('index.html'), /const SUPABASE_ANON_KEY = 'sb_publishable_[A-Za-z0-9_-]+';/);
+    assert.match(read('index.html'), /const SUPABASE_ANON_KEY = TC_CONFIG\.supabaseAnonKey;/);
+    assert.doesNotMatch(read('index.html'), /sb_publishable_|sb_secret_/, 'no key literal in the page: the public key comes from /api/config');
     // Server code never puts env values into a response.
     for (const file of files.filter((f) => /^(api|lib)\/.*\.js$/.test(f))) {
         assert.equal(/\.(json|send)\([^)]*process\.env/.test(read(file)), false, file);

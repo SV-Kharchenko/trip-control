@@ -13,6 +13,7 @@ import { ROLE_LABELS } from '../src/lib/gate.js';
 import { REPAIR_ROLE_LABELS } from '../src/lib/repairs.js';
 import { roleLabel } from '../src/shell-menu.js';
 import { OCT } from './helpers/report-fixture.mjs';
+import { handleFakeConfig } from '../../../tests/helpers/fake-config.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => fs.readFileSync(path.join(APP, file), 'utf8');
@@ -164,6 +165,7 @@ async function withReport(t, fn) {
     const browser = await loadBrowser();
     if (!browser) { t.skip('no playwright-core / Chrome'); return; }
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         const url = new URL(req.url, 'http://x');
         if (url.pathname === '/') { res.writeHead(200, { 'content-type': MIME['.html'] }); res.end(PAGE); return; }
         const file = path.join(APP, decodeURIComponent(url.pathname));

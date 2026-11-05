@@ -44,6 +44,8 @@ INSERT INTO public.org_directors (org_id, user_id) VALUES ('8f000000-0000-0000-0
 -- 1. Прапорець.
 SELECT is(public.org_has_feature('8f000000-0000-0000-0000-00000000000a', 'own_fleet'), false, 'no flag by default');
 UPDATE public.organizations SET features = '{"own_fleet": true}' WHERE id IN ('8f000000-0000-0000-0000-00000000000a', '8f000000-0000-0000-0000-00000000000c');
+-- Глобальний вимикач (app_settings) увімкнено: org_has_feature = feature_enabled AND прапорець організації; без рядка модуль вимкнено для всіх.
+INSERT INTO public.app_settings (key, enabled) VALUES ('own_fleet', true) ON CONFLICT (key) DO UPDATE SET enabled = true;
 SELECT is(public.org_has_feature('8f000000-0000-0000-0000-00000000000a', 'own_fleet'), true, 'flag set by SQL (service_role)');
 SELECT is(public.org_has_feature('8f000000-0000-0000-0000-00000000000b', 'own_fleet'), false, 'org B has no flag');
 SELECT is(public.org_has_feature(NULL, 'own_fleet'), false, 'unknown org → false');

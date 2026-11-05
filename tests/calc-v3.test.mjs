@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
+import { handleFakeConfig } from './helpers/fake-config.mjs';
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -184,7 +185,7 @@ async function loadBrowser() {
 async function withPage(t, widths, fn) {
     const browser = await loadBrowser();
     if (!browser) { t.skip('no playwright-core / Chrome'); return; }
-    const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+    const server = createServer((req, res) => { if (handleFakeConfig(req, res)) return; res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
     await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
     const url = 'http://localhost:' + server.address().port + '/index.html?preview=1';
     try {

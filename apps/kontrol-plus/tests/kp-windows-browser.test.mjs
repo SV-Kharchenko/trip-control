@@ -23,6 +23,7 @@ const PAGE = `<!doctype html><html lang="uk" data-app="kp"><head><meta charset="
 <script type="module">
 import { createWindowManager } from '/src/kp-windows.js';
 import { h } from '/src/ui.js';
+import { handleFakeConfig } from '../../../tests/helpers/fake-config.mjs';
 window.tcModal = (o) => new Promise((resolve) => {
     const el = document.createElement('div'); el.className = 'tc-modal';
     el.innerHTML = '<div class="tc-modal-card"><h3></h3><div class="tc-modal-actions"><button type="button" class="btn" data-act="cancel">Скасувати</button><button type="button" class="btn btn-danger" data-act="ok">Закрити</button></div></div>';
@@ -48,6 +49,7 @@ async function withPage(t, fn, viewport = { width: 1366, height: 768 }) {
     const browser = await launch();
     if (!browser) { t.skip('no playwright-core / Chromium'); return; }
     const server = createServer((req, res) => {
+        if (handleFakeConfig(req, res)) return;
         const url = new URL(req.url, 'http://x');
         if (url.pathname === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PAGE); return; }
         if (url.pathname === '/site.css') { res.writeHead(200, { 'content-type': 'text/css' }); res.end(siteCss); return; }

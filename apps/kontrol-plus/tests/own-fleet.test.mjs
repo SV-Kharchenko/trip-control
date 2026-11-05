@@ -418,3 +418,29 @@ test('«Команда»: блок «Замовники підрозділів»
     assert.match(read('src/views/own-fleet/requesters.js'), /if \(role !== 'owner' && role !== 'director'\) return h\('div', \{ hidden: true \}\);/, 'і сам блок перевіряє роль');
     assert.doesNotMatch(read('src/site-bridge.js'), /requesters/);
 });
+
+test('API запрошень: own_fleet у KP_DISABLED_FEATURES — 503 FEATURE_DISABLED з людським текстом на всіх діях, до БД не доходить', async () => {
+    const store = fakeStore();
+    const h = createOwnFleetInvitesHandler({ store, env: { KP_DISABLED_FEATURES: 'gps, own_fleet' }, log: quiet });
+    const token = 'r1.' + UUID + '.' + 'A'.repeat(32);
+    for (const action of ['list', 'create', 'resend', 'revoke', 'accept']) {
+        const out = await call(h, { body: { action, email: 'x@example.com', unit_ids: [UUID], id: UUID, token } });
+        assert.equal(out.code, 503, action);
+        assert.equal(out.body.code, 'FEATURE_DISABLED');
+        assert.match(out.body.error, /Власний парк.*вимкнено/);
+    }
+    assert.deepEqual([store.calls.reserve.length, store.calls.revoke.length, store.calls.accept.length], [0, 0, 0]);
+    const without = await call(h, { auth: '', body: { action: 'list' } });
+    assert.equal(without.code, 503, 'модуль вимкнено для всіх — навіть без входу відповідь зрозуміла');
+    const other = createOwnFleetInvitesHandler({ store: fakeStore(), env: { KP_DISABLED_FEATURES: 'gps' }, log: quiet });
+    assert.equal((await call(other, { body: { action: 'list' } })).code, 200, 'інший модуль у списку API не вимикає');
+    const clean = createOwnFleetInvitesHandler({ store: fakeStore(), env: {}, log: quiet });
+    assert.equal((await call(clean, { body: { action: 'list' } })).code, 200, 'без змінної — як раніше');
+});
+
+test('own_fleet вимикач: фронт перевіряє featureDisabled до запиту контексту; блок «Замовники» залежить від того самого контексту', () => {
+    const bridge = read('src/bridge.js');
+    assert.match(bridge, /async function loadOwnFleetContext\(\) \{[\s\S]*?if \(featureDisabled\('own_fleet'\)\) return null;[\s\S]*?rpc\('own_fleet_context'\)/, 'перевірка перед rpc');
+    assert.match(bridge, /const allowed = access\.enabled && /, 'блок «Замовники» дозволений лише коли контекст модуля є');
+    assert.match(read('lib/own-fleet/invites.js'), /isFeatureDisabled\(env, 'own_fleet'\)/);
+});

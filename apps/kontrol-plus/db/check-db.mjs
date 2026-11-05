@@ -721,6 +721,18 @@ check(OWN_FLEET_FIXES > OWN_FLEET && /^-- Apply manually after review\. This fil
     && !/(DROP|ALTER) (POLICY|TABLE)\b[^;]*\bpublic\.(profiles|clients|fleet_vehicles|kp_drivers|fleet_trailers|org_directors|organizations|kp_doc_trip_sheet)\b/i.test(ownFleetFixesCode),
 'own fleet fixes: ' + OWN_FLEET_FIXES + ' (after ' + OWN_FLEET + ') applied twice, manual-apply header, no existing tables or policies altered');
 }
+// Міграція вимикача переозначає org_has_feature (feature_enabled AND прапорець організації): застосовується ПІСЛЯ міграцій власного парку,
+// щоб pgTAP власного парку працював із тим самим org_has_feature, що й у справжньому порядку застосування.
+// Глобальний вимикач модулів (staging / kill switch): міграція двічі (ідемпотентність) і pgTAP через той самий shim.
+const KILL = all.find((f) => /^\d{14}_app_settings_kill_switch\.sql$/.test(f));
+if (!KILL) throw new Error('немає міграції *_app_settings_kill_switch.sql');
+const killSql = fs.readFileSync(new URL(KILL, DIR), 'utf8');
+await db.exec(killSql);
+await db.exec(killSql);
+const killCode = killSql.replace(/^\s*--.*$/gm, '');
+check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(killSql) && !/CREATE EXTENSION/i.test(killCode)
+    && !/(DROP|ALTER) (POLICY|TABLE)\b[^;]*\bpublic\.(profiles|clients|fleet_vehicles|kp_drivers|org_directors|calculations)\b/i.test(killCode),
+'kill switch: ' + KILL + ' applied twice, manual-apply header, no CREATE EXTENSION, existing tables and policies untouched');
 const ofTapSql = fs.readFileSync(new URL('../../../supabase/tests/own_fleet.sql', import.meta.url), 'utf8')
     .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
 const ofPlanned = Number((ofTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
@@ -739,6 +751,15 @@ await db.exec(ofxTapSql);
 const ofxTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(ofxBefore);
 for (const row of ofxTap) check(row.ok, 'pgTAP own_fleet_fixes.sql: ' + row.label);
 check(ofxTap.length === ofxPlanned, `pgTAP own_fleet_fixes.sql: ran ${ofxTap.length} of plan(${ofxPlanned})`);
+
+const killTapSql = fs.readFileSync(new URL('../../../supabase/tests/app_settings.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const killPlanned = Number((killTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const killBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(killTapSql);
+const killTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(killBefore);
+for (const row of killTap) check(row.ok, 'pgTAP app_settings.sql: ' + row.label);
+check(killTap.length === killPlanned, 'pgTAP app_settings.sql: ran ' + killTap.length + ' of plan(' + killPlanned + ')');
 
 // Скасування сторно ремонту: міграція ПІСЛЯ повторного прогону 3a (той повертає стару kp_repair_void) — двічі поспіль, потім pgTAP.
 const UNSTORNO = all.find((f) => /^\d{14}_repair_unstorno\.sql$/.test(f));

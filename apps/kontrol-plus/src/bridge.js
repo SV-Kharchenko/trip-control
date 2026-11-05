@@ -18,6 +18,7 @@ import { docsAccess, isMissingFeature } from './lib/docs.js';
 import { paintRepairsBadge } from './views/repairs-maintenance.js';
 import { repairsAccess } from './lib/repairs.js';
 import { ownFleetAccess, ownFleetOnly } from './lib/own-fleet-gate.js';
+import { featureDisabled } from './lib/features.js';
 import { createRequesterInviteAcceptor } from './lib/own-fleet-invite.js';
 import { callKpApi } from './lib/gps-client.js';
 import { kpVehiclesToSite, needsKpFleet } from './lib/site-fleet.js';
@@ -286,6 +287,9 @@ async function loadRepairsContext() {
 
 // null — модуль «Власний парк» вимкнено (немає прапорця own_fleet), доступу немає або міграцію ще не застосовано.
 async function loadOwnFleetContext() {
+    // Аварійний вимикач KP_DISABLED_FEATURES (через /api/config → window.TC_CONFIG.disabledFeatures): модуль не показується, навіть якщо прапорець
+    // організації й app_settings увімкнені; без контексту немає ні пункту меню, ні роутів, ні вікон, ні блоку «Замовники підрозділів».
+    if (featureDisabled('own_fleet')) return null;
     try {
         const { data, error } = await state.supabase.rpc('own_fleet_context');
         const row = !error && data && data[0];

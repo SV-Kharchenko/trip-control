@@ -110,6 +110,8 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
     // Заміна контактного email (gmail → support@trip-control.com) не стосується картки авто.
     const changedLines = diff.split('\n').filter((l) => /^[+-](?![+-])/.test(l));
     if (changedLines.every((l) => /tripcontrol\.com@gmail\.com|support@trip-control\.com/.test(l))) return;
+    // Конфіг бази з env (/api/config) замість зашитих значень — ініціалізація Supabase, а не картка авто (tests/public-config.test.mjs).
+    if (changedLines.every((l) => /TC_CONFIG|SUPABASE_URL|SUPABASE_ANON_KEY|api\/config|qkfqjorzsxcajcneohoy|sb_publishable_|auth-token|const cfg = window|Адреса бази|Ключ сесії supabase-js|ref береться|Не вдалося завантажити конфігурацію|^[+-]\s*\}\s*$/.test(l))) return;
     const lines = html.split('\n');
     const lineOf = (needle) => lines.findIndex((l) => l.includes(needle)) + 1;
     const fleetCode = [lineOf('    let fleetVehicles = [];'), lineOf('    let fleetVehicles = [];') + 4];
