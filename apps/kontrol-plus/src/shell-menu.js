@@ -31,6 +31,7 @@ export const SHELL_GROUPS = [
         { key: 'gps', label: 'GPS', icon: 'gps', kind: 'hash', hash: '#/gps', access: 'gps' },
         { key: 'repairs', label: 'Ремонти', icon: 'repairs', kind: 'hash', hash: '#/repairs', access: 'repairs' },
         { key: 'own_fleet', label: 'Власний парк', icon: 'own_fleet', kind: 'hash', hash: '#/own-fleet', access: 'own_fleet' },
+        { key: 'superadmin', label: 'Платформа', icon: 'superadmin', kind: 'hash', hash: '#/superadmin', access: 'superadmin' },
         { key: 'team', label: 'Команда', icon: 'team', kind: 'cabinet', tab: 'team', access: 'calc' },
         { key: 'stats', label: 'Статистика', icon: 'stats', kind: 'cabinet', tab: 'stats', access: 'calc' },
         { key: 'settings', label: 'Налаштування', icon: 'settings', kind: 'cabinet', tab: null, access: 'calc' },
@@ -103,6 +104,7 @@ export function activeKey({ hash, studioView, cabinetOpen, cabinetTab }) {
         if (route.view === 'docs') return DOC_TABS.includes(route.tab) && route.tab !== 'other' ? route.tab : cardTab(route);
         if (route.view === 'dashboard') return 'overview';
         if (route.view === 'own-fleet' || route.view === 'own-fleet-card') return 'own_fleet';
+        if (route.view === 'superadmin') return 'superadmin';
         if (['report', 'gps', 'repairs', 'fleet', 'drivers'].includes(route.view)) return route.view;
         return 'clients';
     }

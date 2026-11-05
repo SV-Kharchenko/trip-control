@@ -1,0 +1,44 @@
+/* Кабінет суперадміна (#/superadmin): три блоки зі списків-рядків. На вузькому екрані рядки стають картками (мітки з data-label). Кольори — токени теми. */
+.kpsa { color: var(--text); min-width: 0; max-width: 100%; }
+.kpsa-h1 { margin: 0 0 4px; font-size: 1.35rem; }
+.kpsa-h2 { margin: 22px 0 8px; font-size: 1.05rem; }
+.kpsa-box { min-width: 0; }
+.kpsa-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-card, 10px); background: var(--surface); overflow: hidden; }
+.kpsa-row { display: grid; gap: 8px 14px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--border-soft); min-width: 0; }
+.kpsa-row:first-child { border-top: 0; }
+.kpsa-row > * { min-width: 0; overflow-wrap: anywhere; }
+.kpsa-global { grid-template-columns: minmax(0, 1fr) 230px 130px; }
+.kpsa-org { grid-template-columns: minmax(0, 1.3fr) 90px 110px minmax(0, 1.6fr); }
+.kpsa-audit { grid-template-columns: 140px 190px minmax(0, 1fr) minmax(0, 1fr); }
+.kpsa-head { display: grid; gap: 8px 14px; padding: 6px 12px; color: var(--muted); font-size: 0.78rem; font-weight: 600; }
+.kpsa-org-head { grid-template-columns: minmax(0, 1.3fr) 90px 110px minmax(0, 1.6fr); }
+.kpsa-key { font-size: 0.75rem; color: var(--muted); }
+.kpsa-state { display: inline-block; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.8rem; font-weight: 600; }
+.kpsa-state-on { border-color: var(--accent); }
+.kpsa-state-missing { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.kpsa-acts { display: flex; gap: 8px; justify-content: flex-end; }
+.kpsa-mods { display: flex; flex-direction: column; gap: 6px; }
+.kpsa-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+.kpsa-switch input { width: 18px; height: 18px; }
+.kpsa-hint { margin-top: 2px; }
+.kpsa-warn { color: var(--warn); font-size: 0.82rem; font-weight: 600; }
+.kpsa-search { display: flex; gap: 8px; margin: 0 0 10px; flex-wrap: wrap; }
+#kp-crm .kpsa-search input, .kpsa-search input { width: auto; flex: 1 1 260px; max-width: 420px; min-width: 0; }
+.kpsa-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0 0; }
+
+@media (max-width: 1100px) {
+    .kpsa-org-head { display: none; }
+    .kpsa-global { grid-template-columns: minmax(0, 1fr) auto; }
+    .kpsa-global .kpsa-acts { grid-column: 1 / -1; justify-content: flex-start; }
+    .kpsa-org { grid-template-columns: minmax(0, 1fr) 80px 110px; }
+    .kpsa-org .kpsa-mods { grid-column: 1 / -1; }
+    .kpsa-audit { grid-template-columns: 140px minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+    .kpsa-global, .kpsa-org, .kpsa-audit { grid-template-columns: minmax(0, 1fr); }
+    .kpsa-cell[data-label]::before, .kpsa-mods[data-label]::before { content: attr(data-label) ': '; color: var(--muted); font-size: 0.78rem; font-weight: 600; }
+    .kpsa-mods[data-label]::before { display: block; margin-bottom: 4px; }
+    .kpsa-global .kpsa-acts { grid-column: auto; }
+    .kpsa-acts .btn, .kpsa-pager .btn { min-height: 40px; }
+    .kpsa-search input { flex-basis: 100%; max-width: none; }
+}

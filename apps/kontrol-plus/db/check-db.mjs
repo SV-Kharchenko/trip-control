@@ -761,6 +761,25 @@ const killTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n
 for (const row of killTap) check(row.ok, 'pgTAP app_settings.sql: ' + row.label);
 check(killTap.length === killPlanned, 'pgTAP app_settings.sql: ran ' + killTap.length + ' of plan(' + killPlanned + ')');
 
+// Кабінет суперадміна: міграція двічі (ідемпотентність) і pgTAP через той самий shim.
+const SA = all.find((f) => /^\d{14}_superadmin\.sql$/.test(f));
+if (!SA) throw new Error('немає міграції *_superadmin.sql');
+const saSql = fs.readFileSync(new URL(SA, DIR), 'utf8');
+await db.exec(saSql);
+await db.exec(saSql);
+const saCode = saSql.replace(/^\s*--.*$/gm, '');
+check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(saSql) && !/CREATE EXTENSION/i.test(saCode)
+    && !/INSERT INTO public\.platform_admins/i.test(saCode) && !/CREATE (OR REPLACE )?FUNCTION public\.is_platform_admin\(/i.test(saCode),
+'superadmin: ' + SA + ' applied twice, manual-apply header, nobody is written into platform_admins, is_platform_admin() of the site is not redefined');
+const saTapSql = fs.readFileSync(new URL('../../../supabase/tests/superadmin.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const saPlanned = Number((saTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const saBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(saTapSql);
+const saTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(saBefore);
+for (const row of saTap) check(row.ok, 'pgTAP superadmin.sql: ' + row.label);
+check(saTap.length === saPlanned, 'pgTAP superadmin.sql: ran ' + saTap.length + ' of plan(' + saPlanned + ')');
+
 // Скасування сторно ремонту: міграція ПІСЛЯ повторного прогону 3a (той повертає стару kp_repair_void) — двічі поспіль, потім pgTAP.
 const UNSTORNO = all.find((f) => /^\d{14}_repair_unstorno\.sql$/.test(f));
 if (!UNSTORNO) throw new Error('немає міграції *_repair_unstorno.sql');

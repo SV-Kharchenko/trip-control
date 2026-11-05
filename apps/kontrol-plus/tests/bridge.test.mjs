@@ -32,14 +32,14 @@ class FakeElement extends FakeNode {
 
 function setup({ nav = true, main = true, client = true, legacyKey = true, session = null, context = null, repairs = null,
     url = 'https://app.trip-control.com/', stored = null, acceptResponse = { status: 200, body: { ok: true, org_name: 'Агро А' } },
-    maintenance = [], fetchGate = null, docs = 'ok', ownFleet = null, tcConfig = null } = {}) {
+    maintenance = [], fetchGate = null, docs = 'ok', ownFleet = null, tcConfig = null, superadmin = false } = {}) {
     const byId = {};
     const navEl = nav ? new FakeElement('nav') : null;
     if (main) byId['main-app'] = new FakeElement('div', 'main-app');
     const body = new FakeElement('body');
     const storage = new Map(legacyKey ? [['kp-auth', '{"old":1}'], ['sb-qkfqjorzsxcajcneohoy-auth-token', 'site']] : []);
     if (stored) storage.set('kp_repair_invite', stored);
-    const calls = { warn: 0, listeners: 0, observers: 0, removed: [], rpcs: {}, fetch: [], replaced: [], auth: null, logs: [], docsProbe: 0 };
+    const calls = { warn: 0, listeners: 0, observers: 0, removed: [], rpcs: {}, fetch: [], replaced: [], auth: null, logs: [], docsProbe: 0, saProbe: 0 };
     const loc = { hash: '', pathname: '/', search: '', href: url };
     body.append = (...nodes) => { body.children.push(...nodes); for (const n of nodes) if (n.id) byId[n.id] = n; };
     const doc = {
@@ -76,6 +76,11 @@ function setup({ nav = true, main = true, client = true, legacyKey = true, sessi
                 if (name === 'kp_doc_next_number') {
                     calls.docsProbe += 1;
                     return docs === 'missing' ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } } : { data: 1, error: null };
+                }
+                // Кабінет суперадміна: лише показ пункту меню; справжню перевірку робить база.
+                if (name === 'is_platform_superadmin') {
+                    calls.saProbe += 1;
+                    return { data: superadmin, error: null };
                 }
                 // «Власний парк»: own_fleet_context() — порожньо без прапорця own_fleet (ownFleet: рядок { org_id, role, unit_ids }).
                 if (name === 'own_fleet_context') {
@@ -152,9 +157,9 @@ test('bridge: site with nav, #main-app and supabaseClient → five tabs and #kp-
         assert.equal(await startBridge(), true);
         const items = navItems(env);
         assert.deepEqual(items.map((b) => b.id.replace('kp-nav-', '')),
-            ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'own_fleet', 'gps', 'docs', 'report']);
+            ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'own_fleet', 'superadmin', 'gps', 'docs', 'report']);
         const hidden = Object.fromEntries(items.map((b) => [b.id.replace('kp-nav-', ''), b.hidden === true]));
-        assert.deepEqual(hidden, { overview: false, calc: false, clients: false, fleet: true, drivers: true, repairs: true, own_fleet: true, gps: true, docs: true, report: false },
+        assert.deepEqual(hidden, { overview: false, calc: false, clients: false, fleet: true, drivers: true, repairs: true, own_fleet: true, superadmin: true, gps: true, docs: true, report: false },
             'без сесії: GPS, Ремонти, Документи, Автопарк, Водії, Реквізити сховані');
         assert.equal(env.body.classList.contains('kp-nav-on'), true);
         assert.equal(env.navEl.children.length, 0, 'the site nav is left alone');
@@ -374,7 +379,7 @@ test('bridge: repair invite — start and onAuthStateChange at once → one acce
     }
 });
 
-const NAV_ORDER = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'own_fleet', 'gps', 'docs', 'report'];
+const NAV_ORDER = ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'own_fleet', 'superadmin', 'gps', 'docs', 'report'];
 // Ліве меню (Реквізити й Статистика переїхали у вкладки Особистого кабінету сайту): Автопарк, Водії з'являються разом з «Документами» (функції 4a/4b); менеджер ремонтів бачить лише «Ремонти».
 const visibleKeys = (env) => navItems(env).filter((b) => b.hidden !== true).map((b) => b.id.replace('kp-nav-', ''));
 for (const [name, opts, expected] of [
@@ -601,6 +606,36 @@ test('bridge: інший модуль у disabledFeatures «Власний па�
         assert.equal(await startBridge(), true);
         await ticks();
         assert.ok(visibleKeys(env).includes('own_fleet'));
+    } finally {
+        env.restore();
+    }
+});
+
+// ---- Кабінет суперадміна (#/superadmin): пункт меню й маршрут лише для is_platform_superadmin() ----
+test('bridge: звичайний користувач (Директор) не бачить пункту «Платформа», а #/superadmin веде на огляд', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null });
+    env.loc.hash = '#/superadmin';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.equal(visibleKeys(env).includes('superadmin'), false);
+        assert.equal(env.loc.hash, '#/dashboard');
+        assert.ok(env.calls.saProbe >= 1, 'питаємо базу, а не довіряємо ролі');
+    } finally {
+        env.restore();
+    }
+});
+
+test('bridge: суперадмін бачить пункт «Платформа» і лишається на #/superadmin', async () => {
+    const env = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null, superadmin: true });
+    env.loc.hash = '#/superadmin';
+    try {
+        const { startBridge } = await freshBridge();
+        assert.equal(await startBridge(), true);
+        await ticks();
+        assert.equal(visibleKeys(env).includes('superadmin'), true);
+        assert.equal(env.loc.hash, '#/superadmin');
     } finally {
         env.restore();
     }

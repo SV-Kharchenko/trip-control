@@ -57,6 +57,8 @@ export function parseCrmHash(hash) {
     }
     if (parts[0] === 'drivers' && parts.length === 2 && cardId(parts[1]) !== undefined) return { view: 'driver-card', id: cardId(parts[1]) };
     if (parts[0] === 'gps' && parts.length === 1) return { view: 'gps' };
+    // Кабінет суперадміна платформи: #/superadmin (доступ лише is_platform_superadmin(), решті — редирект на огляд).
+    if (parts[0] === 'superadmin' && parts.length === 1) return { view: 'superadmin' };
     // «Власний парк» (лише з прапорцем own_fleet): #/own-fleet (дошка), /list, /units, /points; картки вікном: #/own-fleet/<request|unit|point>/<id|new>.
     if (parts[0] === 'own-fleet') {
         if (parts.length === 1) return { view: 'own-fleet', sub: 'board' };
@@ -78,7 +80,7 @@ export function parseCrmHash(hash) {
 
 export function tabOf(route) {
     if (!route) return null;
-    if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers', 'dashboard', 'own-fleet'].includes(route.view)) return route.view;
+    if (['report', 'gps', 'repairs', 'docs', 'fleet', 'drivers', 'dashboard', 'own-fleet', 'superadmin'].includes(route.view)) return route.view;
     if (route.view === 'own-fleet-card') return 'own-fleet';
     if (route.view === 'fleet-card') return 'fleet';
     if (route.view === 'driver-card') return 'drivers';

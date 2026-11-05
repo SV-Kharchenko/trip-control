@@ -42,7 +42,7 @@ function siteSupabase() {
 // repairs — kp_repairs_context() (етап 3a): відповідальний за ремонти має доступ лише до «Ремонтів» чужої організації.
 // docs — чи є в базі функції документів (етап 4a): null — ще не перевіряли, false — міграцію не застосовано.
 // ownFleet — own_fleet_context() («Власний парк»): null без прапорця own_fleet в організації; сам модуль — lazy-чанк views/own-fleet/.
-const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null, ownFleet: null };
+const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null, ownFleet: null, superadmin: false };
 // Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
 let cleanups = [];
 function runCleanups() {
@@ -100,6 +100,7 @@ export const NAV_ITEMS = [
     ['drivers', 'Водії', go('#/drivers'), true],
     ['repairs', 'Ремонти', go('#/repairs'), true],
     ['own_fleet', 'Власний парк', go('#/own-fleet'), true],
+    ['superadmin', 'Платформа', go('#/superadmin'), true],
     ['gps', 'GPS', go('#/gps'), true],
     ['docs', 'Документи', go('#/docs'), true],
     ['report', 'План/факт', go('#/report'), false],
@@ -170,6 +171,8 @@ function syncGpsTab() {
     // «Власний парк» — лише з прапорцем own_fleet; замовник підрозділу без власного Контроль+ бачить тільки цю вкладку.
     const fleetAccess = ownFleetAccess(current ? state.ownFleet : null);
     if (tabs.own_fleet) tabs.own_fleet.hidden = !fleetAccess.enabled;
+    // «Платформа» — лише суперадміну (is_platform_superadmin()); решта пункту не бачить.
+    if (tabs.superadmin) tabs.superadmin.hidden = !(current && state.superadmin);
     if (ownFleetOnly(fleetAccess, current)) for (const key of Object.keys(tabs)) if (key !== 'own_fleet') tabs[key].hidden = true;
 }
 
@@ -207,6 +210,7 @@ async function loadContext() {
     // Каркас CRM (shell.js): назва компанії для верхньої панелі; подія перемальовує роль, пункти меню й лічильники.
     window.tcKpOrgName = state.context.org_name || null;
     state.ownFleet = await loadOwnFleetContext();
+    state.superadmin = await loadSuperadmin();
     syncWindowsScope();
     if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('tc:kp-context'));
     state.repairs = await loadRepairsContext();
@@ -285,6 +289,16 @@ async function loadRepairsContext() {
     }
 }
 
+// Чи поточний користувач — суперадмін платформи. Помилка (немає міграції, мережа) = ні. Лише для показу пункту меню: усі sa_* перевіряє база.
+async function loadSuperadmin() {
+    try {
+        const { data, error } = await state.supabase.rpc('is_platform_superadmin');
+        return !error && data === true;
+    } catch {
+        return false;
+    }
+}
+
 // null — модуль «Власний парк» вимкнено (немає прапорця own_fleet), доступу немає або міграцію ще не застосовано.
 async function loadOwnFleetContext() {
     // Аварійний вимикач KP_DISABLED_FEATURES (через /api/config → window.TC_CONFIG.disabledFeatures): модуль не показується, навіть якщо прапорець
@@ -312,7 +326,7 @@ const acceptRequesterInvite = () => {
             onAccepted: async (orgName) => {
                 const hint = document.getElementById('kp-invite-hint');
                 if (hint) hint.remove();
-                state.context = null; state.contextUser = null; state.ownFleet = null;
+                state.context = null; state.contextUser = null; state.ownFleet = null; state.superadmin = false;
                 await refreshGpsTab();
                 toast('Ви — замовник підрозділу' + (orgName ? ' компанії «' + orgName + '»' : '') + '.');
                 location.hash = '#/own-fleet';
@@ -438,6 +452,18 @@ async function render() {
                 h('button', { type: 'button', class: 'btn', onclick: render }, 'Спробувати ще')));
             return;
         }
+    }
+    if (route.view === 'superadmin') {
+        if (!state.superadmin) {
+            // Не суперадмін: сторінки не існує, редирект на огляд (так само, як вимкнений модуль).
+            location.hash = '#/dashboard';
+            return;
+        }
+        runCleanups();
+        clear(root, head(), lazyView(() => import('./views/superadmin/index.js').then((m) => m.renderSuperadmin(app()))));
+        root.focus({ preventScroll: true });
+        window.scrollTo(0, 0);
+        return;
     }
     const fleet = ownFleetAccess(state.ownFleet);
     if (route.view === 'own-fleet' || route.view === 'own-fleet-card') {
@@ -815,6 +841,7 @@ export async function startBridge() {
             state.contextUser = null;
             state.repairs = null;
             state.ownFleet = null;
+            state.superadmin = false;
             state.docs = null;
             if (windows) windows.setScope(null, null).catch(() => {});
             syncGpsTab();
