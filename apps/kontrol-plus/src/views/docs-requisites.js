@@ -7,6 +7,8 @@ import {
     ASSET_BUCKET, CURRENCIES, VAT_MODES, assetPath, assetProblem, docErrorText, sniffImage, validateRequisites,
 } from '../lib/docs.js';
 import { showError } from './docs.js';
+import { labelHint } from '../lib/field-hint.js';
+import { REQUISITES_HINTS } from '../lib/form-hints.js';
 
 const FIELDS = [
     { section: 'Компанія' },
@@ -108,9 +110,9 @@ export function renderRequisites(app, access) {
             inputs[f.key] = input;
             hints[f.key] = h('div', { class: 'hint', id: id + '-hint', 'aria-live': 'polite' });
             input.setAttribute('aria-describedby', id + '-hint');
-            if (f.type === 'checkbox') return h('div', { class: 'field field-check' }, h('label', { for: id }, input, ' ', f.label), hints[f.key]);
+            if (f.type === 'checkbox') return h('div', { class: 'field field-check' }, labelHint(h('label', { for: id }, input, ' ', f.label), REQUISITES_HINTS[f.key]), hints[f.key]);
             return h('div', { class: 'field' + (f.wide ? ' kpr-wide' : '') },
-                h('label', { for: id }, f.label, f.required ? h('span', { class: 'req', 'aria-hidden': 'true' }, ' *') : null), input, hints[f.key]);
+                labelHint(h('label', { for: id }, f.label, f.required ? h('span', { class: 'req', 'aria-hidden': 'true' }, ' *') : null), REQUISITES_HINTS[f.key]), input, hints[f.key]);
         });
         const values = () => Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.type === 'checkbox' ? el.checked : el.value]));
         const show = (result) => {

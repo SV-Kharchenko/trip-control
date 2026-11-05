@@ -9,10 +9,12 @@ import {
     extOf, otherContentType, otherErrorText, otherFileProblem, otherPath,
 } from '../lib/other-docs.js';
 import { isMissingFeature } from '../lib/docs.js';
+import { labelHint } from '../lib/field-hint.js';
+import { OTHER_HINTS } from '../lib/form-hints.js';
 
 const uuid = () => (globalThis.crypto && globalThis.crypto.randomUUID ? globalThis.crypto.randomUUID() : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0').slice(-12));
 const labeled = (text, control) => h('label', { class: 'kpd-f' }, h('span', null, text), control);
-const field = (label, id, control) => h('div', { class: 'field' }, h('label', { for: id }, label), control);
+const field = (label, id, control) => h('div', { class: 'field' }, labelHint(h('label', { for: id }, label), OTHER_HINTS[id.replace(/^kpo-/, '')]), control);
 
 // Підписане посилання на файл бакета в новій вкладці.
 export async function openSigned(app, bucket, path, errorText) {

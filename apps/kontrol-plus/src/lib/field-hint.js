@@ -144,3 +144,12 @@ export function withHint(control, label, text) {
     cell.append(control, fieldHint(label, text));
     return cell;
 }
+
+// Підпис поля разом зі значком «?»: без тексту підказки повертає сам підпис. Для форм, де підпис і поле лежать окремо.
+export function labelHint(label, text) {
+    if (!text) return label;
+    const row = el('div', 'kp-label-row');
+    const name = String(label.textContent || '').replace(/\s*\*\s*$/, '').trim();
+    row.append(label, fieldHint(name, text));
+    return row;
+}
