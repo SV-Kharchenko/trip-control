@@ -11,7 +11,7 @@ const NEW_LABEL = 'Можливий простій понад норму';
 const uiFiles = ['index.html', '404.html', 'offline.html']
     .concat(readdirSync(new URL('../assets/', import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => 'assets/' + f))
     .concat(readdirSync(new URL('../legal/', import.meta.url)).filter((f) => f.endsWith('.html')).map((f) => 'legal/' + f))
-    .concat(readdirSync(new URL('../apps/kontrol-plus/src/views/', import.meta.url)).map((f) => 'apps/kontrol-plus/src/views/' + f))
+    .concat(readdirSync(new URL('../apps/kontrol-plus/src/views/', import.meta.url), { recursive: true }).filter((f) => f.endsWith('.js')).map((f) => 'apps/kontrol-plus/src/views/' + f.split('\\').join('/')))
     .concat(['apps/kontrol-plus/src/bridge.js', 'apps/kontrol-plus/src/ui.js']);
 
 test('the old idle label is gone from every UI file', () => {

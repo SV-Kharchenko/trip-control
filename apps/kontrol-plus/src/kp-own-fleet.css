@@ -1,0 +1,92 @@
+/* «Власний парк» (етап 1): дошка, список, картки. Вантажиться разом із lazy-чанком views/own-fleet/ — лише для організацій з прапорцем
+   own_fleet. Правила не залежать від #kp-crm: працюють і на сторінці розділу, і у вікні картки. Кольори — токени теми (світла / темна). */
+
+.kpof { color: var(--text); min-width: 0; max-width: 100%; }
+.kpof-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; }
+.kpof-h1 { margin: 0; font-size: 1.35rem; }
+.kpof-sub, .kpof-title { margin: 0; font-size: 1.05rem; }
+.kpof-role { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.75rem; font-weight: 600; }
+
+.kpof-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; margin: 0 0 12px; }
+.kpof-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kpof-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.kpof-stat { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); font-size: 0.82rem; }
+.kpof-stat b { color: var(--text); }
+.kpof-stat.on.kpof-stat-new { border-color: var(--accent); }
+.kpof-stat.on.kpof-stat-urgent { background: var(--negative-bg); border-color: var(--negative); color: var(--negative-text); }
+.kpof-stat.on.kpof-stat-urgent b, .kpof-stat.on.kpof-stat-late b { color: inherit; }
+.kpof-stat.on.kpof-stat-late { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.kpof-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 14px; }
+/* crm.css розтягує select / input на всю ширину (#kp-crm …) — у рядку фільтрів вони рядом, зі своєю шириною. */
+#kp-crm .kpof-filters select, #kp-crm .kpof-filters input, .kpof-filters select, .kpof-filters input { width: auto; flex: 0 1 220px; min-width: 0; max-width: 100%; }
+
+/* Дошка: колонки по статусах; без горизонтального скролу сторінки. На телефоні — вертикальні секції-акордеони. */
+.kpof-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; align-items: start; min-width: 0; }
+.kpof-col { min-width: 0; background: var(--bg); border: 1px solid var(--border-soft); border-radius: var(--radius-card, 10px); }
+.kpof-col-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; font-weight: 700; font-size: 0.85rem; cursor: default; list-style: none; }
+.kpof-col-head::-webkit-details-marker { display: none; }
+.kpof-count { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); text-align: center; font-size: 0.75rem; }
+.kpof-col-body { display: flex; flex-direction: column; gap: 8px; padding: 0 8px 8px; min-width: 0; }
+.kpof-empty { margin: 4px 2px 6px; }
+.kpof-card { display: block; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control, 8px); color: var(--text); text-decoration: none; min-width: 0; overflow-wrap: anywhere; }
+/* Картка — посилання: колір тексту задаємо явно (темна тема красить посилання акцентом). */
+#kp-crm a.kpof-card, a.kpof-card { color: var(--text); text-decoration: none; }
+#kp-crm a.kpof-card .muted, a.kpof-card .muted { color: var(--muted); }
+.kpof-card:hover, .kpof-card:focus-visible { border-color: var(--accent); }
+.kpof-card.kpof-urgent { border-left: 4px solid var(--negative); }
+.kpof-card.kpof-overdue { border-color: var(--warn); }
+.kpof-card-top { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 4px; }
+.kpof-card-cargo { font-weight: 600; }
+.kpof-card-meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.kpof-card-res { margin-top: 4px; color: var(--text); }
+.kpof-badge { padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+.kpof-prio-high { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.kpof-prio-urgent { background: var(--negative-bg); border-color: var(--negative); color: var(--negative-text); }
+.kpof-late { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+.kpof-st-done { border-color: var(--positive); color: var(--positive); }
+.kpof-st-cancelled { color: var(--muted); }
+
+@media (max-width: 699px) {
+    .kpof-board { grid-template-columns: 1fr; }
+    .kpof-col-head { cursor: pointer; padding: 12px; font-size: 0.95rem; }
+    .kpof-col-head::after { content: '▾'; margin-left: auto; color: var(--muted); }
+    .kpof-col:not([open]) .kpof-col-head::after { content: '▸'; }
+    .kpof-count { margin-left: 8px; }
+    .kpof-head, .kpof-actions { width: 100%; }
+    .kpof-actions .btn { flex: 1 1 auto; }
+    #kp-crm .kpof-filters select, #kp-crm .kpof-filters input, .kpof-filters select, .kpof-filters input { flex: 1 1 140px; }
+    /* Таблиця-реєстр у картки: підпис над значенням, без горизонтального скролу. */
+    .kpof-table thead { display: none; }
+    .kpof-table, .kpof-table tbody, .kpof-table tr, .kpof-table td { display: block; width: 100%; box-sizing: border-box; }
+    .kpof-table tr { margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--surface); }
+    .kpof-table td { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border: 0; text-align: right; overflow-wrap: anywhere; }
+    .kpof-table td::before { content: attr(data-label); color: var(--muted); text-align: left; flex: 0 0 38%; }
+}
+
+.kpof-table tr.kpof-overdue td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+.kpof-table tr.kpof-archived { opacity: 0.6; }
+
+/* Картки (вікно / сторінка). */
+.kpof-form, .kpof-card-view { min-width: 0; max-width: 100%; }
+.kpof-form h2, .kpof-card-view h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.kpof-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.kpof-card-head h2 { margin: 0; }
+/* kp-win-scope.css задає `.kp-win dl { margin: 0; gap: 8px }` — у вікні картки наші відступи мають вищу специфічність. */
+.kpof .kpof-dl, body.kp-shell-on .kp-win .kpof .kpof-dl { display: grid; grid-template-columns: minmax(110px, 30%) minmax(0, 1fr); gap: 10px 12px; margin: 0 0 16px; }
+.kpof-dl dt { color: var(--muted); }
+.kpof-dl dd { margin: 0; overflow-wrap: anywhere; }
+.kpof-actions-row { margin: 14px 0 8px; }
+.kpof-panel { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg); display: grid; gap: 8px; }
+.kpof-panel textarea, .kpof-panel select { width: 100%; box-sizing: border-box; }
+.kpof-pair { display: grid; gap: 6px; }
+.kpof-pair select, .kpof-pair input { width: 100%; box-sizing: border-box; }
+.kpof-form .field select, .kpof-form .field input[type="text"], .kpof-form .field input[type="datetime-local"], .kpof-form .field textarea { max-width: 100%; box-sizing: border-box; }
+.kpof-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.kpof-invite-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.kpof-invite-row input { flex: 1 1 200px; min-width: 0; }
+.kpof-link { overflow-wrap: anywhere; user-select: all; }
+.kpof-requesters { margin-top: 16px; }
+@media (max-width: 480px) {
+    .kpof .kpof-dl, body.kp-shell-on .kp-win .kpof .kpof-dl { grid-template-columns: 1fr; gap: 0; }
+    .kpof-dl dt { margin-top: 6px; font-size: 0.8rem; }
+}

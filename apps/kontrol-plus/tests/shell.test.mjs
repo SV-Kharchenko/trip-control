@@ -20,7 +20,7 @@ test('меню: три групи без «Ще», пункти за макет�
     assert.deepEqual(SHELL_GROUPS.map((g) => g.label), ['Робота', 'Документи', 'Компанія'], 'групи «Ще» немає');
     assert.deepEqual(SHELL_GROUPS[0].items.map((i) => i.label), ['Огляд', 'Реєстр заявок', 'Заявки', 'Розрахунок рейсу', 'План/факт']);
     assert.deepEqual(SHELL_GROUPS[1].items.map((i) => i.label), ['Договори', 'Рахунки', 'Акти', 'ТТН', 'Подорожні листи']);
-    assert.deepEqual(SHELL_GROUPS[2].items.map((i) => i.label), ['Клієнти', 'Автопарк', 'Водії', 'GPS', 'Ремонти', 'Команда', 'Статистика', 'Налаштування']);
+    assert.deepEqual(SHELL_GROUPS[2].items.map((i) => i.label), ['Клієнти', 'Автопарк', 'Водії', 'GPS', 'Ремонти', 'Власний парк', 'Команда', 'Статистика', 'Налаштування']);
     assert.equal(SHELL_ITEMS.some((i) => i.label === 'Ще' || i.kind === 'soon'), false, 'заглушки «скоро» немає: Огляд компанії і є дашбордом');
     assert.equal(new Set(SHELL_ITEMS.map((i) => i.key)).size, SHELL_ITEMS.length, 'ключі унікальні');
     // Лічильники: «Реєстр заявок» і «Рахунки» (неоплачені).
@@ -39,7 +39,7 @@ test('кожен пункт веде на наявний розділ через
             const route = parseCrmHash(item.hash);
             assert.ok(route, item.key + ': hash ' + item.hash + ' є маршрутом Контроль+');
             const view = route.view;
-            assert.ok(['docs', 'clients', 'fleet', 'repairs', 'report', 'drivers', 'gps', 'dashboard'].includes(view), item.key + ': розділ ' + view);
+            assert.ok(['docs', 'clients', 'fleet', 'repairs', 'report', 'drivers', 'gps', 'dashboard', 'own-fleet'].includes(view), item.key + ': розділ ' + view);
             assert.ok(bridge.includes("route.view === '" + view + "'") || view === 'clients' || view === 'docs' || view === 'report', item.key + ' малює bridge.js');
         } else if (item.kind === 'site') {
             const id = SITE_BUTTONS[item.site];

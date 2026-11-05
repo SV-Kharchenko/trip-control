@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { listFiles } from './helpers/files.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -105,7 +106,7 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     // /api/:path* (для динамічних [param] це не гарантовано). Решта /api/* — проксі на сайт.
     const own = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map(String).filter((f) => f.endsWith('.js'))
         .map((f) => f.replace(/\\/g, '/')).sort();
-    assert.deepEqual(own, ['contracts/sign.js', 'docs/assets.js', 'docs/rate.js', 'docs/send.js', 'gps/connect.js', 'gps/disconnect.js', 'gps/positions.js', 'gps/sync-units.js', 'gps/test.js', 'repairs/invites.js'],
+    assert.deepEqual(own, ['contracts/sign.js', 'docs/assets.js', 'docs/rate.js', 'docs/send.js', 'gps/connect.js', 'gps/disconnect.js', 'gps/positions.js', 'gps/sync-units.js', 'gps/test.js', 'own-fleet/invites.js', 'repairs/invites.js'],
         'only the static GPS, repairs and documents functions');
     assert.equal(own.some((f) => /\[|\]/.test(f)), false, 'no dynamic [param] routes');
     for (const file of own.filter((f) => f.startsWith('gps/'))) {
@@ -118,7 +119,7 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     }
     assert.match(fs.readFileSync(path.join(APP, 'api/docs/rate.js'), 'utf8'), /createRateHandler/);
     assert.match(fs.readFileSync(path.join(APP, 'api/docs/assets.js'), 'utf8'), /createAssetsHandler/);
-    assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 }, 'api/repairs/*.js': { maxDuration: 15 }, 'api/docs/assets.js': { maxDuration: 10 }, 'api/docs/rate.js': { maxDuration: 10 }, 'api/docs/send.js': { maxDuration: 30, includeFiles: 'public/fonts/**' }, 'api/contracts/*.js': { maxDuration: 30 } });
+    assert.deepEqual(cfg.functions, { 'api/gps/*.js': { maxDuration: 30 }, 'api/repairs/*.js': { maxDuration: 15 }, 'api/own-fleet/*.js': { maxDuration: 15 }, 'api/docs/assets.js': { maxDuration: 10 }, 'api/docs/rate.js': { maxDuration: 10 }, 'api/docs/send.js': { maxDuration: 30, includeFiles: 'public/fonts/**' }, 'api/contracts/*.js': { maxDuration: 30 } });
     assert.equal(cfg.rewrites.filter((r) => r.source.startsWith('/api')).length, 1, 'one proxy rule, unchanged');
 });
 
@@ -192,7 +193,7 @@ test('site API needs no Origin/Host checks for the proxy; requests carry Authori
 });
 
 test('CRM tabs reuse the site Supabase client and never register a service worker', () => {
-    const sources = ['src/site-bridge.js', 'src/bridge.js', 'src/ui.js', ...fs.readdirSync(path.join(APP, 'src/views')).map((f) => 'src/views/' + f),
+    const sources = ['src/site-bridge.js', 'src/bridge.js', 'src/ui.js', ...listFiles(APP, 'src/views'),
         ...fs.readdirSync(path.join(APP, 'src/lib')).map((f) => 'src/lib/' + f)];
     for (const file of sources) {
         const code = read(file);

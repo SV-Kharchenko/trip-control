@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { listFiles } from './helpers/files.mjs';
 import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
 import { injectSite } from '../scripts/site-html.mjs';
@@ -118,8 +120,8 @@ test('no innerHTML with data in the CRM tabs', () => {
     for (const file of ['src/site-bridge.js', 'src/bridge.js', 'public/kp-entry.js']) {
         assert.doesNotMatch(read(file), /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, file);
     }
-    for (const file of fs.readdirSync(new URL('src/views/', APP))) {
-        const code = read('src/views/' + file);
+    for (const file of listFiles(fileURLToPath(APP), 'src/views')) {
+        const code = read(file);
         assert.doesNotMatch(code, /innerHTML|outerHTML|insertAdjacentHTML|document\.write/, file);
         assert.doesNotMatch(code, /window\.(alert|confirm|prompt)\(|\balert\(/, file);
     }

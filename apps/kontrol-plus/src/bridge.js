@@ -4,7 +4,7 @@
 // Від яких id / класів сайту це залежить — README → «Залежності моста від сайту». Точка входу — site-bridge.js.
 import { h, clear, spinner, notice, toast } from './ui.js';
 import { errorText } from './lib/errors.js';
-import { cardParentHash, legacyRedirect, parseCrmHash, tabOf, windowSpecOf } from './lib/route.js';
+import { cardParentHash, legacyRedirect, ownFleetParentHash, parseCrmHash, tabOf, windowSpecOf } from './lib/route.js';
 import { navIcon } from './nav-icons.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
@@ -17,6 +17,8 @@ import { renderRepairs } from './views/repairs.js';
 import { docsAccess, isMissingFeature } from './lib/docs.js';
 import { paintRepairsBadge } from './views/repairs-maintenance.js';
 import { repairsAccess } from './lib/repairs.js';
+import { ownFleetAccess, ownFleetOnly } from './lib/own-fleet-gate.js';
+import { createRequesterInviteAcceptor } from './lib/own-fleet-invite.js';
 import { callKpApi } from './lib/gps-client.js';
 import { kpVehiclesToSite, needsKpFleet } from './lib/site-fleet.js';
 import { mountShell } from './shell.js';
@@ -38,7 +40,8 @@ function siteSupabase() {
 
 // repairs — kp_repairs_context() (етап 3a): відповідальний за ремонти має доступ лише до «Ремонтів» чужої організації.
 // docs — чи є в базі функції документів (етап 4a): null — ще не перевіряли, false — міграцію не застосовано.
-const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null };
+// ownFleet — own_fleet_context() («Власний парк»): null без прапорця own_fleet в організації; сам модуль — lazy-чанк views/own-fleet/.
+const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null, ownFleet: null };
 // Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
 let cleanups = [];
 function runCleanups() {
@@ -63,6 +66,7 @@ function app() {
         // Розділи сайту (розрахунок рейсу, реєстр, «Огляд компанії») для дашборда: ті самі кнопки, що й меню (leave() + setStudioView).
         openSite: (view) => openSite(view)(),
         repairs: state.repairs,
+        ownFleet: state.ownFleet,
         // Бейдж ТО на вкладці «Ремонти»: з рядків, що вже завантажив розділ «ТО», або новим запитом.
         onMaintenance: (rows) => paintRepairsBadge(tabs.repairs, rows),
         refreshMaintenance: () => { loadRepairsBadge(); },
@@ -94,6 +98,7 @@ export const NAV_ITEMS = [
     ['fleet', 'Автопарк', go('#/fleet'), true],
     ['drivers', 'Водії', go('#/drivers'), true],
     ['repairs', 'Ремонти', go('#/repairs'), true],
+    ['own_fleet', 'Власний парк', go('#/own-fleet'), true],
     ['gps', 'GPS', go('#/gps'), true],
     ['docs', 'Документи', go('#/docs'), true],
     ['report', 'План/факт', go('#/report'), false],
@@ -161,6 +166,10 @@ function syncGpsTab() {
     // Документи, Автопарк, Водії спираються на функції 4a/4b: з'являються після перевірки.
     const docsOn = docsAccess(current).visible && state.docs === true;
     for (const key of ['docs', 'fleet', 'drivers']) if (tabs[key]) tabs[key].hidden = !docsOn;
+    // «Власний парк» — лише з прапорцем own_fleet; замовник підрозділу без власного Контроль+ бачить тільки цю вкладку.
+    const fleetAccess = ownFleetAccess(current ? state.ownFleet : null);
+    if (tabs.own_fleet) tabs.own_fleet.hidden = !fleetAccess.enabled;
+    if (ownFleetOnly(fleetAccess, current)) for (const key of Object.keys(tabs)) if (key !== 'own_fleet') tabs[key].hidden = true;
 }
 
 async function refreshGpsTab() {
@@ -196,6 +205,7 @@ async function loadContext() {
     window.tcKpOrgId = state.context.org_id || null;
     // Каркас CRM (shell.js): назва компанії для верхньої панелі; подія перемальовує роль, пункти меню й лічильники.
     window.tcKpOrgName = state.context.org_name || null;
+    state.ownFleet = await loadOwnFleetContext();
     syncWindowsScope();
     if (typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') window.dispatchEvent(new CustomEvent('tc:kp-context'));
     state.repairs = await loadRepairsContext();
@@ -273,6 +283,40 @@ async function loadRepairsContext() {
         return null;
     }
 }
+
+// null — модуль «Власний парк» вимкнено (немає прапорця own_fleet), доступу немає або міграцію ще не застосовано.
+async function loadOwnFleetContext() {
+    try {
+        const { data, error } = await state.supabase.rpc('own_fleet_context');
+        const row = !error && data && data[0];
+        return row && row.org_id ? row : null;
+    } catch {
+        return null;
+    }
+}
+
+// Запрошення замовника підрозділу (?requester_invite=…): логіка в lib/own-fleet-invite.js.
+let requesterAcceptor = null;
+const acceptRequesterInvite = () => {
+    if (!requesterAcceptor) {
+        requesterAcceptor = createRequesterInviteAcceptor({
+            win: window,
+            storage: { getItem: (k) => localStorage.getItem(k), setItem: (k, v) => localStorage.setItem(k, v), removeItem: (k) => localStorage.removeItem(k) },
+            hasSession: () => Boolean(state.session),
+            call: (path, body) => callKpApi({ supabase: state.supabase }, path, body),
+            hint: (text, kind) => inviteHint(text, kind),
+            onAccepted: async (orgName) => {
+                const hint = document.getElementById('kp-invite-hint');
+                if (hint) hint.remove();
+                state.context = null; state.contextUser = null; state.ownFleet = null;
+                await refreshGpsTab();
+                toast('Ви — замовник підрозділу' + (orgName ? ' компанії «' + orgName + '»' : '') + '.');
+                location.hash = '#/own-fleet';
+            },
+        });
+    }
+    return requesterAcceptor();
+};
 
 // Посилання-запрошення відповідального за ремонти (?repair_invite=…). Параметр одразу прибираємо з URL. Без сесії токен
 // чекає в localStorage (реєстрація з підтвердженням пошти відкриває сайт без параметра, часто в іншій вкладці), не довше
@@ -391,6 +435,19 @@ async function render() {
             return;
         }
     }
+    const fleet = ownFleetAccess(state.ownFleet);
+    if (route.view === 'own-fleet' || route.view === 'own-fleet-card') {
+        if (!fleet.enabled) {
+            // Без прапорця own_fleet розділу не існує: прямий URL веде на огляд.
+            location.hash = '#/dashboard';
+            return;
+        }
+        runCleanups();
+        clear(root, head(), lazyView(() => import('./views/own-fleet/index.js').then((m) => m.renderOwnFleet(app(), route))));
+        root.focus({ preventScroll: true });
+        window.scrollTo(0, 0);
+        return;
+    }
     const repairs = repairsAccess(state.repairs, state.context);
     if (route.view === 'repairs' && repairs.visible) {
         runCleanups();
@@ -403,6 +460,10 @@ async function render() {
         // Відповідальний за ремонти без власного Контроль+ — без екрана тарифу: одразу до «Ремонтів».
         if (repairs.repairsOnly) {
             location.hash = '#/repairs';
+            return;
+        }
+        if (ownFleetOnly(fleet, state.context)) {
+            location.hash = '#/own-fleet';
             return;
         }
         clear(root, renderPaywall({ context: state.context, siteUrl: SITE_URL }));
@@ -492,7 +553,7 @@ let windows = null;
 let coldStart = true;
 const WINDOW_TITLES = {
     doc: 'Документ', ttn: 'ТТН', trip_sheet: 'Подорожній лист', form: 'Новий документ', client: 'Клієнт', client_form: 'Клієнт', request: 'Заявка',
-    vehicle: 'Авто', trailer: 'Причіп', driver: 'Водій',
+    vehicle: 'Авто', trailer: 'Причіп', driver: 'Водій', of_request: 'Заявка на рейс', of_unit: 'Підрозділ', of_point: 'Точка',
 };
 
 // Те саме, що app(), але навігація зсередини вікна: заміна вікна (після збереження форми), а не перемальовування розділу.
@@ -520,6 +581,15 @@ async function buildWindow(type, id, container, ctl) {
     if (!state.context || state.contextUser !== state.session.user.id) {
         const result = await loadContext();
         if (result && result.error) { clear(container, notice(errorText(result.error))); return; }
+    }
+    // «Власний парк»: картки заявки, підрозділу й точки; доступ за прапорцем own_fleet, не за тарифом (замовник підрозділу без Контроль+).
+    if (type.startsWith('of_')) {
+        if (!ownFleetAccess(state.ownFleet).enabled) { clear(container, notice('Розділ «Власний парк» не ввімкнено для вашої компанії.', 'info')); return; }
+        if (container.classList && typeof container.classList.add === 'function') container.classList.add('kpr-page', 'kpg-page');
+        const view = (await import('./views/own-fleet/index.js')).renderOwnFleetCard(winApp(ctl), type.slice(3), id || null);
+        clear(container, view);
+        ctl.titleFrom(container);
+        return;
     }
     if (crmAccess(state.context) !== 'open') {
         clear(container, notice('Цей розділ доступний на тарифі Контроль+.', 'info'));
@@ -573,15 +643,15 @@ function specFromItem(item) {
         const base = windowSpecOf(route, item.id);
         return base ? toWindowSpec(base) : null;
     }
-    const keyed = { doc: 'doc', ttn: 'ttn', trip_sheet: 'trip_sheet', client: 'client', request: 'request', client_form: 'client_form', vehicle: 'vehicle', trailer: 'trailer', driver: 'driver' }[item.type];
+    const keyed = { doc: 'doc', ttn: 'ttn', trip_sheet: 'trip_sheet', client: 'client', request: 'request', client_form: 'client_form', vehicle: 'vehicle', trailer: 'trailer', driver: 'driver', of_request: 'of_request', of_unit: 'of_unit', of_point: 'of_point' }[item.type];
     if (!keyed) return null;
-    return toWindowSpec({ type: item.type, id: item.id, key: item.type + ':' + (!item.id && ['client_form', 'vehicle', 'trailer', 'driver'].includes(item.type) ? 'new' : item.id) });
+    return toWindowSpec({ type: item.type, id: item.id, key: item.type + ':' + (!item.id && ['client_form', 'vehicle', 'trailer', 'driver', 'of_request', 'of_unit', 'of_point'].includes(item.type) ? 'new' : item.id) });
 }
 
 // Пара компанія / користувач змінилась → усі вікна закриваються; для нової пари відновлюється збережений список (sessionStorage).
 function syncWindowsScope() {
     if (!windows) return;
-    const orgId = state.context && state.context.org_id;
+    const orgId = (state.context && state.context.org_id) || (state.ownFleet && state.ownFleet.org_id);
     const userId = state.session && state.session.user && state.session.user.id;
     windows.setScope(orgId || null, userId || null, specFromItem).catch(() => {});
 }
@@ -613,9 +683,9 @@ function onHash() {
         const base = windowSpecOf(route, location.hash);
         // Прямий захід за посиланням на вікно: під ним розділ за замовчуванням.
         if (base && coldStart && !state.route && windows.count() === 0 && windows.enabled()) {
-            const parent = cardParentHash(route);
+            const parent = cardParentHash(route) || ownFleetParentHash(route);
             if (parent) {
-                // Картка авто / причепа / водія: під вікном — його список.
+                // Картка авто / причепа / водія / «Власного парку»: під вікном — його список.
                 state.route = parseCrmHash(parent);
                 render();
             } else openDefaultSection();
@@ -713,6 +783,7 @@ export async function startBridge() {
             state.context = null; window.tcKpRole = null; window.tcKpOrgId = null; window.tcKpOrgName = null;
             state.contextUser = null;
             state.repairs = null;
+            state.ownFleet = null;
             state.docs = null;
             if (windows) windows.setScope(null, null).catch(() => {});
             syncGpsTab();
@@ -720,6 +791,7 @@ export async function startBridge() {
             if (state.route) setTimeout(render, 0);
             else if (session) setTimeout(refreshGpsTab, 0);
             if (session) setTimeout(acceptRepairInvite, 0);
+            if (session) setTimeout(acceptRequesterInvite, 0);
         }
     });
     window.addEventListener('hashchange', onHash);
@@ -732,5 +804,6 @@ export async function startBridge() {
     if (!state.route) await refreshGpsTab();
     await topUpSiteFleet();
     await acceptRepairInvite();
+    await acceptRequesterInvite();
     return true;
 }
