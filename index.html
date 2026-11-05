@@ -4491,6 +4491,7 @@
         }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
+    <script src="/api/config"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3" integrity="sha384-dl/4LkSyQ4uEucc48NM6VDZLAjLLq9yMzZ5JLXumBq7Ld33XBof73hseOqPhO89+" crossorigin="anonymous"></script>
     <script defer src="/_vercel/insights/script.js"></script>
 </head>
@@ -4513,7 +4514,9 @@
         let hasSession = false;
         let theme = '';
         try {
-            hasSession = !!localStorage.getItem('sb-qkfqjorzsxcajcneohoy-auth-token');
+            // Ключ сесії supabase-js = sb-<ref>-auth-token; ref береться з конфігурації середовища (/api/config).
+            const cfg = window.TC_CONFIG;
+            hasSession = !!(cfg && cfg.supabaseUrl && localStorage.getItem('sb-' + new URL(cfg.supabaseUrl).hostname.split('.')[0] + '-auth-token'));
             theme = localStorage.getItem('tc_theme') || '';
         } catch (e) {}
         const entry = tcEntryScreen(hasSession, location.search, location.hash);
@@ -6380,8 +6383,14 @@
 
 <script>
     // Ініціалізація Supabase на клієнті
-    const SUPABASE_URL = 'https://qkfqjorzsxcajcneohoy.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_-W_XaLQFhKyDvQY_-5xHBw_tK25Pjw9';
+    // Адреса бази й публічний ключ — з /api/config (env Vercel). Запасних продових значень немає: краще явна помилка, ніж preview у проді.
+    const TC_CONFIG = window.TC_CONFIG;
+    if (!TC_CONFIG || !TC_CONFIG.supabaseUrl || !TC_CONFIG.supabaseAnonKey) {
+        document.body.textContent = 'Не вдалося завантажити конфігурацію застосунку. Оновіть сторінку або зверніться до підтримки.';
+        throw new Error('TC_CONFIG is missing: /api/config did not return the Supabase settings');
+    }
+    const SUPABASE_URL = TC_CONFIG.supabaseUrl;
+    const SUPABASE_ANON_KEY = TC_CONFIG.supabaseAnonKey;
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let recoveryMode = false;
     supabaseClient.auth.onAuthStateChange(function (event, session) {

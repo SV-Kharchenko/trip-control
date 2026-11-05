@@ -46,6 +46,17 @@ export const SCOPE_ALLOWLIST = [
     // Скасування сторно ремонту: міграція й pgTAP-тест.
     /^supabase\/migrations\/\d{14}_repair_unstorno\.sql$/,
     /^supabase\/tests\/repairs_unstorno\.sql$/,
+    // Staging і глобальний вимикач модулів (chore/staging-kill-switch): конфіг бази з env (/api/config) замість зашитих значень в index.html,
+    // засів staging, документація, міграція app_settings і їхні тести.
+    /^api\/config\.js$/,
+    /^lib\/public-config\.js$/,
+    /^docs\/STAGING\.md$/,
+    /^scripts\/staging-seed\/(seed|index)\.mjs$/,
+    /^tests\/(public-config|staging-seed)\.test\.mjs$/,
+    /^tests\/security-grants\.test\.mjs$/,
+    /^tests\/osm-geo\.test\.mjs$/,
+    /^supabase\/migrations\/\d{14}_app_settings_kill_switch\.sql$/,
+    /^supabase\/tests\/app_settings\.sql$/,
     // Корінний тест перебирав файли src/views/ без підтек; «Власний парк» лежить у views/own-fleet/ — тест читає теки рекурсивно.
     /^tests\/idle-label\.test\.mjs$/,
     // Модуль «Власний парк» (етап 1): міграція й pgTAP-тест.
