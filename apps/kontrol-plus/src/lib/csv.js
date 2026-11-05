@@ -47,9 +47,11 @@ function detectDelimiter(text) {
 }
 
 // → { delimiter, records: [{ line, cells }] } (line — номер рядка файлу, з якого починається запис; заголовок — 1).
-export function parseCsv(input) {
+export function parseCsv(input, limits = {}) {
+    const maxBytes = limits.maxBytes || CSV_MAX_BYTES;
+    const maxRows = limits.maxRows || CSV_MAX_ROWS;
     const raw = String(input ?? '');
-    if (new TextEncoder().encode(raw).length > CSV_MAX_BYTES) throw new CsvError('TOO_LARGE', 'Файл більший за 1 МБ.');
+    if (new TextEncoder().encode(raw).length > maxBytes) throw new CsvError('TOO_LARGE', 'Файл більший за ' + Math.round(maxBytes / 1048576) + ' МБ.');
     const text = raw.replace(/^﻿/, '');
     const delimiter = detectDelimiter(text);
     const records = [];
@@ -90,7 +92,7 @@ export function parseCsv(input) {
     }
     if (quoted) throw new CsvError('UNCLOSED_QUOTE', 'Незакриті лапки в рядку ' + start + '.');
     endRecord();
-    if (records.length - 1 > CSV_MAX_ROWS) throw new CsvError('TOO_MANY_ROWS', 'Понад ' + CSV_MAX_ROWS + ' рядків. Розбийте файл на частини.');
+    if (records.length - 1 > maxRows) throw new CsvError('TOO_MANY_ROWS', 'Понад ' + maxRows + ' рядків. Розбийте файл на частини.');
     return { delimiter, records };
 }
 

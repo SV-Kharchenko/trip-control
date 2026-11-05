@@ -62,7 +62,7 @@ export function parseCrmHash(hash) {
     // «Власний парк» (лише з прапорцем own_fleet): #/own-fleet (дошка), /list, /units, /points; картки вікном: #/own-fleet/<request|unit|point>/<id|new>.
     if (parts[0] === 'own-fleet') {
         if (parts.length === 1) return { view: 'own-fleet', sub: 'board' };
-        if (parts.length === 2 && ['list', 'units', 'points'].includes(parts[1])) return { view: 'own-fleet', sub: parts[1] };
+        if (parts.length === 2 && ['list', 'units', 'points', 'telematics'].includes(parts[1])) return { view: 'own-fleet', sub: parts[1] };
         if (parts.length === 3 && ['request', 'unit', 'point'].includes(parts[1]) && cardId(parts[2]) !== undefined) {
             return { view: 'own-fleet-card', kind: parts[1], id: cardId(parts[2]) };
         }

@@ -107,3 +107,43 @@
     .kpof-req { grid-template-columns: 1fr; }
     .kpof-req .actions { justify-content: flex-start; }
 }
+
+/* Дошка: перемикач «Дошка / Список», «+ Нова заявка» і «Оновити» — одна висота, один ряд, по центру; на вузькому екрані перемикач у своєму ряду, кнопки поруч. */
+.kpof-actions { --kpof-ctl-h: 38px; align-items: center; }
+#kp-crm .kpof-actions .btn, .kpof-actions .btn { min-height: var(--kpof-ctl-h); box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+#kp-crm .kpof-actions .segmented, .kpof-actions .segmented { margin: 0; padding: 3px; min-height: var(--kpof-ctl-h); box-sizing: border-box; flex-wrap: nowrap; align-items: stretch; }
+#kp-crm .kpof-actions .segmented button, .kpof-actions .segmented button { padding: 0 14px; min-height: 0; display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 560px) {
+    #kp-crm .kpof-actions .segmented, .kpof-actions .segmented { flex: 1 1 100%; }
+    .kpof-actions .segmented button { flex: 1 1 0; }
+    #kp-crm .kpof-actions .btn, .kpof-actions .btn { flex: 1 1 0; }
+}
+
+/* Телематика (Агроконтроль). */
+.kpt { min-width: 0; }
+.kpt-sources { margin: 0 0 14px; display: grid; gap: 8px; justify-items: start; }
+.kpt-source-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; }
+.kpt-source { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 8px 10px; border: 1px solid var(--border-soft, var(--border)); border-radius: var(--radius-control, 8px); background: var(--bg); }
+.kpt-source-name { font-weight: 600; }
+.kpt-total { margin: 0 0 10px; }
+.kpt-table td, .kpt-table th { white-space: normal; }
+.kpt-drain { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--negative-bg); border: 1px solid var(--negative); color: var(--negative-text); font-weight: 700; font-size: 0.82rem; white-space: nowrap; }
+.kpt-table tr.kpt-row-drain td:first-child { box-shadow: inset 3px 0 0 var(--negative); }
+.kpt-drains { margin-top: 16px; }
+.kpt-drain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kpt-drain-item { padding: 6px 10px; border: 1px solid var(--negative); border-radius: var(--radius-control, 8px); background: var(--negative-bg); color: var(--text); overflow-wrap: anywhere; }
+.kpt-import-top { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin: 0 0 12px; }
+.kpt-opt { display: grid; gap: 4px; min-width: 0; }
+.kpt-opt select, .kpt-opt input { max-width: 100%; box-sizing: border-box; }
+.kpt-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px 16px; margin: 0 0 12px; }
+.kpt-map-row { display: grid; gap: 4px; min-width: 0; }
+.kpt-map-row select { width: 100%; box-sizing: border-box; }
+.kpt-preview { margin: 0 0 12px; }
+.kpt-import-actions { margin: 12px 0; }
+.kpt-result { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-control, 8px); background: var(--bg); }
+.kpt-error-list { margin: 0; padding-left: 18px; display: grid; gap: 3px; overflow-wrap: anywhere; }
+@media (max-width: 699px) {
+    .kpt-import-top { align-items: stretch; }
+    .kpt-import-top .kpt-opt { flex: 1 1 100%; }
+    .kpt-map { grid-template-columns: 1fr; }
+}

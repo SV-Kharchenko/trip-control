@@ -3,13 +3,16 @@
 import { h, clear, notice, spinner, toast, uniqueId } from '../../ui.js';
 import { POINT_KINDS, UNIT_KINDS, ownFleetErrorText } from '../../lib/own-fleet.js';
 import { callKpApi } from '../../lib/gps-client.js';
+import { labelHint } from '../../lib/field-hint.js';
 import { loadAll, nameOf, onRegistryChanged } from './data.js';
 
 const changed = () => window.dispatchEvent(new CustomEvent('kp:registry-changed'));
 const kindOptions = (kinds, cur) => Object.entries(kinds).map(([v, l]) => h('option', { value: v, selected: v === cur }, l));
 
-function row(label, control, id) {
-    return h('div', { class: 'field kpc-row' }, h('label', { for: id }, label), h('span', { class: 'kpc-box kpc-w-xl' }, control));
+// hint — необов'язкова підказка «?» біля підпису (field-hint).
+function row(label, control, id, hint) {
+    const caption = h('label', { for: id }, label);
+    return h('div', { class: 'field kpc-row' }, hint ? labelHint(caption, hint) : caption, h('span', { class: 'kpc-box kpc-w-xl' }, control));
 }
 const numOrNull = (v) => { const t = String(v).trim().replace(',', '.'); return t === '' ? null : Number(t); };
 
@@ -100,7 +103,7 @@ export function renderUnitCard(app, id) {
             closeCard(app, true);
         } }, 'Зберегти');
         const body = [h('h2', null, unit ? unit.name : 'Новий підрозділ'),
-            row('Назва', name, ids.name), row('Тип', kind, ids.kind), row('Центр витрат', cc, ids.cc),
+            row('Назва', name, ids.name), row('Тип', kind, ids.kind), row('Центр витрат', cc, ids.cc, 'Код підрозділу в 1С/BAS для звітів собівартості. Можна лишити порожнім.'),
             unit ? h('div', { class: 'field kpc-row' }, h('label', { for: archived.id }, 'В архіві'), h('span', { class: 'kpc-box' }, archived)) : null,
             message, h('div', { class: 'actions' }, save, h('button', { type: 'button', class: 'btn', onclick: () => closeCard(app, false) }, 'Закрити'))];
         // Запрошення замовників — лише директор і менеджер (API й БД відмовляють логісту).

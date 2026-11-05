@@ -117,6 +117,9 @@ test('три блоки; рядка немає → явно «функція в�
         assert.deepEqual(heads, ['Глобальні функції', 'Організації', 'Аудит']);
         assert.match(await page.textContent('.kpsa-global .kpsa-state'), /Рядка немає — функція вимкнена/);
         assert.equal(await page.getAttribute('.kpsa-global .kpsa-state', 'data-state'), 'missing');
+        // Статус — бейдж, а не поле вводу: без рамки, не інтерактивний, з кольоровою крапкою.
+        const badge = await page.$eval('.kpsa-global .kpsa-state', (e) => { const c = getComputedStyle(e); return { border: c.borderTopWidth, cursor: c.cursor, display: c.display, dot: getComputedStyle(e, '::before').content }; });
+        assert.deepEqual(badge, { border: '0px', cursor: 'default', display: 'flex', dot: '""' });
         assert.equal(await page.textContent('.kpsa-global [data-act="create"]'), 'Створити рядок');
         assert.equal(await page.locator('.kpsa-global [data-act="toggle"]').count(), 0, 'перемикача, поки рядка немає, не показуємо');
         assert.match(await page.textContent(`.kpsa-org[data-org="${ORG_A}"] .kpsa-warn`), /Не працює, бо вимкнено глобально/);
