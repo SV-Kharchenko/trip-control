@@ -1733,6 +1733,10 @@
             color: #fbbf24; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em;
         }
         body:not(.demo-mode) .tc-demo-badge { display: none; }
+        .rate-mode-box { display: flex; flex-direction: column; gap: 4px; margin: -2px 0 10px; }
+        .rate-mode-box select { max-width: 220px; }
+        .rate-eff-note { font-size: 0.78rem; color: var(--text-muted); }
+        .rate-eff-note.is-warn { color: var(--danger); }
         .rate-delta { font-size: 0.62rem; font-weight: 700; margin-left: 4px; }
         .rate-delta.up { color: var(--success); }
         .rate-delta.down { color: var(--danger); }
@@ -5728,6 +5732,13 @@
                     <input type="number" id="rate" tabindex="9" step="0.01" oninput="calculate()">
                     <span class="unit" id="rate-unit">грн/т</span>
                 </div>
+                <div class="rate-mode-box" id="rate-mode-box">
+                    <select id="rate-mode" aria-label="Як задана розцінка" onchange="onRateModeChange()">
+                        <option value="ton" selected>Вартість за тонну</option>
+                        <option value="trip">Вартість за ходку</option>
+                    </select>
+                    <div class="rate-eff-note" id="rate-eff-note" role="status" hidden></div>
+                </div>
 
                     <div class="form-row two-cols" style="margin-bottom: 6px; margin-top: 10px;">
                         <label style="color: var(--success); font-weight: 600;">🔄 Режим кругорейсу (зворотний вантаж):</label>
@@ -7153,7 +7164,7 @@
         noTruck.className = 'tc-f-notruck';
         noTruck.textContent = 'Автопарк порожній — додайте авто в кабінеті';
         truck.appendChild(noTruck);
-        const rate = opCell('tc-f-rate', 'Тариф', [rateRow]);
+        const rate = opCell('tc-f-rate', 'Тариф', [rateRow, opById('rate-mode-box')]);
         const vehicleMore = document.createElement('div');
         vehicleMore.className = 'tc-vehicle-more';
         ['vehicle-split', 'vehicle-split-note', 'vehicle-tons', 'vehicle-breakdown'].forEach(function (id) {
@@ -7513,6 +7524,9 @@
             const el = opById(id);
             if (el) el.value = '';
         });
+        const rateField = opById('rate');
+        if (rateField) delete rateField.dataset.tripAmount;
+        setRateMode('ton');
         setPlaceText('osm-from-wrap', 'osm-from', '');
         setPlaceText('osm-to-wrap', 'osm-to', '');
         setPlaceText('osm-base-wrap', 'osm-base', '');
@@ -7690,6 +7704,7 @@
         take(2, rowOf('contract-currency'));
         take(2, document.getElementById('contract-fx-note'));
         take(2, rowOf('rate'));
+        take(2, document.getElementById('rate-mode-box'));
 
         take(3, document.querySelector('.tc-lower'));
 
@@ -10458,12 +10473,75 @@
         return s ? ' · ' + s : '';
     }
 
+    // ===== Розцінка: за тонну (як було) або сума за ходку. У розрахунок завжди йде ціна за тонну =====
+    // «За ходку»: ефективна ціна за тонну = сума ÷ об'єм (#volume). Формули не змінюються, змінюється лише спосіб отримати rate.
+    function rateModeValue() {
+        const sel = document.getElementById('rate-mode');
+        return sel && sel.value === 'trip' ? 'trip' : 'ton';
+    }
+    function ratePerTonFromTrip(amount, volume) {
+        const a = parseFloat(amount);
+        const v = parseFloat(volume);
+        if (!(a > 0) || !(v > 0)) return null;
+        const perTon = a / v;
+        return isFinite(perTon) ? Math.round(perTon * 1e6) / 1e6 : null;
+    }
+    // Що піде в розрахунок як rate: у режимі «за тонну» поле як є; «за ходку» — сума ÷ об'єм або '' (без поламаної ціни).
+    function effectiveRateValue() {
+        const rateEl = document.getElementById('rate');
+        const raw = rateEl ? rateEl.value : '';
+        if (rateModeValue() !== 'trip') return raw;
+        const perTon = ratePerTonFromTrip(raw, document.getElementById('volume').value);
+        return perTon === null ? '' : String(perTon);
+    }
+    function syncRateMode() {
+        const note = document.getElementById('rate-eff-note');
+        const unitEl = document.getElementById('rate-unit');
+        const unit = contractCurrency === 'UAH' ? 'грн' : contractCurrency;
+        if (unitEl) unitEl.textContent = rateModeValue() === 'trip' ? unit + ' за ходку' : unit + '/т';
+        if (!note) return;
+        if (rateModeValue() !== 'trip') { note.hidden = true; note.textContent = ''; return; }
+        const rateEl = document.getElementById('rate');
+        const perTon = ratePerTonFromTrip(rateEl && rateEl.value, document.getElementById('volume').value);
+        note.hidden = false;
+        note.classList.toggle('is-warn', perTon === null);
+        note.textContent = perTon === null
+            ? 'Вкажи об\'єм, щоб порахувати ціну за тонну'
+            : '= ' + perTon.toLocaleString('uk-UA', { maximumFractionDigits: 2 }) + ' ' + unit + '/т';
+    }
+    function setRateMode(mode) {
+        const sel = document.getElementById('rate-mode');
+        const rateEl = document.getElementById('rate');
+        if (!sel || !rateEl) return;
+        sel.value = mode === 'trip' ? 'trip' : 'ton';
+        rateEl.dataset.mode = sel.value;
+        syncRateMode();
+    }
+    function onRateModeChange() {
+        const rateEl = document.getElementById('rate');
+        if (!rateEl) return;
+        const mode = rateModeValue();
+        const prev = rateEl.dataset.mode === 'trip' ? 'trip' : 'ton';
+        if (mode !== prev) {
+            if (prev === 'trip') {
+                // За ходку → за тонну: підставляємо вже пораховану ціну за тонну, без валідного об'єму поле очищаємо (суму за ходку не лишаємо як ціну за тонну).
+                rateEl.dataset.tripAmount = rateEl.value;
+                const perTon = ratePerTonFromTrip(rateEl.value, document.getElementById('volume').value);
+                rateEl.value = perTon === null ? '' : String(Math.round(perTon * 100) / 100);
+            } else {
+                // За тонну → за ходку: суму не вигадуємо, лише повертаємо ту, що вводили раніше.
+                rateEl.value = rateEl.dataset.tripAmount || '';
+            }
+        }
+        setRateMode(mode);
+        calculate();
+    }
     function updateContractCurrencyUi() {
         const unit = contractCurrency === 'UAH' ? 'грн' : contractCurrency;
         const rateUnit = document.getElementById('rate-unit');
         const rtUnit = document.getElementById('rt-rate-unit');
         const idleUnit = document.getElementById('idle-rate-unit');
-        if (rateUnit) rateUnit.textContent = unit + '/т';
+        if (rateUnit) rateUnit.textContent = rateModeValue() === 'trip' ? unit + ' за ходку' : unit + '/т';
         if (rtUnit) rtUnit.textContent = unit + '/т';
         if (idleUnit) idleUnit.textContent = unit + '/доба';
         ['toll-unit', 'border-unit', 'broker-unit', 'green-card-unit', 'ferry-unit'].forEach(function (id) {
@@ -13474,7 +13552,9 @@
             daysPerTrip: document.getElementById('days-per-trip').value,
             idleDays: document.getElementById('idle-days').value,
             idleRate: document.getElementById('idle-rate').value,
-            rate: document.getElementById('rate').value,
+            rate: effectiveRateValue(),
+            rateMode: rateModeValue(),
+            rateTrip: rateModeValue() === 'trip' ? document.getElementById('rate').value : '',
             contractCurrency: contractCurrency,
             fxRate: contractFx(),
             season: document.getElementById('season-type').value,
@@ -13745,6 +13825,7 @@
 
     async function calculate() {
         if (typeof updateStepSummaries === 'function') updateStepSummaries();
+        syncRateMode();
         if (!currentSessionToken) return; // Подвійний захист від запуску без токена
         refreshCabWarning();
         updateRouteBar();
@@ -13764,6 +13845,10 @@
                 const value = String(document.getElementById(id).value).trim();
                 return value === '' || !(parseFloat(value) >= 0);
             }) : []);
+        // «Вартість за ходку» без об'єму: ціну за тонну порахувати не можна (навіть у разовому рейсі), не ділимо на нуль.
+        if (rateModeValue() === 'trip' && !(parseFloat(document.getElementById('volume').value) > 0) && !missing.some((m) => m[0] === 'volume')) {
+            missing.push(['volume', 'Обсяг']);
+        }
         const mh = document.getElementById('missing-hint');
         if (missing.length) {
             const dismissKey = missing.map(m => m[0]).join(',');
@@ -16924,6 +17009,18 @@
             }
             el.value = data[pair[0]];
         });
+        // Режим розцінки: старі заявки без rateMode — «за тонну». У режимі «за ходку» в поле повертаємо введену суму.
+        const rateField = document.getElementById('rate');
+        if (rateField) {
+            delete rateField.dataset.tripAmount;
+            const tripAmount = parseFloat(data.rateTrip);
+            if (data.rateMode === 'trip' && tripAmount > 0) {
+                rateField.value = String(data.rateTrip);
+                setRateMode('trip');
+            } else {
+                setRateMode('ton');
+            }
+        }
         const route = document.getElementById('route-name');
         if (route && routeName) route.value = routeName;
         const currency = data.contractCurrency || 'UAH';
