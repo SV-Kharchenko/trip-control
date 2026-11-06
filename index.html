@@ -2,6 +2,13 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
+    <!-- Google Tag Manager (контейнер з кабінету Ads; рахує реєстрацію / старт тріалу) -->
+    <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-TCNFWFRZ"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRIP-CONTROL · розрахунок рейсу: прибутковість вантажних перевезень</title>
     <meta name="description" content="Порахуй, чи вигідний рейс, ще до того, як погодився. Пальне, AdBlue, водій, ТО, шини й податки. 7 днів повного доступу після реєстрації.">
@@ -4504,6 +4511,7 @@
     <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body class="layout-studio" data-theme="light">
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TCNFWFRZ" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <script>
     // Перший екран до першого рендеру: застосунок (є сесія Supabase або auth-потік у URL) чи лендинг для гостя.
     // html[data-entry] читає checkUserAccess(); html[data-screen="landing"] показує #landing-screen (assets/landing.css).
@@ -10152,6 +10160,7 @@
                     }
                 };
             const { data, error } = await supabaseClient.auth.signUp({ email, password, options: signupOptions });
+            if (!error && data && data.user && !invite) trackSignUp(data.user);
             // Про логіста власнику бота напише алерт «приєднався», окремої «нової реєстрації» не шлемо.
             if (!error && data && data.user && !invite) notifyOwnerAboutSignup(data.user.id);
             if (error) authMsg.innerText = translateAuthError(error);
@@ -10167,6 +10176,17 @@
                 setTimeout(() => checkUserAccess(), 1500);
             }
         }
+    }
+
+    // Конверсія Google Ads: лише успішна реєстрація нового акаунта (старт тріалу). Без персональних даних у dataLayer.
+    function trackSignUp(user) {
+        // Supabase для вже зареєстрованої пошти повертає «порожнього» user без identities — це не нова реєстрація.
+        if (user && Array.isArray(user.identities) && user.identities.length === 0) return;
+        const payload = { method: 'email' };
+        try {
+            if (typeof gtag === 'function') gtag('event', 'sign_up', payload);
+            else (window.dataLayer = window.dataLayer || []).push({ event: 'sign_up', method: 'email' });
+        } catch (e) { /* аналітика не повинна ламати реєстрацію */ }
     }
 
     async function handleLogout() {
