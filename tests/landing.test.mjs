@@ -277,15 +277,20 @@ test('applyLandingDraft runs after the sample trip and before onTrailerChange; n
 
 test('demo path: OSM instead of Google, the paid branch unchanged, POI search stays locked in demo', () => {
     const access = functionSource(html, 'checkUserAccess');
-    const demo = sliceBetween(access, 'if (isDemo) {', '} else {');
+    const demo = sliceBetween(access, 'if (isDemo) {', '} else if (trialOnly()) {');
+    // Тріал: адреси OSM, Google не вантажиться на старті (його відкриває дозвіл сервера на маршрут).
+    const trial = sliceBetween(access, '} else if (trialOnly()) {', '} else {\n                // Google Maps');
+    assert.match(trial, /createOsmAddressField\('osm-from-wrap', 'osm-from'/);
+    assert.match(trial, /trialMapsStatus\(\);/);
+    assert.equal(trial.includes('loadGoogleMaps'), false);
     assert.match(demo, /loadDemoUsage\(profile\.org_id\);/);
     assert.match(demo, /initDemoOsmRoute\(\);/);
     assert.equal(demo.includes('loadGoogleMaps'), false);
     assert.match(access, /\} else \{\n\s+\/\/ Google Maps \(платні запити\) підвантажуємо лише для повного доступу\n\s+loadGoogleMaps\(\)\.then\(initMap\)\.catch\(e => console\.warn\('Google Maps не завантажився:', e\)\);\n\s+\}/);
     // Google code identical to main.
     const hashes = {
-        createAddressAutocomplete: '14972e2290e18993',
-        calculateGoogleRoute: '9823e50b0720ba13', // правка F: маршрут розбито на відрізки (подача / рейс / зупинки)
+        createAddressAutocomplete: 'd96431746353b97e', // тріал: гілка на OSM-поле, далі Google як було
+        calculateGoogleRoute: '941bc2f030701729', // правка F (відрізки) + шлюз ліміту тріалу trialGoogleRoute / trialRefund
         initMap: 'fbc9a3b9e85c38e0',
         loadGoogleMaps: 'fe25b745d23abd82',
         searchPOIsAlongRoute: '37ed8ce988a61277'
@@ -342,9 +347,9 @@ test('OSM honesty: switch, hint, attribution, fallback text, client-side normali
 });
 
 test('landing texts: pricing from plans.js, demo has OSM, paid keeps Google; no compass; footer and payments from files', () => {
-    assert.match(landing, /<li>Підказки адрес і відстань за OpenStreetMap<\/li>/);
+    assert.match(landing, /<li>Підказки адрес: OpenStreetMap<\/li>/);
     assert.equal(landing.includes('Відстань і подачу вводиш вручну'), false);
-    assert.match(landing, /<li>Маршрут за картами Google, проміжні зупинки, АЗС, TIR, кафе й СТО по дорозі<\/li>/);
+    assert.match(landing, /<li>Маршрут за картами Google без ліміту, проміжні зупинки, АЗС, TIR, кафе й СТО по дорозі<\/li>/);
     assert.match(landingJs, /month: \{ name: 'Місяць', amt: '250'/);
     assert.match(landingJs, /year: \{ name: 'Рік', amt: '2 500'/);
     assert.match(landing, /<div class="lp-amt">0 <small>грн<\/small><\/div>/);
