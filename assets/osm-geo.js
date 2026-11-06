@@ -139,6 +139,7 @@
     enabled: OSM_GEO,
     attachAutocomplete: attachAutocomplete,
     route: route,
+    geocode: geocode,
     parsePoint: parsePoint,
     pointParam: pointParam,
     normalizeQuery: normalizeQuery,

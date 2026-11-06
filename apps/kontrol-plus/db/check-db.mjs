@@ -799,6 +799,25 @@ const tmTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')
 for (const row of tmTap) check(row.ok, 'pgTAP telematics.sql: ' + row.label);
 check(tmTap.length === tmPlanned, 'pgTAP telematics.sql: ran ' + tmTap.length + ' of plan(' + tmPlanned + ')');
 
+// Ліміт маршрутів Google на тріалі: міграція двічі (ідемпотентність) і pgTAP через той самий shim.
+const MC = all.find((f) => /^\d{14}_trial_maps_cap\.sql$/.test(f));
+if (!MC) throw new Error('немає міграції *_trial_maps_cap.sql');
+const mcSql = fs.readFileSync(new URL(MC, DIR), 'utf8');
+await db.exec(mcSql);
+await db.exec(mcSql);
+const mcCode = mcSql.replace(/^\s*--.*$/gm, '');
+check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(mcSql) && !/CREATE EXTENSION/i.test(mcCode)
+    && !/GRANT (INSERT|UPDATE|DELETE|ALL)[^;]*TO authenticated/i.test(mcCode.replace(/GRANT EXECUTE[^;]*;/gi, '')),
+'trial_maps_cap: ' + MC + ' applied twice, manual-apply header, no write grants to authenticated');
+const mcTapSql = fs.readFileSync(new URL('../../../supabase/tests/trial_maps_cap.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const mcPlanned = Number((mcTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const mcBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(mcTapSql);
+const mcTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(mcBefore);
+for (const row of mcTap) check(row.ok, 'pgTAP trial_maps_cap.sql: ' + row.label);
+check(mcTap.length === mcPlanned, 'pgTAP trial_maps_cap.sql: ran ' + mcTap.length + ' of plan(' + mcPlanned + ')');
+
 // Скасування сторно ремонту: міграція ПІСЛЯ повторного прогону 3a (той повертає стару kp_repair_void) — двічі поспіль, потім pgTAP.
 const UNSTORNO = all.find((f) => /^\d{14}_repair_unstorno\.sql$/.test(f));
 if (!UNSTORNO) throw new Error('немає міграції *_repair_unstorno.sql');
