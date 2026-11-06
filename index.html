@@ -1173,6 +1173,10 @@
             font-family: var(--font-ui); font-size: 0.75rem; letter-spacing: 0; text-transform: none;
             line-height: 1; cursor: pointer;
         }
+        .tc-has-tip { position: relative; }
+        /* Підпис із довідкою ⓘ (нормативна вага) і довгий підпис об'єму: переносимо на другий рядок, не обрізаємо «…» і не ховаємо кнопку. */
+        #tc-op .tc-f-weight .form-row > label, #tc-op .form-row.tc-has-tip > label { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; }
+        .tc-has-tip > label .tc-info { vertical-align: middle; margin-left: 4px; }
         .tc-info:hover, .tc-info[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
         .tc-tip {
             position: absolute; z-index: 6; left: 0; top: calc(100% + 4px); width: min(280px, 100%);
@@ -4237,7 +4241,7 @@
         #tc-op .tc-op-sub .form-row:has(#calc-type) > label { min-height: 0; }
         #tc-op .tc-in > select { text-overflow: ellipsis; }
         #tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }
-        /* Числа заявки: Відстань | Вага вантажу | Тариф у сітці 2 колонки, щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
+        /* Числа заявки: Відстань | Об'єм (загальна вага) по заявці | Тариф у сітці 2 колонки, щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
         .tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .tc-in > select.cur { min-width: 76px; }
         .tc-f-rate .tc-in > input { min-width: 70px; }
@@ -5684,12 +5688,13 @@
                     <span class="unit">км</span>
                 </div>
                 <div class="form-row">
-                    <label>Загальний об'єм контракту:</label>
+                    <label>Об'єм (загальна вага) по заявці:</label>
                     <input type="number" id="volume" tabindex="5" oninput="calculate()">
                     <span class="unit">т</span>
                 </div>
-                <div class="form-row">
-                    <label>Нормативна вага на авто:</label>
+                <div class="form-row tc-has-tip">
+                    <label>Нормативна вага на авто: <button type="button" class="tc-info" id="norm-weight-info-btn" aria-label="Що таке нормативна вага на авто" aria-expanded="false" aria-controls="norm-weight-info-tip" onclick="toggleNormWeightInfo(event)">ⓘ</button></label>
+                    <p id="norm-weight-info-tip" class="tc-tip" role="tooltip" hidden>Яка вага планується до перевезення одним авто</p>
                     <input type="number" id="norm-weight" tabindex="6" step="0.5" oninput="calculate()">
                     <span class="unit">т/авто</span>
                 </div>
@@ -7187,7 +7192,7 @@
         if (routeTools) panel1.appendChild(routeTools);
         panel1.appendChild(opGroup('nums', [
             opCell('tc-f-dist', 'Відстань', [distRow]),
-            opCell('tc-f-weight', 'Вага вантажу', [opRowOf('volume')]),
+            opCell('tc-f-weight', "Об'єм (загальна вага) по заявці", [opRowOf('volume')]),
             rate
         ]));
         panel1.appendChild(opGroup('two', [opCell('tc-f-return', 'Повернення', [opRowOf('return-mode')]), truck]));
@@ -10932,6 +10937,14 @@
         tip.hidden = !tip.hidden;
         if (btn) btn.setAttribute('aria-expanded', tip.hidden ? 'false' : 'true');
     }
+    function toggleNormWeightInfo(event) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const tip = document.getElementById('norm-weight-info-tip');
+        const btn = document.getElementById('norm-weight-info-btn');
+        if (!tip) return;
+        tip.hidden = !tip.hidden;
+        if (btn) btn.setAttribute('aria-expanded', tip.hidden ? 'false' : 'true');
+    }
     function removeVehicleChip(id, event) {
         if (event) { event.preventDefault(); event.stopPropagation(); }
         delete vehicleChecked[String(id)];
@@ -11350,6 +11363,12 @@
         if (tip && !tip.hidden && infoBtn && !infoBtn.contains(event.target) && !tip.contains(event.target)) {
             tip.hidden = true;
             infoBtn.setAttribute('aria-expanded', 'false');
+        }
+        const normTip = document.getElementById('norm-weight-info-tip');
+        const normBtn = document.getElementById('norm-weight-info-btn');
+        if (normTip && !normTip.hidden && normBtn && !normBtn.contains(event.target) && !normTip.contains(event.target)) {
+            normTip.hidden = true;
+            normBtn.setAttribute('aria-expanded', 'false');
         }
     });
     document.addEventListener('keydown', function (event) {
