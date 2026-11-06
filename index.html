@@ -4182,9 +4182,9 @@
             body.layout-studio[data-studio-view="calc"] #main-app { padding-bottom: 24px; }
             .tc-kpi-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; }
             .tc-kpi-bar .tc-kb-detail { grid-column: 1 / -1; justify-content: center; width: 100%; }
-            body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { display: flex; flex-direction: column; }
-            body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right { order: -1; display: block !important; align-self: auto; }
-            body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame { position: relative; top: auto; height: 260px !important; min-height: 0 !important; }
+            body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { display: flex; flex-direction: column; align-items: stretch; width: 100%; }
+            body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right { order: -1; display: block !important; align-self: stretch; width: 100%; max-width: 100%; }
+            body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame { position: relative; top: auto; width: 100%; height: 260px !important; min-height: 0 !important; }
             body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) .tc-map-frame #map,
             body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) .tc-map-frame .lock-ph { height: 260px !important; }
             body.layout-studio[data-studio-view="calc"][data-calc-detail="1"] #studio-left { display: none !important; }
