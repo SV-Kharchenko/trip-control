@@ -35,13 +35,13 @@ test('starter template for an empty cabinet: 1 truck, 38 / 32 l, 95 UAH/l, per d
     });
 });
 
-test('demo trip: one truck, the rest unchanged', () => {
+test('starter trip: empty distance / volume / norm weight (zeros), one truck, the rest unchanged', () => {
     assert.deepEqual(STARTER_TRIP, {
         'route-name': 'Демо: типовий рейс зерновоза',
-        'podacha-dist': 40,
-        dist: 350,
-        volume: 500,
-        'norm-weight': 21.5,
+        'podacha-dist': 0,
+        dist: 0,
+        volume: 0,
+        'norm-weight': 0,
         'cars-count': 1,
         'days-per-trip': 1.5,
         rate: 1800

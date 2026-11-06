@@ -6886,9 +6886,11 @@
     function fillDemoTrip() {
         // Спершу скидаємо вибір авто: відкат норм не має переписати поля демо-рейсу (напр. кількість авто).
         clearVehicleNormChoice();
+        // Кнопка «Підставити демо-рейс» показує приклад із цифрами; стартовий рейс нового акаунта (STARTER_TRIP) порожній (нулі).
+        const example = { 'podacha-dist': 40, dist: 350, volume: 500, 'norm-weight': 21.5 };
         Object.keys(STARTER_TRIP).forEach(function (id) {
             const el = document.getElementById(id);
-            if (el) el.value = STARTER_TRIP[id];
+            if (el) el.value = Object.prototype.hasOwnProperty.call(example, id) ? example[id] : STARTER_TRIP[id];
         });
         const client = document.getElementById('client-name');
         if (client) client.value = '';
@@ -7939,7 +7941,11 @@
         } catch (e) { uiView = 'director'; }
     }
     function viewIsLogist() {
-        return currentOrgRole === 'logist' || (currentOrgRole === 'owner' && uiView === 'logist');
+        return currentOrgRole === 'logist' || (currentOrgRole === 'owner' && currentWorkMode === 'team' && uiView === 'logist');
+    }
+    // Директор у режимі «Сам» без логістів: перемикача «Директор / Логіст» немає, збережений вигляд логіста скидаємо.
+    function viewSwitchAllowed() {
+        return currentOrgRole === 'owner' && currentWorkMode === 'team';
     }
     function viewLabel() {
         return viewIsLogist() ? 'Логіст' : 'Директор';
@@ -7952,12 +7958,16 @@
         return src.slice(0, 2).toUpperCase();
     }
     function syncHeaderChrome() {
+        if (currentOrgRole === 'owner' && currentWorkMode !== 'team' && uiView === 'logist') {
+            uiView = 'director';
+            try { localStorage.setItem(UI_VIEW_KEY, 'director'); } catch (e) {}
+        }
         syncApprovalUi();
         const logistView = viewIsLogist();
         document.body.classList.toggle('view-logist', logistView);
         document.body.classList.toggle('view-director', !logistView);
         const sw = document.getElementById('tc-view-switch');
-        if (sw) sw.hidden = currentOrgRole !== 'owner';
+        if (sw) sw.hidden = !viewSwitchAllowed();
         const dirBtn = document.getElementById('tc-view-director');
         const logBtn = document.getElementById('tc-view-logist');
         const directorOn = currentOrgRole === 'owner' && uiView !== 'logist';
@@ -8016,6 +8026,7 @@
         if (logistView && document.body.getAttribute('data-studio-view') === 'overview') setStudioView('calc');
     }
     function setUiView(view) {
+        if (!viewSwitchAllowed() && view === 'logist') view = 'director';
         if (currentOrgRole !== 'owner') return;
         uiView = view === 'logist' ? 'logist' : 'director';
         try { localStorage.setItem(UI_VIEW_KEY, uiView); } catch (e) {}
@@ -8887,8 +8898,27 @@
             if (!openCabinetFromLocation()) {
                 const cabParam = new URLSearchParams(location.search).get('cab');
                 if (cabParam === 'team' || cabParam === 'company' || cabParam === 'docs') openCabinetTab(cabParam);
+                else if (!inviteNotice) maybeOpenFirstCabinetCosts();
             }
         }
+    }
+
+    // Перший вхід директора нової компанії на сайті → особистий кабінет, вкладка «Витратна частина» (одноразово на користувача).
+    // Не перебиває hash кабінету, ?cab=, відновлення пароля, запрошення в команду й повернення з оплати; Контроль+ та не-директорів не стосується.
+    const FIRST_CABINET_COSTS_KEY = 'tc:first-cabinet-costs:';
+    function maybeOpenFirstCabinetCosts() {
+        if (isKP() || currentOrgRole !== 'owner' || !currentUserId || hasCompanyCosts()) return false;
+        if (recoveryMode || urlLooksLikeRecovery() || urlInviteToken()) return false;
+        if (new URLSearchParams(location.search).get('billing')) return false;
+        const key = FIRST_CABINET_COSTS_KEY + currentUserId;
+        try {
+            if (localStorage.getItem(key)) return false;
+            localStorage.setItem(key, '1');
+            if (!localStorage.getItem(key)) return false; // без сховища не відкриваємо: інакше кабінет вискакував би на кожному вході
+        } catch (e) { return false; }
+        openCabinetTab('costs');
+        try { history.replaceState(null, '', location.pathname + location.search + '#/cabinet/costs'); } catch (e) { /* file:// */ }
+        return true;
     }
 
     // Google Maps JS key (browser). Обмежте HTTP referrer + API у Google Cloud — див. docs/GOOGLE-MAPS-API-KEY.md
@@ -10110,7 +10140,7 @@
                 authMsg.innerText = '✅ Акаунт створено. Приєднуємо до компанії…';
                 setTimeout(() => checkUserAccess(), 300);
             } else {
-                authMsg.innerText = '✅ Акаунт створено. Відкриваємо демо зі стартовим шаблоном…';
+                authMsg.innerText = '✅ Акаунт створено. Відкриваємо кабінет — вкладка «Витратна частина»…';
                 setTimeout(() => checkUserAccess(), 1500);
             }
         }
@@ -11383,10 +11413,10 @@
     };
     const STARTER_TRIP = {
         'route-name': 'Демо: типовий рейс зерновоза',
-        'podacha-dist': 40,
-        dist: 350,
-        volume: 500,
-        'norm-weight': 21.5,
+        'podacha-dist': 0,
+        dist: 0,
+        volume: 0,
+        'norm-weight': 0,
         'cars-count': 1,
         'days-per-trip': 1.5,
         rate: 1800
