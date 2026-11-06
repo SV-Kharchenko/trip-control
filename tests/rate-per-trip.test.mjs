@@ -32,6 +32,9 @@ function form(initial = {}) {
     };
     for (const [id, value] of Object.entries(initial)) get(id).value = value;
     get('rate-mode').value = 'ton';
+    get('rate-field-label').textContent = 'Тариф';
+    get('contract-currency').options = ['UAH', 'USD', 'EUR'].map((value) => ({ value, textContent: { UAH: 'грн/т', USD: '$/т', EUR: '€/т' }[value] }));
+    get('rate').setAttribute = function (k, v) { this.aria = v; };
     const factory = new Function('get', `
         const document = { getElementById: get };
         let contractCurrency = 'UAH';
@@ -45,7 +48,7 @@ function form(initial = {}) {
         const nodes = (id) => document.getElementById(id);
         ${['rateModeValue', 'ratePerTonFromTrip', 'effectiveRateValue', 'syncRateMode', 'setRateMode', 'onRateModeChange', 'updateContractCurrencyUi', 'applyTripInputs', 'readTripPayload']
             .map((n) => functionSource(html, n)).join('\n')}
-        return { rateModeValue, effectiveRateValue, syncRateMode, onRateModeChange, applyTripInputs, readTripPayload, calls, setCurrency: (c) => { contractCurrency = c; } };
+        return { rateModeValue, effectiveRateValue, syncRateMode, updateContractCurrencyUi, onRateModeChange, applyTripInputs, readTripPayload, calls, setCurrency: (c) => { contractCurrency = c; } };
     `);
     return { ...factory(get), get };
 }
@@ -61,7 +64,7 @@ test('за ходку: 22 000 при об\'єму 22 т = 1 000 грн/т, до�
     assert.equal(f.effectiveRateValue(), '1000');
     assert.equal(note(f).hidden, false);
     assert.match(note(f).textContent, /^= 1\s?000 грн\/т$/);
-    assert.equal(f.get('rate-unit').textContent, 'грн за ходку');
+    assert.equal(f.get('rate-unit').textContent, 'грн');
     const base = { ...S0, volume: '22', carsCount: '1' };
     const perTrip = calculateTrip({ ...base, rate: f.effectiveRateValue() });
     const perTon = calculateTrip({ ...base, rate: '1000' });
@@ -110,7 +113,7 @@ test('перемикання режимів: за ходку → за тонну
     f.get('rate-mode').value = 'trip';
     f.onRateModeChange();
     assert.equal(f.get('rate').value, '', 'стару ціну за тонну не сприймаємо як суму за ходку');
-    assert.equal(f.get('rate-unit').textContent, 'грн за ходку');
+    assert.equal(f.get('rate-unit').textContent, 'грн');
     f.get('rate').value = '22000';
     f.syncRateMode();
     // за ходку → за тонну: підставляється 1000
@@ -133,12 +136,12 @@ test('перемикання режимів: за ходку → за тонну
     assert.equal(g.get('rate').value, '');
 });
 
-test('валюта контракту в одиницях: «EUR за ходку» / «EUR/т»', () => {
+test('валюта контракту в одиницях: «EUR» (за ходку) / «EUR/т»', () => {
     const f = form({ volume: '20', rate: '2000' });
     f.setCurrency('EUR');
     f.get('rate-mode').value = 'trip';
     f.syncRateMode();
-    assert.equal(f.get('rate-unit').textContent, 'EUR за ходку');
+    assert.equal(f.get('rate-unit').textContent, 'EUR');
     assert.match(note(f).textContent, /^= 100 EUR\/т$/);
     f.get('rate-mode').value = 'ton';
     f.syncRateMode();
@@ -160,7 +163,7 @@ test('збереження й повторне відкриття: «за ход
     assert.equal(b.get('rate').value, '22000');
     assert.equal(b.get('volume').value, '22');
     assert.equal(b.effectiveRateValue(), '1000');
-    assert.equal(b.get('rate-unit').textContent, 'грн за ходку');
+    assert.equal(b.get('rate-unit').textContent, 'грн');
 
     // Стара заявка (без rateMode / rateTrip) відкривається «за тонну», навіть якщо форма була в режимі «за ходку».
     const old = { volume: '22', rate: '1800', contractCurrency: 'UAH' };
@@ -181,4 +184,56 @@ test('перемикач стосується лише основної розц
     assert.match(html, /rate: effectiveRateValue\(\),\n\s+rateMode: rateModeValue\(\),/);
     assert.match(html, /take\(2, document\.getElementById\('rate-mode-box'\)\);/);
     assert.match(html, /opCell\('tc-f-rate', 'Тариф', \[rateRow, opById\('rate-mode-box'\)\]\)/);
+});
+
+test('лейбл і суфікси: «за ходку» → «Вартість за ходку» і грн / $ / €; назад у «за тонну» → «Тариф» і грн/т / $/т / €/т', () => {
+    const f = form({ volume: '22', rate: '30000' });
+    const opts = () => f.get('contract-currency').options.map((o) => o.textContent);
+    const label = () => f.get('rate-field-label').textContent;
+    f.syncRateMode();
+    assert.equal(label(), 'Тариф');
+    assert.deepEqual(opts(), ['грн/т', '$/т', '€/т']);
+    assert.equal(f.get('rate-unit').textContent, 'грн/т');
+
+    f.get('rate-mode').value = 'trip';
+    f.syncRateMode();
+    assert.equal(label(), 'Вартість за ходку');
+    assert.equal(f.get('rate').aria, 'Вартість за ходку');
+    assert.deepEqual(opts(), ['грн', '$', '€']);
+    assert.equal(f.get('rate-unit').textContent, 'грн');
+    assert.deepEqual(f.get('contract-currency').options.map((o) => o.value), ['UAH', 'USD', 'EUR'], 'value валют не змінюється');
+    assert.match(note(f).textContent, / грн\/т$/, 'підказка лишається перерахунком на тонну');
+
+    f.setCurrency('USD');
+    f.updateContractCurrencyUi();
+    assert.equal(f.get('rate-unit').textContent, 'USD');
+    assert.deepEqual(opts(), ['грн', '$', '€']);
+
+    f.get('rate-mode').value = 'ton';
+    f.syncRateMode();
+    assert.equal(label(), 'Тариф');
+    assert.equal(f.get('rate').aria, 'Тариф');
+    assert.deepEqual(opts(), ['грн/т', '$/т', '€/т']);
+    assert.equal(f.get('rate-unit').textContent, 'USD/т');
+    assert.equal(f.get('rt-rate-unit').textContent === '' || f.get('rt-rate-unit').textContent === 'USD/т', true, 'зворотний вантаж лишається «/т»');
+});
+
+test('відновлена заявка «за ходку» одразу показує лейбл і суфікс; стара заявка — «Тариф» і грн/т', () => {
+    const f = form();
+    f.applyTripInputs({ volume: '22', rate: '1363.64', rateMode: 'trip', rateTrip: '30000' }, 'X');
+    assert.equal(f.get('rate-field-label').textContent, 'Вартість за ходку');
+    assert.equal(f.get('rate-unit').textContent, 'грн');
+    assert.deepEqual(f.get('contract-currency').options.map((o) => o.textContent), ['грн', '$', '€']);
+    f.applyTripInputs({ volume: '22', rate: '1800' }, 'Old');
+    assert.equal(f.get('rate-field-label').textContent, 'Тариф');
+    assert.deepEqual(f.get('contract-currency').options.map((o) => o.textContent), ['грн/т', '$/т', '€/т']);
+});
+
+test('вихідний код: лейбл має id, компактна розкладка синхронізує підписи, #rt-rate-unit і лендинг не чіпали', () => {
+    assert.ok(html.includes('<label id="rate-field-label">Розцінка (з ПДВ / ФОП):</label>'));
+    assert.ok(html.includes("opCell('tc-f-rate', 'Тариф', [rateRow, opById('rate-mode-box')])"));
+    assert.ok(html.includes('<span class="unit" id="rt-rate-unit">грн/т</span>'));
+    assert.ok(html.includes('id="t-rate-unit">грн/т</span>'));
+    assert.ok(html.includes('<option value="UAH" selected>грн/т</option>'));
+    assert.equal(html.includes("' за ходку'"), false);
 });
