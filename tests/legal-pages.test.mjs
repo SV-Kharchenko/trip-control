@@ -184,10 +184,18 @@ test('signUp sends consent_* = LEGAL_VERSION for both branches; one version ever
     assert.match(migration, new RegExp("v_allowed constant text\\[\\] := ARRAY\\['2026-10-18', '" + version + "'\\]"));
     assert.match(read('supabase/migrations/20261018100000_legal_consents.sql'), /v_allowed constant text\[\] := ARRAY\['2026-10-18'\]/);
     // Edition date in the documents matches; it takes effect 10 days later (offer 14.1).
-    for (const file of ['legal/offer.html', 'legal/privacy.html']) {
-        assert.match(read(file), /<strong>Редакція від 20\.10\.2026\. Набирає чинності: 30\.10\.2026\.<\/strong> До цієї дати діє редакція від 18\.10\.2026\./);
+    // Оферта й сторінка оплати — редакція 09.11.2026 (синхронізація з тріалом / read-only); політика конфіденційності лишається у 20.10.2026
+    // (змінено лише одне уточнення про режим після платного тарифу). LEGAL_VERSION згод не змінюється: його приймає БД (міграція не входить у цей PR).
+    assert.match(read('legal/privacy.html'), /<strong>Редакція від 20\.10\.2026\. Набирає чинності: 30\.10\.2026\.<\/strong> До цієї дати діє редакція від 18\.10\.2026\./);
+    assert.match(read('legal/offer.html'), /<strong>Редакція від 09\.11\.2026\. Набирає чинності: 19\.11\.2026\.<\/strong> До цієї дати діє редакція від 20\.10\.2026\./);
+    assert.match(read('legal/payment-refund.html'), /<strong>Редакція від 09\.11\.2026, набирає чинності 19\.11\.2026\.<\/strong>/);
+    for (const file of ['offer', 'payment-refund', 'privacy']) {
+        const text = read('legal/' + file + '.html');
+        assert.equal(/Демо-доступ|Демо-режим|до 5 \(п’яти\) розрахунків|до 5 розрахунків/.test(text), false, file);
     }
-    assert.match(read('legal/payment-refund.html'), /<strong>Редакція від 20\.10\.2026, набирає чинності 30\.10\.2026\.<\/strong>/);
+    assert.match(read('legal/offer.html'), /<strong>Тріал<\/strong> — безкоштовний період повного доступу[^<]*7 \(сім\) календарних днів/);
+    assert.match(read('legal/offer.html'), /<strong>Режим лише для читання \(read-only\)<\/strong>/);
+    assert.match(read('legal/payment-refund.html'), /Тріал 7 днів \(повний доступ\)<\/td>\s*<td>безкоштовно/);
 });
 
 test('legal_consents migration: new table, RLS, no IP, separate trigger, handle_new_tripcontrol_user untouched', () => {
