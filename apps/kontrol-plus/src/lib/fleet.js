@@ -65,6 +65,41 @@ export function validateVehicleTtn(input) {
     return { data, errors };
 }
 
+// Тара й макс. маса причепа (kp_trailer_save, CHECK fleet_trailers): 0 < x ≤ 100 т, макс. маса не менша за тару.
+// → { data: { tare_t, max_mass_t }, errors }.
+export function validateTrailerMasses(input) {
+    const errors = {};
+    const data = {};
+    for (const key of ['tare_t', 'max_mass_t']) {
+        const n = parseNum(input[key]);
+        if (n !== null && (Number.isNaN(n) || n <= 0 || n > 100)) errors[key] = 'Більше 0, до 100 т';
+        data[key] = n === null || Number.isNaN(n) ? null : n;
+    }
+    if (!errors.tare_t && !errors.max_mass_t && data.tare_t !== null && data.max_mass_t !== null && data.tare_t > data.max_mass_t) {
+        errors.max_mass_t = 'Макс. маса не може бути меншою за тару';
+    }
+    return { data, errors };
+}
+
+export const TRAILER_CAPACITY_TOLERANCE_T = 0.5;
+const kgOf = (value) => { const n = parseNum(value); return n === null || Number.isNaN(n) ? null : Math.round(n * 1000); };
+
+// Підказка «вантажопідйомність = макс. маса − тара» (кг цілими, без похибок float) і попередження, якщо заявлена
+// вантажопідйомність причепа розходиться з розрахунковою більше ніж на 0,5 т. → { calc: число т | null, text, warning }.
+export function trailerCapacityNote(tare, maxMass, capacity) {
+    const t = kgOf(tare);
+    const m = kgOf(maxMass);
+    const c = kgOf(capacity);
+    const fmt = (kgValue) => String(kgValue / 1000).replace('.', ',');
+    const base = 'Вантажопідйомність = макс. маса − тара';
+    if (t === null || m === null || m < t) return { calc: null, text: base + '.', warning: '' };
+    const calc = (m - t) / 1000;
+    const warning = c !== null && Math.abs(c - (m - t)) > Math.round(TRAILER_CAPACITY_TOLERANCE_T * 1000)
+        ? 'Вантажопідйомність причепа (' + fmt(c) + ' т) розходиться з розрахунковою (' + fmt(m - t) + ' т) більше ніж на 0,5 т: перевірте тару, макс. масу чи вантажопідйомність'
+        : '';
+    return { calc, text: base + ': ' + fmt(m - t) + ' т.', warning };
+}
+
 const DRIVER_LICENSE = /^[0-9A-ZА-ЯҐЄІЇ]{1,30}$/;
 
 // Персональні дані водія (картка водія): телефон, паспорт, ІПН / РНОКПП (рівно 10 цифр), адреса. У ТТН не потрапляють.

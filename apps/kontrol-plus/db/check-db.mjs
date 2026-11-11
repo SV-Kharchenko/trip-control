@@ -863,6 +863,23 @@ await db.exec(tTapSql);
 const tTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(tBefore);
 for (const row of tTap) check(row.ok, 'pgTAP kp_docs_ttn.sql: ' + row.label);
 check(tTap.length === tPlanned, `pgTAP kp_docs_ttn.sql: ran ${tTap.length} of plan(${tPlanned})`);
+// Тара й макс. маса причепа (20261125090000_trailer_tare_masses.sql): повторне застосування й supabase/tests/kp_trailer_masses.sql.
+// Блок стоїть до повторного застосування старої міграції ТТН нижче (вона перестворює kp_ttn_prefill / kp_ttn_create без мас причепа).
+{
+    const massesSql = fs.readFileSync(new URL('20261125090000_trailer_tare_masses.sql', DIR), 'utf8');
+    await db.exec(massesSql);
+    await db.exec(massesSql);
+    check(/^-- Apply manually after review\. This file is not applied to production by the agent\./.test(massesSql) && /Відкат \(ручний/.test(massesSql),
+        'trailer masses: migration re-applied (idempotent), manual-apply header and manual rollback');
+    const mTapSql = fs.readFileSync(new URL('../../../supabase/tests/kp_trailer_masses.sql', import.meta.url), 'utf8')
+        .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+    const mPlanned = Number((mTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+    const mBefore = (await db.query(`SELECT count(*)::int AS n FROM extensions.tap`)).rows[0].n;
+    await db.exec(mTapSql);
+    const mTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(mBefore);
+    for (const row of mTap) check(row.ok, 'pgTAP kp_trailer_masses.sql: ' + row.label);
+    check(mTap.length === mPlanned, `pgTAP kp_trailer_masses.sql: ran ${mTap.length} of plan(${mPlanned})`);
+}
 // Міграція поверх даних ТТН: дані на місці, нові колонки авто не скидаються.
 const ttnBefore = (await one(`SELECT count(*)::int AS n, (SELECT count(*)::int FROM public.fleet_vehicles WHERE tare_t IS NOT NULL) AS v FROM public.kp_doc_ttn`));
 await db.exec(ttnSql);
@@ -949,8 +966,12 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     await db.exec('ALTER TABLE public.fleet_vehicles DISABLE TRIGGER trg_fleet_vehicles_trailer_sync');
     await db.exec(`INSERT INTO public.fleet_vehicles (id, org_id, label, trailer_plate, trailer_type, trailer_make_model) VALUES ('${T1}', '${A}', 'TR-1', 'АА 1234 ХХ', 'тент', 'Schmitz'), ('${T2}', '${A}', 'TR-2', 'AA1234XX', 'тент', 'Schmitz'), ('${T3}', '${A}', 'TR-3', NULL, 'зерновоз', NULL)`);
     await db.exec('ALTER TABLE public.fleet_vehicles ENABLE TRIGGER trg_fleet_vehicles_trailer_sync');
+    // Стара міграція причепів повертає kp_trailers_list без tare_t / max_mass_t: тип результату інший, тож спершу прибираємо функцію;
+    // міграція мас причепа (20261125090000) застосовується нижче знову — як і на проді, де вона стоїть після цієї.
+    await db.exec('DROP FUNCTION IF EXISTS public.kp_trailers_list()');
     await db.exec(trailersSql);
     await db.exec(trailersSql);
+    await db.exec(fs.readFileSync(new URL('20261125090000_trailer_tare_masses.sql', DIR), 'utf8'));
     check(true, 'trailers: migration re-applied (idempotent)');
     const moved = (await service(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1 AND plate_norm = 'AA1234XX'`, [A])).rows[0].n;
     check(moved === 1, 'trailers: the same trailer written in two spellings is moved once', String(moved));
@@ -1032,7 +1053,9 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     await db.exec('ALTER TABLE public.fleet_vehicles DISABLE TRIGGER USER');
     await service(`INSERT INTO public.fleet_vehicles (id, org_id, label, trailer_plate, trailer_type, trailer_make_model, updated_at) VALUES ('${V7}', '${A}', 'TR-7', 'MM 3000 MM', 'тент', 'Stale', '2026-01-01'), ('${V8}', '${A}', 'TR-8', 'MM3000MM', 'цистерна', 'Fresh', '2026-10-01')`);
     await db.exec('ALTER TABLE public.fleet_vehicles ENABLE TRIGGER USER');
+    await db.exec('DROP FUNCTION IF EXISTS public.kp_trailers_list()');
     await db.exec(trailersSql);
+    await db.exec(fs.readFileSync(new URL('20261125090000_trailer_tare_masses.sql', DIR), 'utf8'));
     const aligned = [await mirrorOf(V7), await mirrorOf(V8)];
     check(aligned.every((m) => m.trailer_make_model === 'Fresh' && m.trailer_type === 'цистерна' && m.trailer_plate === 'MM3000MM'),
         'trailers migration: different makes for one number → the freshest wins and all tractors are aligned', JSON.stringify(aligned));
@@ -1055,6 +1078,7 @@ check(ttnBefore.n > 0 && ttnBefore.v > 0 && ttnAfter.n === ttnBefore.n && ttnAft
     check(gone.fns === 0 && gone.tbl === null && gone.col === 0, 'trailers rollback: table, column, triggers and functions are gone', JSON.stringify(gone));
     check((await one(`SELECT count(*)::int AS n FROM public.fleet_vehicles WHERE trailer_plate IS NOT NULL`)).n === keep, 'trailers rollback: the trailer data stays in the tractor columns');
     await db.exec(trailersSql);
+    await db.exec(fs.readFileSync(new URL('20261125090000_trailer_tare_masses.sql', DIR), 'utf8'));   // колонки мас причепа повертає ця міграція
     await db.exec(fs.readFileSync(new URL('20261028110121_kp_trip_sheets.sql', DIR), 'utf8'));
     await db.exec(fs.readFileSync(new URL('20261028140901_kp_trip_sheet_followups.sql', DIR), 'utf8'));
     const back = (await one(`SELECT count(*)::int AS n FROM public.fleet_trailers WHERE org_id = $1`, [A])).n;
