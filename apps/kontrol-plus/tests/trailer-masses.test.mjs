@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { trainMasses, totalMass, massWarning, validateTtn } from '../src/lib/ttn.js';
+import { trainMasses, totalMass, massWarning, validateTtn, TTN_MASS_MAX_T } from '../src/lib/ttn.js';
 import { validateTrailerMasses, trailerCapacityNote } from '../src/lib/fleet.js';
 import { TRAILER_FIELDS } from '../src/lib/registry.js';
 import { frontFields, vehicleParams } from '../src/lib/ttn-text.js';
@@ -133,4 +133,86 @@ test('міграція: колонки, CHECK-и, право логіста, с�
     assert.match(migration, /'trailer_masses_missing'/);
     assert.equal(/UPDATE public\.kp_doc_ttn/i.test(migration.replace(/^--.*$/gm, '')), false, 'жодної перерахунку існуючих ТТН');
     assert.equal(/INSERT INTO public\.kp_doc_ttn|UPDATE public\.kp_doc_ttn/i.test(migration.replace(/^--.*$/gm, '').replace(/CREATE OR REPLACE FUNCTION public\.kp_ttn_create[\s\S]*?\n\$\$;\n/, '')), false);
+});
+
+// ---- Авто без тари / макс. маси; ліміт 200 т ----
+const NO_VEHICLE_TARE = { tare_t: null, max_mass_t: 17.2 };
+const NO_VEHICLE_MAX = { tare_t: 6.7, max_mass_t: null };
+const EMPTY_TRAILER = { tare_t: null, max_mass_t: null };
+const W_TARE = 'Немає тари авто в картці — внесіть вручну або заповніть картку';
+const W_MAX = 'Немає макс. маси авто в картці — внесіть вручну або заповніть картку';
+const W_TRAILER = 'немає маси причепа в картці';
+
+test('trainMasses: авто без тари + причіп з тарою — тара автопоїзда null (нуль не підставляється), попередження про авто', () => {
+    const m = trainMasses(NO_VEHICLE_TARE, TRAILER, true);
+    assert.equal(m.tare, null);
+    assert.equal(m.tareHint, '');
+    assert.equal(m.max, 47.2, 'макс. маса в авто є — рахується');
+    assert.deepEqual(m.vehicleWarnings, [W_TARE]);
+    assert.equal(m.warning, '');
+});
+
+test('trainMasses: авто без макс. маси — макс. автопоїзда null + попередження; тара рахується', () => {
+    const m = trainMasses(NO_VEHICLE_MAX, TRAILER, true);
+    assert.equal(m.max, null);
+    assert.equal(m.maxHint, '');
+    assert.equal(m.tare, 14);
+    assert.deepEqual(m.vehicleWarnings, [W_MAX]);
+});
+
+test('trainMasses: усі комбінації — авто (є / нема тари й макс.) × причіп (нема / з масами / порожній)', () => {
+    const FULL = { tare_t: 6.7, max_mass_t: 17.2 };
+    const NONE = { tare_t: null, max_mass_t: null };
+    const rows = [
+        // [назва, авто, причіп, hasTrailer, tare, max, vehicleWarnings, warning]
+        ['авто є, причепа нема', FULL, null, false, 6.7, 17.2, [], ''],
+        ['авто є, причіп з масами', FULL, TRAILER, true, 14, 47.2, [], ''],
+        ['авто є, причіп порожній', FULL, EMPTY_TRAILER, true, 6.7, 17.2, [], W_TRAILER],
+        ['авто є, причіп указано без картки', FULL, null, true, 6.7, 17.2, [], W_TRAILER],
+        ['авто без мас, причепа нема', NONE, null, false, null, null, [W_TARE, W_MAX], ''],
+        ['авто без мас, причіп з масами', NONE, TRAILER, true, null, null, [W_TARE, W_MAX], ''],
+        ['авто без мас, причіп порожній', NONE, EMPTY_TRAILER, true, null, null, [W_TARE, W_MAX], W_TRAILER],
+        ['авто без тари, причепа нема', NO_VEHICLE_TARE, null, false, null, 17.2, [W_TARE], ''],
+        ['авто без макс., причіп порожній', NO_VEHICLE_MAX, EMPTY_TRAILER, true, 6.7, null, [W_MAX], W_TRAILER],
+        ['причіп лише з тарою', FULL, { tare_t: 7.3, max_mass_t: null }, true, 14, 17.2, [], W_TRAILER],
+        ['картки авто немає (ручне введення)', null, TRAILER, true, null, null, [], ''],
+        ['картки авто немає, причепа нема', null, null, false, null, null, [], ''],
+    ];
+    for (const [name, vehicle, trailer, hasTrailer, tare, max, vehicleWarnings, warning] of rows) {
+        const m = trainMasses(vehicle, trailer, hasTrailer);
+        assert.deepEqual([m.tare, m.max, m.vehicleWarnings, m.warning], [tare, max, vehicleWarnings, warning], name);
+    }
+});
+
+test('trainMasses: суми в кг цілими; рядки numeric з бази теж; без причепа картка причепа ігнорується', () => {
+    const m = trainMasses({ tare_t: '0.100', max_mass_t: '1.000' }, { tare_t: '0.200', max_mass_t: '1.000' }, true);
+    assert.deepEqual([m.tare, m.max], [0.3, 2]);
+    assert.equal(trainMasses({ tare_t: 55, max_mass_t: 55 }, { tare_t: 50, max_mass_t: 50 }, true).tare, 105);
+    assert.equal(trainMasses({ tare_t: null, max_mass_t: null }, TRAILER, false).tare, null);
+});
+
+test('форма: введену вручну тару не перебиває підстановка з карток; порожнє й раніше підставлене оновлюється', () => {
+    const form = read('src/views/docs-ttn-form.js');
+    assert.match(form, /let autoMasses = \{ tare: '', max: '' \}/);
+    assert.match(form, /if \(!keep\(d\.tare_t, autoMasses\.tare\)\) d\.tare_t = m\.tare \?\? ''/);
+    assert.match(form, /masses\.vehicleWarnings\.map/);
+});
+
+test('ліміт мас ТТН 200 т: форма, kp_doc_ttn_mass і kp_ttn_create; картки авто й причепа лишаються 100 т', () => {
+    assert.equal(TTN_MASS_MAX_T, 200);
+    const base = {
+        place_of_issue: 'м. Київ', shipper: { name: 'А', code: '34567812' }, consignee: { name: 'Б', code: '45678123' }, driver: { full_name: 'В', license_no: 'ABC1' },
+        vehicle: { make_model: 'DAF', type: 'Тягач', reg_number: 'AA1111TT', length_m: 16, width_m: 2.5, height_m: 4 },
+        cargo_gross_t: 24.09, load_point: 'А', unload_point: 'Б', lines: [{ cargo_name: 'Пшениця', gross_t: 24.09 }],
+    };
+    assert.equal(validateTtn({ ...base, tare_t: 105, max_mass_t: 110 }).tare_t, undefined, '55 + 50 = 105 т — можна');
+    assert.equal(validateTtn({ ...base, tare_t: 200, max_mass_t: 200 }).max_mass_t, undefined);
+    assert.equal(validateTtn({ ...base, tare_t: 201, max_mass_t: 15 }).tare_t, 'Тара (маса ТЗ без вантажу), т: більше 0, до 200 т');
+    assert.match(validateTtn({ ...base, tare_t: 15, max_mass_t: 201 }).max_mass_t, /до 200 т/);
+    assert.match(migration, /tare_t > 0 AND tare_t <= 200\n  AND total_mass_t = tare_t \+ cargo_gross_t/);
+    assert.match(migration, /max_mass_t > 0 AND max_mass_t <= 200/);
+    assert.match(migration, /kp_ttn_num\(v_data ->> 'tare_t', 0, 200, 3, 'tare_t', 'TTN_FIELD_INVALID'\)/);
+    assert.match(migration, /kp_ttn_num\(v_data ->> 'max_mass_t', 0, 200, 3, 'max_mass_t', 'TTN_FIELD_INVALID'\)/);
+    assert.match(migration, /fleet_trailers_tare_t_check CHECK \(tare_t IS NULL OR \(tare_t > 0 AND tare_t <= 100\)\)/);
+    assert.equal(validateTrailerMasses({ tare_t: '101', max_mass_t: '' }).errors.tare_t, 'Більше 0, до 100 т', 'картка причепа — як раніше');
 });

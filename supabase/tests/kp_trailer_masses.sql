@@ -7,7 +7,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(31);
+SELECT plan(36);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000e301","role":"service_role"}', true);
 
@@ -144,6 +144,15 @@ SELECT public.kp_trailer_save((SELECT id FROM public.fleet_trailers WHERE plate 
 SELECT is(pg_temp.tm_masses((SELECT id FROM t_tm WHERE k = 'train')), '14.000|38.090|40.000', 'a TTN created earlier keeps its masses after the trailer card changes');
 INSERT INTO t_tm VALUES ('after', pg_temp.tm_create('{"vehicle_id":"96000000-0000-0000-0000-000000000001"}'::jsonb));
 SELECT is(pg_temp.tm_masses((SELECT id FROM t_tm WHERE k = 'after')), '15.700|39.790|40.000', 'a new TTN takes the new trailer tare (6.7 + 9)');
+
+-- 6. Ліміт мас ТТН — автопоїзд: tare_t і max_mass_t до 200 т (55 + 50 = 105 зберігається), 201 — ні; картки авто / причепа лишаються до 100 т.
+INSERT INTO t_tm VALUES ('big', pg_temp.tm_create('{"tare_t":105,"max_mass_t":110}'::jsonb));
+SELECT is(pg_temp.tm_masses((SELECT id FROM t_tm WHERE k = 'big')), '105.000|129.090|110.000', 'limit: tare 55 + 50 = 105 t and max mass 110 t are saved (total = tare + gross)');
+INSERT INTO t_tm VALUES ('edge', pg_temp.tm_create('{"tare_t":200,"max_mass_t":200}'::jsonb));
+SELECT is(pg_temp.tm_masses((SELECT id FROM t_tm WHERE k = 'edge')), '200.000|224.090|200.000', 'limit: exactly 200 t is allowed');
+SELECT is(pg_temp.tm_msg($$SELECT pg_temp.tm_create('{"tare_t":201}'::jsonb)$$), 'TTN_FIELD_INVALID:tare_t', 'limit: tare 201 t refused');
+SELECT is(pg_temp.tm_msg($$SELECT pg_temp.tm_create('{"tare_t":15,"max_mass_t":201}'::jsonb)$$), 'TTN_FIELD_INVALID:max_mass_t', 'limit: max mass 201 t refused');
+SELECT is(pg_temp.tm_msg($$UPDATE public.fleet_trailers SET tare_t = 101, max_mass_t = NULL WHERE plate = 'MA7777XT'$$) ~ 'fleet_trailers_tare_t_check', true, 'the trailer card limit stays 100 t');
 
 SELECT * FROM finish();
 ROLLBACK;

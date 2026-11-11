@@ -280,7 +280,8 @@ test('waybill client validation: formats and limits as the server', () => {
     assert.ok(v({ cargo_gross_t: '0' }).cargo_gross_t);
     assert.ok(v({ cargo_net_t: '30', cargo_gross_t: '24,09' }).cargo_net_t, 'net above gross');
     assert.ok(v({ vehicle: { ...formData().vehicle, length_m: '30,5' } })['vehicle.length_m']);
-    assert.ok(v({ tare_t: '101' }).tare_t);
+    assert.ok(v({ tare_t: '201' }).tare_t, 'tare above 200 t (a road train)');
+    assert.equal(v({ tare_t: '105' }).tare_t, undefined, '55 + 50 t is fine');
     assert.ok(v({ lines: [] }).lines);
     assert.ok(v({ lines: Array.from({ length: 51 }, () => ({ cargo_name: 'x' })) }).lines);
     assert.ok(v({ lines: [{ cargo_name: 'x', gross_t: '20' }] }).cargo_gross_t, 'lines gross must add up');

@@ -12,6 +12,7 @@
 --      (ключа немає — значення лишається; тара більша за макс. масу — TRAILER_FIELD_INVALID:max_mass_t).
 --   3. kp_ttn_prefill: tare_t / max_mass_t = авто + причіп автопарку (причіп без маси в картці не додається) + trailer_tare_t,
 --      trailer_max_mass_t, trailer_masses_missing.
+--   0. Ліміт мас ТТН: kp_doc_ttn_mass і kp_ttn_create — tare_t, max_mass_t до 200 т (автопоїзд: 55 + 50 зберігається, 201 — ні).
 --   4. kp_ttn_create: якщо тару / макс. масу не передано, а vehicle_id відомий, сервер бере їх із карток: авто + причіп (тара причепа,
 --      знайденого за номером у знімку чи за причепом за замовчуванням). Передані значення не чіпає. Загальна маса, як і раніше,
 --      = тара + брутто вантажу (numeric — без похибок).
@@ -36,6 +37,15 @@ ALTER TABLE public.fleet_trailers DROP CONSTRAINT IF EXISTS fleet_trailers_max_m
 ALTER TABLE public.fleet_trailers ADD CONSTRAINT fleet_trailers_max_mass_t_check CHECK (max_mass_t IS NULL OR (max_mass_t > 0 AND max_mass_t <= 100));
 ALTER TABLE public.fleet_trailers DROP CONSTRAINT IF EXISTS fleet_trailers_mass_order_check;
 ALTER TABLE public.fleet_trailers ADD CONSTRAINT fleet_trailers_mass_order_check CHECK (tare_t IS NULL OR max_mass_t IS NULL OR max_mass_t >= tare_t);
+
+-- Маси в ТТН — це автопоїзд (авто + причіп), а не одна машина: tare_t і max_mass_t до 200 т (було 100: 55 + 50 не зберігалось). Картки авто й
+-- причепа лишаються до 100 т. total_mass_t = tare_t + cargo_gross_t (брутто до 1000 т) окремого ліміту не має — його задає ця рівність.
+ALTER TABLE public.kp_doc_ttn DROP CONSTRAINT IF EXISTS kp_doc_ttn_mass;
+ALTER TABLE public.kp_doc_ttn ADD CONSTRAINT kp_doc_ttn_mass CHECK (
+  cargo_gross_t > 0 AND cargo_gross_t <= 1000 AND tare_t > 0 AND tare_t <= 200
+  AND total_mass_t = tare_t + cargo_gross_t
+  AND (cargo_net_t IS NULL OR (cargo_net_t > 0 AND cargo_net_t <= cargo_gross_t))
+  AND (max_mass_t IS NULL OR (max_mass_t > 0 AND max_mass_t <= 200)));
 
 -- Guard: ТТН-колонки (які може змінювати логіст) тепер включають tare_t і max_mass_t.
 CREATE OR REPLACE FUNCTION public.fleet_trailers_guard()
@@ -431,8 +441,8 @@ BEGIN
   END IF;
 
   -- Маса: тара ТЗ + маса брутто вантажу = загальна маса з вантажем (рахує сервер).
-  v_tare := public.kp_ttn_num(v_data ->> 'tare_t', 0, 100, 3, 'tare_t', 'TTN_FIELD_INVALID');
-  v_max := public.kp_ttn_num(v_data ->> 'max_mass_t', 0, 100, 3, 'max_mass_t', 'TTN_FIELD_INVALID');
+  v_tare := public.kp_ttn_num(v_data ->> 'tare_t', 0, 200, 3, 'tare_t', 'TTN_FIELD_INVALID');
+  v_max := public.kp_ttn_num(v_data ->> 'max_mass_t', 0, 200, 3, 'max_mass_t', 'TTN_FIELD_INVALID');
   -- Тара й макс. маса не передані, а авто з автопарку відоме: беремо їх із карток — тара автопоїзда = тара авто + тара причепа,
   -- так само макс. маса. Причіп є, а в його картці порожньо — суми немає (тара лишається обовʼязковою, тож форма просить її ввести).
   -- Передані значення (виправлені в формі для цієї ТТН) не чіпаємо; без причепа — лише авто.

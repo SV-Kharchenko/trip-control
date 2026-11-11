@@ -4,6 +4,8 @@ import { errorText } from './errors.js';
 import { kyivDate } from './format.js';
 
 export const TTN_MAX_LINES = 50;
+// Тара й макс. маса в ТТН — автопоїзд (авто + причіп), тож до 200 т (kp_doc_ttn_mass, kp_ttn_create); картки авто й причепа лишаються до 100 т.
+export const TTN_MASS_MAX_T = 200;
 
 // Обовʼязкові реквізити ст. 48 Закону «Про автомобільний транспорт» (поле → підпис у формі й у помилці).
 export const TTN_REQUIRED = [
@@ -100,14 +102,16 @@ const fmtMass = (n) => String(n).replace('.', ',');
 
 // Маси автопоїзда з карток: тара = авто + причіп, максимально дозволена = авто + причіп (суми в кг, без похибок float).
 // vehicle / trailer — картки (tare_t, max_mass_t) або null; hasTrailer — причіп вибрано в ТТН.
-// Без причепа — лише авто. Причіп без маси в картці не додається, замість цього — попередження.
+// Без причепа — лише авто. Причіп без маси в картці не додається, замість цього — попередження (warning).
+// Авто без тари (або без макс. маси) в картці: сума автопоїзда = null (поле порожнє, нуль не підставляється), vehicleWarnings просять
+// внести вручну або заповнити картку — так само, як сервер (kp_ttn_create не складає напівсуму). Картки авто немає (null) — нічого не чіпаємо.
 export function trainMasses(vehicle, trailer, hasTrailer) {
     const part = (card, key) => (card ? kg(card[key]) : null);
     const vTare = part(vehicle, 'tare_t');
     const vMax = part(vehicle, 'max_mass_t');
     const tTare = hasTrailer ? part(trailer, 'tare_t') : null;
     const tMax = hasTrailer ? part(trailer, 'max_mass_t') : null;
-    const sum = (a, b) => (a === null && b === null ? null : (a || 0) + (b || 0));
+    const sum = (v, tr) => (v === null ? null : v + (tr === null ? 0 : tr));
     const tare = sum(vTare, tTare);
     const max = sum(vMax, tMax);
     const t = (v) => (v === null ? null : v / 1000);
@@ -121,6 +125,10 @@ export function trainMasses(vehicle, trailer, hasTrailer) {
         tareHint: split(vTare, tTare, tare), maxHint: split(vMax, tMax, max),
         trailerMassMissing: missing,
         warning: missing ? 'немає маси причепа в картці' : '',
+        vehicleWarnings: [
+            ...(vehicle && vTare === null ? ['Немає тари авто в картці — внесіть вручну або заповніть картку'] : []),
+            ...(vehicle && vMax === null ? ['Немає макс. маси авто в картці — внесіть вручну або заповніть картку'] : []),
+        ],
     };
 }
 
@@ -151,7 +159,7 @@ export function validateTtn(data) {
         const n = parseNum(get(d, key));
         if (n !== null && (Number.isNaN(n) || n <= 0 || n > 30)) errors[key] = TTN_FIELD_LABELS[key] + ': від 0 до 30 м';
     }
-    for (const [key, max] of [['tare_t', 100], ['max_mass_t', 100], ['cargo_gross_t', 1000], ['cargo_net_t', 1000]]) {
+    for (const [key, max] of [['tare_t', TTN_MASS_MAX_T], ['max_mass_t', TTN_MASS_MAX_T], ['cargo_gross_t', 1000], ['cargo_net_t', 1000]]) {
         const n = parseNum(d[key]);
         if (n !== null && (Number.isNaN(n) || n <= 0 || n > max)) errors[key] = TTN_FIELD_LABELS[key] + ': більше 0, до ' + max + ' т';
     }
