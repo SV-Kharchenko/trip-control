@@ -4556,6 +4556,16 @@
         body.layout-studio.tc-lm[data-theme] #tc-calc-nav #tc-clear { background: transparent; border: 1px solid var(--sidebar-border-strong); color: var(--sidebar-text); }
         body.layout-studio.tc-lm[data-theme] #tc-calc-nav #tc-clear:hover { background: var(--sidebar-hover); }
         #tc-calc-nav .tc-nav-actions .btn:focus-visible { outline: 2px solid var(--sidebar-accent); outline-offset: 2px; }
+        /* «Розрахувати відстань» у секції «Маршрут»: на всю ширину панелі, акцент, 36px; стан завантаження (:disabled) — як раніше */
+        body.layout-studio.tc-lm[data-theme] #tc-op #route-calc-btn {
+            width: 100%; height: 36px; min-height: 36px; padding-block: 0; font-size: 13px; font-weight: 700;
+            background: var(--sidebar-accent); border: 1px solid var(--sidebar-accent); color: var(--sidebar-on-accent);
+        }
+        body.layout-studio.tc-lm[data-theme] #tc-op #route-calc-btn:hover:not(:disabled) { filter: brightness(1.08); }
+        /* KPI-смуга: внутрішній відступ картки, щоб перший напис і «Детально →» не липли до країв (лівий напис — на лінії іконок меню) */
+        body.layout-studio.tc-lm[data-studio-view="calc"] #tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 20px); }
+        @media (min-width: 901px) and (max-width: 1099px) { body.layout-studio.tc-lm[data-studio-view="calc"] #tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 16px); } }
+        @media (max-width: 900px) { body.layout-studio.tc-lm[data-studio-view="calc"] #tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 12px); } }
 
         /* Панель секції: світла картка, заголовок + підзаголовок, показується лише активний блок */
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-panel-head { display: block; padding: 16px 16px 8px; border: 0; }
@@ -4630,7 +4640,6 @@
                 content: ""; display: block; width: 20px; height: 20px; margin: 0 auto; background: currentColor;
                 -webkit-mask: var(--lm-btn-ico) center / contain no-repeat; mask: var(--lm-btn-ico) center / contain no-repeat;
             }
-            #tc-calc-nav #route-calc-btn { --lm-btn-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h15'/%3E%3Cpath d='m13 6 6 6-6 6'/%3E%3C/svg%3E"); }
             #tc-calc-nav #tc-clear { --lm-btn-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 6l12 12'/%3E%3Cpath d='M18 6 6 18'/%3E%3C/svg%3E"); }
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-left { }
         }
@@ -7351,6 +7360,9 @@
         window.TCCalcMenu.keys().forEach(function (key) { rows[key] = opById('tc-acc-' + key); });
         let storage = null;
         try { storage = window.localStorage; } catch (e) { storage = null; }
+        // «Розрахувати відстань» живе в секції «Маршрут» (де й був — під «+ Проміжна зупинка / A ↔ B», над статусом); на ≤900px переїжджає в липку нижню панель.
+        const routeBtn = opById('route-calc-btn');
+        const routeHome = routeBtn ? { parent: routeBtn.parentNode, next: routeBtn.nextSibling } : null;
         calcMenu = window.TCCalcMenu.mount({
             doc: document,
             storage: storage,
@@ -7373,9 +7385,10 @@
                 const panel = opById('studio-left');
                 if (panel) panel.scrollTop = 0;
             },
-            actions: [opById('route-calc-btn'), clearBtn]
+            actions: [clearBtn]
         });
         document.body.classList.add('tc-lm');
+        placeRouteBtn(routeBtn, routeHome);
         const op = opById('tc-op');
         // Живі підсумки: будь-яка зміна полів перерахує рядки під пунктами меню.
         op.addEventListener('input', calcMenuRefresh);
@@ -7385,6 +7398,27 @@
         if (recentBody) recentBody.addEventListener('click', function (event) {
             if (event.target && event.target.closest && event.target.closest('.tc-rr')) calcMenu.select('route');
         });
+    }
+    // Той самий елемент (id й onclick не змінюються): ≤900px — у нижній панелі меню, ширше — на місці в секції «Маршрут».
+    function placeRouteBtn(btn, home) {
+        if (!btn || !home || !calcMenu) return;
+        const mq = window.matchMedia ? window.matchMedia('(max-width: 900px)') : null;
+        function apply() {
+            const actions = calcMenu.nav.querySelector('.tc-nav-actions');
+            if (mq && mq.matches) {
+                if (actions && btn.parentNode !== actions) actions.insertBefore(btn, actions.firstChild);
+                return;
+            }
+            // Демо (без Google): блок .tc-maps-box схований, тож кнопка стоїть під рядком «A ↔ B» демо-блоку OpenStreetMap.
+            const demoBox = document.body.classList.contains('demo-mode') ? opById('tc-osm-box') : null;
+            const target = demoBox ? { parent: demoBox, next: demoBox.querySelector('.tc-osm-note') } : home;
+            if (btn.parentNode !== target.parent || btn.nextSibling !== target.next) {
+                target.parent.insertBefore(btn, target.next && target.next.parentNode === target.parent ? target.next : null);
+            }
+        }
+        apply();
+        if (window.MutationObserver) new MutationObserver(apply).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        if (mq) { if (mq.addEventListener) mq.addEventListener('change', apply); else if (mq.addListener) mq.addListener(apply); }
     }
     // mountStudioDom перебудовує #studio-columns: меню має лишитись першою колонкою.
     function calcMenuPlace() {

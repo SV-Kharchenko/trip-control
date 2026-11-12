@@ -82,7 +82,7 @@ test('index.html: скрипт меню, токени в обох темах, т
 test('гнучка ширина панелі: ≥1100 minmax(380px, 34%) до 520px, 901–1099 minmax(340px, 42%), фіксованих 380/360 немає', () => {
     const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
     assert.equal(/240px 380px|64px 360px/.test(css), false);
-    const rail = css.indexOf('@media (min-width: 901px) and (max-width: 1099px)');
+    const rail = css.indexOf('/* 901–1099px: меню — іконна рейка');
     assert.ok(css.indexOf('minmax(380px, min(34%, 520px))') > -1 && css.indexOf('minmax(380px, min(34%, 520px))') < rail);
     assert.ok(css.indexOf('minmax(340px, 42%) minmax(0, 1fr)') > rail);
     // «Звідки/Куди» на всю ширину, банер переноситься
@@ -120,7 +120,7 @@ test('заглушка карти: світла тема — поверхня з
 });
 
 test('index.html: меню підключене до розрахунку, не чіпає calculate()', () => {
-    assert.match(html, /actions: \[opById\('route-calc-btn'\), clearBtn\]/);
+    assert.ok(html.includes('actions: [clearBtn]') && html.includes('placeRouteBtn(routeBtn, routeHome)'));
     assert.match(html, /buildCalcMenu\(\);\n\s+updateOnePage\(\);/);
     assert.match(html, /op\.addEventListener\('input', calcMenuRefresh\)/);
     assert.match(html, /event\.target\.closest\('\.tc-rr'\)\) calcMenu\.select\('route'\)/);
@@ -128,7 +128,7 @@ test('index.html: меню підключене до розрахунку, не 
 });
 
 // ----- jsdom: справжня сторінка (?preview=1) -----
-async function bootDom(presetSection) {
+async function bootDom(presetSection, mobile) {
     let JSDOM;
     try { ({ JSDOM } = await import('jsdom')); } catch {
         try {
@@ -144,7 +144,7 @@ async function bootDom(presetSection) {
             const deep = () => new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : deep()), apply: () => deep() });
             w.supabase = { createClient: () => deep() };
             w.ResizeObserver = class { observe() {} };
-            w.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
+            w.matchMedia = (q) => ({ matches: !!mobile && q.includes('max-width: 900px'), addEventListener() {}, addListener() {} });
             w.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
             runInNewContext(FAKE_CONFIG_JS, w);
             if (presetSection) w.localStorage.setItem('tc.calc.section', presetSection);
@@ -159,8 +159,8 @@ const items = (d) => [...d.querySelectorAll('#tc-calc-nav .tc-nav-item')];
 const current = (d) => d.querySelector('#tc-calc-nav [aria-current="page"]').getAttribute('data-key');
 const openRows = (d) => [...d.querySelectorAll('#tc-op .tc-acc-row.is-open')].map((r) => r.getAttribute('data-acc'));
 
-async function withMenu(t, fn) {
-    const dom = await bootDom();
+async function withMenu(t, fn, mobile) {
+    const dom = await bootDom(undefined, mobile);
     if (!dom) { t.skip('no jsdom'); return; }
     try { await fn(dom.window, dom.window.document); } finally { dom.window.close(); }
 }
@@ -173,7 +173,7 @@ test('jsdom: меню на місці, за замовчуванням «Мар�
         assert.equal(current(d), 'route');
         assert.deepEqual(openRows(d), ['route']);
         assert.equal(d.getElementById('tc-sec-title').textContent, 'Маршрут');
-        assert.ok(d.querySelector('#tc-calc-nav .tc-nav-actions #route-calc-btn'));
+        assert.equal(d.querySelector('#tc-calc-nav #route-calc-btn'), null, '≥901px кнопки розрахунку в меню немає');
         assert.ok(d.querySelector('#tc-calc-nav .tc-nav-actions #tc-clear'));
         assert.ok(d.getElementById('dist').closest('#tc-acc-route'), 'поля лишились у своїх блоках');
     });
@@ -276,6 +276,42 @@ test('jsdom: ↑/↓/Home/End переносять фокус між пункт�
         assert.ok(list.every((b) => b.tagName === 'BUTTON' && b.type === 'button'));
         assert.equal(current(d), 'route', 'стрілки лише рухають фокус');
     });
+});
+
+test('jsdom: ≥901px «Розрахувати відстань» стоїть у секції «Маршрут» під «A ↔ B» і над статусом', async (t) => {
+    await withMenu(t, (w, d) => {
+        const calc = d.getElementById('route-calc-btn');
+        assert.ok(calc.closest('#tc-acc-route'), 'у секції Маршрут');
+        if (d.body.classList.contains('demo-mode')) {
+            // демо: .tc-maps-box схований, кнопка — у блоці OpenStreetMap під рядком «A ↔ B»
+            assert.equal(calc.parentNode.id, 'tc-osm-box');
+            assert.ok(calc.previousElementSibling.querySelector('.preset-btn'));
+            assert.ok(calc.nextElementSibling.classList.contains('tc-osm-note'));
+        } else {
+            assert.ok(calc.previousElementSibling.querySelector('#swap-ab-btn'), 'одразу під рядком «+ Проміжна зупинка / A ↔ B»');
+            assert.equal(calc.nextElementSibling.id, 'osm-status');
+        }
+        assert.equal(calc.getAttribute('onclick'), 'calculateGoogleRoute()');
+    });
+});
+
+test('jsdom: ≤900px «Розрахувати відстань» переїжджає в нижню панель перед «Очистити» (той самий елемент)', async (t) => {
+    await withMenu(t, (w, d) => {
+        const actions = d.querySelector('#tc-calc-nav .tc-nav-actions');
+        assert.deepEqual(Array.from(actions.children).map((b) => b.id), ['route-calc-btn', 'tc-clear']);
+        assert.equal(d.querySelectorAll('#route-calc-btn').length, 1, 'без дублю');
+        assert.equal(d.getElementById('route-calc-btn').getAttribute('onclick'), 'calculateGoogleRoute()');
+        assert.equal(d.querySelector('#tc-acc-route #route-calc-btn'), null);
+    }, true);
+});
+
+test('CSS: кнопка в «Маршруті» — на всю ширину, 36px, акцент; рейка без іконки розрахунку; KPI-відступи 20/16/12', () => {
+    const rule = block(html, 'body.layout-studio.tc-lm[data-theme] #tc-op #route-calc-btn {');
+    assert.ok(rule.includes('width: 100%') && rule.includes('height: 36px') && rule.includes('var(--sidebar-accent)'));
+    assert.equal(html.includes('#tc-calc-nav #route-calc-btn { --lm-btn-ico'), false);
+    assert.ok(html.includes('#tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 20px); }'));
+    assert.ok(html.includes('#tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 16px); }'));
+    assert.ok(html.includes('#tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 12px); }'));
 });
 
 test('jsdom: «Очистити» й «Розрахувати відстань» у меню працюють як раніше (ті самі id й обробники)', async (t) => {
