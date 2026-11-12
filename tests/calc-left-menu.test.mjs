@@ -128,7 +128,7 @@ test('index.html: меню підключене до розрахунку, не 
 });
 
 // ----- jsdom: справжня сторінка (?preview=1) -----
-async function bootDom(presetSection, mobile) {
+async function bootDom(presetSection, mobile, legacyMenu, errors) {
     let JSDOM;
     try { ({ JSDOM } = await import('jsdom')); } catch {
         try {
@@ -150,6 +150,9 @@ async function bootDom(presetSection, mobile) {
             if (presetSection) w.localStorage.setItem('tc.calc.section', presetSection);
             // calc-menu.js підключається через <script src>, якого jsdom без resources не завантажить: підкладаємо готовий.
             runInNewContext(menuSrc, w);
+            // Старий calc-menu.js із кешу (до #144): без bindHeight і roomHeight
+            if (legacyMenu) { delete w.TCCalcMenu.bindHeight; delete w.TCCalcMenu.roomHeight; }
+            if (errors) w.addEventListener('error', (e) => errors.push(String(e.message)));
         },
     });
     await new Promise((resolve) => setTimeout(resolve, 800));
@@ -276,6 +279,31 @@ test('jsdom: ↑/↓/Home/End переносять фокус між пункт�
         assert.ok(list.every((b) => b.tagName === 'BUTTON' && b.type === 'button'));
         assert.equal(current(d), 'route', 'стрілки лише рухають фокус');
     });
+});
+
+test('кеш: src з новим ключем версії, bindHeight викликається лише якщо є функція, у try/catch', () => {
+    assert.ok(html.includes('<script src="/assets/calc-menu.js?v=2026-11-12-2"></script>'));
+    assert.equal(html.includes('calc-menu.js?v=2026-11-12"'), false);
+    const at = html.indexOf("typeof window.TCCalcMenu.bindHeight === 'function'");
+    assert.ok(at > -1);
+    assert.ok(html.slice(at - 80, at).includes('try {') && html.slice(at, at + 220).includes('catch (e)'));
+});
+
+test('jsdom: старий calc-menu.js без bindHeight — без uncaught exception, меню монтується, onload доходить до кінця', async (t) => {
+    const errors = [];
+    const dom = await bootDom(undefined, false, true, errors);
+    if (!dom) { t.skip('no jsdom'); return; }
+    try {
+        const d = dom.window.document;
+        assert.equal(typeof dom.window.TCCalcMenu.bindHeight, 'undefined');
+        assert.deepEqual(errors, [], 'жодного uncaught exception: ' + errors.join('; '));
+        assert.ok(d.body.classList.contains('tc-lm'), 'меню змонтовано');
+        assert.equal(d.querySelectorAll('#tc-calc-nav .tc-nav-item').length, 6);
+        assert.ok(d.getElementById('studio-columns'), 'колонки створено');
+        assert.equal(d.getElementById('tc-calc-nav').parentNode.id, 'studio-columns');
+        assert.ok(d.documentElement.style.getPropertyValue('--lm-room') === '', 'без bindHeight висота лишається з CSS');
+        assert.ok(d.body.getAttribute('data-theme'), 'restoreTheme з onload відпрацював (дійшло далі за buildOnePage)');
+    } finally { dom.window.close(); }
 });
 
 test('jsdom: ≥901px «Розрахувати відстань» стоїть у секції «Маршрут» під «A ↔ B» і над статусом', async (t) => {
