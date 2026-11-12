@@ -12,6 +12,12 @@ const menuSrc = read('assets/calc-menu.js');
 const sandbox = {};
 runInNewContext(menuSrc, sandbox);
 const M = sandbox.TCCalcMenu;
+// Тіло CSS-правила: від селектора до першої «}».
+const block = (src, selector) => {
+    const at = src.indexOf(selector);
+    assert.ok(at > -1, selector);
+    return src.slice(at, src.indexOf('}', at));
+};
 
 test('підсумок маршруту: «Місто → Місто · N км», порожньо — «Не задано»', () => {
     assert.equal(M.routeSummary('Житомир, Україна', 'Одеса, Одеська обл.', 575), 'Житомир → Одеса · 575 км');
@@ -29,7 +35,7 @@ test('підсумки «Останні маршрути», «ТЗ» і «Вит
     assert.equal(M.vehicleSummary(['А', 'Б', 'В']), '3 авто');
     assert.equal(M.costsSummary(0, []), 'з витратної частини компанії');
     assert.equal(M.costsSummary(41200, []), 'з витратної частини · 41 200 грн');
-    assert.equal(M.costsSummary(0, ['пробіг між ТО']), 'Не заповнено: пробіг між ТО');
+    assert.equal(M.costsSummary(0, ['пробіг між ТО']), 'Немає пробіг між ТО');
 });
 
 test('ключ секції: за замовчуванням «Маршрут», невідомий ключ і збій сховища не ламають', () => {
@@ -63,14 +69,54 @@ test('index.html: скрипт меню, токени в обох темах, т
         for (const t of ['--sidebar', '--sidebar-active', '--sidebar-hover', '--sidebar-text', '--sidebar-muted', '--sidebar-accent', '--sidebar-on-accent']) assert.ok(tokens.includes(t + ':'), theme + ' ' + t);
     }
     const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
-    assert.match(css, /grid-template-columns: 240px 380px minmax\(0, 1fr\)/);
+    assert.match(css, /grid-template-columns: 240px minmax\(380px, min\(34%, 520px\)\) minmax\(0, 1fr\)/);
     assert.match(css, /@media \(min-width: 901px\) and \(max-width: 1099px\)/);
-    assert.match(css, /grid-template-columns: 64px 360px minmax\(0, 1fr\)/);
+    assert.match(css, /grid-template-columns: 64px minmax\(340px, 42%\) minmax\(0, 1fr\)/);
     assert.match(css, /@media \(max-width: 900px\)/);
     assert.match(css, /height: 320px !important/);
     assert.match(css, /position: fixed; left: 0; right: 0; bottom: 0/);
     assert.match(css, /box-shadow: inset 3px 0 0 var\(--sidebar-accent\)/);
     assert.equal(/#[0-9a-fA-F]{3,8}\b/.test(css.replace(/#(tc-|route-|studio-|main-)[\w-]*/g, '').replace(/url\("[^"]*"\)/g, '')), false, 'у CSS меню лише токени тем');
+});
+
+test('гнучка ширина панелі: ≥1100 minmax(380px, 34%) до 520px, 901–1099 minmax(340px, 42%), фіксованих 380/360 немає', () => {
+    const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
+    assert.equal(/240px 380px|64px 360px/.test(css), false);
+    const rail = css.indexOf('@media (min-width: 901px) and (max-width: 1099px)');
+    assert.ok(css.indexOf('minmax(380px, min(34%, 520px))') > -1 && css.indexOf('minmax(380px, min(34%, 520px))') < rail);
+    assert.ok(css.indexOf('minmax(340px, 42%) minmax(0, 1fr)') > rail);
+    // «Звідки/Куди» на всю ширину, банер переноситься
+    assert.ok(css.includes('.tc-sg:has(> .tc-f-a) { grid-template-columns: minmax(0, 1fr); }'));
+    assert.ok(css.includes('#onboard-banner .hint-text { display: flex; flex-wrap: wrap;'));
+});
+
+test('підсумки в меню: до 2 рядків (line-clamp) і повний текст у title; скорочені формулювання', () => {
+    const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
+    assert.ok(block(css, '#tc-calc-nav .tc-nav-sum {').includes('-webkit-line-clamp: 2;'));
+    assert.ok(menuSrc.includes('sum.title = text'));
+    assert.equal(M.costsSummary(0, ['авто в парку']), 'Немає авто в парку');
+    assert.ok(html.includes("'Форма, причіп, простій'"));
+    assert.equal(html.includes("extraNames.join(', ') : 'Форма розрахунку, причіп, простій'"), false);
+});
+
+test('мобільні вкладки: короткі підписи, повні в aria-label/title, fade і автоскрол', () => {
+    const short = Object.fromEntries(M.SECTIONS.map((x) => [x.key, x.short]));
+    assert.deepEqual(short, { route: 'Маршрут', fuel: 'Пальне', extras: 'Параметри', costs: 'Витрати', recent: 'Останні', vehicle: 'ТЗ' });
+    const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
+    assert.ok(css.includes('.tc-nav-name::before { content: attr(data-short)'));
+    assert.ok(block(css, '.tc-nav-list.is-scroll-r {').includes('mask-image: linear-gradient'));
+    assert.ok(block(css, '.tc-nav-list.is-scroll-l {').includes('mask-image: linear-gradient'));
+    assert.ok(menuSrc.includes("btn.setAttribute('aria-label', sec.name)"));
+    assert.ok(menuSrc.includes('function revealActive'));
+});
+
+test('заглушка карти: світла тема — поверхня з сіткою і текст у токенах, темна без змін', () => {
+    const light = block(html, 'body[data-theme="light"] .tc-map-frame .lock-ph {');
+    assert.ok(light.includes('var(--border-soft)') && light.includes('var(--surface)'));
+    assert.ok(html.includes('body[data-theme="light"] .tc-map-frame .lock-ph b { color: var(--text); }'));
+    assert.ok(html.includes('body[data-theme="light"] .tc-map-frame .lock-ph small { color: var(--muted); }'));
+    // базове (темне) правило лишилось
+    assert.ok(block(html, '.tc-map-frame .lock-ph {').includes('rgba(12,14,18,0.72)'));
 });
 
 test('index.html: меню підключене до розрахунку, не чіпає calculate()', () => {

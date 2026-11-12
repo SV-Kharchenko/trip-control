@@ -10,12 +10,12 @@
     return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + body + '</svg>';
   }
   var SECTIONS = [
-    { key: 'route', name: 'Маршрут', sub: 'Звідки, куди, відстань і тариф', icon: svg('<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"/>') },
-    { key: 'fuel', name: 'Пальне', sub: 'Сезон, ціна, норми витрати, AdBlue', icon: svg('<path d="M4 20V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14"/><path d="M3 20h12"/><path d="M14 9h2.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 9h4"/>') },
-    { key: 'extras', name: 'Додаткові параметри', sub: 'Форма розрахунку, причіп, простій', icon: svg('<path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/>') },
-    { key: 'costs', name: 'Витрати', sub: 'Водій, ТО, шини, накладні', icon: svg('<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>') },
-    { key: 'recent', name: 'Останні маршрути', sub: 'Підставити маршрут із історії', icon: svg('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 4v4.5H8"/><path d="M12 8v4.5l3 1.8"/>') },
-    { key: 'vehicle', name: 'ТЗ', sub: 'Авто з картки: норми й маса', icon: svg('<path d="M2.5 16.5V7.5a1.5 1.5 0 0 1 1.5-1.5h9v10.5"/><path d="M13 9.5h4l3.5 3.5v3.5H13"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>') }
+    { key: 'route', short: 'Маршрут', name: 'Маршрут', sub: 'Звідки, куди, відстань і тариф', icon: svg('<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"/>') },
+    { key: 'fuel', short: 'Пальне', name: 'Пальне', sub: 'Сезон, ціна, норми витрати, AdBlue', icon: svg('<path d="M4 20V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14"/><path d="M3 20h12"/><path d="M14 9h2.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 9h4"/>') },
+    { key: 'extras', short: 'Параметри', name: 'Додаткові параметри', sub: 'Форма розрахунку, причіп, простій', icon: svg('<path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/>') },
+    { key: 'costs', short: 'Витрати', name: 'Витрати', sub: 'Водій, ТО, шини, накладні', icon: svg('<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>') },
+    { key: 'recent', short: 'Останні', name: 'Останні маршрути', sub: 'Підставити маршрут із історії', icon: svg('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 4v4.5H8"/><path d="M12 8v4.5l3 1.8"/>') },
+    { key: 'vehicle', short: 'ТЗ', name: 'ТЗ', sub: 'Авто з картки: норми й маса', icon: svg('<path d="M2.5 16.5V7.5a1.5 1.5 0 0 1 1.5-1.5h9v10.5"/><path d="M13 9.5h4l3.5 3.5v3.5H13"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>') }
   ];
 
   function keys() { return SECTIONS.map(function (s) { return s.key; }); }
@@ -63,7 +63,7 @@
     return list.length === 1 ? list[0] : list.length + ' авто';
   }
   function costsSummary(total, missing) {
-    if (missing && missing.length) return 'Не заповнено: ' + missing.join(', ');
+    if (missing && missing.length) return 'Немає ' + missing.join(', ');
     var n = Number(total);
     return n > 0 ? 'з витратної частини · ' + new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n)).replace(/ /g, ' ') + ' грн' : 'з витратної частини компанії';
   }
@@ -104,7 +104,11 @@
         + '<span class="tc-nav-text"><b class="tc-nav-name"></b><small class="tc-nav-sum"></small></span>'
         + '<i class="tc-nav-dot" hidden><span class="visually-hidden">Є незаповнені поля</span></i>'
         + '<span class="tc-nav-tip" role="tooltip"><b></b><small></small></span>';
-      btn.querySelector('.tc-nav-name').textContent = sec.name;
+      var nameEl = btn.querySelector('.tc-nav-name');
+      nameEl.textContent = sec.name;
+      nameEl.setAttribute('data-short', sec.short || sec.name);
+      btn.setAttribute('aria-label', sec.name);
+      btn.title = sec.name;
       btn.querySelector('.tc-nav-tip b').textContent = sec.name;
       btn.addEventListener('click', function () { api.select(sec.key); });
       list.appendChild(btn);
@@ -121,6 +125,21 @@
       if (items[next]) items[next].focus();
     });
 
+    // ≤900px пункти — горизонтальна смуга: класи is-scroll-l/r вмикають fade по краях, активна вкладка підкручується в зону видимості.
+    function updateFade() {
+      var max = list.scrollWidth - list.clientWidth;
+      list.classList.toggle('is-scroll-l', max > 1 && list.scrollLeft > 1);
+      list.classList.toggle('is-scroll-r', max > 1 && list.scrollLeft < max - 1);
+    }
+    function revealActive(item) {
+      if (!item || list.scrollWidth <= list.clientWidth) { updateFade(); return; }
+      var left = item.offsetLeft - (list.clientWidth - item.offsetWidth) / 2;
+      list.scrollLeft = Math.max(0, left);
+      updateFade();
+    }
+    list.addEventListener('scroll', updateFade);
+    if (doc.defaultView && doc.defaultView.addEventListener) doc.defaultView.addEventListener('resize', updateFade);
+
     var active = null;
     var api = {
       nav: nav,
@@ -135,6 +154,7 @@
           else items[k].removeAttribute('aria-current');
         });
         active = next;
+        revealActive(items[next]);
         if (!silent) writeKey(opts.storage, next);
         if (opts.onSelect) opts.onSelect(next, sectionMeta(next));
       },
@@ -146,6 +166,11 @@
           if (sum.textContent !== text) sum.textContent = text;
           var tip = item.querySelector('.tc-nav-tip small');
           if (tip.textContent !== text) tip.textContent = text;
+          sum.title = text;
+          var bad0 = !!(opts.hasError && opts.hasError(k));
+          var sec0 = sectionMeta(k);
+          item.title = sec0.name + (text ? ' — ' + text : '');
+          item.setAttribute('aria-label', sec0.name + (text ? ': ' + text : '') + (bad0 ? '. Є незаповнені поля' : ''));
           var bad = !!(opts.hasError && opts.hasError(k));
           item.classList.toggle('has-error', bad);
           item.querySelector('.tc-nav-dot').hidden = !bad;

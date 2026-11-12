@@ -4062,10 +4062,9 @@
         body.layout-studio:not([data-studio-view="calc"]) #tc-kpi-bar,
         body.layout-studio[data-calc-detail="1"] #tc-kpi-bar { display: none; }
 
-        /* Дві колонки: панель minmax(380px, 40%) + мапа на решту, мапа sticky під смугою */
+        /* Колонки «Розрахунку рейсу»: ліве меню | панель | мапа sticky під смугою (ширини — у блоці «Ліве меню» нижче) */
         body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
-            display: grid; grid-template-columns: minmax(380px, 40%) minmax(0, 1fr);
-            gap: clamp(12px, 1.2vw, 20px); align-items: start; padding-bottom: var(--tc-pad);
+            display: grid; gap: clamp(12px, 1.2vw, 20px); align-items: start; padding-bottom: var(--tc-pad);
         }
         body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-left { min-width: 0; }
         body.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right { align-self: stretch; display: block !important; min-width: 0; }
@@ -4523,7 +4522,7 @@
         body.layout-studio #tc-op .tc-acc-body { padding-top: 12px; }
 
         /* ===== Ліве меню «Розрахунку рейсу» (assets/calc-menu.js) =====
-           ≥1100px: меню 240 | панель 380 | мапа; 901–1099px: іконна рейка 64 | панель 360 | мапа; ≤900px: смуга-вкладки, панель, мапа 320px, липка нижня панель дій.
+           ≥1100px: меню 240 | панель minmax(380px, 34%) до 520px | мапа; 901–1099px: іконна рейка 64 | панель minmax(340px, 42%) | мапа; ≤900px: смуга-вкладки, панель, мапа 320px, липка нижня панель дій.
            Кольори лише з токенів тем (--sidebar-*, --surface, --negative-on-dark); поля й логіка розрахунку ті самі. */
         #tc-calc-nav { display: none; }
         body.layout-studio.tc-lm[data-studio-view="calc"]:not([data-calc-detail="1"]) #tc-calc-nav {
@@ -4543,7 +4542,7 @@
         #tc-calc-nav .tc-nav-item[aria-current="page"] .tc-nav-ico { color: var(--sidebar-accent); }
         #tc-calc-nav .tc-nav-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         #tc-calc-nav .tc-nav-name { font-size: 13.5px; font-weight: 700; line-height: 1.25; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        #tc-calc-nav .tc-nav-sum { font-size: 11.5px; font-weight: 500; line-height: 1.3; color: var(--sidebar-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #tc-calc-nav .tc-nav-sum { font-size: 11.5px; font-weight: 500; line-height: 1.3; color: var(--sidebar-muted); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; line-clamp: 2; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
         #tc-calc-nav .tc-nav-sum:empty { display: none; }
         #tc-calc-nav .tc-nav-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--negative-on-dark); box-shadow: 0 0 0 2px var(--sidebar); }
         #tc-calc-nav .tc-nav-dot[hidden] { display: none; }
@@ -4571,6 +4570,24 @@
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-body { padding: 4px 16px 20px; }
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-row.is-miss { background: transparent; }
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-vehicle-body { display: grid; gap: 10px; }
+        /* Поля адрес («Звідки / Куди», «Подача») — на всю ширину рядка, щоб підказка «Почни вводити місто або адресу» влазила повністю */
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-sg:has(> .tc-f-a) { grid-template-columns: minmax(0, 1fr); }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) :is(.tc-f-a, .tc-f-b, .tc-f-podacha) { grid-column: 1 / -1; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-addr input::placeholder { text-overflow: clip; }
+        /* Банер «Налаштування перед першим розрахунком»: текст переноситься, «Підставити демо-рейс» — під ним, якщо не влазить у рядок */
+        body.layout-studio.tc-lm[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-text { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+        body.layout-studio.tc-lm[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-text > b { flex: 1 1 200px; min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; }
+        body.layout-studio.tc-lm[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-text > div:not(.setup-list) { display: flex !important; flex: 0 1 auto; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin: 0 !important; }
+        body.layout-studio.tc-lm[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .setup-list { flex: 1 1 100%; max-width: none; flex-wrap: wrap; overflow: visible; }
+        /* Заглушка карти (демо / без карти): у світлій темі — світла поверхня з легкою сіткою, текст з контрастом AA; темна лишається як була */
+        body[data-theme="light"] .tc-map-frame .lock-ph {
+            background:
+                repeating-linear-gradient(0deg, transparent, transparent 27px, var(--border-soft) 28px),
+                repeating-linear-gradient(90deg, transparent, transparent 27px, var(--border-soft) 28px),
+                var(--surface);
+        }
+        body[data-theme="light"] .tc-map-frame .lock-ph b { color: var(--text); }
+        body[data-theme="light"] .tc-map-frame .lock-ph small { color: var(--muted); }
 
         @media (min-width: 901px) {
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) {
@@ -4578,7 +4595,7 @@
                 --lm-h: calc(100vh - var(--lm-top) - 8px);
             }
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
-                display: grid; grid-template-columns: 240px 380px minmax(0, 1fr); gap: 12px; align-items: start;
+                display: grid; grid-template-columns: 240px minmax(380px, min(34%, 520px)) minmax(0, 1fr); gap: 12px; align-items: start;
             }
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #tc-calc-nav {
                 position: sticky; top: var(--lm-top); height: var(--lm-room, var(--lm-h)); min-height: 360px;
@@ -4591,7 +4608,7 @@
         }
         /* 901–1099px: меню — іконна рейка з підказкою (назва + підсумок) */
         @media (min-width: 901px) and (max-width: 1099px) {
-            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { grid-template-columns: 64px 360px minmax(0, 1fr); }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { grid-template-columns: 64px minmax(340px, 42%) minmax(0, 1fr); }
             body.layout-studio.tc-lm[data-studio-view="calc"]:not([data-calc-detail="1"]) #tc-calc-nav { overflow: visible; }
             #tc-calc-nav .tc-nav-title { display: none; }
             #tc-calc-nav .tc-nav-list { overflow: visible; padding-top: 8px; }
@@ -4632,10 +4649,16 @@
             #tc-calc-nav .tc-nav-title, #tc-calc-nav .tc-nav-sum { display: none; }
             #tc-calc-nav .tc-nav-list { flex-direction: row; gap: 6px; padding: 8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
             #tc-calc-nav .tc-nav-list::-webkit-scrollbar { display: none; }
-            #tc-calc-nav .tc-nav-item { flex: none; width: auto; min-height: 40px; padding: 6px 12px; gap: 8px; border-radius: 999px; white-space: nowrap; }
+            #tc-calc-nav .tc-nav-list.is-scroll-r { -webkit-mask-image: linear-gradient(90deg, black calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, black calc(100% - 28px), transparent); }
+            #tc-calc-nav .tc-nav-list.is-scroll-l { -webkit-mask-image: linear-gradient(90deg, transparent, black 28px); mask-image: linear-gradient(90deg, transparent, black 28px); }
+            #tc-calc-nav .tc-nav-list.is-scroll-l.is-scroll-r { -webkit-mask-image: linear-gradient(90deg, transparent, black 28px, black calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, transparent, black 28px, black calc(100% - 28px), transparent); }
+            #tc-calc-nav .tc-nav-item { flex: none; width: auto; min-height: 52px; padding: 6px 10px; gap: 3px; flex-direction: column; justify-content: center; border-radius: 10px; white-space: nowrap; }
             #tc-calc-nav .tc-nav-item[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--sidebar-accent); }
-            #tc-calc-nav .tc-nav-text { flex: none; }
-            #tc-calc-nav .tc-nav-name { font-size: 13px; overflow: visible; }
+            #tc-calc-nav .tc-nav-ico { width: 20px; height: 20px; }
+            #tc-calc-nav .tc-nav-text { flex: none; align-items: center; }
+            /* Короткий підпис вкладки (data-short); повна назва — в aria-label / title кнопки */
+            #tc-calc-nav .tc-nav-name { font-size: 0; line-height: 1; overflow: visible; }
+            #tc-calc-nav .tc-nav-name::before { content: attr(data-short); font-size: 12px; font-weight: 700; line-height: 1.2; }
             #tc-calc-nav .tc-nav-dot { position: absolute; top: 6px; right: 6px; }
             #tc-calc-nav .tc-nav-actions {
                 position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; flex-direction: row; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
@@ -7754,7 +7777,7 @@
         if (extrasOn && extrasOn.value === 'on') extraNames.push('супутні витрати');
         const trailer = opById('trailer-type');
         if (trailer && (trailer.value === 'рефрижератор' || trailer.value === 'цистерна')) extraNames.push(trailer.value);
-        opSetText('tc-acc-sum-extras', extraNames.length ? extraNames.join(', ') : 'Форма розрахунку, причіп, простій');
+        opSetText('tc-acc-sum-extras', extraNames.length ? extraNames.join(', ') : 'Форма, причіп, простій');
 
         // Пігулки на мапі
         const pills = [];
