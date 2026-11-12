@@ -62,8 +62,10 @@
     if (!list.length) return 'Весь автопарк';
     return list.length === 1 ? list[0] : list.length + ' авто';
   }
+  // «Немає …» вимагає родового відмінка: «пробіг між ТО» → «пробігу між ТО».
+  var GENITIVE = { 'пробіг між ТО': 'пробігу між ТО', 'ресурс шини': 'ресурсу шини' };
   function costsSummary(total, missing) {
-    if (missing && missing.length) return 'Немає ' + missing.join(', ');
+    if (missing && missing.length) return 'Немає ' + missing.map(function (m) { return GENITIVE[m] || m; }).join(', ');
     var n = Number(total);
     return n > 0 ? 'з витратної частини · ' + new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n)).replace(/ /g, ' ') + ' грн' : 'з витратної частини компанії';
   }
