@@ -62,7 +62,7 @@
             --border: #D9D1BD; --border-soft: #E3DCCB;
             --accent: #0D2A29; --on-accent: #F4EFE5; --gold: #B08A4C; --warning-text: #8A6420;
             --blk-head-bg: color-mix(in srgb, var(--gold) 14%, transparent); --blk-title: #6B4E17; --blk-n-ink: #FFFFFF; --blk-shadow: 0 1px 3px rgba(13, 42, 40, 0.10);
-           --sidebar: #24272C; --sidebar-active: #33373E; --sidebar-hover: rgba(255, 255, 255, 0.06); --sidebar-text: #D8DADF; --sidebar-muted: #9BA1AB; --sidebar-border: rgba(255, 255, 255, 0.08); --sidebar-border-strong: rgba(255, 255, 255, 0.22); --sidebar-accent: #D9AE5E; --sidebar-on-accent: #1B1C1F;
+           --sidebar: #EFE8D6; --sidebar-active: #FFFDF8; --sidebar-hover: rgba(13, 42, 40, 0.06); --sidebar-text: #0D2A28; --sidebar-muted: #5A6B66; --sidebar-border: #D9D1BD; --sidebar-border-strong: rgba(13, 42, 40, 0.28); --sidebar-accent: #B08A4C; --sidebar-on-accent: #0D2A28; --sidebar-ink-accent: #7A5818; --sidebar-dot: #C2453F;
             --positive: #1F6F4D; --negative: #C2453F; --negative-on-dark: #FF8A8A;
             --teal: #1A6B65; --chart-neutral: #CDBF9F; --muted-on-dark: #A9BCB7;
             --result-muted-on-light: #3F514C; --result-down-on-light: #A63530; --result-be-on-light: #6B4F1C;
@@ -84,7 +84,7 @@
             --border: #2E3646; --border-soft: #262D3A;
             --accent: #7C9CFF; --on-accent: #0B0E14; --gold: #E0B25A; --warning-text: #E0B25A;
             --blk-head-bg: color-mix(in srgb, var(--gold) 9%, transparent); --blk-title: #F0CB82; --blk-n-ink: #0B0E14; --blk-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
-           --sidebar: #1C1F25; --sidebar-active: #2A2F38; --sidebar-hover: rgba(255, 255, 255, 0.06); --sidebar-text: #D8DADF; --sidebar-muted: #9BA1AB; --sidebar-border: rgba(255, 255, 255, 0.08); --sidebar-border-strong: rgba(255, 255, 255, 0.22); --sidebar-accent: #D9AE5E; --sidebar-on-accent: #1B1C1F;
+           --sidebar: #1C1F25; --sidebar-active: #2A2F38; --sidebar-hover: rgba(255, 255, 255, 0.06); --sidebar-text: #D8DADF; --sidebar-muted: #9BA1AB; --sidebar-border: rgba(255, 255, 255, 0.08); --sidebar-border-strong: rgba(255, 255, 255, 0.22); --sidebar-accent: #D9AE5E; --sidebar-on-accent: #1B1C1F; --sidebar-ink-accent: #D9AE5E; --sidebar-dot: #FF8A8A;
             --positive: #3DDC97; --negative: #FF6B6B; --negative-on-dark: #FF8A8A;
             --teal: #4FD1C5; --chart-neutral: #6B7486; --muted-on-dark: #9AA6C4;
             --radius-card: 14px; --radius-control: 10px;
@@ -4537,14 +4537,14 @@
         }
         #tc-calc-nav .tc-nav-item:hover { background: var(--sidebar-hover); }
         #tc-calc-nav .tc-nav-item:focus-visible { outline: 2px solid var(--sidebar-accent); outline-offset: -2px; }
-        #tc-calc-nav .tc-nav-item[aria-current="page"] { background: var(--sidebar-active); color: var(--sidebar-accent); box-shadow: inset 3px 0 0 var(--sidebar-accent); }
+        #tc-calc-nav .tc-nav-item[aria-current="page"] { background: var(--sidebar-active); color: var(--sidebar-ink-accent); box-shadow: inset 3px 0 0 var(--sidebar-accent); }
         #tc-calc-nav .tc-nav-ico { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--sidebar-muted); }
-        #tc-calc-nav .tc-nav-item[aria-current="page"] .tc-nav-ico { color: var(--sidebar-accent); }
+        #tc-calc-nav .tc-nav-item[aria-current="page"] .tc-nav-ico { color: var(--sidebar-ink-accent); }
         #tc-calc-nav .tc-nav-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         #tc-calc-nav .tc-nav-name { font-size: 13.5px; font-weight: 700; line-height: 1.25; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         #tc-calc-nav .tc-nav-sum { font-size: 11.5px; font-weight: 500; line-height: 1.3; color: var(--sidebar-muted); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; line-clamp: 2; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
         #tc-calc-nav .tc-nav-sum:empty { display: none; }
-        #tc-calc-nav .tc-nav-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--negative-on-dark); box-shadow: 0 0 0 2px var(--sidebar); }
+        #tc-calc-nav .tc-nav-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sidebar-dot); box-shadow: 0 0 0 2px var(--sidebar); }
         #tc-calc-nav .tc-nav-dot[hidden] { display: none; }
         #tc-calc-nav .tc-nav-tip { display: none; }
         #tc-calc-nav .tc-nav-actions { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid var(--sidebar-border); }
@@ -4602,7 +4602,7 @@
         @media (min-width: 901px) {
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) {
                 --lm-top: calc(var(--cc-off, var(--tc-sticky-h, 0px)) + var(--tc-strip-h, 49px) + 8px);
-                --lm-h: calc(100vh - var(--lm-top) - 8px);
+                --lm-h: calc(100vh - var(--lm-top) - var(--lm-gap, 8px));
             }
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
                 display: grid; grid-template-columns: 240px minmax(380px, min(34%, 520px)) minmax(0, 1fr); gap: 12px; align-items: start;
@@ -18959,7 +18959,8 @@
         var room = vh - Math.max(colsTop, stickyTop) - 8 - slack;
         document.documentElement.style.setProperty('--cc-room', Math.max(360, Math.round(room)) + 'px');
         // Ліве меню: меню, панель і мапа однієї висоти — від верху колонок (або липкого верху) до низу вікна; slack не потрібен, бо панель скролиться всередині.
-        document.documentElement.style.setProperty('--lm-room', Math.max(360, Math.round(vh - Math.max(colsTop, stickyTop) - 8)) + 'px');
+        var lmGap = parseFloat(getComputedStyle(document.body).getPropertyValue('--lm-gap')) || 8; // у Контроль+ нижній відступ 16px (kp-calc.css)
+        document.documentElement.style.setProperty('--lm-room', Math.max(360, Math.round(vh - Math.max(colsTop, stickyTop) - lmGap)) + 'px');
     }
     // Перерахунок на scroll (від 901px; на телефоні карта 40vh з CSS): passive + один requestAnimationFrame на кадр.
     var scrollRaf = 0;

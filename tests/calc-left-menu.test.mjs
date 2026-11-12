@@ -326,3 +326,54 @@ test('jsdom: «Очистити» й «Розрахувати відстань»
         assert.equal(items(d)[0].querySelector('.tc-nav-sum').textContent, 'Не задано');
     });
 });
+
+// ----- бежеве меню у світлій темі, рівна висота колонок, Контроль+ -----
+const themeTokens = (theme) => {
+    const start = html.indexOf('[data-theme="' + theme + '"] {');
+    return html.slice(start, html.indexOf('}', start));
+};
+const tokenOf = (block, name) => (block.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1];
+const lum = (hex) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+
+test('меню: у світлій темі беж у палітрі сайту (темніший за картки), у темній — графіт; токени, не хекси в правилах', () => {
+    const light = themeTokens('light');
+    const dark = themeTokens('dark');
+    const bg = tokenOf(light, 'bg');
+    const surface = tokenOf(light, 'surface');
+    const side = tokenOf(light, 'sidebar');
+    assert.ok(lum(side) < lum(surface), 'меню трохи темніше за картки');
+    assert.ok(lum(side) > 0.6, 'беж, а не графіт: ' + side);
+    assert.ok(Math.abs(lum(side) - lum(bg)) < 0.1, 'у палітрі сайту: ' + side + ' ~ ' + bg);
+    assert.equal(tokenOf(light, 'sidebar-active'), surface, 'активний пункт світліший за меню (колір картки)');
+    assert.equal(tokenOf(light, 'sidebar-border'), tokenOf(light, 'border'), 'межа 1px у токені лінії теми');
+    assert.ok(contrast(tokenOf(light, 'sidebar-text'), side) >= 7, 'темний текст');
+    assert.ok(contrast(tokenOf(light, 'sidebar-muted'), side) >= 4.5, 'приглушені підсумки AA');
+    assert.ok(contrast(tokenOf(light, 'sidebar-ink-accent'), tokenOf(light, 'sidebar-active')) >= 4.5, 'акцентний текст активного пункту AA');
+    assert.ok(contrast(tokenOf(light, 'sidebar-on-accent'), tokenOf(light, 'sidebar-accent')) >= 4.5, 'текст на золотій кнопці AA');
+    // темна тема лишилась графітовою
+    assert.ok(lum(tokenOf(dark, 'sidebar')) < 0.05);
+    assert.equal(tokenOf(dark, 'sidebar'), '#1C1F25');
+    // правила меню беруть кольори з токенів
+    const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
+    assert.ok(css.includes('color: var(--sidebar-ink-accent)'));
+    assert.ok(css.includes('background: var(--sidebar-dot)'));
+    assert.equal(/#24272C|#33373E/i.test(html), false, 'графіту в світлій темі більше немає');
+});
+
+test('висота: меню, панель і мапа — одна --lm-room (низ на одній лінії); у Контроль+ нижній відступ 16px, сторінка не додає відступів під колонками', () => {
+    const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
+    const heights = css.match(/height: var\(--lm-room, var\(--lm-h\)\)/g) || [];
+    assert.ok(heights.length >= 3, 'nav, панель, мапа: ' + heights.length);
+    assert.ok(css.includes('--lm-h: calc(100vh - var(--lm-top) - var(--lm-gap, 8px))'));
+    assert.ok(html.includes("getPropertyValue('--lm-gap')"));
+    const kp = read('apps/kontrol-plus/src/kp-calc.css');
+    assert.ok(kp.includes('--lm-gap: 16px'));
+    assert.ok(/#studio-columns \{ padding-bottom: 0; \}/.test(kp) && kp.includes('#main-app { padding-bottom: 0 !important; }'));
+    // KPI-смуга і рядок колонок — один спільний контейнер (однакові ширина, max-width і padding)
+    const shared = block(html, 'body.layout-studio[data-studio-view="calc"] #tc-kpi-bar,');
+    assert.ok(shared.includes('#studio-columns') && shared.includes('padding-inline: var(--tc-pad)') && shared.includes('max-width: 1840px'));
+});
