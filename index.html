@@ -39,7 +39,7 @@
     <link rel="stylesheet" href="/assets/landing.css?v=2026-10-20">
     <link rel="stylesheet" href="/assets/cost-hints.css?v=2026-10-20">
     <script src="/assets/osm-geo.js?v=2026-11-06" defer></script>
-    <script src="/assets/calc-menu.js?v=2026-11-12"></script>
+    <script src="/assets/calc-menu.js?v=2026-11-12-2"></script>
     <script src="/assets/cost-hints.js?v=2026-10-20" defer></script>
     <script src="/assets/landing.js?v=2026-10-20" defer></script>
 <style>
@@ -7397,7 +7397,12 @@
         document.body.classList.add('tc-lm');
         placeRouteBtn(routeBtn, routeHome);
         // Висота колонок: одна функція для сайту й Контроль+ (--lm-room = вікно − верх рядка колонок − 16px).
-        window.TCCalcMenu.bindHeight(window, document);
+        // Захист: у кеші може лежати старий calc-menu.js без bindHeight — помилка висоти не має валити buildOnePage й window.onload.
+        try {
+            if (typeof window.TCCalcMenu.bindHeight === 'function') window.TCCalcMenu.bindHeight(window, document);
+        } catch (e) {
+            console.warn('calc-menu: висота колонок не підключена', e);
+        }
         const op = opById('tc-op');
         // Живі підсумки: будь-яка зміна полів перерахує рядки під пунктами меню.
         op.addEventListener('input', calcMenuRefresh);
