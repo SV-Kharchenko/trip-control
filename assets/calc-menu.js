@@ -1,0 +1,181 @@
+/* Ліве меню «Розрахунку рейсу»: пункти-секції з рядком-підсумком, активна секція в localStorage (tc.calc.section).
+   Логіку розрахунку, поля й валідацію не чіпає: бере готові блоки (.tc-acc-row) з index.html і лише показує один із них.
+   Чисті функції (підсумки, ключ секції, сусідній пункт) винесено окремо, щоб їх можна було перевірити без браузера. */
+(function (root) {
+  'use strict';
+  var STORAGE_KEY = 'tc.calc.section';
+  var DEFAULT_KEY = 'route';
+
+  function svg(body) {
+    return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + body + '</svg>';
+  }
+  var SECTIONS = [
+    { key: 'route', name: 'Маршрут', sub: 'Звідки, куди, відстань і тариф', icon: svg('<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"/>') },
+    { key: 'fuel', name: 'Пальне', sub: 'Сезон, ціна, норми витрати, AdBlue', icon: svg('<path d="M4 20V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14"/><path d="M3 20h12"/><path d="M14 9h2.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 9h4"/>') },
+    { key: 'extras', name: 'Додаткові параметри', sub: 'Форма розрахунку, причіп, простій', icon: svg('<path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/>') },
+    { key: 'costs', name: 'Витрати', sub: 'Водій, ТО, шини, накладні', icon: svg('<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>') },
+    { key: 'recent', name: 'Останні маршрути', sub: 'Підставити маршрут із історії', icon: svg('<path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5"/><path d="M3.5 4v4.5H8"/><path d="M12 8v4.5l3 1.8"/>') },
+    { key: 'vehicle', name: 'ТЗ', sub: 'Авто з картки: норми й маса', icon: svg('<path d="M2.5 16.5V7.5a1.5 1.5 0 0 1 1.5-1.5h9v10.5"/><path d="M13 9.5h4l3.5 3.5v3.5H13"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>') }
+  ];
+
+  function keys() { return SECTIONS.map(function (s) { return s.key; }); }
+  function sectionMeta(key) {
+    for (var i = 0; i < SECTIONS.length; i++) if (SECTIONS[i].key === key) return SECTIONS[i];
+    return SECTIONS[0];
+  }
+  function normalizeKey(key) { return keys().indexOf(key) >= 0 ? key : DEFAULT_KEY; }
+
+  function readKey(storage) {
+    try { return normalizeKey(storage && storage.getItem(STORAGE_KEY)); } catch (e) { return DEFAULT_KEY; }
+  }
+  function writeKey(storage, key) {
+    try { if (storage) storage.setItem(STORAGE_KEY, normalizeKey(key)); } catch (e) { /* приватний режим: секція просто не запамʼятається */ }
+  }
+  // ↑/↓ по колу; Home/End — крайні.
+  function stepKey(list, current, delta) {
+    var at = list.indexOf(current);
+    if (at < 0) return list[0];
+    return list[(at + delta + list.length) % list.length];
+  }
+
+  function cityOf(text) { return String(text == null ? '' : text).split(',')[0].trim(); }
+  function kmText(km) {
+    var n = Number(km);
+    return n > 0 ? new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n)).replace(/ /g, ' ') + ' км' : '';
+  }
+  // «Житомир → Одеса · 575 км»; порожньо — «Не задано».
+  function routeSummary(from, to, km) {
+    var a = cityOf(from);
+    var b = cityOf(to);
+    var dist = kmText(km);
+    var path = a && b ? a + ' → ' + b : (a || b || '');
+    if (path && dist) return path + ' · ' + dist;
+    return path || dist || 'Не задано';
+  }
+  function recentSummary(count) {
+    var n = Number(count) || 0;
+    return n > 0 ? n + ' збережені' : 'Немає';
+  }
+  // Одне авто — його назва; кілька — «N авто»; нічого не вибрано — увесь парк.
+  function vehicleSummary(labels) {
+    var list = (labels || []).map(function (l) { return String(l || '').trim(); }).filter(Boolean);
+    if (!list.length) return 'Весь автопарк';
+    return list.length === 1 ? list[0] : list.length + ' авто';
+  }
+  function costsSummary(total, missing) {
+    if (missing && missing.length) return 'Не заповнено: ' + missing.join(', ');
+    var n = Number(total);
+    return n > 0 ? 'з витратної частини · ' + new Intl.NumberFormat('uk-UA', { maximumFractionDigits: 0 }).format(Math.round(n)).replace(/ /g, ' ') + ' грн' : 'з витратної частини компанії';
+  }
+
+  // mount({ doc, storage, host, rows, summary(key), hasError(key), show(key, on), onSelect(key, meta), actions: [Element] })
+  function mount(opts) {
+    var doc = opts.doc;
+    var old = doc.getElementById('tc-calc-nav');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var nav = doc.createElement('nav');
+    nav.id = 'tc-calc-nav';
+    nav.className = 'tc-nav';
+    nav.setAttribute('aria-label', 'Розрахунок рейсу');
+    var title = doc.createElement('div');
+    title.className = 'tc-nav-title';
+    title.textContent = 'Розрахунок';
+    var list = doc.createElement('div');
+    list.className = 'tc-nav-list';
+    var actions = doc.createElement('div');
+    actions.className = 'tc-nav-actions';
+    (opts.actions || []).forEach(function (btn) { if (btn) actions.appendChild(btn); });
+    nav.appendChild(title);
+    nav.appendChild(list);
+    nav.appendChild(actions);
+
+    var items = {};
+    var order = [];
+    SECTIONS.forEach(function (sec) {
+      if (!opts.rows[sec.key]) return;
+      order.push(sec.key);
+      var btn = doc.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tc-nav-item';
+      btn.setAttribute('data-key', sec.key);
+      btn.setAttribute('aria-controls', opts.rows[sec.key].id || '');
+      btn.innerHTML = '<span class="tc-nav-ico">' + sec.icon + '</span>'
+        + '<span class="tc-nav-text"><b class="tc-nav-name"></b><small class="tc-nav-sum"></small></span>'
+        + '<i class="tc-nav-dot" hidden><span class="visually-hidden">Є незаповнені поля</span></i>'
+        + '<span class="tc-nav-tip" role="tooltip"><b></b><small></small></span>';
+      btn.querySelector('.tc-nav-name').textContent = sec.name;
+      btn.querySelector('.tc-nav-tip b').textContent = sec.name;
+      btn.addEventListener('click', function () { api.select(sec.key); });
+      list.appendChild(btn);
+      items[sec.key] = btn;
+    });
+
+    list.addEventListener('keydown', function (event) {
+      var key = event.key;
+      var target = event.target && event.target.closest ? event.target.closest('.tc-nav-item') : null;
+      if (!target || !(key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End')) return;
+      event.preventDefault();
+      var current = target.getAttribute('data-key');
+      var next = key === 'Home' ? order[0] : key === 'End' ? order[order.length - 1] : stepKey(order, current, key === 'ArrowDown' ? 1 : -1);
+      if (items[next]) items[next].focus();
+    });
+
+    var active = null;
+    var api = {
+      nav: nav,
+      keys: order,
+      active: function () { return active; },
+      select: function (key, silent) {
+        var next = order.indexOf(key) >= 0 ? key : (order.indexOf(DEFAULT_KEY) >= 0 ? DEFAULT_KEY : order[0]);
+        order.forEach(function (k) {
+          var on = k === next;
+          if (opts.show) opts.show(k, on);
+          if (on) items[k].setAttribute('aria-current', 'page');
+          else items[k].removeAttribute('aria-current');
+        });
+        active = next;
+        if (!silent) writeKey(opts.storage, next);
+        if (opts.onSelect) opts.onSelect(next, sectionMeta(next));
+      },
+      refresh: function () {
+        order.forEach(function (k) {
+          var text = opts.summary ? String(opts.summary(k) || '') : '';
+          var item = items[k];
+          var sum = item.querySelector('.tc-nav-sum');
+          if (sum.textContent !== text) sum.textContent = text;
+          var tip = item.querySelector('.tc-nav-tip small');
+          if (tip.textContent !== text) tip.textContent = text;
+          var bad = !!(opts.hasError && opts.hasError(k));
+          item.classList.toggle('has-error', bad);
+          item.querySelector('.tc-nav-dot').hidden = !bad;
+        });
+      }
+    };
+
+    if (opts.host) opts.host.insertBefore(nav, opts.host.firstChild);
+    api.select(readKey(opts.storage), true);
+    api.refresh();
+    return api;
+  }
+
+  var lib = {
+    STORAGE_KEY: STORAGE_KEY,
+    DEFAULT_KEY: DEFAULT_KEY,
+    SECTIONS: SECTIONS,
+    keys: keys,
+    sectionMeta: sectionMeta,
+    normalizeKey: normalizeKey,
+    readKey: readKey,
+    writeKey: writeKey,
+    stepKey: stepKey,
+    cityOf: cityOf,
+    routeSummary: routeSummary,
+    recentSummary: recentSummary,
+    vehicleSummary: vehicleSummary,
+    costsSummary: costsSummary,
+    mount: mount
+  };
+  root.TCCalcMenu = lib;
+  if (typeof module !== 'undefined' && module.exports) module.exports = lib;
+})(typeof window !== 'undefined' ? window : globalThis);

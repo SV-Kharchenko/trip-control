@@ -39,6 +39,7 @@
     <link rel="stylesheet" href="/assets/landing.css?v=2026-10-20">
     <link rel="stylesheet" href="/assets/cost-hints.css?v=2026-10-20">
     <script src="/assets/osm-geo.js?v=2026-11-06" defer></script>
+    <script src="/assets/calc-menu.js?v=2026-11-12"></script>
     <script src="/assets/cost-hints.js?v=2026-10-20" defer></script>
     <script src="/assets/landing.js?v=2026-10-20" defer></script>
 <style>
@@ -61,6 +62,7 @@
             --border: #D9D1BD; --border-soft: #E3DCCB;
             --accent: #0D2A29; --on-accent: #F4EFE5; --gold: #B08A4C; --warning-text: #8A6420;
             --blk-head-bg: color-mix(in srgb, var(--gold) 14%, transparent); --blk-title: #6B4E17; --blk-n-ink: #FFFFFF; --blk-shadow: 0 1px 3px rgba(13, 42, 40, 0.10);
+           --sidebar: #24272C; --sidebar-active: #33373E; --sidebar-hover: rgba(255, 255, 255, 0.06); --sidebar-text: #D8DADF; --sidebar-muted: #9BA1AB; --sidebar-border: rgba(255, 255, 255, 0.08); --sidebar-border-strong: rgba(255, 255, 255, 0.22); --sidebar-accent: #D9AE5E; --sidebar-on-accent: #1B1C1F;
             --positive: #1F6F4D; --negative: #C2453F; --negative-on-dark: #FF8A8A;
             --teal: #1A6B65; --chart-neutral: #CDBF9F; --muted-on-dark: #A9BCB7;
             --result-muted-on-light: #3F514C; --result-down-on-light: #A63530; --result-be-on-light: #6B4F1C;
@@ -82,6 +84,7 @@
             --border: #2E3646; --border-soft: #262D3A;
             --accent: #7C9CFF; --on-accent: #0B0E14; --gold: #E0B25A; --warning-text: #E0B25A;
             --blk-head-bg: color-mix(in srgb, var(--gold) 9%, transparent); --blk-title: #F0CB82; --blk-n-ink: #0B0E14; --blk-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+           --sidebar: #1C1F25; --sidebar-active: #2A2F38; --sidebar-hover: rgba(255, 255, 255, 0.06); --sidebar-text: #D8DADF; --sidebar-muted: #9BA1AB; --sidebar-border: rgba(255, 255, 255, 0.08); --sidebar-border-strong: rgba(255, 255, 255, 0.22); --sidebar-accent: #D9AE5E; --sidebar-on-accent: #1B1C1F;
             --positive: #3DDC97; --negative: #FF6B6B; --negative-on-dark: #FF8A8A;
             --teal: #4FD1C5; --chart-neutral: #6B7486; --muted-on-dark: #9AA6C4;
             --radius-card: 14px; --radius-control: 10px;
@@ -4518,6 +4521,130 @@
         body.layout-studio #tc-op .tc-acc-name { font-weight: 700; color: var(--blk-title); }
         body.layout-studio #tc-op .tc-acc-n { border-radius: 50%; background: var(--gold); color: var(--blk-n-ink); font-weight: 700; }
         body.layout-studio #tc-op .tc-acc-body { padding-top: 12px; }
+
+        /* ===== Ліве меню «Розрахунку рейсу» (assets/calc-menu.js) =====
+           ≥1100px: меню 240 | панель 380 | мапа; 901–1099px: іконна рейка 64 | панель 360 | мапа; ≤900px: смуга-вкладки, панель, мапа 320px, липка нижня панель дій.
+           Кольори лише з токенів тем (--sidebar-*, --surface, --negative-on-dark); поля й логіка розрахунку ті самі. */
+        #tc-calc-nav { display: none; }
+        body.layout-studio.tc-lm[data-studio-view="calc"]:not([data-calc-detail="1"]) #tc-calc-nav {
+            display: flex; flex-direction: column; min-width: 0; position: relative; z-index: 5;
+            background: var(--sidebar); color: var(--sidebar-text); border: 1px solid var(--sidebar-border); border-radius: var(--radius-card);
+        }
+        #tc-calc-nav .tc-nav-title { padding: 16px 18px 8px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sidebar-muted); }
+        #tc-calc-nav .tc-nav-list { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-height: 0; padding: 4px 0; overflow-y: auto; }
+        #tc-calc-nav .tc-nav-item {
+            position: relative; display: flex; align-items: center; gap: 12px; width: 100%; min-height: 54px; padding: 8px 14px 8px 18px;
+            background: transparent; border: 0; border-radius: 0; color: var(--sidebar-text); font: inherit; text-align: left; cursor: pointer;
+        }
+        #tc-calc-nav .tc-nav-item:hover { background: var(--sidebar-hover); }
+        #tc-calc-nav .tc-nav-item:focus-visible { outline: 2px solid var(--sidebar-accent); outline-offset: -2px; }
+        #tc-calc-nav .tc-nav-item[aria-current="page"] { background: var(--sidebar-active); color: var(--sidebar-accent); box-shadow: inset 3px 0 0 var(--sidebar-accent); }
+        #tc-calc-nav .tc-nav-ico { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--sidebar-muted); }
+        #tc-calc-nav .tc-nav-item[aria-current="page"] .tc-nav-ico { color: var(--sidebar-accent); }
+        #tc-calc-nav .tc-nav-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        #tc-calc-nav .tc-nav-name { font-size: 13.5px; font-weight: 700; line-height: 1.25; color: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #tc-calc-nav .tc-nav-sum { font-size: 11.5px; font-weight: 500; line-height: 1.3; color: var(--sidebar-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        #tc-calc-nav .tc-nav-sum:empty { display: none; }
+        #tc-calc-nav .tc-nav-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--negative-on-dark); box-shadow: 0 0 0 2px var(--sidebar); }
+        #tc-calc-nav .tc-nav-dot[hidden] { display: none; }
+        #tc-calc-nav .tc-nav-tip { display: none; }
+        #tc-calc-nav .tc-nav-actions { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-top: 1px solid var(--sidebar-border); }
+        body.layout-studio.tc-lm[data-theme] #tc-calc-nav .tc-nav-actions .btn {
+            width: 100%; min-height: 38px; height: auto; padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; line-height: 1.2; box-shadow: none; text-transform: none; white-space: normal;
+        }
+        body.layout-studio.tc-lm[data-theme] #tc-calc-nav #route-calc-btn { background: var(--sidebar-accent); border: 1px solid var(--sidebar-accent); color: var(--sidebar-on-accent); }
+        body.layout-studio.tc-lm[data-theme] #tc-calc-nav #route-calc-btn:hover:not(:disabled) { filter: brightness(1.08); }
+        body.layout-studio.tc-lm[data-theme] #tc-calc-nav #tc-clear { background: transparent; border: 1px solid var(--sidebar-border-strong); color: var(--sidebar-text); }
+        body.layout-studio.tc-lm[data-theme] #tc-calc-nav #tc-clear:hover { background: var(--sidebar-hover); }
+        #tc-calc-nav .tc-nav-actions .btn:focus-visible { outline: 2px solid var(--sidebar-accent); outline-offset: 2px; }
+
+        /* Панель секції: світла картка, заголовок + підзаголовок, показується лише активний блок */
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-panel-head { display: block; padding: 16px 16px 8px; border: 0; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-panel-title { font-size: 16px; line-height: 1.25; }
+        body.layout-studio.tc-lm #tc-op .tc-panel-title::before { content: none; }
+        #tc-op .tc-sec-sub { margin-top: 2px; font-size: 12px; line-height: 1.35; color: var(--muted); }
+        body.layout-studio.tc-lm[data-theme] #tc-op > .tc-acc { gap: 0; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-row { display: none; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-row.is-open { display: block; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-row::before { display: none; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-head { display: none; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-body { padding: 4px 16px 20px; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-row.is-miss { background: transparent; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-vehicle-body { display: grid; gap: 10px; }
+
+        @media (min-width: 901px) {
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) {
+                --lm-top: calc(var(--cc-off, var(--tc-sticky-h, 0px)) + var(--tc-strip-h, 49px) + 8px);
+                --lm-h: calc(100vh - var(--lm-top) - 8px);
+            }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+                display: grid; grid-template-columns: 240px 380px minmax(0, 1fr); gap: 12px; align-items: start;
+            }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #tc-calc-nav {
+                position: sticky; top: var(--lm-top); height: var(--lm-room, var(--lm-h)); min-height: 360px;
+            }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame { height: var(--lm-room, var(--lm-h)) !important; min-height: 360px !important; }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-left {
+                position: sticky; top: var(--lm-top); z-index: 1; height: var(--lm-room, var(--lm-h)); min-height: 360px; overflow-y: auto; overscroll-behavior: contain;
+                background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-card);
+            }
+        }
+        /* 901–1099px: меню — іконна рейка з підказкою (назва + підсумок) */
+        @media (min-width: 901px) and (max-width: 1099px) {
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { grid-template-columns: 64px 360px minmax(0, 1fr); }
+            body.layout-studio.tc-lm[data-studio-view="calc"]:not([data-calc-detail="1"]) #tc-calc-nav { overflow: visible; }
+            #tc-calc-nav .tc-nav-title { display: none; }
+            #tc-calc-nav .tc-nav-list { overflow: visible; padding-top: 8px; }
+            #tc-calc-nav .tc-nav-item { justify-content: center; min-height: 52px; padding: 0; gap: 0; }
+            #tc-calc-nav .tc-nav-text { display: none; }
+            #tc-calc-nav .tc-nav-dot { position: absolute; top: 10px; right: 12px; }
+            #tc-calc-nav .tc-nav-tip {
+                position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); z-index: 50; width: max-content; max-width: 260px;
+                display: none; flex-direction: column; gap: 2px; padding: 8px 12px; text-align: left; pointer-events: none;
+                background: var(--sidebar); color: var(--sidebar-text); border: 1px solid var(--sidebar-border-strong); border-radius: 8px; box-shadow: var(--blk-shadow);
+            }
+            #tc-calc-nav .tc-nav-tip b { font-size: 13px; }
+            #tc-calc-nav .tc-nav-tip small { font-size: 11.5px; color: var(--sidebar-muted); }
+            #tc-calc-nav .tc-nav-tip small:empty { display: none; }
+            #tc-calc-nav .tc-nav-item:hover .tc-nav-tip, #tc-calc-nav .tc-nav-item:focus-visible .tc-nav-tip { display: flex; }
+            #tc-calc-nav .tc-nav-actions { padding: 8px; }
+            body.layout-studio.tc-lm[data-theme] #tc-calc-nav .tc-nav-actions .btn { position: relative; font-size: 0; padding: 0; min-height: 40px; }
+            #tc-calc-nav .tc-nav-actions .btn::before {
+                content: ""; display: block; width: 20px; height: 20px; margin: 0 auto; background: currentColor;
+                -webkit-mask: var(--lm-btn-ico) center / contain no-repeat; mask: var(--lm-btn-ico) center / contain no-repeat;
+            }
+            #tc-calc-nav #route-calc-btn { --lm-btn-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h15'/%3E%3Cpath d='m13 6 6 6-6 6'/%3E%3C/svg%3E"); }
+            #tc-calc-nav #tc-clear { --lm-btn-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 6l12 12'/%3E%3Cpath d='M18 6 6 18'/%3E%3C/svg%3E"); }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-left { }
+        }
+        /* ≤900px: смуга-вкладки під KPI, панель на всю ширину, мапа 320px під нею, дії — липка нижня панель */
+        @media (max-width: 900px) {
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #main-app { padding-bottom: 76px; }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { display: flex; flex-direction: column; gap: 10px; }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #tc-calc-nav { order: 0; position: static; height: auto; }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-left {
+                order: 1; position: static; height: auto; overflow: visible; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-card);
+            }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right { order: 2; }
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame,
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) .tc-map-frame #map,
+            body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) .tc-map-frame .lock-ph { height: 320px !important; min-height: 0 !important; }
+            #tc-calc-nav .tc-nav-title, #tc-calc-nav .tc-nav-sum { display: none; }
+            #tc-calc-nav .tc-nav-list { flex-direction: row; gap: 6px; padding: 8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+            #tc-calc-nav .tc-nav-list::-webkit-scrollbar { display: none; }
+            #tc-calc-nav .tc-nav-item { flex: none; width: auto; min-height: 40px; padding: 6px 12px; gap: 8px; border-radius: 999px; white-space: nowrap; }
+            #tc-calc-nav .tc-nav-item[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--sidebar-accent); }
+            #tc-calc-nav .tc-nav-text { flex: none; }
+            #tc-calc-nav .tc-nav-name { font-size: 13px; overflow: visible; }
+            #tc-calc-nav .tc-nav-dot { position: absolute; top: 6px; right: 6px; }
+            #tc-calc-nav .tc-nav-actions {
+                position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; flex-direction: row; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+                background: var(--sidebar); border-top: 1px solid var(--sidebar-border-strong);
+            }
+            body.layout-studio.tc-lm[data-theme] #tc-calc-nav .tc-nav-actions .btn { min-height: 44px; }
+            body.layout-studio.tc-lm[data-theme] #tc-calc-nav #route-calc-btn { flex: 2 1 0; }
+            body.layout-studio.tc-lm[data-theme] #tc-calc-nav #tc-clear { flex: 1 1 0; }
+        }
     </style>
     <!-- Supabase (закріплена v2). Google Maps і ExcelJS вантажаться лише коли потрібні. -->
     <script src="/api/config"></script>
@@ -6822,7 +6949,7 @@
             const input = document.getElementById(pair[0]);
             if (!input) return;
             input.setAttribute('aria-invalid', 'true');
-            openAccFor(input);
+            if (!calcMenu) openAccFor(input);
             const row = input.closest('.form-row');
             if (row) row.classList.add('tc-invalid');
             if (input.closest('details.tc-more')) openMore = true;
@@ -6840,6 +6967,7 @@
             const more = document.querySelector('details.tc-more');
             if (more) more.open = true;
         }
+        calcMenuRefresh();
     }
     function revealInvalidStep() {
         let step = 0;
@@ -7129,6 +7257,10 @@
         return section;
     }
     function setAccOpen(key, open) {
+        if (calcMenu) {
+            if (open) calcMenu.select(key);
+            return;
+        }
         const section = opById('tc-acc-' + key);
         if (!section) return;
         const head = section.querySelector('.tc-acc-head');
@@ -7141,6 +7273,100 @@
     function openAccFor(el) {
         const section = el && el.closest ? el.closest('.tc-acc-row') : null;
         if (section) setAccOpen(section.getAttribute('data-acc'), true);
+    }
+    // Ліве меню (assets/calc-menu.js): замість стосу згортаних блоків показуємо одну секцію; поля й обробники ті самі.
+    let calcMenu = null;
+    let opRecentCount = 0;
+    function calcMenuSummary(key) {
+        const M = window.TCCalcMenu;
+        if (key === 'route') {
+            return M.routeSummary(stepFieldText('osm-from') || stepFieldText('osm-demo-from'), stepFieldText('osm-to') || stepFieldText('osm-demo-to'), stepFieldNum('dist'));
+        }
+        if (key === 'recent') return M.recentSummary(opRecentCount);
+        if (key === 'vehicle') return M.vehicleSummary(fleetChoiceActive() ? chosenFleetVehicles().map(function (v) { return v.label; }) : []);
+        if (key === 'costs') {
+            const missing = [['total-fleet', 'авто в парку'], ['to-period', 'пробіг між ТО'], ['tire-mileage', 'ресурс шини']]
+                .filter(function (pair) { return !(stepFieldNum(pair[0]) > 0); }).map(function (pair) { return pair[1]; });
+            const result = opResult();
+            const total = result && result.detailedRows ? result.detailedRows.reduce(function (sum, r) { return sum + (Number(r.val) || 0); }, 0) : 0;
+            return M.costsSummary(total, missing);
+        }
+        const el = opById('tc-acc-sum-' + key);
+        return el ? el.textContent : '';
+    }
+    function calcMenuHasError(key) {
+        const row = opById('tc-acc-' + key);
+        return !!row && (row.classList.contains('is-miss') || !!row.querySelector('[aria-invalid="true"], .miss, .tc-invalid'));
+    }
+    function calcMenuRefresh() {
+        if (calcMenu) calcMenu.refresh();
+    }
+    function buildCalcMenu() {
+        const acc = opById('tc-acc');
+        const columns = opById('studio-columns');
+        const head = document.querySelector('#tc-op > .tc-panel-head');
+        if (!window.TCCalcMenu || !acc || !head) return;
+        // «ТЗ» і «Витрати» — окремі секції меню: вибір авто виходить із кроку «Маршрут», рядок витрат отримує власний блок.
+        const truckCell = acc.querySelector('.tc-f-truck');
+        const vehicleMore = acc.querySelector('.tc-vehicle-more');
+        const vehicleBody = document.createElement('div');
+        vehicleBody.className = 'tc-sec-body tc-vehicle-body';
+        if (truckCell) vehicleBody.appendChild(truckCell);
+        if (vehicleMore) vehicleBody.appendChild(vehicleMore);
+        const costsLine = opById('tc-costs-line');
+        const costsBody = document.createElement('div');
+        costsBody.className = 'tc-sec-body';
+        if (costsLine) costsBody.appendChild(costsLine);
+        const recentRow = opById('tc-acc-recent');
+        acc.insertBefore(opAccRow('costs', '$', 'Витрати', costsBody, false), recentRow);
+        acc.appendChild(opAccRow('vehicle', 'ТЗ', 'ТЗ', vehicleBody, false));
+
+        // Шапка панелі: назва секції + підзаголовок; «Очистити» переїжджає вниз меню.
+        const clearBtn = opById('tc-clear');
+        head.innerHTML = '<h2 class="tc-panel-title" id="tc-sec-title"></h2><p class="tc-sec-sub" id="tc-sec-sub"></p>';
+        const rows = {};
+        window.TCCalcMenu.keys().forEach(function (key) { rows[key] = opById('tc-acc-' + key); });
+        let storage = null;
+        try { storage = window.localStorage; } catch (e) { storage = null; }
+        calcMenu = window.TCCalcMenu.mount({
+            doc: document,
+            storage: storage,
+            host: columns, // колонок може ще не бути: тоді меню вставить calcMenuPlace() з opPlace()
+            rows: rows,
+            summary: calcMenuSummary,
+            hasError: calcMenuHasError,
+            show: function (key, on) {
+                const row = rows[key];
+                if (!row) return;
+                const headBtn = row.querySelector('.tc-acc-head');
+                const body = row.querySelector('.tc-acc-body');
+                row.classList.toggle('is-open', on);
+                if (headBtn) headBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+                if (body) body.hidden = !on;
+            },
+            onSelect: function (key, meta) {
+                opSetText('tc-sec-title', meta.name);
+                opSetText('tc-sec-sub', meta.sub);
+                const panel = opById('studio-left');
+                if (panel) panel.scrollTop = 0;
+            },
+            actions: [opById('route-calc-btn'), clearBtn]
+        });
+        document.body.classList.add('tc-lm');
+        const op = opById('tc-op');
+        // Живі підсумки: будь-яка зміна полів перерахує рядки під пунктами меню.
+        op.addEventListener('input', calcMenuRefresh);
+        op.addEventListener('change', calcMenuRefresh);
+        // Клік по маршруту в «Останніх маршрутах»: підставляє його (inline-обробник кнопки) і перемикає на «Маршрут».
+        const recentBody = opById('tc-acc-body-recent');
+        if (recentBody) recentBody.addEventListener('click', function (event) {
+            if (event.target && event.target.closest && event.target.closest('.tc-rr')) calcMenu.select('route');
+        });
+    }
+    // mountStudioDom перебудовує #studio-columns: меню має лишитись першою колонкою.
+    function calcMenuPlace() {
+        const columns = opById('studio-columns');
+        if (calcMenu && columns && calcMenu.nav.parentNode !== columns) columns.insertBefore(calcMenu.nav, columns.firstChild);
     }
     function buildOnePage() {
         const stepper = opById('tc-stepper');
@@ -7398,6 +7624,7 @@
         // setStudioView() кличеться лише на клік; без атрибута правила [data-studio-view="calc"] не діють.
         if (!document.body.getAttribute('data-studio-view')) document.body.setAttribute('data-studio-view', 'calc');
         if (document.body.classList.contains('layout-studio')) setStudioView(document.body.getAttribute('data-studio-view'));
+        buildCalcMenu();
         updateOnePage();
     }
     // Клітинка, у якої всі поля сховані (demo-only / full-only тощо), не лишає дірки в сітці.
@@ -7508,7 +7735,7 @@
             badge.textContent = fuelOff ? 'немає в картці' : 'з автопарку';
         }
         // Саме розгортається лише в момент появи проблеми, щоб не сперечатися з користувачем.
-        if (fuelOff && !opFuelWasMissing) setAccOpen('fuel', true);
+        if (fuelOff && !opFuelWasMissing && !calcMenu) setAccOpen('fuel', true);
         opFuelWasMissing = fuelOff;
 
         // 4. Витрати і накладні: обов'язкові поля, які порожні, підсвічують рядок
@@ -7545,6 +7772,7 @@
         const pillHtml = pills.join('');
         if (pillBox && pillBox.innerHTML !== pillHtml) pillBox.innerHTML = pillHtml;
         paintKpiBar(result, fuelOff, !(loadRaw > 0 && emptyRaw > 0));
+        calcMenuRefresh();
     }
     // «Очистити»: скидає введене в заявці (назва, адреси, числа, вибір авто); норми компанії лишаються.
     function clearCalcForm() {
@@ -7602,6 +7830,7 @@
     }
     // Права колонка студії: у калькуляторі там лише мапа, у «Детально» — мапа, картка результату й каскад.
     function opPlace() {
+        calcMenuPlace();
         const mapFrame = document.querySelector('.tc-map-frame');
         const right = opById('studio-right');
         const columns = opById('studio-columns');
@@ -7891,6 +8120,8 @@
         const chips = mergeRecentChips(savedItems, localItems, 12);
         const sumEl = document.getElementById('tc-acc-sum-recent');
         if (sumEl) sumEl.textContent = chips.length ? String(chips.length) : 'немає';
+        opRecentCount = chips.length;
+        calcMenuRefresh();
         if (!chips.length) { box.innerHTML = '<span class="tc-history-meta">Ще немає маршрутів</span>'; return; }
         // Компактно: «Місто → Місто», повна адреса в title; до 5 і кнопка «ще».
         const city = function (text) { return escHtml(String(text || '').split(',')[0].trim()); };
@@ -18670,6 +18901,8 @@
         var slack = Math.max(0, vh - left.getBoundingClientRect().bottom);
         var room = vh - Math.max(colsTop, stickyTop) - 8 - slack;
         document.documentElement.style.setProperty('--cc-room', Math.max(360, Math.round(room)) + 'px');
+        // Ліве меню: меню, панель і мапа однієї висоти — від верху колонок (або липкого верху) до низу вікна; slack не потрібен, бо панель скролиться всередині.
+        document.documentElement.style.setProperty('--lm-room', Math.max(360, Math.round(vh - Math.max(colsTop, stickyTop) - 8)) + 'px');
     }
     // Перерахунок на scroll (від 901px; на телефоні карта 40vh з CSS): passive + один requestAnimationFrame на кадр.
     var scrollRaf = 0;

@@ -94,7 +94,8 @@ test('panel «Параметри заявки»: 3 accordion rows + the costs li
     assert.match(upd, /'AdBlue ' \+ opNum\(rate, 2\) \+ ' л\/100км'/);
     assert.match(upd, /'без AdBlue'/);
     assert.match(upd, /'Немає витрати пального для '/);
-    assert.match(upd, /if \(fuelOff && !opFuelWasMissing\) setAccOpen\('fuel', true\)/);
+    // З лівим меню секція сама не перемикається (червона крапка біля пункту), саморозгортання лишилось лише для акордеона без меню.
+    assert.match(upd, /if \(fuelOff && !opFuelWasMissing && !calcMenu\) setAccOpen\('fuel', true\)/);
     assert.match(build, /Вкажіть витрату — без неї пальне не рахується/);
     assert.match(css, /\.tc-acc-row\.is-open \.tc-acc-sum \{ display: none; \}/);
 });
