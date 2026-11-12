@@ -81,6 +81,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
     const today = kyivDate();
     let d = ttnFromPrefill(null);
     let pre = null;
+    let autoMasses = { tare: '', max: '' }; // останні підставлені з карток тара й макс. маса
     let snap = null; // значення, підставлені із заявки: за ним видно, що змінено вручну
     let tried = false;
     const touched = { gross: false, lineGross: false };
@@ -127,6 +128,7 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
         const masses = currentMasses();
         clear(massBox,
             h('span', null, 'Загальна маса з вантажем: ', h('b', null, total === null ? '—' : fmtT(total) + ' т'), h('span', { class: 'muted small' }, ' = тара + брутто '), fieldHint('Загальна маса', ttnHint('total_mass'))),
+            masses.vehicleWarnings.map((text) => h('span', { class: 'hint hint-warn', role: 'status' }, text)),
             masses.warning ? h('span', { class: 'hint hint-warn', role: 'status' }, 'Тара і макс. маса: лише авто — ' + masses.warning) : null,
             sum !== null ? h('span', { class: 'muted small' }, 'Сума брутто в рядках: ' + fmtT(sum) + ' т') : null,
             warn ? h('span', { class: 'hint hint-warn', role: 'status' }, warn + ' (попередження, створити можна)') : null);
@@ -144,8 +146,11 @@ function buildForm(app, route, clients, drivers, vehicles, trailers = [], calcPr
     function applyMasses() {
         if (!vehicleCard()) return;
         const m = currentMasses();
-        d.tare_t = m.tare ?? '';
-        d.max_mass_t = m.max ?? '';
+        // Введене вручну не перебиваємо: перезаписуємо лише порожнє або те, що раніше підставили самі (авто / причіп змінено).
+        const keep = (current, auto) => String(current ?? '').trim() !== '' && String(current) !== auto;
+        if (!keep(d.tare_t, autoMasses.tare)) d.tare_t = m.tare ?? '';
+        if (!keep(d.max_mass_t, autoMasses.max)) d.max_mass_t = m.max ?? '';
+        autoMasses = { tare: String(m.tare ?? ''), max: String(m.max ?? '') };
         snap = Object.assign(snap || {}, { tare_t: String(d.tare_t), max_mass_t: String(d.max_mass_t) });
     }
 

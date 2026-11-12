@@ -7,7 +7,7 @@
 // (причіп знімається з усіх тягачів і зникає з вибору).
 import { h, clear, notice, toast, confirmButton } from '../ui.js';
 import { fmtDate, kyivDate } from '../lib/format.js';
-import { daysLeft, docState, validateVehicleTtn } from '../lib/fleet.js';
+import { daysLeft, docState, trailerCapacityNote, validateTrailerMasses, validateVehicleTtn } from '../lib/fleet.js';
 import { plateMatches } from '../lib/plates.js';
 import { docsAccess } from '../lib/docs.js';
 import { errorText } from '../lib/errors.js';
@@ -156,6 +156,15 @@ function trailerCard(app, access, st, row, ctx) {
         fields[spec.key] = f;
         return f.row;
     });
+    // Підказка «вантажопідйомність = макс. маса − тара» й попередження про розбіжність з вантажопідйомністю (> 0,5 т) — під полями ТТН.
+    const massNote = h('div', { class: 'kpc-note', id: 'kpc-mass-note', 'aria-live': 'polite' });
+    function paintMassNote() {
+        const n = trailerCapacityNote(fields.tare_t.input.value, fields.max_mass_t.input.value, fields.capacity_t.input.value);
+        clear(massNote, h('p', { class: 'muted small' }, n.text), n.warning ? h('p', { class: 'hint hint-warn', role: 'status' }, n.warning + ' (попередження, зберегти можна)') : null);
+    }
+    for (const key of ['tare_t', 'max_mass_t', 'capacity_t']) fields[key].input.addEventListener('input', paintMassNote);
+    paintMassNote();
+    body.splice(body.findIndex((x) => x === fields.max_mass_t.row) + 1, 0, massNote);
     if (t && t.vehicle_labels && t.vehicle_labels.length) {
         body.push(h('p', { class: 'muted small' }, 'Причіп за замовчуванням у тягачів: ' + t.vehicle_labels.join(', ')));
     }
@@ -175,6 +184,8 @@ function trailerCard(app, access, st, row, ctx) {
         if (make.length > 100) errors.make_model = 'До 100 символів';
         if (Number.isNaN(cap) || (cap !== null && (cap <= 0 || cap > 100))) errors.capacity_t = 'Більше 0, до 100 т';
         if (Number.isNaN(vol) || (vol !== null && (vol <= 0 || vol > 200))) errors.volume_m3 = 'Більше 0, до 200 м³';
+        const masses = validateTrailerMasses(values);
+        Object.assign(errors, masses.errors);
         showFieldErrors(fields, errors);
         if (Object.keys(errors).length) return clear(message, notice('Перевірте поля причепа.'));
         let id = t ? t.id : null;
@@ -189,7 +200,7 @@ function trailerCard(app, access, st, row, ctx) {
             id = data.id;
         }
         if (access.canWrite && id) {
-            const { error } = await app.supabase.rpc('kp_trailer_save', { p_trailer: id, p_data: { make_model: make, capacity_t: cap, volume_m3: vol } });
+            const { error } = await app.supabase.rpc('kp_trailer_save', { p_trailer: id, p_data: { make_model: make, capacity_t: cap, volume_m3: vol, tare_t: masses.data.tare_t, max_mass_t: masses.data.max_mass_t } });
             if (error) return clear(message, notice(ttnErrorText(error)));
         }
         clear(message);
