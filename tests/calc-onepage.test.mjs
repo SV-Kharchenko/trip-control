@@ -44,8 +44,9 @@ test('KPI strip is a direct child of #main-app, sticky and wide as the content',
     assert.match(readFileSync(new URL('../apps/kontrol-plus/src/crm.css', import.meta.url), 'utf8'), /body\[data-kp-view\] #tc-kpi-bar/);
 });
 
-test('two columns: panel minmax(380px, 40%) + sticky full-height map; ≤900 strip → map 260px → panel', () => {
-    assert.match(css, /grid-template-columns: minmax\(380px, 40%\) minmax\(0, 1fr\);/);
+test('three columns: menu 240 | panel minmax(380px, 34%) ≤520 | sticky full-height map; ≤900 strip → map 260px → panel', () => {
+    assert.match(html, /grid-template-columns: 240px minmax\(380px, min\(34%, 520px\)\) minmax\(0, 1fr\);/);
+    assert.equal(/minmax\(380px, 40%\)/.test(css), false);
     assert.match(css, /position: sticky; top: calc\(var\(--tc-sticky-h, 0px\) \+ var\(--tc-strip-h, 66px\)\);/);
     assert.match(css, /height: var\(--tc-map-h, calc\(100vh - var\(--tc-sticky-h, 0px\) - var\(--tc-strip-h, 66px\) - var\(--tc-pad\)\)\) !important;/);
     assert.match(onepage, /setProperty\('--tc-map-h'/);
@@ -94,7 +95,8 @@ test('panel «Параметри заявки»: 3 accordion rows + the costs li
     assert.match(upd, /'AdBlue ' \+ opNum\(rate, 2\) \+ ' л\/100км'/);
     assert.match(upd, /'без AdBlue'/);
     assert.match(upd, /'Немає витрати пального для '/);
-    assert.match(upd, /if \(fuelOff && !opFuelWasMissing\) setAccOpen\('fuel', true\)/);
+    // З лівим меню секція сама не перемикається (червона крапка біля пункту), саморозгортання лишилось лише для акордеона без меню.
+    assert.match(upd, /if \(fuelOff && !opFuelWasMissing && !calcMenu\) setAccOpen\('fuel', true\)/);
     assert.match(build, /Вкажіть витрату — без неї пальне не рахується/);
     assert.match(css, /\.tc-acc-row\.is-open \.tc-acc-sum \{ display: none; \}/);
 });
