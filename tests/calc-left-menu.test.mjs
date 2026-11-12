@@ -368,12 +368,83 @@ test('висота: меню, панель і мапа — одна --lm-room (�
     const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
     const heights = css.match(/height: var\(--lm-room, var\(--lm-h\)\)/g) || [];
     assert.ok(heights.length >= 3, 'nav, панель, мапа: ' + heights.length);
-    assert.ok(css.includes('--lm-h: calc(100vh - var(--lm-top) - var(--lm-gap, 8px))'));
-    assert.ok(html.includes("getPropertyValue('--lm-gap')"));
+    assert.ok(css.includes('--lm-h: calc(100vh - var(--lm-top) - 16px)'));
+    assert.ok(html.includes('window.TCCalcMenu.bindHeight(window, document)'));
+    assert.equal(html.includes('--lm-gap'), false);
     const kp = read('apps/kontrol-plus/src/kp-calc.css');
-    assert.ok(kp.includes('--lm-gap: 16px'));
     assert.ok(/#studio-columns \{ padding-bottom: 0; \}/.test(kp) && kp.includes('#main-app { padding-bottom: 0 !important; }'));
     // KPI-смуга і рядок колонок — один спільний контейнер (однакові ширина, max-width і padding)
     const shared = block(html, 'body.layout-studio[data-studio-view="calc"] #tc-kpi-bar,');
     assert.ok(shared.includes('#studio-columns') && shared.includes('padding-inline: var(--tc-pad)') && shared.includes('max-width: 1840px'));
+});
+
+// ----- одна функція висоти колонок (сайт і Контроль+), container query для «Повернення» -----
+test('roomHeight: вікно − верх рядка колонок − 16px, не менше 360; липкий верх береться, коли сторінку прокручено', () => {
+    assert.equal(M.roomHeight(900, 220, 0), 664);
+    assert.equal(M.roomHeight(900, 300, 0), 584, 'демо-банер опускає колонки — вони коротшають');
+    assert.equal(M.roomHeight(900, 40, 120), 764, 'прокручено: верх = липкий верх');
+    assert.equal(M.roomHeight(500, 300, 0), 360);
+    assert.equal(M.roomHeight(900, 220, 0, 8), 672);
+});
+
+// Мінімальне оточення: вікно/документ із підміненою геометрією і ручним запуском ResizeObserver.
+function fakeEnv({ kp, colsTop, width = 1440, height = 900 }) {
+    const props = {};
+    const els = {
+        'studio-columns': { top: colsTop, getBoundingClientRect() { return { top: this.top }; } },
+        'tc-calc-nav': {},
+    };
+    const observers = [];
+    const win = {
+        innerWidth: width, innerHeight: height, listeners: {},
+        addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+        removeEventListener() {},
+        requestAnimationFrame(fn) { fn(); return 1; },
+        getComputedStyle: () => ({ top: '0px' }),
+        ResizeObserver: class { constructor(cb) { this.cb = cb; observers.push(this); } observe() {} disconnect() {} },
+    };
+    const doc = {
+        documentElement: { dataset: kp ? { app: 'kp' } : {}, style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } } },
+        body: {},
+        getElementById: (id) => els[id] || null,
+        querySelector: () => null,
+    };
+    return { win, doc, els, props, fire: () => observers.forEach((o) => o.cb()) };
+}
+
+for (const kp of [false, true]) {
+    test('bindHeight (' + (kp ? 'Контроль+, data-app="kp"' : 'сайт') + '): --lm-room з верху колонок, без банера і з банером, перерахунок на resize і ResizeObserver', () => {
+        const env = fakeEnv({ kp, colsTop: 220 });
+        const h = M.bindHeight(env.win, env.doc);
+        assert.equal(env.props['--lm-room'], '664px');
+        env.els['studio-columns'].top = 300; // з'явився демо-банер
+        env.fire();
+        assert.equal(env.props['--lm-room'], '584px');
+        env.els['studio-columns'].top = 220; // банер закрито
+        env.win.listeners.resize.forEach((fn) => fn());
+        assert.equal(env.props['--lm-room'], '664px');
+        env.win.innerHeight = 800;
+        env.win.listeners.resize.forEach((fn) => fn());
+        assert.equal(env.props['--lm-room'], '564px');
+        env.win.innerWidth = 700; // ≤900px: висоти з CSS
+        assert.equal(h.measure(), null);
+        assert.equal(env.props['--lm-room'], undefined);
+    });
+}
+
+test('висота: у kp-режимі не залежить від IIFE сайту (він виходить при data-app="kp"), bindHeight викликається з buildCalcMenu', () => {
+    assert.ok(html.includes("document.documentElement.getAttribute('data-app') === 'kp') return;"));
+    assert.equal(html.includes("setProperty('--lm-room'"), false, 'IIFE не пише --lm-room: єдине місце — calc-menu.js');
+    assert.ok(menuSrc.includes("root.style.setProperty('--lm-room'"));
+});
+
+test('container query: «Повернення» на всю ширину за шириною панелі, а не вікна', () => {
+    assert.ok(html.includes('#studio-left { container: tcpanel / inline-size; }'));
+    const at = html.indexOf('@container tcpanel (max-width: 480px)');
+    assert.ok(at > -1);
+    assert.ok(html.slice(at, at + 260).includes('.tc-f-return { grid-column: 1 / -1; }'));
+    // за шириною вікна лишився лише запасний варіант без меню (контейнер там не діє)
+    const win = html.indexOf('@media (min-width: 901px) and (max-width: 1365px)');
+    assert.ok(win > -1 && html.slice(win, win + 220).includes('body.layout-studio:not(.tc-lm)'));
+    assert.equal(html.split('@media (min-width: 901px) and (max-width: 1365px)').length, 2);
 });

@@ -186,7 +186,62 @@
     return api;
   }
 
+  // ---- висота колонок ----
+  var ROOM_GAP = 16;
+  var ROOM_MIN = 360;
+  // Висота рядка колонок: від його верху (або липкого верху, коли сторінку прокручено) до низу вікна мінус відступ.
+  function roomHeight(viewportH, colsTop, stickyTop, gap) {
+    var top = Math.max(Number(colsTop) || 0, Number(stickyTop) || 0);
+    var g = gap == null ? ROOM_GAP : gap;
+    return Math.max(ROOM_MIN, Math.round(Number(viewportH) - top - g));
+  }
+  var WATCH = ['#main-app', '#sticky-top', '#tc-kpi-bar', '#studio-columns', '#demo-banner', '#billing-banner', '#onboard-banner', '.kp-shell-strip', '#kp-shell-top'];
+  // Одна функція для сайту й Контроль+: пише --lm-room (меню, панель і мапа однієї висоти). Перераховує на resize, scroll і зміну розмірів
+  // сторінки (демо-банер, банер «Налаштування», згортання меню CRM) через ResizeObserver; на ≤900px змінну прибирає (там висоти з CSS).
+  function bindHeight(win, doc) {
+    var root = doc.documentElement;
+    var raf = 0;
+    function schedule() {
+      if (raf) return;
+      raf = 1;
+      win.requestAnimationFrame(function () { raf = 0; measure(); });
+    }
+    function measure() {
+      var cols = doc.getElementById('studio-columns');
+      if (!cols) return null;
+      if (win.innerWidth <= 900) { root.style.removeProperty('--lm-room'); return null; }
+      var nav = doc.getElementById('tc-calc-nav');
+      var sticky = nav && win.getComputedStyle ? parseFloat(win.getComputedStyle(nav).top) || 0 : 0;
+      var h = roomHeight(win.innerHeight, cols.getBoundingClientRect().top, sticky, ROOM_GAP);
+      root.style.setProperty('--lm-room', h + 'px');
+      return h;
+    }
+    var seen = [];
+    var ro = win.ResizeObserver ? new win.ResizeObserver(schedule) : null;
+    function observeAll() {
+      if (!ro) return;
+      WATCH.forEach(function (sel) {
+        var el = doc.querySelector(sel);
+        if (el && seen.indexOf(el) < 0) { seen.push(el); ro.observe(el); }
+      });
+    }
+    observeAll();
+    if (ro && doc.body) ro.observe(doc.body);
+    win.addEventListener('resize', schedule);
+    win.addEventListener('scroll', schedule, { passive: true });
+    var mo = null;
+    if (win.MutationObserver && doc.body) {
+      // Банери з'являються/зникають (hidden, клас), каркас Контроль+ додає вузли: нові спостерігаємо й міряємо наново.
+      mo = new win.MutationObserver(function () { observeAll(); schedule(); });
+      mo.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] });
+    }
+    measure();
+    return { measure: measure, disconnect: function () { if (ro) ro.disconnect(); if (mo) mo.disconnect(); win.removeEventListener('resize', schedule); win.removeEventListener('scroll', schedule); } };
+  }
+
   var lib = {
+    roomHeight: roomHeight,
+    bindHeight: bindHeight,
     STORAGE_KEY: STORAGE_KEY,
     DEFAULT_KEY: DEFAULT_KEY,
     SECTIONS: SECTIONS,

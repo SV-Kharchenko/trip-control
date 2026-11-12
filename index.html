@@ -4470,8 +4470,9 @@
             }
         }
 
-        /* 901–1365px форма вузька (панель ~34–42%): «Повернення» не вміщається в пів-ширини без обрізання тексту, тому йде на всю ширину */
-        @media (min-width: 901px) and (max-width: 1365px) {
+        /* Форма вузька: «Повернення» не вміщається в пів-ширини без обрізання тексту, тому йде на всю ширину. Міряємо ширину самої панелі секції
+           (container query), а не вікна: у Контроль+ з сайдбаром панель вужча за ту саму ширину вікна сайту. */
+        @container tcpanel (max-width: 480px) {
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { grid-column: 1 / -1; }
         }
 
@@ -4580,6 +4581,12 @@
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-body { padding: 4px 16px 20px; }
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-row.is-miss { background: transparent; }
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-vehicle-body { display: grid; gap: 10px; }
+        /* Панель секції — контейнер для container query («Повернення» на всю ширину, коли панель вузька) */
+        body.layout-studio.tc-lm[data-theme][data-studio-view="calc"] #studio-left { container: tcpanel / inline-size; }
+        /* Без меню (скрипт не завантажився) контейнера немає: старе правило за шириною вікна */
+        @media (min-width: 901px) and (max-width: 1365px) {
+            body.layout-studio:not(.tc-lm)[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { grid-column: 1 / -1; }
+        }
         /* Поля адрес («Звідки / Куди», «Подача») — на всю ширину рядка, щоб підказка «Почни вводити місто або адресу» влазила повністю */
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-sg:has(> .tc-f-a) { grid-template-columns: minmax(0, 1fr); }
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) :is(.tc-f-a, .tc-f-b, .tc-f-podacha) { grid-column: 1 / -1; }
@@ -4602,7 +4609,7 @@
         @media (min-width: 901px) {
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) {
                 --lm-top: calc(var(--cc-off, var(--tc-sticky-h, 0px)) + var(--tc-strip-h, 49px) + 8px);
-                --lm-h: calc(100vh - var(--lm-top) - var(--lm-gap, 8px));
+                --lm-h: calc(100vh - var(--lm-top) - 16px);
             }
             body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
                 display: grid; grid-template-columns: 240px minmax(380px, min(34%, 520px)) minmax(0, 1fr); gap: 12px; align-items: start;
@@ -7389,6 +7396,8 @@
         });
         document.body.classList.add('tc-lm');
         placeRouteBtn(routeBtn, routeHome);
+        // Висота колонок: одна функція для сайту й Контроль+ (--lm-room = вікно − верх рядка колонок − 16px).
+        window.TCCalcMenu.bindHeight(window, document);
         const op = opById('tc-op');
         // Живі підсумки: будь-яка зміна полів перерахує рядки під пунктами меню.
         op.addEventListener('input', calcMenuRefresh);
@@ -18958,9 +18967,6 @@
         var slack = Math.max(0, vh - left.getBoundingClientRect().bottom);
         var room = vh - Math.max(colsTop, stickyTop) - 8 - slack;
         document.documentElement.style.setProperty('--cc-room', Math.max(360, Math.round(room)) + 'px');
-        // Ліве меню: меню, панель і мапа однієї висоти — від верху колонок (або липкого верху) до низу вікна; slack не потрібен, бо панель скролиться всередині.
-        var lmGap = parseFloat(getComputedStyle(document.body).getPropertyValue('--lm-gap')) || 8; // у Контроль+ нижній відступ 16px (kp-calc.css)
-        document.documentElement.style.setProperty('--lm-room', Math.max(360, Math.round(vh - Math.max(colsTop, stickyTop) - lmGap)) + 'px');
     }
     // Перерахунок на scroll (від 901px; на телефоні карта 40vh з CSS): passive + один requestAnimationFrame на кадр.
     var scrollRaf = 0;
