@@ -82,7 +82,7 @@ test('index.html: скрипт меню, токени в обох темах, т
 test('гнучка ширина панелі: ≥1100 minmax(380px, 34%) до 520px, 901–1099 minmax(340px, 42%), фіксованих 380/360 немає', () => {
     const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
     assert.equal(/240px 380px|64px 360px/.test(css), false);
-    const rail = css.indexOf('@media (min-width: 901px) and (max-width: 1099px)');
+    const rail = css.indexOf('/* 901–1099px: меню — іконна рейка');
     assert.ok(css.indexOf('minmax(380px, min(34%, 520px))') > -1 && css.indexOf('minmax(380px, min(34%, 520px))') < rail);
     assert.ok(css.indexOf('minmax(340px, 42%) minmax(0, 1fr)') > rail);
     // «Звідки/Куди» на всю ширину, банер переноситься
@@ -120,7 +120,7 @@ test('заглушка карти: світла тема — поверхня з
 });
 
 test('index.html: меню підключене до розрахунку, не чіпає calculate()', () => {
-    assert.match(html, /actions: \[opById\('route-calc-btn'\), clearBtn\]/);
+    assert.ok(html.includes('actions: [clearBtn]') && html.includes('placeRouteBtn(routeBtn, routeHome)'));
     assert.match(html, /buildCalcMenu\(\);\n\s+updateOnePage\(\);/);
     assert.match(html, /op\.addEventListener\('input', calcMenuRefresh\)/);
     assert.match(html, /event\.target\.closest\('\.tc-rr'\)\) calcMenu\.select\('route'\)/);
@@ -128,7 +128,7 @@ test('index.html: меню підключене до розрахунку, не 
 });
 
 // ----- jsdom: справжня сторінка (?preview=1) -----
-async function bootDom(presetSection) {
+async function bootDom(presetSection, mobile) {
     let JSDOM;
     try { ({ JSDOM } = await import('jsdom')); } catch {
         try {
@@ -144,7 +144,7 @@ async function bootDom(presetSection) {
             const deep = () => new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : deep()), apply: () => deep() });
             w.supabase = { createClient: () => deep() };
             w.ResizeObserver = class { observe() {} };
-            w.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
+            w.matchMedia = (q) => ({ matches: !!mobile && q.includes('max-width: 900px'), addEventListener() {}, addListener() {} });
             w.fetch = async () => ({ ok: false, status: 500, json: async () => ({}) });
             runInNewContext(FAKE_CONFIG_JS, w);
             if (presetSection) w.localStorage.setItem('tc.calc.section', presetSection);
@@ -159,8 +159,8 @@ const items = (d) => [...d.querySelectorAll('#tc-calc-nav .tc-nav-item')];
 const current = (d) => d.querySelector('#tc-calc-nav [aria-current="page"]').getAttribute('data-key');
 const openRows = (d) => [...d.querySelectorAll('#tc-op .tc-acc-row.is-open')].map((r) => r.getAttribute('data-acc'));
 
-async function withMenu(t, fn) {
-    const dom = await bootDom();
+async function withMenu(t, fn, mobile) {
+    const dom = await bootDom(undefined, mobile);
     if (!dom) { t.skip('no jsdom'); return; }
     try { await fn(dom.window, dom.window.document); } finally { dom.window.close(); }
 }
@@ -173,7 +173,7 @@ test('jsdom: меню на місці, за замовчуванням «Мар�
         assert.equal(current(d), 'route');
         assert.deepEqual(openRows(d), ['route']);
         assert.equal(d.getElementById('tc-sec-title').textContent, 'Маршрут');
-        assert.ok(d.querySelector('#tc-calc-nav .tc-nav-actions #route-calc-btn'));
+        assert.equal(d.querySelector('#tc-calc-nav #route-calc-btn'), null, '≥901px кнопки розрахунку в меню немає');
         assert.ok(d.querySelector('#tc-calc-nav .tc-nav-actions #tc-clear'));
         assert.ok(d.getElementById('dist').closest('#tc-acc-route'), 'поля лишились у своїх блоках');
     });
@@ -278,6 +278,42 @@ test('jsdom: ↑/↓/Home/End переносять фокус між пункт�
     });
 });
 
+test('jsdom: ≥901px «Розрахувати відстань» стоїть у секції «Маршрут» під «A ↔ B» і над статусом', async (t) => {
+    await withMenu(t, (w, d) => {
+        const calc = d.getElementById('route-calc-btn');
+        assert.ok(calc.closest('#tc-acc-route'), 'у секції Маршрут');
+        if (d.body.classList.contains('demo-mode')) {
+            // демо: .tc-maps-box схований, кнопка — у блоці OpenStreetMap під рядком «A ↔ B»
+            assert.equal(calc.parentNode.id, 'tc-osm-box');
+            assert.ok(calc.previousElementSibling.querySelector('.preset-btn'));
+            assert.ok(calc.nextElementSibling.classList.contains('tc-osm-note'));
+        } else {
+            assert.ok(calc.previousElementSibling.querySelector('#swap-ab-btn'), 'одразу під рядком «+ Проміжна зупинка / A ↔ B»');
+            assert.equal(calc.nextElementSibling.id, 'osm-status');
+        }
+        assert.equal(calc.getAttribute('onclick'), 'calculateGoogleRoute()');
+    });
+});
+
+test('jsdom: ≤900px «Розрахувати відстань» переїжджає в нижню панель перед «Очистити» (той самий елемент)', async (t) => {
+    await withMenu(t, (w, d) => {
+        const actions = d.querySelector('#tc-calc-nav .tc-nav-actions');
+        assert.deepEqual(Array.from(actions.children).map((b) => b.id), ['route-calc-btn', 'tc-clear']);
+        assert.equal(d.querySelectorAll('#route-calc-btn').length, 1, 'без дублю');
+        assert.equal(d.getElementById('route-calc-btn').getAttribute('onclick'), 'calculateGoogleRoute()');
+        assert.equal(d.querySelector('#tc-acc-route #route-calc-btn'), null);
+    }, true);
+});
+
+test('CSS: кнопка в «Маршруті» — на всю ширину, 36px, акцент; рейка без іконки розрахунку; KPI-відступи 20/16/12', () => {
+    const rule = block(html, 'body.layout-studio.tc-lm[data-theme] #tc-op #route-calc-btn {');
+    assert.ok(rule.includes('width: 100%') && rule.includes('height: 36px') && rule.includes('var(--sidebar-accent)'));
+    assert.equal(html.includes('#tc-calc-nav #route-calc-btn { --lm-btn-ico'), false);
+    assert.ok(html.includes('#tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 20px); }'));
+    assert.ok(html.includes('#tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 16px); }'));
+    assert.ok(html.includes('#tc-kpi-bar { padding-inline: calc(var(--tc-pad) + 12px); }'));
+});
+
 test('jsdom: «Очистити» й «Розрахувати відстань» у меню працюють як раніше (ті самі id й обробники)', async (t) => {
     await withMenu(t, (w, d) => {
         const calc = d.getElementById('route-calc-btn');
@@ -289,4 +325,126 @@ test('jsdom: «Очистити» й «Розрахувати відстань»
         assert.equal(d.getElementById('dist').value, '');
         assert.equal(items(d)[0].querySelector('.tc-nav-sum').textContent, 'Не задано');
     });
+});
+
+// ----- бежеве меню у світлій темі, рівна висота колонок, Контроль+ -----
+const themeTokens = (theme) => {
+    const start = html.indexOf('[data-theme="' + theme + '"] {');
+    return html.slice(start, html.indexOf('}', start));
+};
+const tokenOf = (block, name) => (block.match(new RegExp('--' + name + ': ([^;]+);')) || [])[1];
+const lum = (hex) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+
+test('меню: у світлій темі беж у палітрі сайту (темніший за картки), у темній — графіт; токени, не хекси в правилах', () => {
+    const light = themeTokens('light');
+    const dark = themeTokens('dark');
+    const bg = tokenOf(light, 'bg');
+    const surface = tokenOf(light, 'surface');
+    const side = tokenOf(light, 'sidebar');
+    assert.ok(lum(side) < lum(surface), 'меню трохи темніше за картки');
+    assert.ok(lum(side) > 0.6, 'беж, а не графіт: ' + side);
+    assert.ok(Math.abs(lum(side) - lum(bg)) < 0.1, 'у палітрі сайту: ' + side + ' ~ ' + bg);
+    assert.equal(tokenOf(light, 'sidebar-active'), surface, 'активний пункт світліший за меню (колір картки)');
+    assert.equal(tokenOf(light, 'sidebar-border'), tokenOf(light, 'border'), 'межа 1px у токені лінії теми');
+    assert.ok(contrast(tokenOf(light, 'sidebar-text'), side) >= 7, 'темний текст');
+    assert.ok(contrast(tokenOf(light, 'sidebar-muted'), side) >= 4.5, 'приглушені підсумки AA');
+    assert.ok(contrast(tokenOf(light, 'sidebar-ink-accent'), tokenOf(light, 'sidebar-active')) >= 4.5, 'акцентний текст активного пункту AA');
+    assert.ok(contrast(tokenOf(light, 'sidebar-on-accent'), tokenOf(light, 'sidebar-accent')) >= 4.5, 'текст на золотій кнопці AA');
+    // темна тема лишилась графітовою
+    assert.ok(lum(tokenOf(dark, 'sidebar')) < 0.05);
+    assert.equal(tokenOf(dark, 'sidebar'), '#1C1F25');
+    // правила меню беруть кольори з токенів
+    const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
+    assert.ok(css.includes('color: var(--sidebar-ink-accent)'));
+    assert.ok(css.includes('background: var(--sidebar-dot)'));
+    assert.equal(/#24272C|#33373E/i.test(html), false, 'графіту в світлій темі більше немає');
+});
+
+test('висота: меню, панель і мапа — одна --lm-room (низ на одній лінії); у Контроль+ нижній відступ 16px, сторінка не додає відступів під колонками', () => {
+    const css = html.slice(html.indexOf('/* ===== Ліве меню «Розрахунку рейсу»'), html.lastIndexOf('</style>'));
+    const heights = css.match(/height: var\(--lm-room, var\(--lm-h\)\)/g) || [];
+    assert.ok(heights.length >= 3, 'nav, панель, мапа: ' + heights.length);
+    assert.ok(css.includes('--lm-h: calc(100vh - var(--lm-top) - 16px)'));
+    assert.ok(html.includes('window.TCCalcMenu.bindHeight(window, document)'));
+    assert.equal(html.includes('--lm-gap'), false);
+    const kp = read('apps/kontrol-plus/src/kp-calc.css');
+    assert.ok(/#studio-columns \{ padding-bottom: 0; \}/.test(kp) && kp.includes('#main-app { padding-bottom: 0 !important; }'));
+    // KPI-смуга і рядок колонок — один спільний контейнер (однакові ширина, max-width і padding)
+    const shared = block(html, 'body.layout-studio[data-studio-view="calc"] #tc-kpi-bar,');
+    assert.ok(shared.includes('#studio-columns') && shared.includes('padding-inline: var(--tc-pad)') && shared.includes('max-width: 1840px'));
+});
+
+// ----- одна функція висоти колонок (сайт і Контроль+), container query для «Повернення» -----
+test('roomHeight: вікно − верх рядка колонок − 16px, не менше 360; липкий верх береться, коли сторінку прокручено', () => {
+    assert.equal(M.roomHeight(900, 220, 0), 664);
+    assert.equal(M.roomHeight(900, 300, 0), 584, 'демо-банер опускає колонки — вони коротшають');
+    assert.equal(M.roomHeight(900, 40, 120), 764, 'прокручено: верх = липкий верх');
+    assert.equal(M.roomHeight(500, 300, 0), 360);
+    assert.equal(M.roomHeight(900, 220, 0, 8), 672);
+});
+
+// Мінімальне оточення: вікно/документ із підміненою геометрією і ручним запуском ResizeObserver.
+function fakeEnv({ kp, colsTop, width = 1440, height = 900 }) {
+    const props = {};
+    const els = {
+        'studio-columns': { top: colsTop, getBoundingClientRect() { return { top: this.top }; } },
+        'tc-calc-nav': {},
+    };
+    const observers = [];
+    const win = {
+        innerWidth: width, innerHeight: height, listeners: {},
+        addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+        removeEventListener() {},
+        requestAnimationFrame(fn) { fn(); return 1; },
+        getComputedStyle: () => ({ top: '0px' }),
+        ResizeObserver: class { constructor(cb) { this.cb = cb; observers.push(this); } observe() {} disconnect() {} },
+    };
+    const doc = {
+        documentElement: { dataset: kp ? { app: 'kp' } : {}, style: { setProperty: (k, v) => { props[k] = v; }, removeProperty: (k) => { delete props[k]; } } },
+        body: {},
+        getElementById: (id) => els[id] || null,
+        querySelector: () => null,
+    };
+    return { win, doc, els, props, fire: () => observers.forEach((o) => o.cb()) };
+}
+
+for (const kp of [false, true]) {
+    test('bindHeight (' + (kp ? 'Контроль+, data-app="kp"' : 'сайт') + '): --lm-room з верху колонок, без банера і з банером, перерахунок на resize і ResizeObserver', () => {
+        const env = fakeEnv({ kp, colsTop: 220 });
+        const h = M.bindHeight(env.win, env.doc);
+        assert.equal(env.props['--lm-room'], '664px');
+        env.els['studio-columns'].top = 300; // з'явився демо-банер
+        env.fire();
+        assert.equal(env.props['--lm-room'], '584px');
+        env.els['studio-columns'].top = 220; // банер закрито
+        env.win.listeners.resize.forEach((fn) => fn());
+        assert.equal(env.props['--lm-room'], '664px');
+        env.win.innerHeight = 800;
+        env.win.listeners.resize.forEach((fn) => fn());
+        assert.equal(env.props['--lm-room'], '564px');
+        env.win.innerWidth = 700; // ≤900px: висоти з CSS
+        assert.equal(h.measure(), null);
+        assert.equal(env.props['--lm-room'], undefined);
+    });
+}
+
+test('висота: у kp-режимі не залежить від IIFE сайту (він виходить при data-app="kp"), bindHeight викликається з buildCalcMenu', () => {
+    assert.ok(html.includes("document.documentElement.getAttribute('data-app') === 'kp') return;"));
+    assert.equal(html.includes("setProperty('--lm-room'"), false, 'IIFE не пише --lm-room: єдине місце — calc-menu.js');
+    assert.ok(menuSrc.includes("root.style.setProperty('--lm-room'"));
+});
+
+test('container query: «Повернення» на всю ширину за шириною панелі, а не вікна', () => {
+    assert.ok(html.includes('#studio-left { container: tcpanel / inline-size; }'));
+    const at = html.indexOf('@container tcpanel (max-width: 480px)');
+    assert.ok(at > -1);
+    assert.ok(html.slice(at, at + 260).includes('.tc-f-return { grid-column: 1 / -1; }'));
+    // за шириною вікна лишився лише запасний варіант без меню (контейнер там не діє)
+    const win = html.indexOf('@media (min-width: 901px) and (max-width: 1365px)');
+    assert.ok(win > -1 && html.slice(win, win + 220).includes('body.layout-studio:not(.tc-lm)'));
+    assert.equal(html.split('@media (min-width: 901px) and (max-width: 1365px)').length, 2);
 });

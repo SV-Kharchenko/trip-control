@@ -11,3 +11,9 @@
         --cc-off: calc(var(--kp-strip-h, 0px) + var(--kp-top-h, 52px));
     }
 }
+
+/* Три колонки (меню / панель / мапа) вміщаються у вікно: нижніх відступів сторінки під ними немає, скролиться лише панель секції. */
+@media (min-width: 901px) {
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #main-app { padding-bottom: 0 !important; }
+    body.kp-shell-on.layout-studio[data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns { padding-bottom: 0; }
+}
