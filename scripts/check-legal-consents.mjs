@@ -166,6 +166,25 @@ await db.exec('DROP TRIGGER boom ON public.legal_consents; DROP FUNCTION public.
     check(unknown.ok && (await consentsOf(unknown.id)).length === 0, 'edition 2026-10-19: no row, insert does not fail');
 }
 
+// 8. Edition 2026-11-09 (20261126090000_legal_version_2026_11_09.sql, twice): three editions accepted.
+{
+    const next = fs.readFileSync(new URL('../supabase/migrations/20261126090000_legal_version_2026_11_09.sql', import.meta.url), 'utf8');
+    const before = await signup({ company_name: 'До 11-09', consent_offer_version: '2026-11-09', consent_privacy_version: '2026-11-09' });
+    check(before.ok && (await consentsOf(before.id)).length === 0, 'before the edition 2026-11-09 migration: 2026-11-09 is not recorded');
+    await db.exec(next);
+    await db.exec(next);
+    const fresh = await signup({ company_name: 'Нова 11-09', consent_offer_version: '2026-11-09', consent_privacy_version: '2026-11-09' });
+    const freshRows = await consentsOf(fresh.id);
+    check(fresh.ok && freshRows.length === 1 && freshRows[0].offer_version === '2026-11-09' && freshRows[0].privacy_version === '2026-11-09',
+        'edition 2026-11-09: signup consent recorded');
+    const prev = await signup({ company_name: 'Попередня', consent_offer_version: '2026-10-20', consent_privacy_version: '2026-10-20' });
+    check(prev.ok && (await consentsOf(prev.id)).length === 1, 'edition 2026-10-20 still accepted after the 2026-11-09 migration');
+    const old = await signup({ company_name: 'Стара 10-18', ...consent });
+    check(old.ok && (await consentsOf(old.id)).length === 1, 'edition 2026-10-18 still accepted after the 2026-11-09 migration');
+    const unknown = await signup({ consent_offer_version: '2026-11-10', consent_privacy_version: '2026-11-10' });
+    check(unknown.ok && (await consentsOf(unknown.id)).length === 0, 'edition 2026-11-10: no row, insert does not fail');
+}
+
 if (failed) {
     console.log(failed + ' check(s) failed');
     process.exit(1);
