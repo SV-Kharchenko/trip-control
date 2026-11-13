@@ -176,17 +176,17 @@ test('signUp sends consent_* = LEGAL_VERSION for both branches; one version ever
     assert.match(inviteBranch, /invite_id: invite\.info\.invite_id/);
     assert.match(ownerBranch, /company_name: company/);
     const version = html.match(/const LEGAL_VERSION = '([\d-]+)';/)[1];
-    assert.equal(version, '2026-10-20');
+    assert.equal(version, '2026-11-09');
     assert.match(read('lib/legal.js'), new RegExp("export const LEGAL_VERSION = '" + version + "';"));
-    assert.match(read('lib/legal.js'), /export const ACCEPTED_LEGAL_VERSIONS = Object\.freeze\(\['2026-10-18', LEGAL_VERSION\]\);/);
+    assert.match(read('lib/legal.js'), /export const ACCEPTED_LEGAL_VERSIONS = Object\.freeze\(\['2026-10-18', '2026-10-20', LEGAL_VERSION\]\);/);
     // The latest migration with record_signup_consent() accepts the new edition and keeps the previous one.
-    const migration = read('supabase/migrations/20261020190000_legal_version_2026_10_20.sql');
-    assert.match(migration, new RegExp("v_allowed constant text\\[\\] := ARRAY\\['2026-10-18', '" + version + "'\\]"));
+    const migration = read('supabase/migrations/20261126090000_legal_version_2026_11_09.sql');
+    assert.match(migration, new RegExp("v_allowed constant text\\[\\] := ARRAY\\['2026-10-18', '2026-10-20', '" + version + "'\\]"));
+    assert.match(read('supabase/migrations/20261020190000_legal_version_2026_10_20.sql'), /v_allowed constant text\[\] := ARRAY\['2026-10-18', '2026-10-20'\]/);
     assert.match(read('supabase/migrations/20261018100000_legal_consents.sql'), /v_allowed constant text\[\] := ARRAY\['2026-10-18'\]/);
     // Edition date in the documents matches; it takes effect 10 days later (offer 14.1).
-    // Оферта й сторінка оплати — редакція 09.11.2026 (синхронізація з тріалом / read-only); політика конфіденційності лишається у 20.10.2026
-    // (змінено лише одне уточнення про режим після платного тарифу). LEGAL_VERSION згод не змінюється: його приймає БД (міграція не входить у цей PR).
-    assert.match(read('legal/privacy.html'), /<strong>Редакція від 20\.10\.2026\. Набирає чинності: 30\.10\.2026\.<\/strong> До цієї дати діє редакція від 18\.10\.2026\./);
+    // Оферта, політика й сторінка оплати — редакція 09.11.2026, чинна з 19.11.2026; LEGAL_VERSION дорівнює цій даті (її приймає БД після міграції 20261126090000).
+    assert.match(read('legal/privacy.html'), /<strong>Редакція від 09\.11\.2026\. Набирає чинності: 19\.11\.2026\.<\/strong> До цієї дати діє редакція від 20\.10\.2026\./);
     assert.match(read('legal/offer.html'), /<strong>Редакція від 09\.11\.2026\. Набирає чинності: 19\.11\.2026\.<\/strong> До цієї дати діє редакція від 20\.10\.2026\./);
     assert.match(read('legal/payment-refund.html'), /<strong>Редакція від 09\.11\.2026, набирає чинності 19\.11\.2026\.<\/strong>/);
     for (const file of ['offer', 'payment-refund', 'privacy']) {
@@ -251,7 +251,12 @@ test('legal_consents on Postgres (PGlite)', async (t) => {
         'authenticated sees only own consent rows',
         'authenticated cannot insert / update / delete (42501)',
         'edition 2026-10-20: signup consent recorded',
-        'edition 2026-10-18 still accepted during the switch'
+        'edition 2026-10-18 still accepted during the switch',
+        'before the edition 2026-11-09 migration: 2026-11-09 is not recorded',
+        'edition 2026-11-09: signup consent recorded',
+        'edition 2026-10-20 still accepted after the 2026-11-09 migration',
+        'edition 2026-10-18 still accepted after the 2026-11-09 migration',
+        'edition 2026-11-10: no row, insert does not fail'
     ]) {
         assert.ok(run.stdout.includes('PASS ' + line), line);
     }
