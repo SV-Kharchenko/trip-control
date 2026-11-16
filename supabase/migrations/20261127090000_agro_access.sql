@@ -137,12 +137,13 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.organizations AS o WHERE o.id = p_org) THEN
     RAISE EXCEPTION 'SA_ORG_NOT_FOUND' USING ERRCODE = 'P0002';
   END IF;
+  -- agro_access_for рахуємо один раз на рядок (LATERAL), а не двічі для allowed і reason.
   RETURN QUERY
-  SELECT p.id, u.email::text, p.org_role::text, a.allowed,
-         (public.agro_access_for(p.id) ->> 'allowed')::boolean, (public.agro_access_for(p.id) ->> 'reason')::text
+  SELECT p.id, u.email::text, p.org_role::text, a.allowed, (x.acc ->> 'allowed')::boolean, (x.acc ->> 'reason')::text
   FROM public.profiles AS p
   JOIN auth.users AS u ON u.id = p.id
   LEFT JOIN public.agro_user_access AS a ON a.user_id = p.id
+  CROSS JOIN LATERAL (SELECT public.agro_access_for(p.id) AS acc) AS x
   WHERE p.org_id = p_org AND p.member_status = 'active'
   ORDER BY lower(coalesce(u.email::text, '')), p.id;
 END;

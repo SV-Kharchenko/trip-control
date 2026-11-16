@@ -70,3 +70,22 @@ test('міграція: AGRO вимкнений за замовчуванням,
     assert.match(sql, /SELECT coalesce\(\(public\.agro_access_for\(auth\.uid\(\)\) ->> 'allowed'\)::boolean, false\);/);
     assert.equal(/sa_set_org_feature/.test(sql.replace(/^\s*--.*$/gm, '')), false, 'sa_set_org_feature не змінюємо');
 });
+
+test('bridge: кеш agro_access_me скидається при зміні сесії й при поверненні вкладки у фокус (visibilitychange), без поллінгу', () => {
+    const bridge = read('src/bridge.js');
+    assert.match(bridge, /function invalidateAgro\(force = false\)/);
+    assert.match(bridge, /state\.agroUser = null;\n\s+ensureAgro\(\)/);
+    assert.match(bridge, /else if \(session && \(event === 'SIGNED_IN' \|\| event === 'USER_UPDATED'\)\) \{\n[^\n]*\n\s+setTimeout\(\(\) => invalidateAgro\(true\), 0\);/);
+    assert.match(bridge, /document\.addEventListener\('visibilitychange', \(\) => \{ if \(document\.visibilityState === 'visible'\) invalidateAgro\(\); \}\)/);
+    // Щоразу, коли вкладка стає видимою, — не частіше ніж раз на 5 с; setInterval для AGRO немає.
+    assert.match(bridge, /const AGRO_RECHECK_MS = 5000;/);
+    const agroPart = bridge.slice(bridge.indexOf('const AGRO_RECHECK_MS'), bridge.indexOf('async function ensureSuperadmin'));
+    assert.equal(/setInterval|setTimeout\(.*loadAgro/.test(agroPart), false);
+});
+
+test('міграція: sa_list_org_agro_users рахує agro_access_for один раз на рядок (LATERAL)', () => {
+    const sql = read('../../supabase/migrations/20261127090000_agro_access.sql');
+    const body = sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.sa_list_org_agro_users'));
+    assert.match(body, /CROSS JOIN LATERAL \(SELECT public\.agro_access_for\(p\.id\) AS acc\) AS x/);
+    assert.equal((body.match(/agro_access_for\(/g) || []).length, 1, 'один виклик у функції');
+});

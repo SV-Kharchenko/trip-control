@@ -51,7 +51,7 @@ export function buildClaims({ user, membership, now, jti }) {
     };
 }
 
-// Адреса AGRO лише з env і лише origin (https; http — тільки localhost для розробки). Жодних параметрів із запиту.
+// Адреса AGRO лише з env і лише origin: https; http://localhost — тільки поза production (VERCEL_ENV !== 'production'). Жодних параметрів із запиту.
 export function agroBaseUrl(env = {}) {
     const raw = String(env.AGRO_APP_URL || '').trim() || DEFAULT_AGRO_URL;
     let url;
@@ -61,15 +61,21 @@ export function agroBaseUrl(env = {}) {
         return null;
     }
     const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-    if (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) return null;
+    const devOnly = env.VERCEL_ENV !== 'production';
+    if (url.protocol !== 'https:' && !(devOnly && local && url.protocol === 'http:')) return null;
     return url.origin;
 }
 
+// Чого бракує: 'NOT_CONFIGURED' — env (SUPABASE_URL / SERVICE_ROLE_KEY / секрет ≥ 32); 'SSO_NOT_CONFIGURED' — недопустима AGRO_APP_URL
+// (у production лише https-origin); null — усе гаразд.
+export function configProblem(env = {}) {
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || String(env.AGRO_SSO_SECRET || '').length < MIN_SECRET_LENGTH) return 'NOT_CONFIGURED';
+    return agroBaseUrl(env) ? null : 'SSO_NOT_CONFIGURED';
+}
+
 export function ssoConfig(env = {}) {
-    const secret = String(env.AGRO_SSO_SECRET || '');
-    const base = agroBaseUrl(env);
-    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || secret.length < MIN_SECRET_LENGTH || !base) return null;
-    return { secret, base };
+    if (configProblem(env)) return null;
+    return { secret: String(env.AGRO_SSO_SECRET), base: agroBaseUrl(env) };
 }
 
 function must({ data, error }) {
@@ -103,8 +109,9 @@ export function createAgroSsoHandler({ store, env = {}, now = () => Date.now(), 
     async function issue(req) {
         const header = String((req.headers && (req.headers.authorization || req.headers.Authorization)) || '');
         if (!header.startsWith('Bearer ') || header.length <= 7) throw new HttpError(401, 'AUTH_REQUIRED', 'Потрібно увійти.');
-        const config = ssoConfig(env);
-        if (!config) throw new HttpError(503, 'NOT_CONFIGURED', 'Вхід в AGRO ще не налаштовано на сервері.');
+        const problem = configProblem(env);
+        const config = problem ? null : ssoConfig(env);
+        if (!config) throw new HttpError(503, problem, 'Вхід в AGRO ще не налаштовано на сервері.');
         const user = await store.getUser(header.slice(7));
         if (!user) throw new HttpError(401, 'BAD_TOKEN', 'Сесія завершилась — увійдіть ще раз.');
         if (!limiter.hit(user.id)) throw new HttpError(429, 'AGRO_RATE_LIMIT', 'Забагато спроб входу в AGRO. Зачекайте хвилину.');

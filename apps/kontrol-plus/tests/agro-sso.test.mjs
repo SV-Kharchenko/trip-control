@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import fs from 'node:fs';
 import test from 'node:test';
-import { ISSUER, TOKEN_TTL_SECONDS, agroBaseUrl, buildClaims, createAgroSsoHandler, signJwt, ssoConfig } from '../lib/agro/sso.js';
+import { ISSUER, TOKEN_TTL_SECONDS, agroBaseUrl, buildClaims, configProblem, createAgroSsoHandler, signJwt, ssoConfig } from '../lib/agro/sso.js';
 
 const read = (rel) => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
 const SECRET = 'test-secret-test-secret-test-secret-123';
@@ -98,8 +98,7 @@ test('405: лише POST', async () => {
 test('503 NOT_CONFIGURED: немає SUPABASE_URL / SERVICE_ROLE_KEY / AGRO_SSO_SECRET або секрет коротший за 32; погана AGRO_APP_URL', async () => {
     for (const env of [
         { ...ENV, SUPABASE_URL: '' }, { ...ENV, SUPABASE_SERVICE_ROLE_KEY: undefined }, { ...ENV, AGRO_SSO_SECRET: undefined },
-        { ...ENV, AGRO_SSO_SECRET: 'short-secret' }, { ...ENV, AGRO_SSO_SECRET: 'x'.repeat(31) }, { ...ENV, AGRO_APP_URL: 'http://agro.example.com' },
-        { ...ENV, AGRO_APP_URL: 'javascript:alert(1)' },
+        { ...ENV, AGRO_SSO_SECRET: 'short-secret' }, { ...ENV, AGRO_SSO_SECRET: 'x'.repeat(31) },
     ]) {
         const store = makeStore();
         const out = await call(createAgroSsoHandler({ store, env, now: () => NOW, log: makeLog() }));
@@ -108,6 +107,16 @@ test('503 NOT_CONFIGURED: немає SUPABASE_URL / SERVICE_ROLE_KEY / AGRO_SSO_
         assert.equal(store.calls.length, 0, 'до бази не звертались');
     }
     assert.ok(ssoConfig({ ...ENV, AGRO_SSO_SECRET: 'x'.repeat(32) }));
+    // Погана AGRO_APP_URL (не https / не URL) — окремий код SSO_NOT_CONFIGURED, до бази не звертаємось.
+    for (const AGRO_APP_URL of ['http://agro.example.com', 'javascript:alert(1)', 'not a url']) {
+        const store = makeStore();
+        const out = await call(createAgroSsoHandler({ store, env: { ...ENV, AGRO_APP_URL }, now: () => NOW, log: makeLog() }));
+        assert.equal(out.code, 503, AGRO_APP_URL);
+        assert.equal(out.body.code, 'SSO_NOT_CONFIGURED');
+        assert.equal(store.calls.length, 0);
+    }
+    assert.equal(configProblem(ENV), null);
+    assert.equal(configProblem({ ...ENV, AGRO_SSO_SECRET: undefined }), 'NOT_CONFIGURED');
 });
 
 test('403 AGRO_ACCESS_DENIED: людський текст і код причини для кожного reason', async () => {
@@ -165,6 +174,8 @@ test('url: лише дозволений origin з env (https; localhost для 
     assert.equal(agroBaseUrl({}), 'https://agro.trip-control.com');
     assert.equal(agroBaseUrl({ AGRO_APP_URL: 'https://agro.example.com/some/path?x=1#y' }), 'https://agro.example.com');
     assert.equal(agroBaseUrl({ AGRO_APP_URL: 'http://localhost:5173' }), 'http://localhost:5173');
+    assert.equal(agroBaseUrl({ AGRO_APP_URL: 'http://localhost:5173', VERCEL_ENV: 'preview' }), 'http://localhost:5173');
+    assert.equal(agroBaseUrl({ AGRO_APP_URL: 'http://127.0.0.1:5173', VERCEL_ENV: 'development' }), 'http://127.0.0.1:5173');
     assert.equal(agroBaseUrl({ AGRO_APP_URL: 'http://agro.example.com' }), null);
     assert.equal(agroBaseUrl({ AGRO_APP_URL: 'not a url' }), null);
     const out = await new Promise((resolve) => {
@@ -188,7 +199,7 @@ test('vercel / api: окремий статичний файл у api/agro/ із
     assert.deepEqual(cfg.functions['api/agro/*.js'], { maxDuration: 10 });
     const api = read('api/agro/sso.js');
     assert.ok(api.indexOf("res.status(405)") < api.indexOf('process.env.SUPABASE_URL'));
-    assert.ok(api.indexOf("'AUTH_REQUIRED'") < api.indexOf('ssoConfig(process.env)'));
+    assert.ok(api.indexOf("'AUTH_REQUIRED'") < api.indexOf('configProblem(process.env)'));
     assert.match(api, /Cache-Control', 'no-store'/);
     const walk = (dir) => fs.readdirSync(new URL('../' + dir, import.meta.url), { withFileTypes: true })
         .flatMap((e) => (e.isDirectory() ? walk(dir + '/' + e.name) : [dir + '/' + e.name]));
@@ -197,4 +208,28 @@ test('vercel / api: окремий статичний файл у api/agro/ із
     assert.equal(/from '(?!node:|\.\.?\/)/.test(read('lib/agro/sso.js')), false);
     // Секретів у репозиторії немає.
     assert.equal(/AGRO_SSO_SECRET\s*=\s*\S{8,}/.test(read('README.md')), false);
+});
+
+test('production (VERCEL_ENV=production): http://localhost не приймається, лише https-origin; 503 SSO_NOT_CONFIGURED; поза production localhost дозволено', async () => {
+    const prod = { ...ENV, VERCEL_ENV: 'production' };
+    for (const AGRO_APP_URL of ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://agro.trip-control.com']) {
+        assert.equal(agroBaseUrl({ ...prod, AGRO_APP_URL }), null, AGRO_APP_URL);
+        const store = makeStore();
+        const out = await call(createAgroSsoHandler({ store, env: { ...prod, AGRO_APP_URL }, now: () => NOW, log: makeLog() }));
+        assert.equal(out.code, 503, AGRO_APP_URL);
+        assert.equal(out.body.code, 'SSO_NOT_CONFIGURED');
+        assert.equal(store.calls.length, 0);
+    }
+    assert.equal(agroBaseUrl({ ...prod, AGRO_APP_URL: 'https://agro.example.com/x' }), 'https://agro.example.com');
+    assert.equal(agroBaseUrl(prod), 'https://agro.trip-control.com');
+    const ok = await call(createAgroSsoHandler({ store: makeStore(), env: prod, now: () => NOW, log: makeLog() }));
+    assert.equal(ok.code, 200);
+    // Поза production (preview / development / без змінної) localhost працює й видає url.
+    for (const VERCEL_ENV of ['preview', 'development', undefined]) {
+        const out = await call(createAgroSsoHandler({ store: makeStore(), env: { ...ENV, VERCEL_ENV, AGRO_APP_URL: 'http://localhost:5173' }, now: () => NOW, log: makeLog() }));
+        assert.equal(out.code, 200, String(VERCEL_ENV));
+        assert.ok(out.body.url.startsWith('http://localhost:5173/#sso='));
+    }
+    // Тонка обгортка віддає той самий код.
+    assert.match(read('api/agro/sso.js'), /configProblem\(process\.env\)[\s\S]*code: problem/);
 });
