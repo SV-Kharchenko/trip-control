@@ -210,7 +210,7 @@ test('413: тіло понад 16 КБ → PAYLOAD_TOO_LARGE без запису
 
 test('дубль сторінки: /landing/kontrol-plus.html → 301 на /kontrol-plus, інші rewrite-и ті самі', () => {
     const vercel = JSON.parse(read('vercel.json'));
-    assert.deepEqual(vercel.redirects, [{ source: '/landing/kontrol-plus.html', destination: '/kontrol-plus', statusCode: 301 }]);
+    assert.deepEqual(vercel.redirects.filter((r) => !r.source.startsWith('/lib/')), [{ source: '/landing/kontrol-plus.html', destination: '/kontrol-plus', statusCode: 301 }]); // правило /lib/ — tests/lib-private.test.mjs
     assert.equal(vercel.rewrites.length, 5);
     assert.deepEqual(vercel.rewrites.find((r) => r.source === '/kontrol-plus'), { source: '/kontrol-plus', destination: '/landing/kontrol-plus.html' });
 });
