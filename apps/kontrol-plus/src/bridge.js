@@ -42,7 +42,7 @@ function siteSupabase() {
 // repairs — kp_repairs_context() (етап 3a): відповідальний за ремонти має доступ лише до «Ремонтів» чужої організації.
 // docs — чи є в базі функції документів (етап 4a): null — ще не перевіряли, false — міграцію не застосовано.
 // ownFleet — own_fleet_context() («Власний парк»): null без прапорця own_fleet в організації; сам модуль — lazy-чанк views/own-fleet/.
-const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null, ownFleet: null, superadmin: false, superadminUser: null };
+const state = { supabase: null, session: null, context: null, contextUser: null, route: null, repairs: null, docs: null, ownFleet: null, superadmin: false, superadminUser: null, agro: false, agroUser: null };
 // Прибирання розділу при виході / перемальовуванні (напр. map.remove() карти GPS).
 let cleanups = [];
 function runCleanups() {
@@ -178,6 +178,7 @@ function syncGpsTab() {
 }
 
 async function refreshGpsTab() {
+    ensureAgro().catch(() => {});
     if (!state.session) {
         await ensureSuperadmin();
         syncGpsTab();
@@ -292,6 +293,42 @@ async function loadRepairsContext() {
 }
 
 // Суперадмін перевіряється окремо від контексту компанії (суперадмін може не мати організації): один раз на користувача.
+// Кнопка «АГРО» у шапці: показується, лише коли rpc agro_access_me() повернув true. Помилка RPC або немає функції (міграцію ще не застосовано) =
+// кнопка схована. Це лише підказка інтерфейсу: справжню перевірку робить сервер при видачі токена (/api/agro/sso).
+function setAgro(value, userId) {
+    state.agro = value;
+    state.agroUser = userId;
+    window.tcKpAgro = value;
+    try { window.dispatchEvent(new Event('tc-kp-agro')); } catch { /* немає DOM-подій (тести) */ }
+}
+// Кеш відповіді agro_access_me живе, доки сесія та сама: скидаємо його при зміні сесії й коли вкладка повертається у фокус (без поллінгу),
+// щоб адмін, який відкрив або закрив доступ, не змушував перелогінюватись. Кнопка не блимає: стан міняється лише з новою відповіддю.
+const AGRO_RECHECK_MS = 5000;
+let agroCheckedAt = 0;
+function invalidateAgro(force = false) {
+    if (!state.session) return;
+    if (!force && Date.now() - agroCheckedAt < AGRO_RECHECK_MS) return;
+    state.agroUser = null;
+    ensureAgro().catch(() => {});
+}
+async function ensureAgro() {
+    if (!state.session) { if (state.agro || state.agroUser) setAgro(false, null); return; }
+    const userId = state.session.user.id;
+    if (state.agroUser === userId) return;
+    agroCheckedAt = Date.now();
+    const value = await loadAgro();
+    if (!state.session || state.session.user.id !== userId) return;
+    setAgro(value, userId);
+}
+async function loadAgro() {
+    try {
+        const { data, error } = await state.supabase.rpc('agro_access_me');
+        return !error && data === true;
+    } catch {
+        return false;
+    }
+}
+
 async function ensureSuperadmin() {
     if (!state.session) { state.superadmin = false; state.superadminUser = null; return; }
     const userId = state.session.user.id;
@@ -854,6 +891,8 @@ export async function startBridge() {
         notify: (text) => toast(text),
     });
     window.kpWindowsOn = () => !!(windows && windows.enabled());
+    // Кнопка «АГРО» (shell.js): токен видає сервер, клієнт лише переходить за url.
+    window.tcKpOpenAgro = () => callKpApi({ supabase: state.supabase }, '/api/agro/sso', {});
     state.supabase.auth.onAuthStateChange((event, session) => {
         const changedUser = (state.session && state.session.user.id) !== (session && session.user.id);
         state.session = session;
@@ -864,6 +903,7 @@ export async function startBridge() {
             state.ownFleet = null;
             state.superadmin = false;
             state.superadminUser = null;
+            setAgro(false, null);
             state.docs = null;
             if (windows) windows.setScope(null, null).catch(() => {});
             syncGpsTab();
@@ -872,8 +912,15 @@ export async function startBridge() {
             else if (session) setTimeout(refreshGpsTab, 0);
             if (session) setTimeout(acceptRepairInvite, 0);
             if (session) setTimeout(acceptRequesterInvite, 0);
+        } else if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
+            // Сесія оновилась (повторний вхід, зміна профілю): доступ до AGRO перевіряємо знову.
+            setTimeout(() => invalidateAgro(true), 0);
         }
     });
+    // Повернення на вкладку: доступ до AGRO міг змінитись, поки її не було видно.
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') invalidateAgro(); });
+    }
     window.addEventListener('hashchange', onHash);
     window.addEventListener('tc:cabinet-tab', onCabinetTab);
     onHash();

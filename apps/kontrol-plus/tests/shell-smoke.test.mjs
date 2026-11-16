@@ -235,3 +235,56 @@ test('лічильник рахунків: легка RPC kp_unpaid_invoices_cou
         assert.equal(env.timers.length, 1, 'після виконання можна планувати знову');
     });
 });
+
+test('«АГРО»: кнопки в шапці й у шторці сховані, поки bridge не підтвердив доступ; клік блокує їх на час запиту й веде за url; помилка — тост без переходу', async () => {
+    const env = shellEnv();
+    const toastBox = new FEl('div', 'kp-toast');
+    const saved = { document: Object.getOwnPropertyDescriptor(globalThis, 'document'), Node: Object.getOwnPropertyDescriptor(globalThis, 'Node') };
+    Object.defineProperty(globalThis, 'document', {
+        value: { createElement: (t) => new FEl(t), createTextNode: (t) => ({ text: t }), getElementById: (id) => (id === 'kp-toast' ? toastBox : null) }, configurable: true, writable: true,
+    });
+    Object.defineProperty(globalThis, 'Node', { value: FNode, configurable: true, writable: true });
+    try {
+        mountShell(env.options);
+        const buttons = [...env.byId['kp-shell-top'].all('kp-shell-agro'), ...env.byId['kp-shell-side'].all('kp-shell-agro')];
+        assert.equal(buttons.length, 2, 'одна в шапці, одна в шторці бургер-меню');
+        assert.deepEqual(buttons.map((b) => b.attrs['aria-label']), ['Відкрити AGRO', 'Відкрити AGRO']);
+        assert.equal(env.byId['kp-shell-top'].children.findIndex((c) => c.className === 'kp-shell-agro') < env.byId['kp-shell-top'].children.findIndex((c) => c.className === 'kp-shell-company'), true, 'у шапці — перед назвою компанії');
+        assert.deepEqual(buttons.map((b) => b.hidden), [true, true], 'без підтвердженого доступу кнопки сховані');
+        // bridge.js підтвердив доступ: window.tcKpAgro + подія tc-kp-agro.
+        env.win.tcKpAgro = true;
+        (env.win.listeners['tc-kp-agro'] || []).forEach((fn) => fn({}));
+        env.flush();
+        assert.deepEqual(buttons.map((b) => b.hidden), [false, false]);
+        // Клік: поки запит іде, кнопки заблоковані; успіх → location.assign(url).
+        let release;
+        env.win.tcKpOpenAgro = () => new Promise((resolve) => { release = resolve; });
+        env.win.location.assign = (url) => { env.win.assigned = url; };
+        buttons[0].click();
+        buttons[1].click();
+        assert.deepEqual(buttons.map((b) => b.disabled), [true, true]);
+        release({ ok: true, url: 'https://agro.trip-control.com/#sso=abc' });
+        await new Promise((r) => setImmediate(r));
+        assert.equal(env.win.assigned, 'https://agro.trip-control.com/#sso=abc');
+        assert.deepEqual(buttons.map((b) => b.disabled), [false, false]);
+        // Помилка сервера: тост із текстом сервера, переходу нема, кнопки знову активні.
+        env.win.assigned = null;
+        env.win.tcKpOpenAgro = async () => ({ ok: false, status: 403, error: 'AGRO не підключено для вашої компанії.' });
+        buttons[1].click();
+        await new Promise((r) => setImmediate(r));
+        assert.equal(env.win.assigned, null);
+        assert.equal(toastBox.textContent, 'AGRO не підключено для вашої компанії.');
+        assert.match(toastBox.className, /toast-error/);
+        assert.deepEqual(buttons.map((b) => b.disabled), [false, false]);
+        // Доступ зник (вихід, зміна сесії) — кнопки знову сховані.
+        env.win.tcKpAgro = false;
+        (env.win.listeners['tc-kp-agro'] || []).forEach((fn) => fn({}));
+        env.flush();
+        assert.deepEqual(buttons.map((b) => b.hidden), [true, true]);
+    } finally {
+        for (const [key, desc] of Object.entries(saved)) {
+            if (desc) Object.defineProperty(globalThis, key, desc);
+            else delete globalThis[key];
+        }
+    }
+});

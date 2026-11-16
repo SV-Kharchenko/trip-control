@@ -1,7 +1,7 @@
 // Каркас CRM Контроль+ (PR 1 з 5): бокове меню, верхня панель і смуга тріалу навколо НАЯВНИХ розділів.
 // Лише Контроль+ (<html data-app="kp">): на сайті trip-control.com mountShell() нічого не робить і не торкається DOM.
 // Нової логіки розділів тут немає: пункти кличуть наявні перемикачі (див. shell-menu.js), старі вкладки лише ховаються CSS.
-import { h } from './ui.js';
+import { h, toast } from './ui.js';
 import { SHELL_GROUPS, SITE_BUTTONS, activeKey, counterText, isEditableTarget, parseCount, refreshesUnpaid, parseSidebarPref, roleLabel, sidebarKey } from './shell-menu.js';
 import { shellIcon } from './shell-icons.js';
 import { parseCrmHash, windowSpecOf } from './lib/route.js';
@@ -35,6 +35,33 @@ export function mountShell(env = {}) {
     const groupEls = [];
     let userId = null;
 
+    // «АГРО»: вхід в agro.trip-control.com без повторного логіну. Видно, лише поки bridge.js не підтвердив доступ (window.tcKpAgro).
+    // Два однакові вузли: у шапці (комп'ютер) і в шторці бургер-меню (телефон); зайвий ховає CSS.
+    let agroBusy = false;
+    const agroButtons = [];
+    const agroBtn = (cls) => {
+        const btn = h('button', { type: 'button', class: cls, hidden: true, title: 'Відкрити AGRO', 'aria-label': 'Відкрити AGRO', onclick: openAgro }, 'АГРО');
+        agroButtons.push(btn);
+        return btn;
+    };
+    async function openAgro() {
+        const open = win.tcKpOpenAgro;
+        if (agroBusy || typeof open !== 'function') return;
+        agroBusy = true;
+        for (const btn of agroButtons) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+        try {
+            const out = await open();
+            if (out && out.ok && typeof out.url === 'string') win.location.assign(out.url);
+            else toast((out && out.error) || 'Не вдалося відкрити AGRO. Спробуйте ще раз.', 'error');
+        } catch {
+            toast('Не вдалося відкрити AGRO. Спробуйте ще раз.', 'error');
+        } finally {
+            agroBusy = false;
+            for (const btn of agroButtons) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+        }
+    }
+    const agroTop = agroBtn('kp-shell-agro');
+    const agroSide = agroBtn('kp-shell-agro kp-shell-agro-m');
     // ---- бокове меню ----
     const nav = h('nav', { class: 'kp-shell-nav', 'aria-label': 'Розділи Контроль+' });
     for (const group of SHELL_GROUPS) {
@@ -59,7 +86,7 @@ export function mountShell(env = {}) {
     const side = h('aside', { id: 'kp-shell-side', class: 'kp-shell-side', 'aria-label': 'Меню Контроль+' },
         h('div', { class: 'kp-shell-brand' }, h('span', { class: 'kp-shell-logo' }, 'Контроль', h('b', null, '+')), collapseBtn),
         h('div', { class: 'kp-shell-side-who' }, sideName, sideRole),
-        nav);
+        nav, agroSide);
 
     // ---- верхня панель ----
     const searchBtn = h('button', { type: 'button', class: 'kp-shell-search', 'aria-label': 'Пошук (Ctrl+K)', onclick: onSearchClick },
@@ -75,7 +102,7 @@ export function mountShell(env = {}) {
         oninput: () => forwardSearch(searchIn.value), onkeydown: (e) => { if (e.key === 'Escape') setSearchOpen(false); } });
     const searchX = h('button', { type: 'button', class: 'kp-shell-search-x', 'aria-label': 'Закрити пошук', onclick: () => setSearchOpen(false) }, '×');
     const burger = h('button', { type: 'button', class: 'kp-shell-burger', 'aria-label': 'Меню', 'aria-expanded': 'false', onclick: () => setMobile(!body.classList.contains('kp-shell-open')) }, shellIcon('burger'));
-    const top = h('header', { id: 'kp-shell-top', class: 'kp-shell-top' }, burger, searchBtn, searchIn, searchX, h('span', { class: 'kp-shell-grow' }), companyEl, bell, who);
+    const top = h('header', { id: 'kp-shell-top', class: 'kp-shell-top' }, burger, searchBtn, searchIn, searchX, h('span', { class: 'kp-shell-grow' }), agroTop, companyEl, bell, who);
     // «← Назад» на повноекранних сторінках карток і форм (телефон): ті самі hash-маршрути, Back браузера працює.
     const backBtn = h('button', { type: 'button', class: 'kp-shell-back-btn', onclick: goBack }, '← Назад');
     const backBar = h('div', { id: 'kp-shell-back', class: 'kp-shell-back', hidden: true }, backBtn);
@@ -274,6 +301,7 @@ export function mountShell(env = {}) {
         sideRole.textContent = whoRole.textContent;
         companyEl.textContent = win.tcKpOrgName || text('tc-menu-company') || '';
         companyEl.hidden = !companyEl.textContent;
+        for (const btn of agroButtons) btn.hidden = win.tcKpAgro !== true;
         const unread = $('tc-menu-unread');
         const n = unread && !unread.hidden ? String(unread.textContent || '').trim() : '';
         bellCount.textContent = n;
@@ -302,6 +330,7 @@ export function mountShell(env = {}) {
     win.addEventListener('hashchange', () => { setMobile(false); setSearchOpen(false); update(); });
     win.addEventListener('resize', paintBack);
     win.addEventListener('tc:cabinet-tab', scheduleUpdate);
+    win.addEventListener('tc-kp-agro', scheduleUpdate);
     win.addEventListener('tc:kp-context', () => { loadUser(); update(); refreshUnpaid(); });
     doc.addEventListener('keydown', (event) => {
         if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && String(event.key).toLowerCase() === 'k') {

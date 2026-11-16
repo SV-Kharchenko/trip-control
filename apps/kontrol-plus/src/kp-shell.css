@@ -164,6 +164,15 @@ body.kp-shell-on .kp-shell-search-t { flex: 1 1 auto; text-align: left; }
 body.kp-shell-on .kp-shell-search kbd { font-family: var(--kp-mono); font-size: 0.68rem; padding: 1px 5px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
 body.kp-shell-on .kp-shell-company { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; font-weight: 700; }
 body.kp-shell-on .kp-shell-company[hidden] { display: none; }
+/* «АГРО»: кнопка шапки (комп'ютер) і така сама в шторці бургер-меню (телефон) */
+body.kp-shell-on .kp-shell-agro {
+    flex: none; height: 34px; padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text);
+    font: inherit; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap;
+}
+body.kp-shell-on .kp-shell-agro:hover:not(:disabled) { border-color: var(--kp-side-gold); }
+body.kp-shell-on .kp-shell-agro:disabled { opacity: 0.6; cursor: progress; }
+body.kp-shell-on .kp-shell-agro[hidden] { display: none; }
+body.kp-shell-on .kp-shell-agro-m { display: none; }
 body.kp-shell-on .kp-shell-bell {
     position: relative; width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text); cursor: pointer;
@@ -218,6 +227,10 @@ body.kp-shell-on .kp-shell-strip .tc-billing-banner.is-expired { background: var
     body.kp-shell-on .kp-shell-strip .tc-billing-banner { padding: 0 12px; }
     body.kp-shell-on .kp-shell-search { width: 34px; padding: 0; justify-content: center; }
     body.kp-shell-on .kp-shell-search-t, body.kp-shell-on .kp-shell-search kbd, body.kp-shell-on .kp-shell-company, body.kp-shell-on .kp-shell-who { display: none; }
+    /* Телефон: у шапці тісно — «АГРО» переїжджає в шторку під пунктами меню */
+    body.kp-shell-on .kp-shell-agro { display: none; }
+    body.kp-shell-on .kp-shell-agro.kp-shell-agro-m { display: block; width: calc(100% - 24px); height: 44px; margin: 12px; color: var(--kp-side-ink-strong); border-color: var(--kp-side-line); }
+    body.kp-shell-on .kp-shell-agro.kp-shell-agro-m[hidden] { display: none; }
     /* У згорнутому вигляді на мобільному підписи не ховаємо: меню відкривається як повне. */
     body.kp-shell-on.kp-shell-collapsed .kp-shell-lb, body.kp-shell-on.kp-shell-collapsed .kp-shell-glabel { display: block; }
     body.kp-shell-on.kp-shell-collapsed .kp-shell-soon { display: inline; }

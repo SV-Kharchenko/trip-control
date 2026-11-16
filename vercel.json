@@ -2,6 +2,9 @@
   "functions": {
     "api/poi.js": {
       "maxDuration": 60
+    },
+    "api/agro/sso.js": {
+      "maxDuration": 10
     }
   },
   "redirects": [

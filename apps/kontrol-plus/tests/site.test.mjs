@@ -107,7 +107,7 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     const own = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map(String).filter((f) => f.endsWith('.js'))
         .map((f) => f.replace(/\\/g, '/')).sort();
     assert.deepEqual(own, ['config.js', 'contracts/sign.js', 'docs/assets.js', 'docs/rate.js', 'docs/send.js', 'gps/connect.js', 'gps/disconnect.js', 'gps/positions.js', 'gps/sync-units.js', 'gps/test.js', 'own-fleet/invites.js', 'repairs/invites.js'],
-        'only the static config, GPS, own-fleet, repairs and documents functions');
+        'only the static config, GPS, own-fleet, repairs and documents functions (AGRO SSO живе в проєкті trip-control: Hobby пускає не більше 12 функцій)');
     assert.equal(own.some((f) => /\[|\]/.test(f)), false, 'no dynamic [param] routes');
     for (const file of own.filter((f) => f.startsWith('gps/'))) {
         const route = file.replace(/^gps\/|\.js$/g, '');

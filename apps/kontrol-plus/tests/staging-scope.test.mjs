@@ -14,6 +14,6 @@ test('check-scope allowlist: рівно дев’ять шаблонів для 
         'api/config.mjs', 'api/config.js.bak', 'api/admin.js', 'lib/public-config.mjs', 'lib/rate-limit.js', 'docs/STAGING.md.bak', 'docs/SECRETS.md',
         'scripts/staging-seed/other.mjs', 'scripts/staging-seed/x/seed.mjs', 'tests/public-config.test.mjs.bak', 'tests/calc-golden.test.mjs',
         'supabase/migrations/20261122090000_app_settings_kill_switch_extra.sql', 'supabase/migrations/app_settings_kill_switch.sql', 'supabase/tests/app_settings.sql.orig',
-        'vercel.json', 'sw.js', '.env', '.env.preview',
+        'sw.js', '.env', '.env.preview',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });

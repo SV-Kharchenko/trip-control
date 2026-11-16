@@ -24,8 +24,8 @@ test('стан перемикача: немає рядка = вимкнено й
     assert.equal(settingState(null), 'missing');
     assert.equal(settingState({ enabled: false }), 'off');
     assert.equal(settingState({ enabled: true }), 'on');
-    assert.deepEqual(settingRows([]).map((r) => [r.key, r.state]), [['own_fleet', 'missing']]);
-    assert.deepEqual(settingRows([{ key: 'zeta', enabled: true }, { key: 'own_fleet', enabled: true }]).map((r) => [r.key, r.state]), [['own_fleet', 'on'], ['zeta', 'on']]);
+    assert.deepEqual(settingRows([]).map((r) => [r.key, r.state]), [['own_fleet', 'missing'], ['agro', 'missing']]);
+    assert.deepEqual(settingRows([{ key: 'zeta', enabled: true }, { key: 'own_fleet', enabled: true }]).map((r) => [r.key, r.state]), [['own_fleet', 'on'], ['agro', 'missing'], ['zeta', 'on']]);
 });
 
 test('підказка для компанії та текст журналу', () => {
@@ -45,7 +45,7 @@ test('сторінка: лише sa_* RPC, без confirm / alert, підтве�
     assert.equal(/\b(window\.)?(confirm|alert|prompt)\(/.test(view), false);
     assert.match(view, /window\.tcModal/);
     assert.deepEqual([...new Set([...view.matchAll(/rpc\('([a-z_]+)'/g)].map((m) => m[1]))].sort(),
-        ['sa_create_setting', 'sa_list_audit', 'sa_list_settings', 'sa_search_orgs', 'sa_set_org_feature', 'sa_set_setting']);
+        ['sa_create_setting', 'sa_list_audit', 'sa_list_org_agro_users', 'sa_list_settings', 'sa_search_orgs', 'sa_set_org_feature', 'sa_set_setting', 'sa_set_user_agro']);
     assert.equal(/\.from\(/.test(view), false, 'таблиць напряму не читаємо');
     assert.match(read('src/lib/superadmin.js'), /AUDIT_PAGE = 50/);
 });
