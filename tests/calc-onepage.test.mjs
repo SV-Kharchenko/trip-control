@@ -539,13 +539,14 @@ test('jsdom: #dist and #podacha-dist are in the panel once, trailer type updates
     }
 });
 
-test('jsdom: extras grid has no empty info slot; trip-volume-info collapses when empty', async (t) => {
+test('jsdom: trip-volume-info sits in the «Маршрут» numbers grid (not in extras) and collapses when empty', async (t) => {
     const dom = await bootDom();
     if (!dom) { t.skip('no jsdom'); return; }
     try {
         const d = dom.window.document;
         const info = d.getElementById('trip-volume-info');
-        assert.ok(info && info.closest('.tc-op-sub'));
+        assert.ok(info && info.closest('#tc-acc-route .tc-sg.trip'));
+        assert.equal(info.closest('.tc-op-sub'), null);
         assert.equal(info.textContent.trim(), '');
         assert.ok(css.includes('#tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }') || html.includes('#tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }'));
     } finally {
@@ -592,8 +593,105 @@ test('browser: #podacha-dist visible exactly once with its km unit in every mode
     });
 });
 
-test('numbers group is 2x2 so the rate with its currency keeps room', () => {
-    assert.ok(build.includes("opGroup('nums', ["));
-    assert.ok(html.includes('.tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }'));
+test('route numbers group is 2 columns in pairs so the rate with its currency keeps room; one column in a narrow panel', () => {
+    assert.ok(build.includes("opGroup('trip', ["));
+    assert.ok(html.includes('.tc-sg.trip { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }'));
+    assert.ok(html.includes('@container tcpanel (max-width: 340px) { body.layout-studio[data-theme] #tc-op .tc-sg.trip { grid-template-columns: minmax(0, 1fr); } }'));
+    assert.ok(html.includes('@media (max-width: 480px) { #tc-op .tc-sg.trip { grid-template-columns: minmax(0, 1fr); } }'));
     assert.ok(html.includes('.tc-f-rate .tc-in > input { min-width: 70px; }'));
+});
+
+// ----- Норма, авто, діби — у «Маршруті» (feat/calc-route-fields) -----
+const ROUTE_FIELDS = ['norm-weight', 'cars-count', 'days-per-trip'];
+
+test('static: norm / cars / days rows are captured before panel1 is cleared and go to the «Маршрут» group, not to extras', () => {
+    for (const row of ['normRow', 'carsRow', 'daysRow', 'volumeInfo']) assert.ok(build.indexOf('const ' + row + ' =') < build.indexOf("panel1.textContent = ''"), row);
+    assert.match(build, /opCell\('tc-f-norm', 'Норма на авто', \[normRow\]\)/);
+    assert.match(build, /opCell\('tc-f-cars', 'Авто', \[carsRow\]\)/);
+    assert.match(build, /opCell\('tc-f-days', 'Діб на ходу', \[daysRow\]\)/);
+    assert.match(build, /normLab\.appendChild\(normBtn\)/);
+    // Пари: Відстань | Об'єм; Норма | Авто; Діб | Тариф.
+    const grid = sliceBetween(build, "const tripGrid = opGroup('trip', [", 'panel1.appendChild(tripGrid)');
+    const at = (needle) => grid.indexOf(needle);
+    assert.ok(at("'tc-f-dist'") < at("'tc-f-weight'") && at("'tc-f-weight'") < at('normCell') && at('normCell') < at('carsCell') && at('carsCell') < at('daysCell') && at('daysCell') < at('rate'));
+    // «Повернення» лишається під сіткою.
+    assert.ok(build.indexOf('panel1.appendChild(tripGrid)') < build.indexOf("opCell('tc-f-return'"));
+    // У «Додаткових параметрах» лишились форма розрахунку, причіп і примітка про валюту.
+    const extras = sliceBetween(build, "trip.className = 'tc-sg tc-op-sub';", 'if (extrasPanel)');
+    assert.match(extras, /opRowOf\('calc-type'\), opRowOf\('trailer-type'\), opById\('contract-fx-note'\)/);
+    for (const id of [...ROUTE_FIELDS, 'trip-volume-info']) assert.equal(extras.includes("'" + id + "'"), false, id);
+    // Один екземпляр кожного id у вихідному HTML (calculate(), дефолти й збережені маршрути читають їх за id).
+    for (const id of ROUTE_FIELDS) assert.equal((html.match(new RegExp('<input[^>]* id="' + id + '"', 'g')) || []).length, 1, id);
+    for (const id of ['norm-weight-info-btn', 'norm-weight-info-tip', 'trip-volume-info']) assert.equal((html.match(new RegExp(' id="' + id + '"', 'g')) || []).length, 1, id);
+});
+
+test('css: trip grid does not dissolve into the panel grid; narrow panel (≤340px) or phone (≤480px) → one column', () => {
+    assert.ok(html.includes('> .tc-sg:not(.trip) { display: contents; }'));
+    assert.match(html, /> \.tc-sg\.trip \{ order: 6; grid-column: 1 \/ -1; \}/);
+    assert.equal(html.includes('.tc-f-dist { order: 6; }'), false);
+    assert.ok(html.includes('#tc-op .tc-sg.trip > #trip-volume-info { grid-column: 1 / -1;'));
+    assert.ok(html.includes('#tc-op .tc-sg.trip .tc-in > select.cur { min-width: 4.4em;'));
+    assert.ok(html.includes('#tc-op .tc-sg:not(.trip):has('));
+});
+
+test('static: old step mode still moves the three fields (CALC_ONEPAGE off)', () => {
+    for (const id of ROUTE_FIELDS) assert.ok(html.includes("take(2, rowOf('" + id + "'))"), id);
+});
+
+test('browser: norm / cars / days are in «Маршрут», not in «Додаткових параметрах»; pairs share a top edge; nothing is clipped or scrolls (1280 / 390)', async (t) => {
+    await withPage(t, [1280, 390], async (page, width, theme) => {
+        const at = ' at ' + width + ' ' + theme;
+        const where = await page.evaluate((ids) => Object.fromEntries(ids.map((id) => {
+            const el = document.getElementById(id);
+            return [id, { route: !!el.closest('#tc-acc-route .tc-sg.trip'), extras: !!el.closest('#tc-acc-extras'), count: document.querySelectorAll('#' + id).length }];
+        })), [...ROUTE_FIELDS, 'norm-weight-info-btn', 'norm-weight-info-tip']);
+        for (const [id, w] of Object.entries(where)) assert.deepEqual(w, { route: true, extras: false, count: 1 }, id + at);
+        const labels = await page.evaluate(() => ['norm-weight', 'cars-count', 'days-per-trip'].map((id) => document.getElementById(id).closest('.form-row').querySelector('label').textContent.replace(/\s+/g, ' ').trim()));
+        assert.deepEqual(labels, ['Норма на авто ⓘ', 'Авто', 'Діб на ходу'], 'labels' + at);
+        const units = await page.evaluate(() => ['norm-weight', 'cars-count', 'days-per-trip'].map((id) => document.getElementById(id).closest('.tc-in').querySelector('.unit').textContent));
+        assert.deepEqual(units, ['т/авто', 'шт', 'діб'], 'units' + at);
+        const m = await page.evaluate(() => {
+            const box = (id) => document.getElementById(id).closest('.tc-in').getBoundingClientRect();
+            const grid = document.querySelector('#tc-acc-route .tc-sg.trip');
+            const cur = document.getElementById('contract-currency');
+            return {
+                cols: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+                days: box('days-per-trip').top, rate: box('rate').top, norm: box('norm-weight').top, cars: box('cars-count').top,
+                dist: box('dist').top, volume: box('volume').top,
+                curClipped: cur.scrollWidth > cur.clientWidth + 1 || cur.getBoundingClientRect().right > grid.getBoundingClientRect().right + 1,
+                overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                clipped: [...grid.querySelectorAll('input, select, label')].filter((e) => e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1).map((e) => e.id || e.textContent.slice(0, 12)),
+            };
+        });
+        assert.equal(m.cols, width > 480 ? 2 : 1, 'columns' + at);
+        if (m.cols === 2) {
+            assert.ok(Math.abs(m.days - m.rate) <= 1, 'days | rate top edge ' + m.days + ' vs ' + m.rate + at);
+            assert.ok(Math.abs(m.norm - m.cars) <= 1, 'norm | cars top edge' + at);
+            assert.ok(Math.abs(m.dist - m.volume) <= 1, 'dist | volume top edge' + at);
+        }
+        assert.equal(m.curClipped, false, 'currency «грн/т» is fully visible' + at);
+        assert.ok(m.overflow <= 0, 'horizontal scroll ' + m.overflow + at);
+        assert.deepEqual(m.clipped, [], 'clipped' + at);
+        const extrasHas = await page.evaluate(() => ['norm-weight', 'cars-count', 'days-per-trip', 'trip-volume-info'].filter((id) => document.querySelector('#tc-acc-extras #' + id)));
+        assert.deepEqual(extrasHas, [], 'extras' + at);
+    });
+});
+
+test('browser: the demo trip typed into the «Маршрут» fields gives the same payload and the same money as before the move', async (t) => {
+    process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
+    const { calculateTrip } = await import('../api/calculate.js');
+    await withPage(t, [1280], async (page, width, theme) => {
+        const payload = await page.evaluate(() => {
+            const demo = { 'podacha-dist': 40, dist: 350, volume: 500, 'norm-weight': 21.5, 'cars-count': 3, 'days-per-trip': 1.5, rate: 1450 };
+            for (const id of Object.keys(demo)) document.getElementById(id).value = demo[id];
+            return readTripPayload();
+        });
+        assert.deepEqual([payload.dist, payload.podachaDist, payload.volume, payload.normWeight, payload.carsCount, payload.daysPerTrip, payload.rate],
+            ['350', '40', '500', '21.5', '3', '1.5', '1450'], 'payload reads the moved fields by the same ids ' + theme);
+        const money = calculateTrip(payload);
+        // Значення знято з origin/main до перенесення полів: 21,5 т × 3 авто × 1450 грн/т.
+        assert.equal(money.grossIncome, 93525);
+        assert.equal(money.netIncome, 93525);
+    });
 });

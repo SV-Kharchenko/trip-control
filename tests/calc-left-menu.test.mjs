@@ -96,6 +96,10 @@ test('підсумки в меню: до 2 рядків (line-clamp) і повн
     assert.ok(menuSrc.includes('sum.title = text'));
     assert.equal(M.costsSummary(0, ['авто в парку']), 'Немає авто в парку');
     assert.ok(html.includes("'Форма, причіп, простій'"));
+    // Підпис «Маршруту» тепер каже, що тут і норма/авто; «Додаткові параметри» лишились без змін.
+    assert.ok(menuSrc.includes("sub: 'Звідки, куди, відстань, тариф, авто'"));
+    assert.equal(menuSrc.includes('Звідки, куди, відстань і тариф'), false);
+    assert.ok(menuSrc.includes("sub: 'Форма розрахунку, причіп, простій'"));
     assert.equal(html.includes("extraNames.join(', ') : 'Форма розрахунку, причіп, простій'"), false);
 });
 
@@ -282,7 +286,7 @@ test('jsdom: ↑/↓/Home/End переносять фокус між пункт�
 });
 
 test('кеш: src з новим ключем версії, bindHeight викликається лише якщо є функція, у try/catch', () => {
-    assert.ok(html.includes('<script src="/assets/calc-menu.js?v=2026-11-12-2"></script>'));
+    assert.ok(html.includes('<script src="/assets/calc-menu.js?v=2026-11-16-1"></script>'));
     assert.equal(html.includes('calc-menu.js?v=2026-11-12"'), false);
     const at = html.indexOf("typeof window.TCCalcMenu.bindHeight === 'function'");
     assert.ok(at > -1);

@@ -10,7 +10,7 @@
     return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + body + '</svg>';
   }
   var SECTIONS = [
-    { key: 'route', short: 'Маршрут', name: 'Маршрут', sub: 'Звідки, куди, відстань і тариф', icon: svg('<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"/>') },
+    { key: 'route', short: 'Маршрут', name: 'Маршрут', sub: 'Звідки, куди, відстань, тариф, авто', icon: svg('<circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8 18h6.5a3.5 3.5 0 0 0 0-7h-5a3.5 3.5 0 0 1 0-7H16"/>') },
     { key: 'fuel', short: 'Пальне', name: 'Пальне', sub: 'Сезон, ціна, норми витрати, AdBlue', icon: svg('<path d="M4 20V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14"/><path d="M3 20h12"/><path d="M14 9h2.5a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 0 3 0V8l-3-3"/><path d="M7 9h4"/>') },
     { key: 'extras', short: 'Параметри', name: 'Додаткові параметри', sub: 'Форма розрахунку, причіп, простій', icon: svg('<path d="M4 7h9"/><path d="M17 7h3"/><circle cx="15" cy="7" r="2"/><path d="M4 17h3"/><path d="M11 17h9"/><circle cx="9" cy="17" r="2"/>') },
     { key: 'costs', short: 'Витрати', name: 'Витрати', sub: 'Водій, ТО, шини, накладні', icon: svg('<rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M16 14.5h2"/>') },
