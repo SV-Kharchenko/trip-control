@@ -52,12 +52,18 @@ test('розкладка: форма clamp(380px, 34vw, 480px), карта stick
 });
 
 test('розмітка розрахунку рейсу на сайті не змінилась: ті самі групи, id і пари полів', () => {
-    for (const frag of ["opCell('tc-f-podacha', 'Подача авто'", "opCell('tc-f-a', 'Звідки'", "opCell('tc-f-b', 'Куди'",
-        "opCell('tc-f-dist', 'Відстань'", "opCell('tc-f-weight', 'Вага вантажу'", "opCell('tc-f-return', 'Повернення'",
-        "opCell('tc-f-truck', 'ТЗ (транспортний засіб)'", "opCell('tc-f-rate', 'Тариф'", 'id="kb-be"', 'id="kb-margin"', 'id="kb-detail"',
-        'id="swap-ab-btn"', 'id="route-calc-btn"']) {
+    for (const frag of ["opCell('tc-f-a', 'Звідки'", "opCell('tc-f-b', 'Куди'",
+        // Блок стоянки (#148): адреса стоянки й «Подача, км» в одній групі, не угорі під назвою.
+        "opGroup('one pod', [", "opCell('tc-f-base', 'Подача (стоянка, за бажанням)'", "opCell('tc-f-podacha', 'Подача, км'",
+        // Числа «Маршруту» (#147): пари Відстань | Об'єм, Норма на авто | Авто, Діб на ходу | Тариф.
+        "opGroup('trip', [", "opCell('tc-f-dist', 'Відстань'", "opCell('tc-f-weight', \"Об'єм (загальна вага) по заявці\"",
+        "opCell('tc-f-norm', 'Норма на авто'", "opCell('tc-f-cars', 'Авто'", "opCell('tc-f-days', 'Діб на ходу'",
+        "opCell('tc-f-rate', 'Тариф'", "opCell('tc-f-return', 'Повернення'", "opCell('tc-f-truck', 'ТЗ (транспортний засіб)'",
+        'id="kb-be"', 'id="kb-margin"', 'id="kb-detail"', 'id="swap-ab-btn"', 'id="route-calc-btn"']) {
         assert.ok(html.includes(frag), frag);
     }
+    // Поля, що переїхали на «Маршрут», лишаються по одному в розмітці (id не змінились).
+    for (const id of ['norm-weight', 'cars-count', 'days-per-trip', 'podacha-dist']) assert.equal((html.match(new RegExp('<input[^>]* id="' + id + '"', 'g')) || []).length, 1, id);
 });
 
 test('docs-ts-form: id галочок допуску унікальні (uniqueId), label for збігається з id', () => {
