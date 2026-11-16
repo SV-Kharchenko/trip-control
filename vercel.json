@@ -11,6 +11,7 @@
     { "source": "/landing/kontrol-plus.html", "destination": "/kontrol-plus", "statusCode": 301 }
   ],
   "rewrites": [
+    { "source": "/lib/:path((?!weekly-report\.js$).*)", "destination": "/__private__" },
     { "source": "/offer", "destination": "/legal/offer.html" },
     { "source": "/privacy", "destination": "/legal/privacy.html" },
     { "source": "/payment-refund", "destination": "/legal/payment-refund.html" },
