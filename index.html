@@ -4133,6 +4133,7 @@
         .tc-in > select.cur { flex: none; width: auto; padding: 0 8px; border-left: 1px solid var(--border); background: var(--bg); }
         #tc-op #rate-unit { display: none; }
         #tc-op #tc-f-rate input, #tc-op .tc-f-rate .tc-in > input { min-width: 0; }
+        #tc-op .tc-f-hint { color: var(--muted); font-size: 12px; line-height: 1.3; }
         #tc-op #podacha-info { margin: 0 !important; text-align: left !important; font-size: var(--tc-fs-s) !important; }
         #tc-op .tc-op-sub > :is(#trip-volume-info, #contract-fx-note) { grid-column: 1 / -1; margin: 0 !important; text-align: left !important; }
         #tc-op .tc-osm-box, #tc-op .tc-maps-box { margin: 0; padding: 0; border: none; background: transparent; box-shadow: none; }
@@ -4406,13 +4407,13 @@
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) {
                 display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; align-items: start;
             }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg:not(.trip) { display: contents; }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg.trip { order: 6; grid-column: 1 / -1; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg:not(.trip):not(.pod) { display: contents; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg.pod { order: 5; grid-column: 1 / -1; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg.trip { order: 7; grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .form-row { order: 1; }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-podacha { order: 2; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-a { order: 3; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-b { order: 4; }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > #route-fields-slot { order: 5; grid-column: 1 / -1; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > #route-fields-slot { order: 6; grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { order: 9; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-truck { order: 10; grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-vehicle-more,
@@ -7509,6 +7510,11 @@
         const distRow = opRowOf('dist');
         const podachaRow = opRowOf('podacha-dist');
         const podachaInfo = opById('podacha-info');
+        // Адреса стоянки (демо й повний доступ) лежала в #route-fields-slot, а «Подача авто» — угорі панелі; тепер вони в одному блоці.
+        const baseDemoRow = opRowOf('osm-demo-base');
+        const baseFullRow = opRowOf('osm-base-wrap');
+        if (baseDemoRow) baseDemoRow.classList.add('demo-only');
+        if (baseFullRow) baseFullRow.classList.add('full-only');
         // Норма, авто, діби й підказка про ходки живуть у «Маршруті» (ті самі вузли й id, що й були в «Додаткових параметрах»).
         const normRow = opRowOf('norm-weight');
         const carsRow = opRowOf('cars-count');
@@ -7521,7 +7527,15 @@
             panel1.appendChild(nameRow);
         }
         panel1.appendChild(opGroup('two', [opCell('tc-f-a', 'Звідки', [fromFull, fromDemo]), opCell('tc-f-b', 'Куди', [toFull, toDemo])]));
-        panel1.appendChild(opGroup('one', [opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo])]));
+        // Блок «Подача»: адреса стоянки на всю ширину, під нею компактне поле км (його читає calculate(); після «Розрахувати відстань» його заповнює код).
+        const podachaHint = document.createElement('small');
+        podachaHint.className = 'tc-f-hint';
+        podachaHint.id = 'podacha-hint';
+        podachaHint.textContent = 'рахується від стоянки, можна виправити';
+        panel1.appendChild(opGroup('one pod', [
+            opCell('tc-f-base', 'Подача (стоянка, за бажанням)', [baseDemoRow, baseFullRow]),
+            opCell('tc-f-podacha', 'Подача, км', [podachaRow, podachaInfo, podachaHint])
+        ]));
         if (routeTools) panel1.appendChild(routeTools);
         // Числа «Маршруту» парами: Відстань | Об'єм; Норма на авто | Авто; Діб на ходу | Тариф (разом із селектом «Вартість за тонну»).
         const normBtn = opById('norm-weight-info-btn'); // opCell переписує підпис разом із ⓘ: беремо кнопку до нього
