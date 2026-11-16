@@ -1,9 +1,9 @@
-// Видача SSO-токена для AGRO (api/agro/sso.js + lib/agro/sso.js): підпис і claims, статуси, ліміт, логи, origin. Без мережі й бази.
+// Видача SSO-токена для AGRO (api/agro/sso.js + lib/agro-sso.js): підпис і claims, статуси, ліміт, логи, origin. Без мережі й бази.
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import fs from 'node:fs';
 import test from 'node:test';
-import { ISSUER, TOKEN_TTL_SECONDS, agroBaseUrl, buildClaims, configProblem, createAgroSsoHandler, signJwt, ssoConfig } from '../lib/agro/sso.js';
+import { ISSUER, TOKEN_TTL_SECONDS, agroBaseUrl, buildClaims, configProblem, createAgroSsoHandler, signJwt, ssoConfig } from '../lib/agro-sso.js';
 
 const read = (rel) => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
 const SECRET = 'test-secret-test-secret-test-secret-123';
@@ -194,20 +194,24 @@ test('url: лише дозволений origin з env (https; localhost для 
     assert.ok((await call(custom)).body.url.startsWith('https://agro-staging.example.com/#sso='));
 });
 
-test('vercel / api: окремий статичний файл у api/agro/ із maxDuration 10; 401 і 405 до env; lib не імпортується з src/', async () => {
+test('vercel / api: функція сайту api/agro/sso.js із maxDuration 10 (kontrol-plus її не має, а проксює); 401 і 405 до env; lib не імпортується з браузерного коду', async () => {
     const cfg = JSON.parse(read('vercel.json'));
-    assert.deepEqual(cfg.functions['api/agro/*.js'], { maxDuration: 10 });
+    assert.deepEqual(cfg.functions['api/agro/sso.js'], { maxDuration: 10 });
+    const kp = JSON.parse(read('apps/kontrol-plus/vercel.json'));
+    assert.equal(Object.keys(kp.functions).some((k) => k.includes('agro')), false, 'у kontrol-plus запису для agro немає');
+    assert.equal(fs.existsSync(new URL('../apps/kontrol-plus/api/agro/sso.js', import.meta.url)), false, 'у kontrol-plus 13-ї функції немає');
+    assert.deepEqual(kp.rewrites.find((r) => r.source === '/api/:path*'), { source: '/api/:path*', destination: 'https://trip-control.com/api/:path*' }, 'КП проксює /api/* на сайт');
     const api = read('api/agro/sso.js');
     assert.ok(api.indexOf("res.status(405)") < api.indexOf('process.env.SUPABASE_URL'));
     assert.ok(api.indexOf("'AUTH_REQUIRED'") < api.indexOf('configProblem(process.env)'));
     assert.match(api, /Cache-Control', 'no-store'/);
     const walk = (dir) => fs.readdirSync(new URL('../' + dir, import.meta.url), { withFileTypes: true })
         .flatMap((e) => (e.isDirectory() ? walk(dir + '/' + e.name) : [dir + '/' + e.name]));
-    for (const file of walk('src').filter((f) => f.endsWith('.js'))) assert.equal(/lib\/agro\//.test(read(file)), false, file);
+    for (const file of [...walk('apps/kontrol-plus/src'), ...walk('assets'), 'index.html'].filter((f) => /\.(js|html)$/.test(f))) assert.equal(/agro-sso/.test(read(file)), false, file);
     // Нових залежностей немає: лише node:crypto.
-    assert.equal(/from '(?!node:|\.\.?\/)/.test(read('lib/agro/sso.js')), false);
+    assert.equal(/from '(?!node:|\.\.?\/)/.test(read('lib/agro-sso.js')), false);
     // Секретів у репозиторії немає.
-    assert.equal(/AGRO_SSO_SECRET\s*=\s*\S{8,}/.test(read('README.md')), false);
+    assert.equal(/AGRO_SSO_SECRET\s*=\s*\S{8,}/.test(read('apps/kontrol-plus/README.md')), false);
 });
 
 test('production (VERCEL_ENV=production): http://localhost не приймається, лише https-origin; 503 SSO_NOT_CONFIGURED; поза production localhost дозволено', async () => {

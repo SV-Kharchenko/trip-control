@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 53); // 2 для AGRO (міграція + pgTAP) + 2 для телематики (міграція + pgTAP) + 3 для кабінету суперадміна (superadmin) + 35 з #128 («Власний парк», idle-label) + 11 для staging, глобального вимикача і фейкового /api/config (tests/staging-scope.test.mjs)
+    assert.equal(SCOPE_ALLOWLIST.length, 58); // 5 для AGRO SSO на сайті (api, lib, 2 тести, vercel.json) + 2 для AGRO (міграція + pgTAP) + 2 для телематики (міграція + pgTAP) + 3 для кабінету суперадміна (superadmin) + 35 з #128 («Власний парк», idle-label) + 11 для staging, глобального вимикача і фейкового /api/config (tests/staging-scope.test.mjs)
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -19,7 +19,6 @@ test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () =
         'docs/SECRETS.md',
         '404.html',
         'api/team.js',
-        'vercel.json',
         'package.json',
         'apps/other/x.js',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
@@ -105,7 +104,6 @@ test('check-scope allowlist: exactly two more patterns for documents (4a), neigh
         'supabase/migrations/20261008_week2_admin_auth_audit.sql',
         'supabase/migrations/20261022091000_kontrol_plus_clients_reports.sql',
         'api/team.js',
-        'vercel.json',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
     assert.deepEqual(outsideScope(['apps/kontrol-plus/api/docs/rate.js', 'supabase/tests/kp_documents.sql', 'lib/trip-fact.js']), ['lib/trip-fact.js']);
 });
@@ -143,7 +141,6 @@ test('check-scope allowlist: exactly four more patterns for waybills (4b), neigh
         'supabase/migrations/20261012240000_fleet_vehicles.sql',
         'api/team.js',
         'lib/trip-fact.js',
-        'vercel.json',
         '404.html',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
     assert.deepEqual(outsideScope(['index.html', 'tests/fleet-ttn-fields.test.mjs', 'tests/fleet-docs.test.mjs', 'assets/x.png']), ['tests/fleet-docs.test.mjs', 'assets/x.png']);
@@ -166,7 +163,6 @@ test('check-scope allowlist: trip-history tab (index.html + its root test), neig
         'tests/header-menu.test.mjs.bak',
         'tests/x/header-menu.test.mjs',
         'api/team.js',
-        'vercel.json',
     ]) assert.equal(isAllowedOutside(bad), false, bad);
 });
 

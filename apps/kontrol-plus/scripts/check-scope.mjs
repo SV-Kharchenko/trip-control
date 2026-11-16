@@ -67,6 +67,12 @@ export const SCOPE_ALLOWLIST = [
     // Телематика (Агроконтроль, етап 2 «Власного парку»): міграція і pgTAP.
     /^supabase\/migrations\/\d{14}_telematics\.sql$/,
     /^supabase\/tests\/telematics\.sql$/,
+    // AGRO SSO: функція сайту (КП проксює на неї /api/*; у kontrol-plus на Hobby уже 12 функцій), її логіка, тести й vercel.json сайту.
+    /^api\/agro\/sso\.js$/,
+    /^lib\/agro-sso\.js$/,
+    /^tests\/agro-sso\.test\.mjs$/,
+    /^tests\/function-limit\.test\.mjs$/,
+    /^vercel\.json$/,
     // Доступ до AGRO (кнопка «АГРО» у шапці КП, SSO-токен): міграція і pgTAP.
     /^supabase\/migrations\/\d{14}_agro_access\.sql$/,
     /^supabase\/tests\/agro_access\.sql$/,

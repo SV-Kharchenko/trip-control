@@ -1,8 +1,8 @@
-// POST /api/agro/sso — разовий підписаний токен для входу в AGRO без повторного логіну. Статичний файл: реальний файл у api/ має
-// пріоритет над rewrite /api/:path* → trip-control.com. Логіка — lib/agro/sso.js.
-// Env (Vercel, проєкт kontrol-plus): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, AGRO_SSO_SECRET (≥ 32 символи); AGRO_APP_URL — необов'язково.
+// POST /api/agro/sso — разовий підписаний токен для входу в AGRO без повторного логіну. Функція проєкту trip-control (сайт): Контроль+
+// (app.trip-control.com) проксює на неї весь /api/* (rewrite у apps/kontrol-plus/vercel.json), клієнт КП кличе той самий шлях /api/agro/sso.
+// Логіка — lib/agro-sso.js. Env (Vercel, проєкт trip-control): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, AGRO_SSO_SECRET (≥ 32 символи); AGRO_APP_URL — необов'язково.
 import { createClient } from '@supabase/supabase-js';
-import { configProblem, createAgroSsoHandler, createAgroStore } from '../../lib/agro/sso.js';
+import { configProblem, createAgroSsoHandler, createAgroStore } from '../../lib/agro-sso.js';
 
 let handler = null;
 

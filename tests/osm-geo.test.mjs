@@ -255,11 +255,11 @@ test('Photon / OSRM hostnames only on the server (and docs); CSP, rewrites, func
     assert.match(read('api/poi.js'), /https:\/\/router\.project-osrm\.org\/route\/v1\/driving\//);
     const vercel = JSON.parse(read('vercel.json'));
     assert.equal(vercel.rewrites.length, 5);
-    assert.deepEqual(vercel.functions, { 'api/poi.js': { maxDuration: 60 } });
+    assert.deepEqual(vercel.functions, { 'api/poi.js': { maxDuration: 60 }, 'api/agro/sso.js': { maxDuration: 10 } });
     const csp = vercel.headers[0].headers.find((h) => h.key === 'Content-Security-Policy').value;
     assert.match(csp, /connect-src 'self' https:\/\/\*\.supabase\.co wss:\/\/\*\.supabase\.co https:\/\/maps\.googleapis\.com https:\/\/\*\.googleapis\.com https:\/\/bank\.gov\.ua [^;]*;/);
     const apiFiles = readdirSync(new URL('../api/', import.meta.url), { recursive: true }).filter((f) => String(f).endsWith('.js'));
-    assert.ok(apiFiles.length <= 10, 'no new serverless functions beyond /api/config (public config from env): ' + apiFiles.join(', '));
+    assert.ok(apiFiles.length <= 12, 'Hobby: не більше 12 функцій у проєкті (є tests/function-limit.test.mjs): ' + apiFiles.join(', '));
     // Browser code only talks to our proxy.
     const client = read('assets/osm-geo.js');
     assert.match(client, /'\/api\/poi\?mode=geocode&q='/);
