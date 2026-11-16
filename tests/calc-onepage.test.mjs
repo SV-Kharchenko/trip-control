@@ -67,8 +67,8 @@ test('panel «Параметри заявки»: 3 accordion rows + the costs li
     const order = build.slice(build.indexOf('panel1.appendChild(nameRow)'), build.indexOf('panel1.appendChild(vehicleMore)'));
     const at = (needle) => order.indexOf(needle);
     // П.11: Звідки–Куди → Подача → «Розрахувати відстань» (route tools) → Відстань, Вага, Тариф → Повернення, ТЗ.
-    assert.ok(at("'Звідки'") > -1 && at("'Звідки'") < at("'Куди'") && at("'Куди'") < at("'Подача авто'"));
-    assert.ok(at("'Подача авто'") < at('if (routeTools)') && at('if (routeTools)') < at("'Відстань'"));
+    assert.ok(at("'Звідки'") > -1 && at("'Звідки'") < at("'Куди'") && at("'Куди'") < at("'tc-f-base'"));
+    assert.ok(at("'tc-f-base'") < at("'tc-f-podacha'") && at("'tc-f-podacha'") < at('if (routeTools)') && at('if (routeTools)') < at("'Відстань'"));
     assert.ok(at("'Відстань'") < at('"Об\'єм (загальна вага) по заявці"') && at('"Об\'єм (загальна вага) по заявці"') < at('rate'));
     assert.ok(at('rate') < at("'Повернення'") && at("'Повернення'") < at('truck]'));
     // Блок «Податки і накладні» прибрано; ставки водія, ТО, шини, накладні й склад парку — видимі в рядку «Витрати і накладні».
@@ -521,6 +521,8 @@ test('jsdom: #dist and #podacha-dist are in the panel once, trailer type updates
         const unit = d.getElementById('podacha-dist').parentElement.querySelector('.unit');
         assert.equal(unit && unit.textContent, 'км');
         assert.ok(d.getElementById('podacha-dist').closest('.tc-f-podacha'));
+        assert.ok(d.querySelector('.tc-sg.pod #podacha-dist') && d.querySelector('.tc-sg.pod #osm-demo-base'), 'km and the parking address share one block');
+        assert.ok(d.getElementById('podacha-dist').closest('.tc-sg.pod #osm-demo-base, .tc-sg.pod') && d.querySelector('.tc-sg.pod #osm-demo-base'));
         assert.ok(d.getElementById('dist').closest('.tc-f-dist'));
         const trailer = d.getElementById('trailer-type');
         const ids = ['field-ref-consumption', 'field-ref-hours', 'field-wash-cost', 'field-wash-freq'];
@@ -561,7 +563,7 @@ test('static: onTrailerChange syncs fields before the session guard; rows are ca
     assert.match(sliceBetween(html, 'async function calculate()', 'Обов'), /if \(!currentSessionToken\) return;/);
     assert.ok(build.indexOf('const distRow = opRowOf') < build.indexOf("panel1.textContent = ''"));
     assert.ok(build.indexOf('const podachaRow = opRowOf') < build.indexOf("panel1.textContent = ''"));
-    assert.match(build, /opCell\('tc-f-podacha', 'Подача авто', \[podachaRow, podachaInfo\]\)/);
+    assert.match(build, /opCell\('tc-f-podacha', 'Подача, км', \[podachaRow, podachaInfo, podachaHint\]\)/);
 });
 
 test('browser: #podacha-dist visible exactly once with its km unit in every mode; no zero-height grid items in extras (1920 / 1440 / 1280 / 1024 / 390)', async (t) => {
@@ -626,8 +628,8 @@ test('static: norm / cars / days rows are captured before panel1 is cleared and 
 });
 
 test('css: trip grid does not dissolve into the panel grid; narrow panel (≤340px) or phone (≤480px) → one column', () => {
-    assert.ok(html.includes('> .tc-sg:not(.trip) { display: contents; }'));
-    assert.match(html, /> \.tc-sg\.trip \{ order: 6; grid-column: 1 \/ -1; \}/);
+    assert.ok(html.includes('> .tc-sg:not(.trip):not(.pod) { display: contents; }'));
+    assert.match(html, /> \.tc-sg\.trip \{ order: 7; grid-column: 1 \/ -1; \}/);
     assert.equal(html.includes('.tc-f-dist { order: 6; }'), false);
     assert.ok(html.includes('#tc-op .tc-sg.trip > #trip-volume-info { grid-column: 1 / -1;'));
     assert.ok(html.includes('#tc-op .tc-sg.trip .tc-in > select.cur { min-width: 4.4em;'));
@@ -693,5 +695,86 @@ test('browser: the demo trip typed into the «Маршрут» fields gives the 
         // Значення знято з origin/main до перенесення полів: 21,5 т × 3 авто × 1450 грн/т.
         assert.equal(money.grossIncome, 93525);
         assert.equal(money.netIncome, 93525);
+    });
+});
+
+// ----- «Подача»: адреса стоянки і км в одному блоці (fix/calc-podacha-block) -----
+test('static: parking address rows and #podacha-dist go into one «Подача» block under «Куди», before the route tools', () => {
+    assert.match(build, /const baseDemoRow = opRowOf\('osm-demo-base'\);/);
+    assert.match(build, /const baseFullRow = opRowOf\('osm-base-wrap'\);/);
+    assert.match(build, /baseDemoRow\.classList\.add\('demo-only'\)/);
+    assert.match(build, /baseFullRow\.classList\.add\('full-only'\)/);
+    assert.match(build, /opGroup\('one pod', \[\s*opCell\('tc-f-base', 'Подача \(стоянка, за бажанням\)', \[baseDemoRow, baseFullRow\]\),\s*opCell\('tc-f-podacha', 'Подача, км', \[podachaRow, podachaInfo, podachaHint\]\)/);
+    assert.ok(build.indexOf('const baseDemoRow') < build.indexOf("panel1.textContent = ''"));
+    assert.ok(build.indexOf("opCell('tc-f-b', 'Куди'") < build.indexOf("opGroup('one pod'") && build.indexOf("opGroup('one pod'") < build.indexOf('if (routeTools)'));
+    assert.ok(build.includes("podachaHint.textContent = 'рахується від стоянки, можна виправити'"));
+    // Старий окремий осередок угорі й його order зникли.
+    assert.equal(build.includes("opGroup('one', [opCell('tc-f-podacha'"), false);
+    assert.equal(html.includes('.tc-f-podacha { order: 2; }'), false);
+    assert.ok(html.includes('> .tc-sg.pod { order: 5; grid-column: 1 / -1; }'));
+    assert.ok(html.includes('> #route-fields-slot { order: 6; grid-column: 1 / -1; }'));
+    // id не змінились: по одному елементу.
+    for (const id of ['podacha-dist', 'osm-base', 'osm-demo-base', 'osm-base-wrap']) assert.equal((html.match(new RegExp(' id="' + id + '"', 'g')) || []).length, 1, id);
+});
+
+test('browser: #podacha-dist shares the block with the parking address in demo and in full mode; nothing under the name; one column ≤480px, no scroll', async (t) => {
+    await withPage(t, [1280, 390], async (page, width, theme) => {
+        const at = ' at ' + width + ' ' + theme;
+        for (const demo of [true, false]) {
+            await page.evaluate((on) => document.body.classList.toggle('demo-mode', on), demo);
+            await page.waitForTimeout(60);
+            const m = await page.evaluate((isDemo) => {
+                const block = document.querySelector('#tc-acc-route .tc-sg.pod');
+                const pod = document.getElementById('podacha-dist');
+                const base = document.getElementById(isDemo ? 'osm-demo-base' : 'osm-base-wrap');
+                const vis = (el) => !!el && el.offsetParent !== null;
+                const top = (el) => el.getBoundingClientRect().top;
+                const name = document.getElementById('route-name');
+                const to = document.querySelector('#tc-acc-route .tc-f-b');
+                const rect = (el) => el.getBoundingClientRect();
+                const grid = getComputedStyle(block).gridTemplateColumns.split(' ').length;
+                return {
+                    sameBlock: block.contains(pod) && block.contains(document.getElementById('osm-base')) && block.contains(base),
+                    baseVisible: vis(base), podVisible: vis(pod), hint: block.querySelector('#podacha-hint').textContent,
+                    underName: !!pod.closest('.tc-f-podacha') && top(pod) < top(to),
+                    order: top(name) < top(to) && top(to) < top(base) && top(base) < top(pod),
+                    abovePair: top(pod) < top(document.getElementById('dist')),
+                    baseWide: rect(base).width >= rect(pod.closest('.tc-in')).width,
+                    grid, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                    podEditable: !pod.readOnly && !pod.disabled,
+                };
+            }, demo);
+            const tag = ' (demo=' + demo + ')' + at;
+            assert.equal(m.sameBlock, true, 'same block' + tag);
+            assert.equal(m.baseVisible, true, 'address visible' + tag);
+            assert.equal(m.podVisible, true, 'km visible' + tag);
+            assert.equal(m.hint, 'рахується від стоянки, можна виправити', 'hint' + tag);
+            assert.equal(m.underName, false, 'km is not right under the name' + tag);
+            assert.equal(m.order, true, 'name → Куди → address → km' + tag);
+            assert.equal(m.abovePair, true, 'block is above Відстань' + tag);
+            assert.equal(m.baseWide, true, 'address is at least as wide as the km field' + tag);
+            assert.equal(m.grid, 1, 'one column' + tag);
+            assert.ok(m.overflow <= 0, 'horizontal scroll ' + m.overflow + tag);
+            assert.equal(m.podEditable, true);
+        }
+    });
+});
+
+test('browser: the demo trip with the parking leg gives the same payload and money as before the move (fuel 20 862 for 1 170 km)', async (t) => {
+    process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'https://example.supabase.co';
+    process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-service-role-key';
+    const { calculateTrip } = await import('../api/calculate.js');
+    await withPage(t, [1280], async (page, width, theme) => {
+        const payload = await page.evaluate(() => {
+            const demo = { 'podacha-dist': 40, dist: 350, volume: 500, 'norm-weight': 21.5, 'cars-count': 3, 'days-per-trip': 1.5, rate: 1450 };
+            for (const id of Object.keys(demo)) document.getElementById(id).value = demo[id];
+            return readTripPayload();
+        });
+        assert.equal(payload.podachaDist, '40');
+        const money = calculateTrip(payload);
+        // Значення знято з origin/main до перенесення блоку: (350 + 40) км × 3 авто.
+        assert.equal(money.grossIncome, 93525);
+        assert.match(money.fuelSummaryText, /заг\. пробіг 1170 км/);
+        assert.equal(money.fuelAndAdblueTotal, 20862);
     });
 });
