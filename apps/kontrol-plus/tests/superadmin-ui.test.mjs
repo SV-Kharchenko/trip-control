@@ -51,6 +51,13 @@ const supabase = {
         if (name === 'sa_list_audit') return { data: fx.audit.slice(args.p_offset, args.p_offset + args.p_limit), error: null };
         if (name === 'sa_create_setting') { settings = [...settings, { key: args.p_key, enabled: args.p_enabled }]; return { data: {}, error: null }; }
         if (name === 'sa_set_setting') { settings = settings.map((s) => (s.key === args.p_key ? { ...s, enabled: args.p_enabled } : s)); return { data: {}, error: null }; }
+        if (name === 'sa_list_org_agro_users') {
+            return { data: [
+                { user_id: 'u1', email: 'owner@agro.example', org_role: 'owner', override: null, allowed: true, reason: 'org' },
+                { user_id: 'u2', email: 'logist-з-дуже-довгою-поштою@agro-pivnich.example', org_role: 'logist', override: false, allowed: false, reason: 'user_override' },
+                { user_id: 'u3', email: 'new@agro.example', org_role: 'logist', override: true, allowed: false, reason: 'global_off' },
+            ], error: null };
+        }
         return { data: {}, error: null };
     },
 };
@@ -69,7 +76,7 @@ async function run(t, cfg, viewport, fn) {
     let pw; let esbuild;
     try { pw = await import('playwright-core'); esbuild = await import('esbuild'); } catch { t.skip('no playwright-core / esbuild'); return; }
     let browser;
-    try { browser = await pw.chromium.launch({ headless: true }); } catch { t.skip('no Chromium'); return; }
+    try { browser = await pw.chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || undefined }); } catch { t.skip('no Chromium'); return; }
     const built = await esbuild.build({ stdin: { contents: ENTRY, resolveDir: APP, sourcefile: 'entry.js' }, bundle: true, format: 'esm', write: false, absWorkingDir: APP,
         loader: { '.css': 'empty' }, logLevel: 'silent' });
     esbuild.stop();
@@ -208,4 +215,44 @@ test('features {own_fleet:"true"} (рядок) показується як ув�
         await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'sa_set_org_feature'));
         assert.deepEqual(await callsOf(page, 'sa_set_org_feature'), [{ p_org: ORG_C, p_key: 'own_fleet', p_enabled: false }], 'вимикаємо те, що було увімкнено');
     });
+});
+
+test('AGRO: у картці компанії блок «Доступ до AGRO для користувачів» — список, селект «Як у компанії / Дозволено / Заборонено», підтвердження перед sa_set_user_agro', async (t) => {
+    for (const [theme, viewport] of [['light', { width: 1366, height: 900 }], ['dark', { width: 390, height: 844 }]]) {
+        await run(t, { theme, settings: [{ key: 'own_fleet', enabled: true }, { key: 'agro', enabled: true }] }, viewport, async (page) => {
+            const block = `.kpsa-org[data-org="${ORG_A}"] .kpsa-agro`;
+            assert.equal(await page.textContent(block + ' > summary'), 'Доступ до AGRO для користувачів');
+            assert.equal((await callsOf(page, 'sa_list_org_agro_users')).length, 0, 'до розгортання нічого не вантажимо');
+            await page.click(block + ' > summary');
+            await page.waitForSelector(block + ' .kpsa-agro-row');
+            assert.deepEqual(await callsOf(page, 'sa_list_org_agro_users'), [{ p_org: ORG_A }]);
+            const rows = await page.$$eval(block + ' .kpsa-agro-row', (els) => els.map((e) => ({
+                email: e.querySelector('b').textContent, value: e.querySelector('select').value, eff: e.querySelector('.kpsa-agro-eff').textContent,
+                options: [...e.querySelectorAll('option')].map((o) => o.textContent),
+            })));
+            assert.deepEqual(rows.map((r) => r.value), ['', 'false', 'true']);
+            assert.deepEqual(rows[0].options, ['Як у компанії', 'Дозволено', 'Заборонено']);
+            assert.equal(rows[0].eff, 'Доступ є · за прапорцем компанії');
+            assert.equal(rows[1].eff, 'Доступу немає · персональне налаштування');
+            assert.equal(rows[2].eff, 'Доступу немає · вимкнено глобально');
+            assert.equal(await noOverflow(page), true, 'без горизонтального скролу');
+            await shot(page, 'superadmin-agro-' + viewport.width + '-' + theme + '.png');
+            // Скасування в діалозі: нічого не пишемо, селект повертається.
+            await page.evaluate(() => { window.__answer = false; });
+            await page.selectOption(block + ' .kpsa-agro-row[data-user="u1"] select', 'false');
+            await page.waitForFunction(() => window.__modals.length >= 1);
+            assert.equal((await callsOf(page, 'sa_set_user_agro')).length, 0);
+            assert.equal(await page.inputValue(block + ' .kpsa-agro-row[data-user="u1"] select'), '');
+            // Підтвердження: sa_set_user_agro із булевим значенням; «Як у компанії» → null.
+            await page.evaluate(() => { window.__answer = true; });
+            await page.selectOption(block + ' .kpsa-agro-row[data-user="u1"] select', 'true');
+            await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'sa_set_user_agro'));
+            await page.selectOption(block + ' .kpsa-agro-row[data-user="u2"] select', '');
+            await page.waitForFunction(() => window.__calls.filter((c) => c[0] === 'sa_set_user_agro').length === 2);
+            assert.deepEqual(await callsOf(page, 'sa_set_user_agro'), [{ p_user: 'u1', p_allowed: true }, { p_user: 'u2', p_allowed: null }]);
+            const titles = await page.evaluate(() => window.__modals.map((m) => m.title));
+            assert.match(titles[0], /Доступ до AGRO для owner@agro\.example: «Заборонено»\?/);
+            assert.equal(await page.locator('.kpsa-global[data-key="agro"]').count(), 1, 'AGRO — у глобальних функціях');
+        });
+    }
 });

@@ -6,13 +6,31 @@ export const ORGS_PAGE = 25;
 // Модулі платформи. Ключ = app_settings.key = organizations.features ->> key. Опис у таблиці app_settings не зберігається.
 export const MODULES = [
     { key: 'own_fleet', label: 'Власний парк', desc: 'Підрозділи, точки, заявки на рейс, дошка диспетчера й замовники підрозділів.' },
+    { key: 'agro', label: 'AGRO', desc: 'Вхід в AGRO · Власний парк із Контроль+ без повторного логіну.' },
 ];
 
 export function moduleInfo(key) {
     return MODULES.find((m) => m.key === key) || { key, label: key, desc: 'Модуль без опису.' };
 }
 
-const ACTIONS = { 'setting.set': 'Глобальний перемикач', 'setting.create': 'Створено рядок перемикача', 'org.feature.set': 'Модуль компанії' };
+const ACTIONS = { 'setting.set': 'Глобальний перемикач', 'setting.create': 'Створено рядок перемикача', 'org.feature.set': 'Модуль компанії', 'user.agro.set': 'Доступ до AGRO (користувач)' };
+
+// «Доступ до AGRO для користувачів» у картці компанії: перевизначення (null — як у компанії) і причина ефективного стану (agro_access_for).
+export const AGRO_CHOICES = [['', 'Як у компанії'], ['true', 'Дозволено'], ['false', 'Заборонено']];
+export function agroChoiceValue(override) {
+    return override === true ? 'true' : override === false ? 'false' : '';
+}
+export function agroChoiceArg(value) {
+    return value === 'true' ? true : value === 'false' ? false : null;
+}
+const AGRO_REASONS = {
+    global_off: 'вимкнено глобально', user_blocked: 'користувача заблоковано', email_unconfirmed: 'пошту не підтверджено', no_org: 'немає компанії',
+    org_blocked: 'компанію заблоковано', user_override: 'персональне налаштування', org: 'за прапорцем компанії',
+};
+export function agroEffectiveText(row) {
+    const reason = AGRO_REASONS[row && row.reason] || '';
+    return (row && row.allowed === true ? 'Доступ є' : 'Доступу немає') + (reason ? ' · ' + reason : '');
+}
 export function actionLabel(action) {
     return ACTIONS[action] || String(action || '');
 }
@@ -59,6 +77,7 @@ export function auditValue(obj) {
 }
 export function auditTarget(row) {
     if (row.target_type === 'app_setting') return moduleInfo(row.target_id).label;
+    if (row.target_type === 'user') return 'Користувач ' + String(row.target_id || '').slice(0, 8) + ' · AGRO';
     if (row.target_type === 'organization') {
         const keys = Object.keys(row.after || {});
         return 'Компанія ' + String(row.target_id || '').slice(0, 8) + (keys.length ? ' · ' + moduleInfo(keys[0]).label : '');
@@ -71,6 +90,7 @@ const BY_MESSAGE = [
     [/SA_UNKNOWN_MODULE/, 'Невідомий модуль. Перемикати можна лише модулі платформи.'],
     [/SA_ALREADY_EXISTS/, 'Рядок перемикача вже існує. Оновіть сторінку.'],
     [/SA_ORG_NOT_FOUND/, 'Компанію не знайдено.'],
+    [/SA_USER_NOT_FOUND/, 'Користувача не знайдено.'],
     [/SA_INVALID/, 'Некоректне значення.'],
 ];
 export function superadminErrorText(error) {

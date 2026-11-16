@@ -67,6 +67,9 @@ export const SCOPE_ALLOWLIST = [
     // Телематика (Агроконтроль, етап 2 «Власного парку»): міграція і pgTAP.
     /^supabase\/migrations\/\d{14}_telematics\.sql$/,
     /^supabase\/tests\/telematics\.sql$/,
+    // Доступ до AGRO (кнопка «АГРО» у шапці КП, SSO-токен): міграція і pgTAP.
+    /^supabase\/migrations\/\d{14}_agro_access\.sql$/,
+    /^supabase\/tests\/agro_access\.sql$/,
     // Корінний тест перебирав файли src/views/ без підтек; «Власний парк» лежить у views/own-fleet/ — тест читає теки рекурсивно.
     /^tests\/idle-label\.test\.mjs$/,
     // Модуль «Власний парк» (етап 1): міграція й pgTAP-тест.

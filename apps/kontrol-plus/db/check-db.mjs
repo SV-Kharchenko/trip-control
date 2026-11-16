@@ -799,6 +799,25 @@ const tmTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')
 for (const row of tmTap) check(row.ok, 'pgTAP telematics.sql: ' + row.label);
 check(tmTap.length === tmPlanned, 'pgTAP telematics.sql: ran ' + tmTap.length + ' of plan(' + tmPlanned + ')');
 
+// Доступ до AGRO: міграція двічі (ідемпотентність) і pgTAP через той самий shim.
+const AGRO = all.find((f) => /^\d{14}_agro_access\.sql$/.test(f));
+if (!AGRO) throw new Error('немає міграції *_agro_access.sql');
+const agroSql = fs.readFileSync(new URL(AGRO, DIR), 'utf8');
+await db.exec(agroSql);
+await db.exec(agroSql);
+const agroCode = agroSql.replace(/^\s*--.*$/gm, '');
+check(AGRO > SA && /^-- Apply manually after review\. This file is not applied to production by the agent\./.test(agroSql) && !/CREATE EXTENSION/i.test(agroCode)
+    && !/GRANT (INSERT|UPDATE|DELETE|ALL)[^;]*agro_user_access[^;]*TO (authenticated|anon)/i.test(agroCode) && /РУЧНИЙ ВІДКАТ/.test(agroSql),
+'agro: ' + AGRO + ' applied twice, manual-apply header and manual rollback, no write grants on agro_user_access to authenticated');
+const agroTapSql = fs.readFileSync(new URL('../../../supabase/tests/agro_access.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const agroPlanned = Number((agroTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const agroBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(agroTapSql);
+const agroTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(agroBefore);
+for (const row of agroTap) check(row.ok, 'pgTAP agro_access.sql: ' + row.label);
+check(agroTap.length === agroPlanned, 'pgTAP agro_access.sql: ran ' + agroTap.length + ' of plan(' + agroPlanned + ')');
+
 // Ліміт маршрутів Google на тріалі: міграція двічі (ідемпотентність) і pgTAP через той самий shim.
 const MC = all.find((f) => /^\d{14}_trial_maps_cap\.sql$/.test(f));
 if (!MC) throw new Error('немає міграції *_trial_maps_cap.sql');

@@ -3,7 +3,7 @@
 import '../../kp-superadmin.css';
 import { h, clear, notice, spinner, toast } from '../../ui.js';
 import {
-    AUDIT_PAGE, MODULES, ORGS_PAGE, actionLabel, auditTarget, auditValue, formatWhen, featureOn, moduleInfo, orgModuleNote, settingRows, superadminErrorText,
+    AGRO_CHOICES, AUDIT_PAGE, MODULES, ORGS_PAGE, actionLabel, agroChoiceArg, agroChoiceValue, agroEffectiveText, auditTarget, auditValue, formatWhen, featureOn, moduleInfo, orgModuleNote, settingRows, superadminErrorText,
 } from '../../lib/superadmin.js';
 
 // Підтвердження — діалог сайту (tcModal); без нього дію НЕ виконуємо.
@@ -88,6 +88,46 @@ export function renderSuperadmin(app) {
         toast('Збережено', 'ok');
         await Promise.all([loadOrgs(), loadAudit()]);
     }
+    // Блок «Доступ до AGRO для користувачів»: вантажиться, лише коли його розгорнули; зміна — через sa_set_user_agro із підтвердженням.
+    function agroUsersBlock(org) {
+        const body = h('div', { class: 'kpsa-agro-list', role: 'list' });
+        let loaded = false;
+        async function load() {
+            clear(body, spinner());
+            const { data, error } = await rpc('sa_list_org_agro_users', { p_org: org.id });
+            if (error) { clear(body, notice(superadminErrorText(error))); loaded = false; return; }
+            const rows = data || [];
+            clear(body, rows.length ? rows.map(userRow) : h('p', { class: 'muted small' }, 'У компанії немає активних користувачів.'));
+        }
+        async function setUser(row, select) {
+            const value = select.value;
+            const allowed = agroChoiceArg(value);
+            const label = AGRO_CHOICES.find((c) => c[0] === value)[1];
+            const answer = await confirmDialog({
+                title: 'Доступ до AGRO для ' + (row.email || 'користувача') + ': «' + label + '»?',
+                text: allowed === null ? 'Доступ знову визначатиме компанія.' : allowed ? 'Користувач зможе входити в AGRO, навіть якщо компанії доступ не відкрито (за умови глобального вмикання).' : 'Користувач не зможе входити в AGRO, навіть якщо компанії доступ відкрито.',
+                confirmText: 'Зберегти',
+                danger: allowed === false,
+            });
+            if (!answer || !answer.ok) { select.value = agroChoiceValue(row.override); return; }
+            select.disabled = true;
+            const { error } = await rpc('sa_set_user_agro', { p_user: row.user_id, p_allowed: allowed });
+            if (error) { select.disabled = false; select.value = agroChoiceValue(row.override); toast(superadminErrorText(error), 'error'); return; }
+            toast('Збережено', 'ok');
+            await Promise.all([load(), loadAudit()]);
+        }
+        function userRow(row) {
+            const select = h('select', { class: 'kpsa-agro-select', 'aria-label': 'Доступ до AGRO: ' + (row.email || ''), onchange: () => setUser(row, select) },
+                AGRO_CHOICES.map(([value, text]) => h('option', { value }, text)));
+            select.value = agroChoiceValue(row.override);
+            return h('div', { class: 'kpsa-agro-row', role: 'listitem', 'data-user': row.user_id },
+                h('div', { class: 'kpsa-main' }, h('b', null, row.email || '—'), h('div', { class: 'muted small' }, row.org_role || '')),
+                select,
+                h('div', { class: 'kpsa-agro-eff ' + (row.allowed === true ? 'is-on' : 'is-off'), 'data-allowed': String(row.allowed === true) }, agroEffectiveText(row)));
+        }
+        return h('details', { class: 'kpsa-agro', ontoggle: (e) => { if (e.target.open && !loaded) { loaded = true; load(); } } },
+            h('summary', null, 'Доступ до AGRO для користувачів'), body);
+    }
     function orgRow(org) {
         const modules = MODULES.map((m) => {
             const on = featureOn(org.features, m.key);
@@ -102,7 +142,8 @@ export function renderSuperadmin(app) {
             h('div', { class: 'kpsa-main' }, h('b', null, org.name || 'Без назви'), h('div', { class: 'muted small' }, org.edrpou ? 'ЄДРПОУ ' + org.edrpou : 'ЄДРПОУ не вказано')),
             h('div', { class: 'kpsa-cell', 'data-label': 'Тип' }, org.legal_form || '—'),
             h('div', { class: 'kpsa-cell', 'data-label': 'Користувачів' }, String(org.members ?? 0)),
-            h('div', { class: 'kpsa-mods', 'data-label': 'Модулі' }, modules));
+            h('div', { class: 'kpsa-mods', 'data-label': 'Модулі' }, modules),
+            agroUsersBlock(org));
     }
     async function loadOrgs() {
         const { data, error } = await rpc('sa_search_orgs', { p_q: q.value.trim(), p_limit: ORGS_PAGE, p_offset: orgOffset });

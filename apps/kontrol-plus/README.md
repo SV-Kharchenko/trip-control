@@ -502,6 +502,21 @@ npm run check:db                # усі міграції + Контроль+ і
 - До застосування міграції 4b: у «Усіх документах» ТТН просто немає, фільтр «ТТН» пояснює, що міграцію не застосовано;
   картка авто на сайті працює як раніше (без блоку «Дані для ТТН»).
 
+## AGRO SSO
+
+Кнопка «АГРО» у шапці Контроль+ (на телефоні — у шторці бургер-меню) відкриває https://agro.trip-control.com без повторного входу. AGRO — окремий репозиторій і окрема база Supabase; тут лише видача токена та перемикачі доступу.
+
+**Потік**
+1. Після входу `bridge.js` кличе `rpc('agro_access_me')`: кнопка видима, лише якщо воно повернуло `true` (помилка RPC або немає функції — кнопку сховано). Це підказка інтерфейсу.
+2. Клік → `POST /api/agro/sso` із JWT сесії (`api/agro/sso.js`, логіка в `lib/agro/sso.js`). Сервер перевіряє JWT (`auth.getUser`), кличе `agro_access_for(user)` і лише тоді підписує токен. Немає доступу → `403 AGRO_ACCESS_DENIED` з текстом і кодом причини (`global_off`, `user_blocked`, `email_unconfirmed`, `no_org`, `org_blocked`, `user_override`, `org`); не більше 10 видач на користувача за хвилину (`429`).
+3. Відповідь `{ url }` = `AGRO_APP_URL` + `/#sso=<токен>`; клієнт робить `location.assign(url)`. Адреса береться лише з env (origin, https), параметрів із запиту немає.
+
+**Токен**: JWT HS256, `iss: trip-control`, `aud: agro`, `sub`, `email`, `org_id`, `org_name`, `org_role`, `provision` (true лише для `owner`), `iat`, `nbf`, `exp = iat + 60 с`, `jti`. Токен **разовий**: повторне використання відсікає AGRO за `jti`; живе 60 с; іде у fragment URL (`#sso=`), який не потрапляє в логи серверів і `Referer`. У логах сервера лише коди дій, без пошти, JWT і токена.
+
+**Env** (Vercel, проєкт kontrol-plus; значень тут немає): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `AGRO_SSO_SECRET` (≥ 32 символи; той самий секрет у AGRO), `AGRO_APP_URL` (необов'язково, за замовчуванням https://agro.trip-control.com). Без них `/api/agro/sso` відповідає `503 NOT_CONFIGURED`.
+
+**Доступ** (міграція `supabase/migrations/20261127090000_agro_access.sql`, застосовується вручну): глобальний вимикач `app_settings('agro')` (за замовчуванням вимкнений), прапорець компанії `organizations.features.agro`, персональне перевизначення `agro_user_access` (дозволено / заборонено / як у компанії). Все це перемикається в кабінеті «Платформа» (`#/superadmin`): модуль «AGRO» у глобальних функціях і в картці компанії, блок «Доступ до AGRO для користувачів» у картці. Тариф не перевіряється.
+
 ## PWA / Microsoft Store
 
 `public/manifest.webmanifest` (id, standalone, window-controls-overlay, іконки any + maskable, скриншоти wide/narrow),
