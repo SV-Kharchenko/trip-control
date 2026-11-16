@@ -32,10 +32,13 @@ test('довідка біля нормативної ваги: ⓘ + підка�
     assert.match(app, /<div class="form-row tc-has-tip">\s*<label>Нормативна вага на авто:/);
     assert.match(html, /\.tc-has-tip \{ position: relative; \}/);
     assert.match(html, /<input type="number" id="norm-weight" tabindex="6" step="0.5" oninput="calculate\(\)">/);
-    // Кнопка й підказка — всередині того самого рядка, що переїжджає в «Додаткові параметри».
+    // Кнопка й підказка — всередині того самого рядка, що переїжджає в «Маршрут» (група .tc-sg.trip, підпис «Норма на авто»).
     const row = app.slice(app.indexOf('<div class="form-row tc-has-tip">'), app.indexOf('id="cars-count"'));
     assert.ok(row.includes('norm-weight-info-btn') && row.includes('norm-weight-info-tip') && row.includes('id="norm-weight"'));
-    assert.match(html, /opRowOf\('trailer-type'\), opRowOf\('norm-weight'\)/);
+    assert.match(html, /const normRow = opRowOf\('norm-weight'\);/);
+    assert.match(html, /opCell\('tc-f-norm', 'Норма на авто', \[normRow\]\)/);
+    assert.match(html, /normLab\.appendChild\(normBtn\)/);
+    assert.equal(/opRowOf\('trailer-type'\), opRowOf\('norm-weight'\)/.test(html), false, 'у «Додаткових параметрах» норми вже немає');
 });
 
 function fnSource(name) {

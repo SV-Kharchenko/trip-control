@@ -39,7 +39,7 @@
     <link rel="stylesheet" href="/assets/landing.css?v=2026-10-20">
     <link rel="stylesheet" href="/assets/cost-hints.css?v=2026-10-20">
     <script src="/assets/osm-geo.js?v=2026-11-06" defer></script>
-    <script src="/assets/calc-menu.js?v=2026-11-12-2"></script>
+    <script src="/assets/calc-menu.js?v=2026-11-16-1"></script>
     <script src="/assets/cost-hints.js?v=2026-10-20" defer></script>
     <script src="/assets/landing.js?v=2026-10-20" defer></script>
 <style>
@@ -4253,10 +4253,9 @@
         #tc-op .tc-in > select { text-overflow: ellipsis; }
         #tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }
         /* Числа заявки: Відстань | Об'єм (загальна вага) по заявці | Тариф у сітці 2 колонки, щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
-        .tc-sg.nums { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .tc-sg.trip { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
         .tc-in > select.cur { min-width: 76px; }
         .tc-f-rate .tc-in > input { min-width: 70px; }
-        @media (max-width: 340px) { .tc-sg.nums { grid-template-columns: minmax(0, 1fr); } }
 
         /* ===== v3: сторінка результату, числові поля рядком, A/B-бейдж, Заявки, модал ===== */
         body.layout-studio { --tc-gap: clamp(12px, 1.3vw, 24px); }
@@ -4279,7 +4278,15 @@
         #tc-op .tc-f-rate .form-row > .tc-in { width: clamp(160px, 10.5vw, 170px); }
         #tc-op .tc-in > input[type="number"] { text-align: right; font-family: var(--font-mono); -moz-appearance: textfield; appearance: textfield; }
         #tc-op .tc-in > input[type="number"]::-webkit-outer-spin-button, #tc-op .tc-in > input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        #tc-op .tc-sg:has(> .tc-f > .form-row > .tc-in > input[type="number"]), #tc-op .tc-sg:has(> .form-row > .tc-in > input[type="number"]), #tc-op .tc-sg.nums, #tc-op .tc-op-sub { grid-template-columns: minmax(0, 1fr); }
+        #tc-op .tc-sg:not(.trip):has(> .tc-f > .form-row > .tc-in > input[type="number"]), #tc-op .tc-sg:has(> .form-row > .tc-in > input[type="number"]), #tc-op .tc-op-sub { grid-template-columns: minmax(0, 1fr); }
+        /* «Маршрут»: числа парами в 2 стовпці (підпис над полем, одиниця всередині). Підказка «N ходок» — на всю ширину, порожня ховається */
+        #tc-op .tc-sg.trip .form-row:has(> .tc-in > input[type="number"]) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; align-items: start; min-height: 0; }
+        #tc-op .tc-sg.trip .form-row:has(> .tc-in > input[type="number"]) > .tc-in { width: 100%; }
+        #tc-op .tc-sg.trip > #trip-volume-info { grid-column: 1 / -1; margin: 0 !important; text-align: left !important; }
+        #tc-op .tc-sg.trip > .tc-f-dist, #tc-op .tc-sg.trip > .tc-f-weight, #tc-op .tc-sg.trip > .tc-f-norm, #tc-op .tc-sg.trip > .tc-f-cars { align-content: end; }
+        #tc-op .tc-sg.trip .tc-in > select.cur { min-width: 4.4em; padding-inline: 4px 2px; text-overflow: clip; }
+        /* На телефоні панель стоїть під картою без контейнера (display: contents), тому там — за шириною вікна */
+        @media (max-width: 480px) { #tc-op .tc-sg.trip { grid-template-columns: minmax(0, 1fr); } }
         .tc-acc-body .tc-fuel-compact { grid-template-columns: minmax(0, 1fr); }
         #tc-op .tc-f-rate .tc-in > input[type="number"] { min-width: 70px; }
 
@@ -4399,15 +4406,13 @@
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) {
                 display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 8px; align-items: start;
             }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg { display: contents; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg:not(.trip) { display: contents; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg.trip { order: 6; grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .form-row { order: 1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-podacha { order: 2; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-a { order: 3; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-b { order: 4; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > #route-fields-slot { order: 5; grid-column: 1 / -1; }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-dist { order: 6; }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-weight { order: 7; }
-            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-rate { order: 8; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { order: 9; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-truck { order: 10; grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-vehicle-more,
@@ -4475,6 +4480,8 @@
         @container tcpanel (max-width: 480px) {
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-return { grid-column: 1 / -1; }
         }
+        /* Числа «Маршруту»: пари, поки поле ≥ 340px (панель на сайті 384–436px). Вужча панель (КП із сайдбаром) — один стовпець. */
+        @container tcpanel (max-width: 340px) { body.layout-studio[data-theme] #tc-op .tc-sg.trip { grid-template-columns: minmax(0, 1fr); } }
 
         /* 901–1200px: карта під формою, висота ≈45vh */
         @media (min-width: 901px) and (max-width: 1200px) {
@@ -7502,6 +7509,11 @@
         const distRow = opRowOf('dist');
         const podachaRow = opRowOf('podacha-dist');
         const podachaInfo = opById('podacha-info');
+        // Норма, авто, діби й підказка про ходки живуть у «Маршруті» (ті самі вузли й id, що й були в «Додаткових параметрах»).
+        const normRow = opRowOf('norm-weight');
+        const carsRow = opRowOf('cars-count');
+        const daysRow = opRowOf('days-per-trip');
+        const volumeInfo = opById('trip-volume-info');
         panel1.textContent = '';
         panel1.classList.add('tc-sec-body');
         if (nameRow) {
@@ -7511,11 +7523,30 @@
         panel1.appendChild(opGroup('two', [opCell('tc-f-a', 'Звідки', [fromFull, fromDemo]), opCell('tc-f-b', 'Куди', [toFull, toDemo])]));
         panel1.appendChild(opGroup('one', [opCell('tc-f-podacha', 'Подача авто', [podachaRow, podachaInfo])]));
         if (routeTools) panel1.appendChild(routeTools);
-        panel1.appendChild(opGroup('nums', [
+        // Числа «Маршруту» парами: Відстань | Об'єм; Норма на авто | Авто; Діб на ходу | Тариф (разом із селектом «Вартість за тонну»).
+        const normBtn = opById('norm-weight-info-btn'); // opCell переписує підпис разом із ⓘ: беремо кнопку до нього
+        const normCell = opCell('tc-f-norm', 'Норма на авто', [normRow]);
+        const normLab = normRow ? normRow.querySelector(':scope > label') : null;
+        if (normLab && normBtn) { normLab.appendChild(document.createTextNode(' ')); normLab.appendChild(normBtn); }
+        const normInput = opById('norm-weight');
+        if (normInput) normInput.setAttribute('aria-label', 'Нормативна вага на авто');
+        const carsCell = opCell('tc-f-cars', 'Авто', [carsRow]);
+        const carsInput = opById('cars-count');
+        if (carsInput) carsInput.setAttribute('aria-label', 'Кількість залучених авто');
+        const daysCell = opCell('tc-f-days', 'Діб на ходу', [daysRow]);
+        const daysInput = opById('days-per-trip');
+        if (daysInput) daysInput.setAttribute('aria-label', 'Кількість діб на ходу');
+        const tripGrid = opGroup('trip', [
             opCell('tc-f-dist', 'Відстань', [distRow]),
             opCell('tc-f-weight', "Об'єм (загальна вага) по заявці", [opRowOf('volume')]),
+            normCell,
+            carsCell,
+            daysCell,
             rate
-        ]));
+        ]);
+        // Підказка «N ходок…» порожня — display: none; коли є, займає рядок між «Норма | Авто» і «Діб | Тариф».
+        if (volumeInfo) tripGrid.insertBefore(volumeInfo, daysCell);
+        panel1.appendChild(tripGrid);
         syncRateMode(); // opCell щойно поставив «Тариф»: відновлена заявка «за ходку» одразу показує свій лейбл і суфікс
         panel1.appendChild(opGroup('two', [opCell('tc-f-return', 'Повернення', [opRowOf('return-mode')]), truck]));
         panel1.appendChild(vehicleMore);
@@ -7602,12 +7633,11 @@
         costsLine.appendChild(costsText);
         costsLine.appendChild(costsEdit);
 
-        // Додаткові параметри: решта кроку 2 (причіп, норма, авто, діб) + форма розрахунку.
+        // Додаткові параметри: форма розрахунку й причіп (норма, авто, діби — у «Маршруті»).
         const extrasPanel = panel(4);
         const trip = document.createElement('div');
         trip.className = 'tc-sg tc-op-sub';
-        [opRowOf('calc-type'), opRowOf('trailer-type'), opRowOf('norm-weight'), opRowOf('cars-count'), opRowOf('days-per-trip'),
-            opById('trip-volume-info'), opById('contract-fx-note')].forEach(function (node) { if (node) trip.appendChild(node); });
+        [opRowOf('calc-type'), opRowOf('trailer-type'), opById('contract-fx-note')].forEach(function (node) { if (node) trip.appendChild(node); });
         if (extrasPanel) {
             extrasPanel.classList.add('tc-sec-body');
             extrasPanel.insertBefore(trip, extrasPanel.firstChild);

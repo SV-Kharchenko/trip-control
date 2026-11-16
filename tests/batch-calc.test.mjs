@@ -10,7 +10,7 @@ test('п.11: порядок Звідки–Куди → Подача → «Ро�
     const ab = build.indexOf("opCell('tc-f-a', 'Звідки'");
     const podacha = build.indexOf("opCell('tc-f-podacha'");
     const tools = build.indexOf('panel1.appendChild(routeTools)');
-    const nums = build.indexOf("opGroup('nums'");
+    const nums = build.indexOf("opGroup('trip'");
     assert.ok(ab > 0 && ab < podacha && podacha < tools && tools < nums, 'порядок блоків у panel1');
     assert.match(html, /id="route-calc-btn"[^>]*>Розрахувати відстань</);
 });
