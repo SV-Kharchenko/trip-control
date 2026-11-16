@@ -1,5 +1,5 @@
 // lib/ — серверний код (api/ імпортує з нього: rate-limit, billing, agro-sso…), а Vercel роздає корінь репозиторію як статику, тож /lib/*.js
-// був доступний у браузері. .vercelignore тут не годиться (виріже lib/ із збірки функцій), тому rewrite на неіснуючий шлях → 404.
+// був доступний у браузері. Rewrite не допомагає (Vercel спершу віддає файл з диска), тому redirect, що спрацьовує до файлу. .vercelignore тут не годиться (виріже lib/ із збірки функцій), тому і його не використано.
 // Єдиний виняток — lib/weekly-report.js: чиста функція, яку index.html імпортує в браузері (прев'ю тижневого звіту).
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -10,16 +10,24 @@ const read = (rel) => fs.readFileSync(new URL(rel, root), 'utf8');
 const BROWSER_LIB = ['/lib/weekly-report.js'];
 
 function rule() {
-    const found = JSON.parse(read('vercel.json')).rewrites.filter((r) => r.source.startsWith('/lib/'));
-    assert.equal(found.length, 1, 'одне правило для /lib/');
+    const found = JSON.parse(read('vercel.json')).redirects.filter((r) => r.source.startsWith('/lib/'));
+    assert.equal(found.length, 1, 'одне правило для /lib/ у redirects');
     return found[0];
 }
-const matches = (pathname) => new RegExp('^/lib/(' + rule().source.match(/:path\((.*)\)$/)[1] + ')$').test(pathname);
+const matches = (pathname) => new RegExp('^/lib/(' + rule().source.match(/:path((.*))$/)[1] + ')$').test(pathname);
 
-test('vercel.json: /lib/* віддає 404 (rewrite на неіснуючий шлях), крім браузерного weekly-report.js', () => {
+test('vercel.json: /lib/* — тимчасовий редірект на /404 (redirects спрацьовують до файлу на диску), крім браузерного weekly-report.js', () => {
+    assert.equal(rule().destination, '/404');
+    assert.equal(rule().permanent, false);
     for (const p of ['/lib/rate-limit.js', '/lib/agro-sso.js', '/lib/billing/plans.js', '/lib/billing/x.js', '/lib/trip-fact.js', '/lib/weekly-report.json', '/lib/weekly-report.js.bak']) assert.equal(matches(p), true, p);
     for (const p of BROWSER_LIB) assert.equal(matches(p), false, p);
-    assert.equal(fs.existsSync(new URL('.' + rule().destination, root)), false, 'призначення не існує → 404');
+    assert.equal(fs.existsSync(new URL('./404', root)), false, '/404 не файл: Vercel віддає сторінку 404 зі статусом 404');
+});
+
+test('vercel.json: у rewrites правила для /lib/ немає (rewrites стоять після файлової системи й /lib/ не закривають)', () => {
+    const rewrites = JSON.parse(read('vercel.json')).rewrites;
+    assert.equal(rewrites.some((r) => /lib/.test(r.source) || /lib/.test(r.destination)), false);
+    assert.equal(rewrites.length, 5);
 });
 
 test('.vercelignore не вирізає lib/ і api/ (інакше функції втратять імпорти)', () => {

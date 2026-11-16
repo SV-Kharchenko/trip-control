@@ -59,7 +59,7 @@ test('three legal pages: full page around <article class="legal-doc">, canonical
 
 test('vercel.json: rewrites to legal/*.html, headers and CSP untouched', () => {
     const config = JSON.parse(read('vercel.json'));
-    assert.deepEqual(config.rewrites.filter((r) => !r.source.startsWith('/lib/')), [
+    assert.deepEqual(config.rewrites, [
         { source: '/offer', destination: '/legal/offer.html' },
         { source: '/privacy', destination: '/legal/privacy.html' },
         { source: '/payment-refund', destination: '/legal/payment-refund.html' },

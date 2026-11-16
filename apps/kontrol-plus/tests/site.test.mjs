@@ -101,7 +101,7 @@ test('vercel.json: /api is a server-side proxy to trip-control.com; legal rewrit
     const site = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'vercel.json'), 'utf8'));
     // /kontrol-plus — рекламний лендинг сайту (landing/kontrol-plus.html у корені); у застосунку Контроль+ його немає, тож rewrite
     // там вів би в 404. Усі інші rewrite-и сайту (юридичні сторінки) дзеркалюються.
-    for (const rule of site.rewrites.filter((r) => r.source !== '/kontrol-plus' && !r.source.startsWith('/lib/'))) assert.ok(cfg.rewrites.some((r) => r.source === rule.source && r.destination === rule.destination), rule.source);
+    for (const rule of site.rewrites.filter((r) => r.source !== '/kontrol-plus')) assert.ok(cfg.rewrites.some((r) => r.source === rule.source && r.destination === rule.destination), rule.source);
     // Власні функції — лише GPS (етап 2a), і лише статичні файли: реальний файл у api/ має пріоритет над rewrite
     // /api/:path* (для динамічних [param] це не гарантовано). Решта /api/* — проксі на сайт.
     const own = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map(String).filter((f) => f.endsWith('.js'))
