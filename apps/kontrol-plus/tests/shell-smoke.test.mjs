@@ -93,7 +93,7 @@ test('смоук: каркас монтується, ховає/показує �
         assert.equal(items.contracts.hidden, false);
         assert.equal(items.dashboard, undefined, 'заглушки «Дашборд» немає');
         assert.equal(items.overview.hidden, false);
-        assert.equal(items.own_fleet.hidden, true, '«Власний парк» прибрано з меню, хоч own_fleet увімкнено (у AGRO повніша версія)');
+        assert.equal(items.own_fleet, undefined, '«Власний парк» прибрано з меню, хоч own_fleet увімкнено (у AGRO повніша версія)');
         assert.equal(items.registry.hidden, false, 'Реєстр заявок, Заявки лишаються');
         assert.equal(items.history.hidden, false);
         assert.equal(items.drivers.hidden, true);
@@ -293,16 +293,17 @@ test('«АГРО»: кнопки в шапці й у шторці сховані
     }
 });
 
-test('«Власний парк» у меню: ховається, поки є інші пункти; замовник підрозділу без Контроль+ (єдиний доступний пункт) його лишає', () => {
+test('«Власний парк» у меню немає ні в кого, і коли він єдиний доступний (замовник підрозділу без Контроль+) — теж; усі групи сховані', () => {
     const saved = { document: Object.getOwnPropertyDescriptor(globalThis, 'document'), Node: Object.getOwnPropertyDescriptor(globalThis, 'Node') };
     Object.defineProperty(globalThis, 'document', { value: { createElement: (t) => new FEl(t), createTextNode: (t) => ({ text: t }) }, configurable: true, writable: true });
     Object.defineProperty(globalThis, 'Node', { value: FNode, configurable: true, writable: true });
     try {
-        for (const [ownOnly, hidden] of [[false, true], [true, false]]) {
+        for (const ownOnly of [false, true]) {
             const env = shellEnv({ ownOnly });
             mountShell(env.options);
-            const items = Object.fromEntries(env.byId['kp-shell-side'].all('kp-shell-item').map((b) => [b.attrs['data-key'], b]));
-            assert.equal(items.own_fleet.hidden, hidden, 'ownOnly=' + ownOnly);
+            const items = env.byId['kp-shell-side'].all('kp-shell-item');
+            assert.equal(items.some((b) => b.attrs['data-key'] === 'own_fleet'), false, 'ownOnly=' + ownOnly);
+            if (ownOnly) assert.equal(items.every((b) => b.hidden), true, 'у замовника підрозділу меню порожнє: його заміняє заглушка');
         }
     } finally {
         for (const [k, d] of Object.entries(saved)) { if (d) Object.defineProperty(globalThis, k === 'Node' ? 'Node' : 'document', d); else delete globalThis[k === 'Node' ? 'Node' : 'document']; }

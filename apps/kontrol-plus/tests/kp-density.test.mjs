@@ -50,5 +50,5 @@ test('карта, клікабельні зони й вікна: розміри 
     assert.equal(/\.kp-win|\.kpw-|gm-style|gmp-map/.test(clean), false, 'вікна й Google Map не стилізуються тут');
     assert.equal(/min-height:\s*(?:[0-9]|1\d)px/.test(clean.replace(/min-height:\s*(var|calc)\([^;]*;/g, '')), false, 'кнопки не стають менше 20px заввишки');
     assert.match(clean, /\.tc-map-frame \{ min-height: 320px !important; \}/);
-    assert.match(clean, /grid-template-columns: 200px minmax\(340px, min\(34%, 440px\)\) minmax\(0, 1fr\)/);
+    assert.match(clean, /grid-template-columns: 200px minmax\(360px, min\(34%, 440px\)\) minmax\(0, 1fr\)/);
 });

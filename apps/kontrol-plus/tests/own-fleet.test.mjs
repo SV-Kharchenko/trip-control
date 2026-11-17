@@ -401,12 +401,9 @@ test('API запрошень: акаунт, що вже працює в інші
     assert.match(out.body.error, /уже працює в іншій компанії/);
 });
 
-test('меню: «Власний парк» має власну іконку, не таку, як «Автопарк»', () => {
-    const own = SHELL_ITEMS.find((i) => i.key === 'own_fleet');
-    const fleet = SHELL_ITEMS.find((i) => i.key === 'fleet');
-    assert.equal(own.icon, 'own_fleet');
-    assert.notEqual(own.icon, fleet.icon);
-    assert.equal(own.label, 'Власний парк');
+test('меню: «Власний парк» прибрано з бокового меню для всіх ролей (у AGRO повніша версія); стара кнопка #kp-nav-own_fleet й іконка лишились', () => {
+    assert.equal(SHELL_ITEMS.some((i) => i.key === 'own_fleet'), false);
+    assert.match(fs.readFileSync(new URL('../src/nav-icons.js', import.meta.url), 'utf8'), /own_fleet:/);
 });
 
 test('«Команда»: блок «Замовники підрозділів» вставляє міст лише директору й менеджеру з прапорцем; інакше блоку немає', () => {

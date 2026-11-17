@@ -4253,7 +4253,7 @@
         #tc-op .tc-op-sub .form-row:has(#calc-type) > label { min-height: 0; }
         #tc-op .tc-in > select { text-overflow: ellipsis; }
         #tc-op #trip-volume-info:empty, #tc-op #contract-fx-note:empty { display: none; }
-        /* Числа заявки: Відстань | Об'єм (загальна вага) по заявці | Тариф у сітці 2 колонки, щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
+        /* Числа заявки: Відстань | Подача, км; Об'єм | Норма; Авто | Діб; Тариф у сітці 2 колонки, щоб «Розцінка» з валютою мала місце; на дуже вузьких — одна колонка */
         .tc-sg.trip { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
         .tc-in > select.cur { min-width: 76px; }
         .tc-f-rate .tc-in > input { min-width: 70px; }
@@ -7543,7 +7543,7 @@
         podachaHint.textContent = 'рахується від стоянки, можна виправити';
         panel1.appendChild(opGroup('one pod', [opCell('tc-f-base', 'Подача (стоянка, за бажанням)', [baseDemoRow, baseFullRow])]));
         if (routeTools) panel1.appendChild(routeTools);
-        // Числа «Маршруту» парами: Відстань | Об'єм; Норма на авто | Авто; Діб на ходу | Тариф (разом із селектом «Вартість за тонну»).
+        // Числа «Маршруту» парами: Відстань | Подача, км; Об'єм | Норма на авто; Авто | Діб на ходу; Тариф (разом із селектом «Вартість за тонну»).
         const normBtn = opById('norm-weight-info-btn'); // opCell переписує підпис разом із ⓘ: беремо кнопку до нього
         const normCell = opCell('tc-f-norm', 'Норма на авто', [normRow]);
         const normLab = normRow ? normRow.querySelector(':scope > label') : null;
@@ -7565,8 +7565,8 @@
             daysCell,
             rate
         ]);
-        // Підказка «N ходок…» порожня — display: none; коли є, займає рядок між «Норма | Авто» і «Діб | Тариф».
-        if (volumeInfo) tripGrid.insertBefore(volumeInfo, daysCell);
+        // Підказка «N ходок…» порожня — display: none; коли є, займає рядок між парою «Авто | Діб на ходу» і «Тариф» (пари не розриваються).
+        if (volumeInfo) tripGrid.insertBefore(volumeInfo, rate);
         panel1.appendChild(tripGrid);
         syncRateMode(); // opCell щойно поставив «Тариф»: відновлена заявка «за ходку» одразу показує свій лейбл і суфікс
         panel1.appendChild(opGroup('two', [opCell('tc-f-return', 'Повернення', [opRowOf('return-mode')]), truck]));

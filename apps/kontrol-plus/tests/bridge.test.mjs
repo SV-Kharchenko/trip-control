@@ -510,7 +510,7 @@ test('bridge: замовник підрозділу без власного Ко
     }
 });
 
-test('bridge: прямий URL #/own-fleet без прапорця веде на огляд; з прапорцем лишається; замовника з чужого розділу повертає до «Власного парку»', async () => {
+test('bridge: прямий URL #/own-fleet без прапорця веде на огляд; з прапорцем лишається; замовник без Контроль+ у чужому розділі бачить заглушку AGRO (не редірект)', async () => {
     const off = setup({ session: { user: { id: 'u1' }, access_token: 'jwt' }, context: OWNER_CTX, docs: 'ok', repairs: null, ownFleet: null });
     off.loc.hash = '#/own-fleet';
     try {
@@ -548,7 +548,12 @@ test('bridge: прямий URL #/own-fleet без прапорця веде на
         const { startBridge } = await freshBridge();
         assert.equal(await startBridge(), true);
         await ticks();
-        assert.equal(req.loc.hash, '#/own-fleet', 'клієнти замовнику не показуються');
+        assert.equal(req.loc.hash, '#/clients', 'редіректу в «Власний парк» більше немає');
+        const dump = (el) => (el && typeof el === 'object' ? (el.text || '') + ' ' + (el.tagName || '') + ' ' + (el.children || []).map(dump).join(' ') : String(el || ''));
+        const stub = dump(req.byId['main-app'].children.find((c) => c.id === 'kp-crm'));
+        assert.match(stub, /Перевезення між компаніями холдингу тепер в АГРО/);
+        assert.match(stub, /Зверніться до директора за доступом до АГРО/, 'AGRO вимкнений → лише текст');
+        assert.equal(/Перейти в АГРО/.test(stub), false);
     } finally {
         req.restore();
     }

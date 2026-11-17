@@ -273,9 +273,6 @@ export function mountShell(env = {}) {
             const old = item.access ? $('kp-nav-' + item.access) : null;
             btn.hidden = !!item.access && (!old || old.hidden);
         }
-        // «Власний парк» (onlyIfAlone) не показуємо в меню, поки є інші доступні пункти; решта пунктів, що залежать від own_fleet, не чіпаємо.
-        const othersShown = itemEls.some(({ item, btn }) => !item.onlyIfAlone && !btn.hidden);
-        for (const { item, btn } of itemEls) if (item.onlyIfAlone && othersShown) btn.hidden = true;
         for (const { box } of groupEls) box.hidden = Array.from(box.querySelectorAll('.kp-shell-item')).every((b) => b.hidden);
     }
 

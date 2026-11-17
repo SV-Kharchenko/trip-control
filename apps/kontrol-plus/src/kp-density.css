@@ -115,12 +115,12 @@
     html[data-app="kp"] body.layout-studio[data-theme] .tc-kb-main b { font-size: 15px; }
     html[data-app="kp"] body.layout-studio[data-theme] .tc-kb-detail { height: 24px; min-height: 24px; font-size: var(--tc-fs-s); }
 
-    /* Розкладка калькулятора: меню 240→200, форма minmax(380px, 34%) → minmax(340px, 34%) до 440px (було до 520px), решта — карта. Без лівого меню (.tc-lm) — запасна сітка. */
+    /* Розкладка калькулятора: меню 240→200, форма minmax(380px, 34%) → minmax(360px, 34%) до 440px (не вужче 360px: панель лишається вище порогу @container tcpanel 340px, пари полів — у 2 колонки) (було до 520px), решта — карта. Без лівого меню (.tc-lm) — запасна сітка. */
     html[data-app="kp"] body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
-        grid-template-columns: 200px minmax(340px, min(34%, 440px)) minmax(0, 1fr); gap: 10px;
+        grid-template-columns: 200px minmax(360px, min(34%, 440px)) minmax(0, 1fr); gap: 10px;
     }
     html[data-app="kp"] body.layout-studio:not(.tc-lm)[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
-        grid-template-columns: clamp(340px, 31vw, 440px) minmax(0, 1fr); gap: 10px;
+        grid-template-columns: clamp(360px, 31vw, 440px) minmax(0, 1fr); gap: 10px;
     }
     html[data-app="kp"] body.layout-studio[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame { min-height: 320px !important; }
     html[data-app="kp"] body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) :is(#tc-calc-nav, #studio-left) { min-height: 320px; }

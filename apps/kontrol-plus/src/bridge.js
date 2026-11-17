@@ -8,6 +8,7 @@ import { cardParentHash, legacyRedirect, ownFleetParentHash, parseCrmHash, tabOf
 import { navIcon } from './nav-icons.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
+import { renderAgroStub } from './views/agro-stub.js';
 import { renderClients } from './views/clients.js';
 import { renderClientCard } from './views/client-card.js';
 import { renderClientForm } from './views/client-form.js';
@@ -551,7 +552,9 @@ async function render() {
             return;
         }
         if (ownFleetOnly(fleet, state.context)) {
-            location.hash = '#/own-fleet';
+            // «Власний парк» із меню прибрано: замість порожнього меню й екрана — заглушка з переходом в AGRO (прямий #/own-fleet працює як раніше).
+            ensureAgro().catch(() => {});
+            clear(root, renderAgroStub());
             return;
         }
         clear(root, renderPaywall({ context: state.context, siteUrl: SITE_URL }));
