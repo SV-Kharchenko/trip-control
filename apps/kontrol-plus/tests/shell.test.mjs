@@ -203,3 +203,13 @@ test('лічильник неоплачених: легка RPC, оновлен�
     assert.match(shell, /new Observer\(scheduleUpdate\)/);
     assert.equal(/new Observer\(update\)|addEventListener\('click', \(\) => win\.setTimeout\(update, 0\)\)/.test(shell), false);
 });
+
+test('«Власний парк»: пункт меню лише як єдиний доступний; маршрут #/own-fleet, модуль і сусідні пункти не чіпали', () => {
+    const own = SHELL_ITEMS.find((i) => i.key === 'own_fleet');
+    assert.equal(own.onlyIfAlone, true);
+    assert.equal(SHELL_ITEMS.filter((i) => i.onlyIfAlone).length, 1, 'ховається тільки «Власний парк»');
+    assert.match(shell, /item\.onlyIfAlone && othersShown/);
+    assert.ok(parseCrmHash('#/own-fleet') && parseCrmHash('#/own-fleet').view === 'own-fleet', 'пряме посилання працює');
+    assert.match(bridge, /route\.view === 'own-fleet'/);
+    for (const key of ['registry', 'history', 'calc']) assert.equal(SHELL_ITEMS.find((i) => i.key === key).onlyIfAlone, undefined, key);
+});

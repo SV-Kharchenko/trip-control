@@ -6,12 +6,13 @@ const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const start = html.indexOf('function buildOnePage');
 const build = html.slice(start, start + 20000);
 
-test('п.11: порядок Звідки–Куди → Подача → «Розрахувати відстань» → числа', () => {
+test('п.11: порядок Звідки–Куди → Подача (стоянка) → «Розрахувати відстань» → Відстань | Подача, км → решта чисел', () => {
     const ab = build.indexOf("opCell('tc-f-a', 'Звідки'");
-    const podacha = build.indexOf("opCell('tc-f-podacha'");
+    const base = build.indexOf("opCell('tc-f-base'");
     const tools = build.indexOf('panel1.appendChild(routeTools)');
     const nums = build.indexOf("opGroup('trip'");
-    assert.ok(ab > 0 && ab < podacha && podacha < tools && tools < nums, 'порядок блоків у panel1');
+    const podacha = build.indexOf("opCell('tc-f-podacha'");
+    assert.ok(ab > 0 && ab < base && base < tools && tools < nums && nums < podacha, 'порядок блоків у panel1');
     assert.match(html, /id="route-calc-btn"[^>]*>Розрахувати відстань</);
 });
 

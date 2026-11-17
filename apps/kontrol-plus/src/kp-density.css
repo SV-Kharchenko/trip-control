@@ -1,0 +1,136 @@
+/* Контроль+: щільність інтерфейсу на ноутбуках 14" (вікно ≈1200–1500px, у т.ч. 1366 і 1440): на 15–20% менше, візуально як браузерний масштаб 80–85%.
+   Лише Контроль+ (на сайті trip-control.com цього файлу немає). Без zoom і без transform: scale — лише змінні (токени) і media query, тому клікабельні зони,
+   карта Google і фіксовані вікна/попапи (позиціонуються в справжніх пікселях вікна) лишаються коректними.
+   Телефон (390) і планшет (1024) — поза діапазоном і не змінюються; від 1501px (у т.ч. 1920) усе як раніше.
+   Спосіб: (1) кореневий розмір шрифту 85% — масштабує все, що в rem (меню, шапка, реєстр); (2) токени каркасу (--kp-side-w, --kp-top-h, --kp-strip-h) і калькулятора
+   (--tc-fs, --tc-fs-s, --tc-h); (3) власні токени --kpd-* для розділів, де розміри записані в px (кнопки, поля, картки, KPI). */
+
+@media (min-width: 1200px) and (max-width: 1500px) {
+    html[data-app="kp"] { font-size: 85%; }
+
+    /* Токени. Порядок і специфічність — як у kp-shell.css (цей файл підключається останнім), щоб згорнуте меню й смуга тріалу теж стискались. */
+    html[data-app="kp"] body.kp-shell-on {
+        --kp-side-w: 196px;
+        --kp-top-h: 44px;
+        --kpd-ctl: 32px;      /* було 38px: кнопки й поля розділів */
+        --kpd-ctl-sm: 26px;   /* було 30px */
+        --kpd-fs: 12px;       /* було 14px: базовий текст розділів */
+        --kpd-fs-s: 11px;     /* було 13px */
+        --kpd-pad: 16px;      /* було 20px: картки */
+        --kpd-gap: 12px;      /* було 16px */
+        --kpd-page-x: 18px;   /* було 24px: поля сторінки */
+    }
+    html[data-app="kp"] body.kp-shell-on.kp-shell-strip-on { --kp-strip-h: 26px; }
+    html[data-app="kp"] body.kp-shell-on.kp-shell-collapsed { --kp-side-w: 56px; }
+
+    /* Рамка сторінки */
+    html[data-app="kp"] body.kp-shell-on.layout-studio #main-app {
+        padding: calc(var(--kp-strip-h) + var(--kp-top-h) + 12px) var(--kpd-page-x) 28px !important;
+    }
+
+    /* Бокове меню */
+    body.kp-shell-on .kp-shell-brand { padding: 0 8px 0 16px; }
+    body.kp-shell-on .kp-shell-logo { font-size: 1rem; }
+    body.kp-shell-on .kp-shell-collapse { width: 26px; height: 26px; }
+    body.kp-shell-on .kp-shell-nav { padding: 2px 8px 12px; }
+    body.kp-shell-on .kp-shell-glabel { padding: 12px 8px 4px; }
+    body.kp-shell-on .kp-shell-item { height: 31px; gap: 8px; padding: 0 8px; }
+    body.kp-shell-on .kp-shell-item.on::before { left: -8px; top: 5px; bottom: 5px; }
+    body.kp-shell-collapsed .kp-shell-item { padding: 0; }
+    body.kp-shell-collapsed .kp-shell-item.on::before { left: -8px; }
+
+    /* Верхня панель й смуга тріалу */
+    body.kp-shell-on .kp-shell-top { gap: 10px; padding: 0 16px; }
+    body.kp-shell-on .kp-shell-search { width: 260px; height: 28px; }
+    body.kp-shell-on .kp-shell-agro, body.kp-shell-on .kp-shell-bell, body.kp-shell-on .kp-shell-burger { height: 28px; }
+    body.kp-shell-on .kp-shell-bell, body.kp-shell-on .kp-shell-burger { width: 28px; }
+    body.kp-shell-on .kp-shell-agro { padding: 0 11px; }
+    body.kp-shell-on .kp-shell-strip .tc-billing-banner { padding: 0 16px; }
+    body.kp-shell-on .kp-shell-strip .tc-billing-banner .btn { height: 20px; line-height: 20px; }
+
+    /* Розділи Контроль+ (clients, docs, fleet, drivers, repairs, gps, dashboard...): кнопки, поля, картки, заголовки */
+    #kp-crm { font-size: var(--kpd-fs); }
+    #kp-crm h1 { font-size: 20px; }
+    #kp-crm h2 { font-size: 15px; margin-bottom: 10px; }
+    #kp-crm .small, #kp-crm .kp-who { font-size: var(--kpd-fs-s); }
+    #kp-crm .card { padding: var(--kpd-pad); }
+    #kp-crm .grid-2 { gap: var(--kpd-gap); }
+    #kp-crm .toolbar { gap: 8px; margin-bottom: 10px; }
+    #kp-crm .btn { min-height: var(--kpd-ctl); padding: 5px 12px; font-size: var(--kpd-fs); }
+    #kp-crm .btn-sm { min-height: var(--kpd-ctl-sm); padding: 3px 9px; font-size: var(--kpd-fs-s); }
+    #kp-crm input, #kp-crm select, #kp-crm textarea { min-height: var(--kpd-ctl); padding: 5px 8px; font-size: var(--kpd-fs); }
+    #kp-crm input[type="checkbox"] { min-height: 0; padding: 0; }
+    #kp-crm .form { gap: 10px 12px; }
+    #kp-crm .field label { font-size: var(--kpd-fs-s); }
+
+    /* Огляд (дашборд): картки KPI */
+    .kpd-kpi { padding: 8px 10px; }
+    .kpd-kpi-label { font-size: 10px; }
+    .kpd-kpi-value, .kpd-kpi-value .kpd-mono { font-size: 15px; }
+    .kpd-kpi-sub, .kpd-note { font-size: 10.5px; }
+    .kpd-card { padding: 8px 10px; }
+    .kpd-quick .btn { height: var(--kpd-ctl-sm); padding: 0 10px; }
+    .kpd-date { height: 24px; }
+
+    /* «Розрахунок рейсу»: токени + правила спільного блоку TC-COMPACT, у яких розміри записані в px (той самий селектор з префіксом Контроль+ — вища специфічність) */
+    html[data-app="kp"] body.kp-shell-on.layout-studio[data-theme][data-studio-view="calc"] {
+        --tc-fs: 11.5px;
+        --tc-fs-s: 10.5px;
+        --tc-h: 26px;
+    }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op { font-size: var(--tc-fs); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-in { height: var(--tc-h); border-radius: 7px; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-in > input,
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-in > select { padding: 0 7px; font-size: var(--tc-fs); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .form-row > label,
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-f-lab,
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .form-row:has(> .tc-in > input[type="number"]) > label,
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-op-sub .form-row > label { font-size: var(--tc-fs-s); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-f { gap: 2px; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-sec-body { gap: 5px; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-sg { gap: 5px 7px; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) { gap: 5px 7px; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-panel-head { padding: 6px 10px; }
+    html[data-app="kp"] body.layout-studio.tc-lm[data-theme] #tc-op .tc-panel-head { padding: 12px 12px 6px; }
+    html[data-app="kp"] body.layout-studio.tc-lm[data-theme] #tc-op .tc-panel-title { font-size: 14px; }
+    html[data-app="kp"] body.layout-studio.tc-lm[data-theme] #tc-op .tc-acc-body { padding: 3px 12px 14px; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .btn,
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op button.btn-ghost,
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-panel-clear,
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .preset-btn { min-height: calc(var(--tc-h) - 2px); height: calc(var(--tc-h) - 2px); font-size: var(--tc-fs-s); }
+    html[data-app="kp"] body.layout-studio.tc-lm[data-theme] #tc-op #route-calc-btn { height: 30px; min-height: 30px; font-size: var(--tc-fs); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-f-truck .tc-segment { height: var(--tc-h); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-f-truck #vehicle-face { min-height: calc(var(--tc-h) - 2px); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op #podacha-info { font-size: var(--tc-fs-s) !important; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-ac:not(.tc-in > .tc-ac) > input { height: var(--tc-h); min-height: var(--tc-h); font-size: var(--tc-fs); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-place-field { min-height: var(--tc-h); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-place-field gmp-place-autocomplete { min-height: var(--tc-h) !important; font-size: var(--tc-fs) !important; }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-place-field gmp-place-autocomplete::part(input) { padding: 0 7px; min-height: calc(var(--tc-h) - 2px); font-size: var(--tc-fs); }
+    html[data-app="kp"] body.layout-studio[data-theme] #tc-op .tc-badge { font-size: var(--tc-fs); }
+
+    /* KPI-смуга калькулятора (висоту міряє index.html → --tc-strip-h, карта й липкі відступи рахуються від неї) */
+    html[data-app="kp"] body.layout-studio[data-theme][data-studio-view="calc"] .tc-kpi-bar { padding-block: 7px; gap: 2px 12px; }
+    html[data-app="kp"] body.layout-studio[data-theme] .tc-kb-m small { font-size: 10.5px; }
+    html[data-app="kp"] body.layout-studio[data-theme] .tc-kb-m b,
+    html[data-app="kp"] body.layout-studio[data-theme] .tc-kb-main b { font-size: 15px; }
+    html[data-app="kp"] body.layout-studio[data-theme] .tc-kb-detail { height: 24px; min-height: 24px; font-size: var(--tc-fs-s); }
+
+    /* Розкладка калькулятора: меню 240→200, форма minmax(380px, 34%) → minmax(340px, 34%) до 440px (було до 520px), решта — карта. Без лівого меню (.tc-lm) — запасна сітка. */
+    html[data-app="kp"] body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+        grid-template-columns: 200px minmax(340px, min(34%, 440px)) minmax(0, 1fr); gap: 10px;
+    }
+    html[data-app="kp"] body.layout-studio:not(.tc-lm)[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-columns {
+        grid-template-columns: clamp(340px, 31vw, 440px) minmax(0, 1fr); gap: 10px;
+    }
+    html[data-app="kp"] body.layout-studio[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) #studio-right > .tc-map-frame { min-height: 320px !important; }
+    html[data-app="kp"] body.layout-studio.tc-lm[data-theme][data-studio-view="calc"]:not([data-calc-detail="1"]) :is(#tc-calc-nav, #studio-left) { min-height: 320px; }
+
+    /* Ліве меню калькулятора (assets/calc-menu.js): рядки й підписи щільніше */
+    #tc-calc-nav .tc-nav-title { padding: 12px 14px 6px; font-size: 10px; }
+    #tc-calc-nav .tc-nav-item { min-height: 44px; padding: 6px 12px 6px 14px; gap: 10px; }
+    #tc-calc-nav .tc-nav-ico { width: 20px; height: 20px; }
+    #tc-calc-nav .tc-nav-name { font-size: 12px; }
+    #tc-calc-nav .tc-nav-sum { font-size: 10.5px; }
+    #tc-calc-nav .tc-nav-actions { gap: 6px; padding: 10px; }
+    html[data-app="kp"] body.layout-studio.tc-lm[data-theme] #tc-calc-nav .tc-nav-actions .btn { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+}

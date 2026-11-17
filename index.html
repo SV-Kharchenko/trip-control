@@ -4284,8 +4284,14 @@
         #tc-op .tc-sg.trip .form-row:has(> .tc-in > input[type="number"]) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; align-items: start; min-height: 0; }
         #tc-op .tc-sg.trip .form-row:has(> .tc-in > input[type="number"]) > .tc-in { width: 100%; }
         #tc-op .tc-sg.trip > #trip-volume-info { grid-column: 1 / -1; margin: 0 !important; text-align: left !important; }
-        #tc-op .tc-sg.trip > .tc-f-dist, #tc-op .tc-sg.trip > .tc-f-weight, #tc-op .tc-sg.trip > .tc-f-norm, #tc-op .tc-sg.trip > .tc-f-cars { align-content: end; }
+        #tc-op .tc-sg.trip > .tc-f-dist, #tc-op .tc-sg.trip > .tc-f-podacha { align-content: start; }
+        #tc-op .tc-sg.trip > .tc-f-weight, #tc-op .tc-sg.trip > .tc-f-norm, #tc-op .tc-sg.trip > .tc-f-cars { align-content: end; }
         #tc-op .tc-sg.trip .tc-in > select.cur { min-width: 4.4em; padding-inline: 4px 2px; text-overflow: clip; }
+        /* «Назва заявки»: підпис ліворуч, поле праворуч в одному рядку; на ≤480px (за шириною вікна) підпис над полем */
+        #tc-op .form-row.tc-name-row { grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px; }
+        #tc-op .form-row.tc-name-row > * { grid-column: auto; min-width: 0; } /* перебиває body.layout-studio .form-row.two-cols > * { grid-column: 1 } */
+        #tc-op .form-row.tc-name-row > label { color: var(--text); }
+        @media (max-width: 480px) { #tc-op .form-row.tc-name-row { grid-template-columns: minmax(0, 1fr); align-items: start; gap: 5px; } }
         /* На телефоні панель стоїть під картою без контейнера (display: contents), тому там — за шириною вікна */
         @media (max-width: 480px) { #tc-op .tc-sg.trip { grid-template-columns: minmax(0, 1fr); } }
         .tc-acc-body .tc-fuel-compact { grid-template-columns: minmax(0, 1fr); }
@@ -4411,6 +4417,7 @@
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg.pod { order: 5; grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .tc-sg.trip { order: 7; grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .form-row { order: 1; }
+            body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > .form-row.tc-name-row { grid-column: 1 / -1; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-a { order: 3; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) .tc-f-b { order: 4; }
             body.layout-studio[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) > #route-fields-slot { order: 6; grid-column: 1 / -1; }
@@ -4597,7 +4604,7 @@
         }
         /* Поля адрес («Звідки / Куди», «Подача») — на всю ширину рядка, щоб підказка «Почни вводити місто або адресу» влазила повністю */
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-sg:has(> .tc-f-a) { grid-template-columns: minmax(0, 1fr); }
-        body.layout-studio.tc-lm[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) :is(.tc-f-a, .tc-f-b, .tc-f-podacha) { grid-column: 1 / -1; }
+        body.layout-studio.tc-lm[data-theme] #tc-op .tc-sec-body:has(.tc-f-podacha) :is(.tc-f-a, .tc-f-b) { grid-column: 1 / -1; }
         body.layout-studio.tc-lm[data-theme] #tc-op .tc-addr input::placeholder { text-overflow: clip; }
         /* Банер «Налаштування перед першим розрахунком»: текст переноситься, «Підставити демо-рейс» — під ним, якщо не влазить у рядок */
         body.layout-studio.tc-lm[data-theme][data-studio-view="calc"] #tc-op > #onboard-banner .hint-text { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
@@ -7523,19 +7530,18 @@
         panel1.textContent = '';
         panel1.classList.add('tc-sec-body');
         if (nameRow) {
+            nameRow.classList.add('tc-name-row'); // підпис ліворуч, поле праворуч в одному рядку (≤480px — підпис над полем)
             nameRow.querySelectorAll('label').forEach(function (lab) { lab.textContent = 'Назва заявки'; });
             panel1.appendChild(nameRow);
         }
         panel1.appendChild(opGroup('two', [opCell('tc-f-a', 'Звідки', [fromFull, fromDemo]), opCell('tc-f-b', 'Куди', [toFull, toDemo])]));
-        // Блок «Подача»: адреса стоянки на всю ширину, під нею компактне поле км (його читає calculate(); після «Розрахувати відстань» його заповнює код).
+        // Порядок: назва → Звідки → Куди → Подача (стоянка) → «+ Проміжна зупинка», A↔B, «Розрахувати відстань» → Відстань | Подача, км → решта.
+        // Поле «Подача, км» (його читає calculate(); після «Розрахувати відстань» його заповнює код) стоїть поруч із «Відстань» у сітці «trip».
         const podachaHint = document.createElement('small');
         podachaHint.className = 'tc-f-hint';
         podachaHint.id = 'podacha-hint';
         podachaHint.textContent = 'рахується від стоянки, можна виправити';
-        panel1.appendChild(opGroup('one pod', [
-            opCell('tc-f-base', 'Подача (стоянка, за бажанням)', [baseDemoRow, baseFullRow]),
-            opCell('tc-f-podacha', 'Подача, км', [podachaRow, podachaInfo, podachaHint])
-        ]));
+        panel1.appendChild(opGroup('one pod', [opCell('tc-f-base', 'Подача (стоянка, за бажанням)', [baseDemoRow, baseFullRow])]));
         if (routeTools) panel1.appendChild(routeTools);
         // Числа «Маршруту» парами: Відстань | Об'єм; Норма на авто | Авто; Діб на ходу | Тариф (разом із селектом «Вартість за тонну»).
         const normBtn = opById('norm-weight-info-btn'); // opCell переписує підпис разом із ⓘ: беремо кнопку до нього
@@ -7552,6 +7558,7 @@
         if (daysInput) daysInput.setAttribute('aria-label', 'Кількість діб на ходу');
         const tripGrid = opGroup('trip', [
             opCell('tc-f-dist', 'Відстань', [distRow]),
+            opCell('tc-f-podacha', 'Подача, км', [podachaRow, podachaInfo, podachaHint]),
             opCell('tc-f-weight', "Об'єм (загальна вага) по заявці", [opRowOf('volume')]),
             normCell,
             carsCell,
