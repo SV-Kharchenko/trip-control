@@ -14,7 +14,7 @@ test("підпис #volume: «Об'єм (загальна вага) по зая�
                     <input type="number" id="volume"`));
     assert.equal(html.includes('Вага вантажу'), false);
     assert.equal(html.includes("Загальний об'єм контракту:"), false);
-    assert.match(html, /Відстань \| Об'єм \(загальна вага\) по заявці \| Тариф/);
+    assert.match(html, /Відстань \| Подача, км; Об'єм \| Норма; Авто \| Діб; Тариф/);
     assert.match(html, /<input type="number" id="volume" tabindex="5" oninput="calculate\(\)">\s*<span class="unit">т<\/span>/);
     // Довгий підпис переноситься на другий рядок, а не обрізається «…».
     assert.match(html, /#tc-op \.tc-f-weight \.form-row > label[^{]*\{ white-space: normal !important; overflow: visible !important; text-overflow: clip !important; \}/);

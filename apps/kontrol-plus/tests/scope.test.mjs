@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 57); // 4 для AGRO SSO на сайті (api, lib, 2 тести) + 2 для AGRO (міграція + pgTAP) + 2 для телематики (міграція + pgTAP) + 3 для кабінету суперадміна (superadmin) + 35 з #128 («Власний парк», idle-label) + 11 для staging, глобального вимикача і фейкового /api/config (tests/staging-scope.test.mjs)
+    assert.equal(SCOPE_ALLOWLIST.length, 60); // 1 для tests/volume-norm-labels.test.mjs + 1 для скрінів щільності КП (docs/screens/kp-density/*.png) + 1 для порядку полів «Маршруту» (tests/batch-calc.test.mjs) + 4 для AGRO SSO на сайті (api, lib, 2 тести) + 2 для AGRO (міграція + pgTAP) + 2 для телематики (міграція + pgTAP) + 3 для кабінету суперадміна (superadmin) + 35 з #128 («Власний парк», idle-label) + 11 для staging, глобального вимикача і фейкового /api/config (tests/staging-scope.test.mjs)
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }
@@ -226,4 +226,12 @@ test('check-scope allowlist: exactly twelve more patterns for the compact «Ро
     for (const bad of ['api/calculate.js.bak', 'api/calculate.mjs', 'api/team.js', 'assets/brand/og-1200x630.png.bak', 'assets/brand/og-1200x630.jpg', 'assets/og-image.png', 'api/admin.js', 'lib/weekly-report.mjs', 'landing/index.html', 'site.webmanifest.json', 'tests/pwa.test.mjs.bak', 'tests/x/pwa.test.mjs', 'scripts/gen-og-image.js']) {
         assert.equal(isAllowedOutside(bad), false, bad);
     }
+});
+
+test('check-scope allowlist: root test of the «Маршрут» block order (feat/kp-calc-order-density), neighbours refused', () => {
+    assert.equal(isAllowedOutside('tests/batch-calc.test.mjs'), true);
+    assert.equal(isAllowedOutside('tests/volume-norm-labels.test.mjs'), true);
+    assert.equal(isAllowedOutside('tests/volume-norm-labels.test.mjs.bak'), false);
+    assert.equal(isAllowedOutside('docs/screens/kp-density/after-1366.png'), true);
+    for (const bad of ['docs/screens/kp-density/x.html', 'docs/screens/other/after-1366.png', 'docs/screens/kp-density/sub/a.png', 'tests/batch-calc.test.mjs.bak', 'tests/x/batch-calc.test.mjs', 'tests/batch-calc.test.js', 'tests/batch-calc-extra.test.mjs']) assert.equal(isAllowedOutside(bad), false, bad);
 });

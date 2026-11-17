@@ -75,6 +75,11 @@ export const SCOPE_ALLOWLIST = [
     // Доступ до AGRO (кнопка «АГРО» у шапці КП, SSO-токен): міграція і pgTAP.
     /^supabase\/migrations\/\d{14}_agro_access\.sql$/,
     /^supabase\/tests\/agro_access\.sql$/,
+    // Порядок полів вкладки «Маршрут» (feat/kp-calc-order-density): корінний тест порядку блоків читає той самий index.html.
+    /^tests\/batch-calc\.test\.mjs$/,
+    /^tests\/volume-norm-labels\.test\.mjs$/, // коментар про порядок пар у CSS «Маршруту» (feat/kp-calc-order-density)
+    // Скріни «до / після» щільності Контроль+ (лише png у цій теці).
+    /^docs\/screens\/kp-density\/[\w.-]+\.png$/,
     // Корінний тест перебирав файли src/views/ без підтек; «Власний парк» лежить у views/own-fleet/ — тест читає теки рекурсивно.
     /^tests\/idle-label\.test\.mjs$/,
     // Модуль «Власний парк» (етап 1): міграція й pgTAP-тест.

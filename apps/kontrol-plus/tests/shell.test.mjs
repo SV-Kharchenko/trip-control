@@ -20,7 +20,7 @@ test('меню: три групи без «Ще», пункти за макет�
     assert.deepEqual(SHELL_GROUPS.map((g) => g.label), ['Робота', 'Документи', 'Компанія'], 'групи «Ще» немає');
     assert.deepEqual(SHELL_GROUPS[0].items.map((i) => i.label), ['Огляд', 'Реєстр заявок', 'Заявки', 'Розрахунок рейсу', 'План/факт']);
     assert.deepEqual(SHELL_GROUPS[1].items.map((i) => i.label), ['Договори', 'Рахунки', 'Акти', 'ТТН', 'Подорожні листи']);
-    assert.deepEqual(SHELL_GROUPS[2].items.map((i) => i.label), ['Клієнти', 'Автопарк', 'Водії', 'GPS', 'Ремонти', 'Власний парк', 'Платформа', 'Команда', 'Статистика', 'Налаштування']);
+    assert.deepEqual(SHELL_GROUPS[2].items.map((i) => i.label), ['Клієнти', 'Автопарк', 'Водії', 'GPS', 'Ремонти', 'Платформа', 'Команда', 'Статистика', 'Налаштування']);
     assert.equal(SHELL_ITEMS.some((i) => i.label === 'Ще' || i.kind === 'soon'), false, 'заглушки «скоро» немає: Огляд компанії і є дашбордом');
     assert.equal(new Set(SHELL_ITEMS.map((i) => i.key)).size, SHELL_ITEMS.length, 'ключі унікальні');
     // Лічильники: «Реєстр заявок» і «Рахунки» (неоплачені).
@@ -202,4 +202,13 @@ test('лічильник неоплачених: легка RPC, оновлен�
     assert.match(shell, /doc\.addEventListener\('click', scheduleUpdate\);/);
     assert.match(shell, /new Observer\(scheduleUpdate\)/);
     assert.equal(/new Observer\(update\)|addEventListener\('click', \(\) => win\.setTimeout\(update, 0\)\)/.test(shell), false);
+});
+
+test('«Власний парк» немає в меню для жодної ролі; маршрут #/own-fleet, модуль і сусідні пункти не чіпали', () => {
+    assert.equal(SHELL_ITEMS.some((i) => i.key === 'own_fleet' || /Власний парк/.test(i.label) || i.hash === '#/own-fleet'), false);
+    assert.equal(SHELL_ITEMS.some((i) => i.onlyIfAlone), false, 'умови «лише єдиний пункт» більше немає');
+    assert.equal(/onlyIfAlone/.test(shell), false);
+    assert.ok(parseCrmHash('#/own-fleet') && parseCrmHash('#/own-fleet').view === 'own-fleet', 'пряме посилання працює');
+    assert.match(bridge, /route\.view === 'own-fleet'/);
+    for (const key of ['registry', 'history', 'calc']) assert.ok(SHELL_ITEMS.some((i) => i.key === key), key);
 });

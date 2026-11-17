@@ -8,6 +8,7 @@ import { cardParentHash, legacyRedirect, ownFleetParentHash, parseCrmHash, tabOf
 import { navIcon } from './nav-icons.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
+import { renderAgroStub } from './views/agro-stub.js';
 import { renderClients } from './views/clients.js';
 import { renderClientCard } from './views/client-card.js';
 import { renderClientForm } from './views/client-form.js';
@@ -168,10 +169,10 @@ function syncGpsTab() {
     // Документи, Автопарк, Водії спираються на функції 4a/4b: з'являються після перевірки.
     const docsOn = docsAccess(current).visible && state.docs === true;
     for (const key of ['docs', 'fleet', 'drivers']) if (tabs[key]) tabs[key].hidden = !docsOn;
-    // «Власний парк» — лише з прапорцем own_fleet; замовник підрозділу без власного Контроль+ бачить тільки цю вкладку.
+    // Стара кнопка «Власний парк» (#kp-nav-own_fleet) — лише з прапорцем own_fleet; у боковому меню КП пункту вже немає. Замовник підрозділу без власного Контроль+ не бачить жодного розділу й отримує заглушку з переходом в AGRO.
     const fleetAccess = ownFleetAccess(current ? state.ownFleet : null);
     if (tabs.own_fleet) tabs.own_fleet.hidden = !fleetAccess.enabled;
-    // «Платформа» — лише суперадміну (is_platform_superadmin()); решта пункту не бачить.
+    // Замовник підрозділу без власного Контроль+: решта вкладок схована (меню порожнє, див. views/agro-stub.js).
     if (ownFleetOnly(fleetAccess, current)) for (const key of Object.keys(tabs)) if (key !== 'own_fleet') tabs[key].hidden = true;
     // «Платформа» — лише суперадміну (is_platform_superadmin()); не залежить ні від організації й тарифу, ні від режиму «лише власний парк».
     if (tabs.superadmin) tabs.superadmin.hidden = !(state.session && state.superadminUser === state.session.user.id && state.superadmin);
@@ -551,7 +552,9 @@ async function render() {
             return;
         }
         if (ownFleetOnly(fleet, state.context)) {
-            location.hash = '#/own-fleet';
+            // «Власний парк» із меню прибрано: замість порожнього меню й екрана — заглушка з переходом в AGRO (прямий #/own-fleet працює як раніше).
+            ensureAgro().catch(() => {});
+            clear(root, renderAgroStub());
             return;
         }
         clear(root, renderPaywall({ context: state.context, siteUrl: SITE_URL }));

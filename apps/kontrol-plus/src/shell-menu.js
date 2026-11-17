@@ -30,7 +30,7 @@ export const SHELL_GROUPS = [
         { key: 'drivers', label: 'Водії', icon: 'drivers', kind: 'hash', hash: '#/drivers', access: 'drivers' },
         { key: 'gps', label: 'GPS', icon: 'gps', kind: 'hash', hash: '#/gps', access: 'gps' },
         { key: 'repairs', label: 'Ремонти', icon: 'repairs', kind: 'hash', hash: '#/repairs', access: 'repairs' },
-        { key: 'own_fleet', label: 'Власний парк', icon: 'own_fleet', kind: 'hash', hash: '#/own-fleet', access: 'own_fleet' },
+        // «Власний парк» із меню прибрано для всіх ролей (у AGRO повніша версія). Маршрут #/own-fleet і модуль own_fleet не змінено: пряме посилання працює.
         { key: 'superadmin', label: 'Платформа', icon: 'superadmin', kind: 'hash', hash: '#/superadmin', access: 'superadmin' },
         { key: 'team', label: 'Команда', icon: 'team', kind: 'cabinet', tab: 'team', access: 'calc' },
         { key: 'stats', label: 'Статистика', icon: 'stats', kind: 'cabinet', tab: 'stats', access: 'calc' },

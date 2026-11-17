@@ -66,6 +66,29 @@ test('розмітка розрахунку рейсу на сайті не зм
     for (const id of ['norm-weight', 'cars-count', 'days-per-trip', 'podacha-dist']) assert.equal((html.match(new RegExp('<input[^>]* id="' + id + '"', 'g')) || []).length, 1, id);
 });
 
+test('вкладка «Маршрут» (сайт і КП): назва → Звідки → Куди → стоянка → зупинка/A↔B/«Розрахувати» → Відстань | Подача, км → решта парами', () => {
+    const start = html.indexOf('function buildOnePage');
+    const build = html.slice(start, start + 20000);
+    const at = (needle) => { const i = build.indexOf(needle); assert.ok(i > -1, needle); return i; };
+    const order = ['panel1.appendChild(nameRow)', "opCell('tc-f-a', 'Звідки'", "opCell('tc-f-b', 'Куди'", "opCell('tc-f-base'", 'panel1.appendChild(routeTools)',
+        "opCell('tc-f-dist', 'Відстань'", "opCell('tc-f-podacha', 'Подача, км'", "opCell('tc-f-weight'", 'normCell,', 'carsCell,', 'daysCell,'].map(at);
+    assert.match(build, /daysCell,\s+rate\s+\]\);/);
+    assert.deepEqual(order, [...order].sort((a, b) => a - b));
+    // Блок стоянки містить лише адресу; «Подача, км» (+ підказка під ним) живе в сітці trip поруч із «Відстань».
+    assert.match(build, /opGroup\('one pod', \[opCell\('tc-f-base', 'Подача \(стоянка, за бажанням\)', \[baseDemoRow, baseFullRow\]\)\]\)/);
+    assert.match(build, /opCell\('tc-f-podacha', 'Подача, км', \[podachaRow, podachaInfo, podachaHint\]\)/);
+    assert.match(build, /podachaHint\.textContent = 'рахується від стоянки, можна виправити'/);
+    // «Назва заявки»: підпис ліворуч, поле праворуч; ≤480px — підпис над полем, за шириною вікна, а не контейнера.
+    assert.match(build, /nameRow\.classList\.add\('tc-name-row'\)/);
+    assert.match(html, /#tc-op \.form-row\.tc-name-row \{ grid-template-columns: max-content minmax\(0, 1fr\);/);
+    assert.match(html, /\.tc-sec-body:has\(\.tc-f-podacha\) > \.form-row\.tc-name-row \{ grid-column: 1 \/ -1; \}/);
+    assert.match(html, /@media \(max-width: 480px\) \{ #tc-op \.form-row\.tc-name-row \{ grid-template-columns: minmax\(0, 1fr\);/);
+    assert.match(html, /@media \(max-width: 480px\) \{ #tc-op \.tc-sg\.trip \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+    // calculate(): km = dist + podacha і id полів не змінились.
+    assert.match(html, /const km = dist \+ podacha;/);
+    for (const id of ['route-name', 'dist', 'podacha-dist', 'osm-demo-base']) assert.equal((html.match(new RegExp(' id="' + id + '"', 'g')) || []).length, 1, id);
+});
+
 test('docs-ts-form: id галочок допуску унікальні (uniqueId), label for збігається з id', () => {
     const src = read('src/views/docs-ts-form.js');
     assert.equal(/path\.replace\(\/\.\/g/.test(src), false, 'регулярка, що міняла всі символи на дефіси, прибрана');

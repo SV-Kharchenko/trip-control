@@ -260,3 +260,9 @@ html[data-app="kp"] body.kp-shell-on .kp-hint-pop {
 }
 html[data-app="kp"] body.kp-shell-on .kp-hint-pop[hidden] { display: none; }
 html[data-app="kp"] body.kp-shell-on[data-theme="dark"] { --kp-pop-shadow: rgba(0, 0, 0, 0.55); }
+
+/* Заглушка «Перевезення між компаніями холдингу тепер в АГРО»: кнопка за розміром вмісту, не на всю ширину */
+body.kp-shell-on #kp-crm .kp-agro-stub { display: grid; justify-items: start; gap: 12px; padding: 24px 0; }
+body.kp-shell-on #kp-crm .kp-agro-stub-text { margin: 0; font-size: 1.1rem; font-weight: 700; }
+body.kp-shell-on #kp-crm .kp-agro-stub-off { margin: 0; }
+body.kp-shell-on #kp-crm .kp-agro-stub-btn { width: auto; flex: none; }

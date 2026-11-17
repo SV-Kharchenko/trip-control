@@ -66,10 +66,10 @@ test('panel «Параметри заявки»: 3 accordion rows + the costs li
     assert.match(build, /opAccRow\('recent', '↺', 'Останні маршрути', recentBody, true\)/);
     const order = build.slice(build.indexOf('panel1.appendChild(nameRow)'), build.indexOf('panel1.appendChild(vehicleMore)'));
     const at = (needle) => order.indexOf(needle);
-    // П.11: Звідки–Куди → Подача → «Розрахувати відстань» (route tools) → Відстань, Вага, Тариф → Повернення, ТЗ.
+    // Назва → Звідки → Куди → Подача (стоянка) → «Розрахувати відстань» (route tools) → Відстань | Подача, км → Вага, Тариф → Повернення, ТЗ.
     assert.ok(at("'Звідки'") > -1 && at("'Звідки'") < at("'Куди'") && at("'Куди'") < at("'tc-f-base'"));
-    assert.ok(at("'tc-f-base'") < at("'tc-f-podacha'") && at("'tc-f-podacha'") < at('if (routeTools)') && at('if (routeTools)') < at("'Відстань'"));
-    assert.ok(at("'Відстань'") < at('"Об\'єм (загальна вага) по заявці"') && at('"Об\'єм (загальна вага) по заявці"') < at('rate'));
+    assert.ok(at("'tc-f-base'") < at('if (routeTools)') && at('if (routeTools)') < at("'Відстань'") && at("'Відстань'") < at("'tc-f-podacha'"));
+    assert.ok(at("'tc-f-podacha'") < at('"Об\'єм (загальна вага) по заявці"') && at('"Об\'єм (загальна вага) по заявці"') < at('rate'));
     assert.ok(at('rate') < at("'Повернення'") && at("'Повернення'") < at('truck]'));
     // Блок «Податки і накладні» прибрано; ставки водія, ТО, шини, накладні й склад парку — видимі в рядку «Витрати і накладні».
     assert.equal(/Податки і накладні/.test(build), false);
@@ -612,10 +612,10 @@ test('static: norm / cars / days rows are captured before panel1 is cleared and 
     assert.match(build, /opCell\('tc-f-cars', 'Авто', \[carsRow\]\)/);
     assert.match(build, /opCell\('tc-f-days', 'Діб на ходу', \[daysRow\]\)/);
     assert.match(build, /normLab\.appendChild\(normBtn\)/);
-    // Пари: Відстань | Об'єм; Норма | Авто; Діб | Тариф.
+    // Пари: Відстань | Подача, км; Об'єм | Норма; Авто | Діб; Тариф.
     const grid = sliceBetween(build, "const tripGrid = opGroup('trip', [", 'panel1.appendChild(tripGrid)');
     const at = (needle) => grid.indexOf(needle);
-    assert.ok(at("'tc-f-dist'") < at("'tc-f-weight'") && at("'tc-f-weight'") < at('normCell') && at('normCell') < at('carsCell') && at('carsCell') < at('daysCell') && at('daysCell') < at('rate'));
+    assert.ok(at("'tc-f-dist'") < at("'tc-f-podacha'") && at("'tc-f-podacha'") < at("'tc-f-weight'") && at("'tc-f-weight'") < at('normCell') && at('normCell') < at('carsCell') && at('carsCell') < at('daysCell') && at('daysCell') < at('rate'));
     // «Повернення» лишається під сіткою.
     assert.ok(build.indexOf('panel1.appendChild(tripGrid)') < build.indexOf("opCell('tc-f-return'"));
     // У «Додаткових параметрах» лишились форма розрахунку, причіп і примітка про валюту.
@@ -659,7 +659,8 @@ test('browser: norm / cars / days are in «Маршрут», not in «Додат
             return {
                 cols: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
                 days: box('days-per-trip').top, rate: box('rate').top, norm: box('norm-weight').top, cars: box('cars-count').top,
-                dist: box('dist').top, volume: box('volume').top,
+                dist: box('dist').top, volume: box('volume').top, podacha: box('podacha-dist').top,
+                hintAfterPair: (() => { const info = document.getElementById('trip-volume-info'); const kids = [...grid.children]; return kids.indexOf(info) === kids.indexOf(document.querySelector('#tc-acc-route .tc-f-days')) + 1 && kids.indexOf(info) === kids.indexOf(document.querySelector('#tc-acc-route .tc-f-rate')) - 1; })(),
                 curClipped: cur.scrollWidth > cur.clientWidth + 1 || cur.getBoundingClientRect().right > grid.getBoundingClientRect().right + 1,
                 overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
                 clipped: [...grid.querySelectorAll('input, select, label')].filter((e) => e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1).map((e) => e.id || e.textContent.slice(0, 12)),
@@ -667,9 +668,12 @@ test('browser: norm / cars / days are in «Маршрут», not in «Додат
         });
         assert.equal(m.cols, width > 480 ? 2 : 1, 'columns' + at);
         if (m.cols === 2) {
-            assert.ok(Math.abs(m.days - m.rate) <= 1, 'days | rate top edge ' + m.days + ' vs ' + m.rate + at);
-            assert.ok(Math.abs(m.norm - m.cars) <= 1, 'norm | cars top edge' + at);
-            assert.ok(Math.abs(m.dist - m.volume) <= 1, 'dist | volume top edge' + at);
+            // Пари за порядком «Маршруту»: Відстань | Подача, км; Об'єм | Норма; Авто | Діб; Тариф сам (підказка «N ходок» — на всю ширину після повної пари).
+            assert.ok(Math.abs(m.dist - m.podacha) <= 1, 'dist | podacha top edge ' + m.dist + ' vs ' + m.podacha + at);
+            assert.ok(Math.abs(m.volume - m.norm) <= 1, 'volume | norm top edge ' + m.volume + ' vs ' + m.norm + at);
+            assert.ok(Math.abs(m.cars - m.days) <= 1, 'cars | days top edge ' + m.cars + ' vs ' + m.days + at);
+            assert.ok(m.rate > m.days, 'rate is under the cars | days pair' + at);
+            assert.ok(m.hintAfterPair, 'the «N ходок» hint sits after the full cars | days pair, before rate' + at);
         }
         assert.equal(m.curClipped, false, 'currency «грн/т» is fully visible' + at);
         assert.ok(m.overflow <= 0, 'horizontal scroll ' + m.overflow + at);
@@ -704,7 +708,9 @@ test('static: parking address rows and #podacha-dist go into one «Подача�
     assert.match(build, /const baseFullRow = opRowOf\('osm-base-wrap'\);/);
     assert.match(build, /baseDemoRow\.classList\.add\('demo-only'\)/);
     assert.match(build, /baseFullRow\.classList\.add\('full-only'\)/);
-    assert.match(build, /opGroup\('one pod', \[\s*opCell\('tc-f-base', 'Подача \(стоянка, за бажанням\)', \[baseDemoRow, baseFullRow\]\),\s*opCell\('tc-f-podacha', 'Подача, км', \[podachaRow, podachaInfo, podachaHint\]\)/);
+    assert.match(build, /opGroup\('one pod', \[opCell\('tc-f-base', 'Подача \(стоянка, за бажанням\)', \[baseDemoRow, baseFullRow\]\)\]\)/);
+    // «Подача, км» — у сітці «trip» одразу після «Відстань» (рядок Відстань | Подача, км); підказка лишається під полем км.
+    assert.match(build, /opCell\('tc-f-dist', 'Відстань', \[distRow\]\),\s*opCell\('tc-f-podacha', 'Подача, км', \[podachaRow, podachaInfo, podachaHint\]\),\s*opCell\('tc-f-weight'/);
     assert.ok(build.indexOf('const baseDemoRow') < build.indexOf("panel1.textContent = ''"));
     assert.ok(build.indexOf("opCell('tc-f-b', 'Куди'") < build.indexOf("opGroup('one pod'") && build.indexOf("opGroup('one pod'") < build.indexOf('if (routeTools)'));
     assert.ok(build.includes("podachaHint.textContent = 'рахується від стоянки, можна виправити'"));
@@ -725,6 +731,7 @@ test('browser: #podacha-dist shares the block with the parking address in demo a
             await page.waitForTimeout(60);
             const m = await page.evaluate((isDemo) => {
                 const block = document.querySelector('#tc-acc-route .tc-sg.pod');
+                const trip = document.querySelector('#tc-acc-route .tc-sg.trip');
                 const pod = document.getElementById('podacha-dist');
                 const base = document.getElementById(isDemo ? 'osm-demo-base' : 'osm-base-wrap');
                 const vis = (el) => !!el && el.offsetParent !== null;
@@ -734,13 +741,13 @@ test('browser: #podacha-dist shares the block with the parking address in demo a
                 const rect = (el) => el.getBoundingClientRect();
                 const grid = getComputedStyle(block).gridTemplateColumns.split(' ').length;
                 return {
-                    sameBlock: block.contains(pod) && block.contains(document.getElementById('osm-base')) && block.contains(base),
-                    baseVisible: vis(base), podVisible: vis(pod), hint: block.querySelector('#podacha-hint').textContent,
+                    sameBlock: !block.contains(pod) && trip.contains(pod) && block.contains(document.getElementById('osm-base')) && block.contains(base),
+                    baseVisible: vis(base), podVisible: vis(pod), hint: trip.querySelector('#podacha-hint').textContent,
                     underName: !!pod.closest('.tc-f-podacha') && top(pod) < top(to),
-                    order: top(name) < top(to) && top(to) < top(base) && top(base) < top(pod),
-                    abovePair: top(pod) < top(document.getElementById('dist')),
+                    order: top(name) < top(to) && top(to) < top(base) && top(base) < top(document.getElementById('dist')),
+                    samePair: Math.abs(rect(pod).top - rect(document.getElementById('dist')).top) < 2 && rect(pod).left > rect(document.getElementById('dist')).left,
                     baseWide: rect(base).width >= rect(pod.closest('.tc-in')).width,
-                    grid, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+                    grid: getComputedStyle(trip).gridTemplateColumns.split(' ').length, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
                     podEditable: !pod.readOnly && !pod.disabled,
                 };
             }, demo);
@@ -750,10 +757,10 @@ test('browser: #podacha-dist shares the block with the parking address in demo a
             assert.equal(m.podVisible, true, 'km visible' + tag);
             assert.equal(m.hint, 'рахується від стоянки, можна виправити', 'hint' + tag);
             assert.equal(m.underName, false, 'km is not right under the name' + tag);
-            assert.equal(m.order, true, 'name → Куди → address → km' + tag);
-            assert.equal(m.abovePair, true, 'block is above Відстань' + tag);
+            assert.equal(m.order, true, 'name → Куди → address → Відстань' + tag);
+            assert.equal(m.samePair, width > 480, 'Подача, км стоїть поруч із Відстань (одна колонка на ≤480px)' + tag);
             assert.equal(m.baseWide, true, 'address is at least as wide as the km field' + tag);
-            assert.equal(m.grid, 1, 'one column' + tag);
+            assert.equal(m.grid, width > 480 ? 2 : 1, 'trip grid: 2 columns, one on ≤480px' + tag);
             assert.ok(m.overflow <= 0, 'horizontal scroll ' + m.overflow + tag);
             assert.equal(m.podEditable, true);
         }

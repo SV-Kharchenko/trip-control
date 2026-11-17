@@ -30,7 +30,7 @@ class FEl extends FNode {
     querySelectorAll(sel) { return this.all(sel.replace(/^\./, '')); }
 }
 
-function shellEnv({ role = 'owner', kp = true } = {}) {
+function shellEnv({ role = 'owner', kp = true, ownOnly = false } = {}) {
     const byId = {};
     const reg = (el) => { if (el.id) byId[el.id] = el; return el; };
     const body = new FEl('body');
@@ -38,8 +38,9 @@ function shellEnv({ role = 'owner', kp = true } = {}) {
     const make = (id, props = {}) => reg(Object.assign(new FEl('div', id), props));
     const oldNav = make('kp-nav-list');
     for (const key of ['overview', 'calc', 'clients', 'fleet', 'drivers', 'repairs', 'gps', 'docs', 'report']) {
-        oldNav.append(make('kp-nav-' + key, { hidden: ['fleet', 'drivers', 'repairs', 'gps'].includes(key) }));
+        oldNav.append(make('kp-nav-' + key, { hidden: ownOnly || ['fleet', 'drivers', 'repairs', 'gps'].includes(key) }));
     }
+    oldNav.append(make('kp-nav-own_fleet', { hidden: false })); // own_fleet в організації ввімкнено
     for (const id of ['kp-calc-tab-registry', 'kp-calc-tab-history', 'kp-calc-tab-calc']) make(id);
     make('billing-banner', { hidden: false });
     const headEnd = new FEl('div');
@@ -92,6 +93,9 @@ test('смоук: каркас монтується, ховає/показує �
         assert.equal(items.contracts.hidden, false);
         assert.equal(items.dashboard, undefined, 'заглушки «Дашборд» немає');
         assert.equal(items.overview.hidden, false);
+        assert.equal(items.own_fleet, undefined, '«Власний парк» прибрано з меню, хоч own_fleet увімкнено (у AGRO повніша версія)');
+        assert.equal(items.registry.hidden, false, 'Реєстр заявок, Заявки лишаються');
+        assert.equal(items.history.hidden, false);
         assert.equal(items.drivers.hidden, true);
         assert.equal(items.gps.hidden, true);
         // Імʼя, роль, компанія, лічильник реєстру, дзвіночок.
@@ -286,5 +290,22 @@ test('«АГРО»: кнопки в шапці й у шторці сховані
             if (desc) Object.defineProperty(globalThis, key, desc);
             else delete globalThis[key];
         }
+    }
+});
+
+test('«Власний парк» у меню немає ні в кого, і коли він єдиний доступний (замовник підрозділу без Контроль+) — теж; усі групи сховані', () => {
+    const saved = { document: Object.getOwnPropertyDescriptor(globalThis, 'document'), Node: Object.getOwnPropertyDescriptor(globalThis, 'Node') };
+    Object.defineProperty(globalThis, 'document', { value: { createElement: (t) => new FEl(t), createTextNode: (t) => ({ text: t }) }, configurable: true, writable: true });
+    Object.defineProperty(globalThis, 'Node', { value: FNode, configurable: true, writable: true });
+    try {
+        for (const ownOnly of [false, true]) {
+            const env = shellEnv({ ownOnly });
+            mountShell(env.options);
+            const items = env.byId['kp-shell-side'].all('kp-shell-item');
+            assert.equal(items.some((b) => b.attrs['data-key'] === 'own_fleet'), false, 'ownOnly=' + ownOnly);
+            if (ownOnly) assert.equal(items.every((b) => b.hidden), true, 'у замовника підрозділу меню порожнє: його заміняє заглушка');
+        }
+    } finally {
+        for (const [k, d] of Object.entries(saved)) { if (d) Object.defineProperty(globalThis, k === 'Node' ? 'Node' : 'document', d); else delete globalThis[k === 'Node' ? 'Node' : 'document']; }
     }
 });
