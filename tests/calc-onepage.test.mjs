@@ -659,7 +659,8 @@ test('browser: norm / cars / days are in «Маршрут», not in «Додат
             return {
                 cols: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
                 days: box('days-per-trip').top, rate: box('rate').top, norm: box('norm-weight').top, cars: box('cars-count').top,
-                dist: box('dist').top, volume: box('volume').top,
+                dist: box('dist').top, volume: box('volume').top, podacha: box('podacha-dist').top,
+                hintAfterPair: (() => { const info = document.getElementById('trip-volume-info'); const kids = [...grid.children]; return kids.indexOf(info) === kids.indexOf(document.querySelector('#tc-acc-route .tc-f-days')) + 1 && kids.indexOf(info) === kids.indexOf(document.querySelector('#tc-acc-route .tc-f-rate')) - 1; })(),
                 curClipped: cur.scrollWidth > cur.clientWidth + 1 || cur.getBoundingClientRect().right > grid.getBoundingClientRect().right + 1,
                 overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
                 clipped: [...grid.querySelectorAll('input, select, label')].filter((e) => e.offsetParent !== null && e.scrollWidth > e.clientWidth + 1).map((e) => e.id || e.textContent.slice(0, 12)),
@@ -667,9 +668,12 @@ test('browser: norm / cars / days are in «Маршрут», not in «Додат
         });
         assert.equal(m.cols, width > 480 ? 2 : 1, 'columns' + at);
         if (m.cols === 2) {
-            assert.ok(Math.abs(m.days - m.rate) <= 1, 'days | rate top edge ' + m.days + ' vs ' + m.rate + at);
-            assert.ok(Math.abs(m.norm - m.cars) <= 1, 'norm | cars top edge' + at);
-            assert.ok(Math.abs(m.dist - m.volume) <= 1, 'dist | volume top edge' + at);
+            // Пари за порядком «Маршруту»: Відстань | Подача, км; Об'єм | Норма; Авто | Діб; Тариф сам (підказка «N ходок» — на всю ширину після повної пари).
+            assert.ok(Math.abs(m.dist - m.podacha) <= 1, 'dist | podacha top edge ' + m.dist + ' vs ' + m.podacha + at);
+            assert.ok(Math.abs(m.volume - m.norm) <= 1, 'volume | norm top edge ' + m.volume + ' vs ' + m.norm + at);
+            assert.ok(Math.abs(m.cars - m.days) <= 1, 'cars | days top edge ' + m.cars + ' vs ' + m.days + at);
+            assert.ok(m.rate > m.days, 'rate is under the cars | days pair' + at);
+            assert.ok(m.hintAfterPair, 'the «N ходок» hint sits after the full cars | days pair, before rate' + at);
         }
         assert.equal(m.curClipped, false, 'currency «грн/т» is fully visible' + at);
         assert.ok(m.overflow <= 0, 'horizontal scroll ' + m.overflow + at);

@@ -169,10 +169,10 @@ function syncGpsTab() {
     // Документи, Автопарк, Водії спираються на функції 4a/4b: з'являються після перевірки.
     const docsOn = docsAccess(current).visible && state.docs === true;
     for (const key of ['docs', 'fleet', 'drivers']) if (tabs[key]) tabs[key].hidden = !docsOn;
-    // «Власний парк» — лише з прапорцем own_fleet; замовник підрозділу без власного Контроль+ бачить тільки цю вкладку.
+    // Стара кнопка «Власний парк» (#kp-nav-own_fleet) — лише з прапорцем own_fleet; у боковому меню КП пункту вже немає. Замовник підрозділу без власного Контроль+ не бачить жодного розділу й отримує заглушку з переходом в AGRO.
     const fleetAccess = ownFleetAccess(current ? state.ownFleet : null);
     if (tabs.own_fleet) tabs.own_fleet.hidden = !fleetAccess.enabled;
-    // «Платформа» — лише суперадміну (is_platform_superadmin()); решта пункту не бачить.
+    // Замовник підрозділу без власного Контроль+: решта вкладок схована (меню порожнє, див. views/agro-stub.js).
     if (ownFleetOnly(fleetAccess, current)) for (const key of Object.keys(tabs)) if (key !== 'own_fleet') tabs[key].hidden = true;
     // «Платформа» — лише суперадміну (is_platform_superadmin()); не залежить ні від організації й тарифу, ні від режиму «лише власний парк».
     if (tabs.superadmin) tabs.superadmin.hidden = !(state.session && state.superadminUser === state.session.user.id && state.superadmin);
