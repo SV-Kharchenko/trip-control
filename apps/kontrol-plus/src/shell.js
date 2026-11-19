@@ -40,7 +40,7 @@ export function mountShell(env = {}) {
     let agroBusy = false;
     const agroButtons = [];
     const agroBtn = (cls) => {
-        const btn = h('button', { type: 'button', class: cls, hidden: true, title: 'Відкрити AGRO', 'aria-label': 'Відкрити AGRO', onclick: openAgro }, 'АГРО');
+        const btn = h('button', { type: 'button', class: cls, hidden: true, title: 'Відкрити Park-Control', 'aria-label': 'Відкрити Park-Control', onclick: openAgro }, 'Park-Control');
         agroButtons.push(btn);
         return btn;
     };
@@ -52,9 +52,9 @@ export function mountShell(env = {}) {
         try {
             const out = await open();
             if (out && out.ok && typeof out.url === 'string') win.location.assign(out.url);
-            else toast((out && out.error) || 'Не вдалося відкрити AGRO. Спробуйте ще раз.', 'error');
+            else toast((out && out.error) || 'Не вдалося відкрити Park-Control. Спробуйте ще раз.', 'error');
         } catch {
-            toast('Не вдалося відкрити AGRO. Спробуйте ще раз.', 'error');
+            toast('Не вдалося відкрити Park-Control. Спробуйте ще раз.', 'error');
         } finally {
             agroBusy = false;
             for (const btn of agroButtons) { btn.disabled = false; btn.removeAttribute('aria-busy'); }

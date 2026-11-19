@@ -3,9 +3,9 @@
 // якщо AGRO вимкнений для користувача чи компанії (window.tcKpAgro !== true) — кнопки немає, лише текст.
 import { h, toast } from '../ui.js';
 
-export const AGRO_STUB_TEXT = 'Перевезення між компаніями холдингу тепер в АГРО';
-export const AGRO_STUB_BUTTON = 'Перейти в АГРО';
-export const AGRO_STUB_OFF = 'Зверніться до директора за доступом до АГРО';
+export const AGRO_STUB_TEXT = 'Перевезення між компаніями холдингу тепер в Park-Control';
+export const AGRO_STUB_BUTTON = 'Перейти в Park-Control';
+export const AGRO_STUB_OFF = 'Зверніться до директора за доступом до Park-Control';
 
 export function renderAgroStub(win = window) {
     let busy = false;
@@ -18,9 +18,9 @@ export function renderAgroStub(win = window) {
         try {
             const out = await call();
             if (out && out.ok && typeof out.url === 'string') win.location.assign(out.url);
-            else toast((out && out.error) || 'Не вдалося відкрити AGRO. Спробуйте ще раз.', 'error');
+            else toast((out && out.error) || 'Не вдалося відкрити Park-Control. Спробуйте ще раз.', 'error');
         } catch {
-            toast('Не вдалося відкрити AGRO. Спробуйте ще раз.', 'error');
+            toast('Не вдалося відкрити Park-Control. Спробуйте ще раз.', 'error');
         } finally {
             busy = false;
             for (const btn of action.querySelectorAll('button')) { btn.disabled = false; btn.removeAttribute('aria-busy'); }

@@ -104,8 +104,8 @@ export function renderSuperadmin(app) {
             const allowed = agroChoiceArg(value);
             const label = AGRO_CHOICES.find((c) => c[0] === value)[1];
             const answer = await confirmDialog({
-                title: 'Доступ до AGRO для ' + (row.email || 'користувача') + ': «' + label + '»?',
-                text: allowed === null ? 'Доступ знову визначатиме компанія.' : allowed ? 'Користувач зможе входити в AGRO, навіть якщо компанії доступ не відкрито (за умови глобального вмикання).' : 'Користувач не зможе входити в AGRO, навіть якщо компанії доступ відкрито.',
+                title: 'Доступ до Park-Control для ' + (row.email || 'користувача') + ': «' + label + '»?',
+                text: allowed === null ? 'Доступ знову визначатиме компанія.' : allowed ? 'Користувач зможе входити в Park-Control, навіть якщо компанії доступ не відкрито (за умови глобального вмикання).' : 'Користувач не зможе входити в Park-Control, навіть якщо компанії доступ відкрито.',
                 confirmText: 'Зберегти',
                 danger: allowed === false,
             });
@@ -117,7 +117,7 @@ export function renderSuperadmin(app) {
             await Promise.all([load(), loadAudit()]);
         }
         function userRow(row) {
-            const select = h('select', { class: 'kpsa-agro-select', 'aria-label': 'Доступ до AGRO: ' + (row.email || ''), onchange: () => setUser(row, select) },
+            const select = h('select', { class: 'kpsa-agro-select', 'aria-label': 'Доступ до Park-Control: ' + (row.email || ''), onchange: () => setUser(row, select) },
                 AGRO_CHOICES.map(([value, text]) => h('option', { value }, text)));
             select.value = agroChoiceValue(row.override);
             return h('div', { class: 'kpsa-agro-row', role: 'listitem', 'data-user': row.user_id },
@@ -126,7 +126,7 @@ export function renderSuperadmin(app) {
                 h('div', { class: 'kpsa-agro-eff ' + (row.allowed === true ? 'is-on' : 'is-off'), 'data-allowed': String(row.allowed === true) }, agroEffectiveText(row)));
         }
         return h('details', { class: 'kpsa-agro', ontoggle: (e) => { if (e.target.open && !loaded) { loaded = true; load(); } } },
-            h('summary', null, 'Доступ до AGRO для користувачів'), body);
+            h('summary', null, 'Доступ до Park-Control для користувачів'), body);
     }
     function orgRow(org) {
         const modules = MODULES.map((m) => {

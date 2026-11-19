@@ -1,4 +1,4 @@
-// Заглушка «Перевезення між компаніями холдингу тепер в АГРО»: для користувача без жодного пункту меню (наприклад, замовник підрозділу без власного КП).
+// Заглушка «Перевезення між компаніями холдингу тепер в Park-Control»: для користувача без жодного пункту меню (наприклад, замовник підрозділу без власного КП).
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -36,10 +36,10 @@ test('AGRO вимкнений: лише текст «Зверніться до �
     assert.equal(text(el).includes(AGRO_STUB_TEXT), true);
     assert.equal(text(el).includes(AGRO_STUB_OFF), true);
     assert.equal(buttons(el).length, 0);
-    assert.equal(AGRO_STUB_OFF, 'Зверніться до директора за доступом до АГРО');
+    assert.equal(AGRO_STUB_OFF, 'Зверніться до директора за доступом до Park-Control');
 }));
 
-test('AGRO ввімкнений: кнопка «Перейти в АГРО» веде тим самим SSO-переходом (tcKpOpenAgro), не на всю ширину', async () => {
+test('AGRO ввімкнений: кнопка «Перейти в Park-Control» веде тим самим SSO-переходом (tcKpOpenAgro), не на всю ширину', async () => {
     await withDom(async () => {
         let called = 0;
         const win = fakeWin({ tcKpAgro: true, tcKpOpenAgro: async () => { called += 1; return { ok: true, url: 'https://agro.trip-control.com/sso#t' }; } });

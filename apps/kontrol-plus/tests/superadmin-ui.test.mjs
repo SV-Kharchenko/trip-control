@@ -221,7 +221,7 @@ test('AGRO: у картці компанії блок «Доступ до AGRO �
     for (const [theme, viewport] of [['light', { width: 1366, height: 900 }], ['dark', { width: 390, height: 844 }]]) {
         await run(t, { theme, settings: [{ key: 'own_fleet', enabled: true }, { key: 'agro', enabled: true }] }, viewport, async (page) => {
             const block = `.kpsa-org[data-org="${ORG_A}"] .kpsa-agro`;
-            assert.equal(await page.textContent(block + ' > summary'), 'Доступ до AGRO для користувачів');
+            assert.equal(await page.textContent(block + ' > summary'), 'Доступ до Park-Control для користувачів');
             assert.equal((await callsOf(page, 'sa_list_org_agro_users')).length, 0, 'до розгортання нічого не вантажимо');
             await page.click(block + ' > summary');
             await page.waitForSelector(block + ' .kpsa-agro-row');
@@ -251,8 +251,8 @@ test('AGRO: у картці компанії блок «Доступ до AGRO �
             await page.waitForFunction(() => window.__calls.filter((c) => c[0] === 'sa_set_user_agro').length === 2);
             assert.deepEqual(await callsOf(page, 'sa_set_user_agro'), [{ p_user: 'u1', p_allowed: true }, { p_user: 'u2', p_allowed: null }]);
             const titles = await page.evaluate(() => window.__modals.map((m) => m.title));
-            assert.match(titles[0], /Доступ до AGRO для owner@agro\.example: «Заборонено»\?/);
-            assert.equal(await page.locator('.kpsa-global[data-key="agro"]').count(), 1, 'AGRO — у глобальних функціях');
+            assert.match(titles[0], /Доступ до Park-Control для owner@agro\.example: «Заборонено»\?/);
+            assert.equal(await page.locator('.kpsa-global[data-key="agro"]').count(), 1, 'Park-Control — у глобальних функціях');
         });
     }
 });
