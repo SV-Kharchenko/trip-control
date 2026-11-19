@@ -145,7 +145,7 @@ export function parseSelection(body) {
     }
     const sel = { all: body.all === true, groupIds: idList(body.group_ids, 'group_ids'), unitIds: idList(body.unit_ids, 'unit_ids'), kinds: [...new Set(kinds)] };
     sel.active = sel.all || sel.groupIds.length > 0 || sel.unitIds.length > 0 || sel.kinds.length > 0;
-    sel.mode = sel.all ? 'all' : (sel.groupIds.length || sel.unitIds.length ? 'custom' : 'linked');
+    sel.mode = sel.all ? 'all' : (sel.groupIds.length || sel.unitIds.length ? 'custom' : (sel.kinds.length ? 'kinds' : 'linked'));
     return sel;
 }
 
@@ -495,9 +495,12 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
                     nextRefreshAt = until;
                     try {
                         const creds = await credsOf(integration);
-                        // Вибрані активні юніти — незалежно від привʼязки до Автопарку; бюджет часу 8 с усередині провайдера.
-                        const points = await provider().fetchPositions(creds, units.map((u) => String(u.external_id)));
-                        await savePoints(auth.orgId, units, points, nowIso);
+                        // Wialon віддає позиції всіх юнітів одним search_items, тож під спільним локом організації зберігаємо точки й last_*
+                        // для ВСІХ активних юнітів (незалежно від привʼязки й вибору): інший користувач з іншим вибором за хвилину не побачить
+                        // застарілих даних. Відповідь карти фільтрується за вибором нижче. Бюджет часу 8 с — усередині провайдера.
+                        const everyone = await store.selectedUnits(auth.orgId, { all: true, groupIds: [], unitIds: [], kinds: [] });
+                        const points = await provider().fetchPositions(creds, everyone.map((u) => String(u.external_id)));
+                        await savePoints(auth.orgId, everyone, points, nowIso);
                         current = await markOk(integration, {});
                         refreshed = true;
                     } catch (error) {

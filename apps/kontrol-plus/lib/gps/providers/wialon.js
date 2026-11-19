@@ -139,7 +139,7 @@ export function createWialonProvider({ transport = safeRequest, timeoutMs = 1500
     }
 
     // Остання позиція вибраних юнітів (карта). budgetMs — загальний бюджет часу; кожен виклик min(4 с, залишок);
-    // logout — у finally (withSession). Юніти без позиції й приватні точки (pos без x / y) пропускаємо. Юніти без позиції й приватні точки
+    // logout — у finally (withSession). Юніти без позиції й приватні точки
     // (pos без x / y) пропускаємо.
     async function fetchPositions(creds, externalIds, { budgetMs = POSITIONS_BUDGET_MS } = {}) {
         const budget = { deadline: now() + budgetMs };

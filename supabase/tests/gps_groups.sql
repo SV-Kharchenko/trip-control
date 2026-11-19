@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(39);
+SELECT plan(49);
 
 SELECT set_config(
   'request.jwt.claims',
@@ -258,6 +258,70 @@ SELECT is(
   'truck',
   'service_role: sync sets the kind of a non-manual unit'
 );
+
+-- gps_update_last_positions: one UPDATE for a batch; own org only; an older point never rolls back a newer one.
+SELECT is(
+  public.gps_update_last_positions('7a100000-0000-0000-0000-00000000000a',
+    '[{"id":"7a300000-0000-0000-0000-000000000001","last_pos_at":"2026-11-01T10:00:00Z","last_lat":50.4,"last_lon":30.5,"last_speed":60,"last_course":90,"last_seen_at":"2026-11-01T10:01:00Z"},
+      {"id":"7a300000-0000-0000-0000-000000000009","last_pos_at":"2026-11-01T10:00:00Z","last_lat":1,"last_lon":1,"last_speed":1,"last_course":1,"last_seen_at":"2026-11-01T10:01:00Z"}]'::jsonb),
+  1,
+  'service_role: gps_update_last_positions updates only the units of p_org'
+);
+SELECT is(
+  (SELECT last_lat FROM public.gps_vehicles WHERE id = '7a300000-0000-0000-0000-000000000009'),
+  NULL::double precision,
+  'service_role: a unit of another org is not updated'
+);
+SELECT is(
+  public.gps_update_last_positions('7a100000-0000-0000-0000-00000000000a',
+    '[{"id":"7a300000-0000-0000-0000-000000000001","last_pos_at":"2026-11-01T09:00:00Z","last_lat":10,"last_lon":10,"last_speed":5,"last_course":5,"last_seen_at":"2026-11-01T10:05:00Z"}]'::jsonb),
+  0,
+  'service_role: an older point updates nothing'
+);
+SELECT is(
+  (SELECT last_lat FROM public.gps_vehicles WHERE id = '7a300000-0000-0000-0000-000000000001'),
+  50.4::double precision,
+  'service_role: the older point did not roll back the newer one'
+);
+SELECT is(
+  public.gps_update_last_positions('7a100000-0000-0000-0000-00000000000a',
+    '[{"id":"7a300000-0000-0000-0000-000000000001","last_pos_at":"2026-11-01T11:00:00Z","last_lat":51,"last_lon":31,"last_speed":70,"last_course":100,"last_seen_at":"2026-11-01T11:01:00Z"},
+      {"id":"7a300000-0000-0000-0000-000000000002","last_pos_at":"2026-11-01T11:00:00Z","last_lat":52,"last_lon":32,"last_speed":0,"last_course":0,"last_seen_at":"2026-11-01T11:01:00Z"}]'::jsonb),
+  2,
+  'service_role: one call updates a batch (newer point + first point)'
+);
+SELECT is(
+  (SELECT last_lat::text || '/' || last_speed::text FROM public.gps_vehicles WHERE id = '7a300000-0000-0000-0000-000000000001'),
+  '51/70',
+  'service_role: the newer point wins'
+);
+SELECT throws_ok(
+  $$SELECT public.gps_update_last_positions('7a100000-0000-0000-0000-00000000000a', '{}'::jsonb)$$,
+  'P0001', NULL, 'service_role: gps_update_last_positions needs an array'
+);
+
+-- Clients cannot call it; the author of a manual group is set by the trigger.
+SELECT set_config('request.jwt.claims', '{"sub":"7a000000-0000-0000-0000-0000000000e1","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$SELECT public.gps_update_last_positions('7a100000-0000-0000-0000-00000000000a', '[]'::jsonb)$$,
+  '42501', NULL, 'owner: cannot call gps_update_last_positions'
+);
+INSERT INTO public.gps_groups (id, org_id, source, name)
+VALUES ('7a400000-0000-0000-0000-0000000000f3', '7a100000-0000-0000-0000-00000000000a', 'manual', 'З автором');
+SELECT is(
+  (SELECT created_by FROM public.gps_groups WHERE id = '7a400000-0000-0000-0000-0000000000f3'),
+  '7a000000-0000-0000-0000-0000000000e1'::uuid,
+  'owner: created_by of a manual group is auth.uid() (trigger)'
+);
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '{"sub":"7a000000-0000-0000-0000-0000000000e2","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT throws_ok(
+  $$SELECT public.gps_update_last_positions('7a100000-0000-0000-0000-00000000000a', '[]'::jsonb)$$,
+  '42501', NULL, 'logist: cannot call gps_update_last_positions'
+);
+RESET ROLE;
 
 SELECT * FROM finish();
 ROLLBACK;

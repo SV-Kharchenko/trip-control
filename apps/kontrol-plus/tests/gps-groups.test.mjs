@@ -215,7 +215,7 @@ test('positions: group_ids fetches the active members of the group, linked or no
     const h = harness();
     const res = await h.call('positions', { body: { refresh: true, group_ids: [G1] } });
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(h.fetches[0].ids.sort(), ['101', '102'], 'unit 104 is inactive');
+    assert.deepEqual(h.fetches[0].ids.sort(), ['101', '102', '103', '105'], 'one shared fetch for all active units of the org; the answer is filtered by the selection');
     assert.deepEqual(res.body.vehicles.map((v) => v.gps_vehicle_id).sort(), [U(1), U(2)]);
     assert.deepEqual(res.body.selection, { mode: 'custom', total: 2 });
     const linked = res.body.vehicles.find((v) => v.gps_vehicle_id === U(1));
@@ -228,11 +228,11 @@ test('positions: group_ids fetches the active members of the group, linked or no
 test('positions: unit_ids (a unit with no link) and a manual group; group + unit ids are united', async () => {
     const h = harness();
     const one = await h.call('positions', { body: { refresh: true, unit_ids: [U(3)] } });
-    assert.deepEqual(h.fetches[0].ids, ['103']);
+    assert.deepEqual(h.fetches[0].ids.sort(), ['101', '102', '103', '105']);
     assert.deepEqual(one.body.vehicles.map((v) => v.gps_vehicle_id), [U(3)]);
     h.clock.t += 61000;
     const both = await h.call('positions', { body: { refresh: true, group_ids: [G2], unit_ids: [U(1)] } });
-    assert.deepEqual(h.fetches[1].ids.sort(), ['101', '103']);
+    assert.deepEqual(h.fetches[1].ids.sort(), ['101', '102', '103', '105']);
     assert.equal(both.body.selection.total, 2);
 });
 
@@ -243,23 +243,66 @@ test('positions: all = every active unit of the own org (no foreign, no inactive
     assert.equal(all.body.selection.mode, 'all');
     h.clock.t += 61000;
     const kinds = await h.call('positions', { body: { refresh: true, all: true, kinds: ['truck', 'none'] } });
-    assert.deepEqual(h.fetches[1].ids.sort(), ['101', '103'], 'truck + kind unknown');
+    assert.deepEqual(h.fetches[1].ids.sort(), ['101', '102', '103', '105'], 'the kinds filter narrows only the answer');
+    assert.deepEqual(kinds.body.vehicles.map((v) => v.gps_vehicle_id).sort(), [U(1), U(3)]);
     assert.equal(kinds.body.vehicles.length, 2);
 });
 
 test('positions: without a selection — only linked units (as before); the position goes to units regardless of the link', async () => {
     const h = harness();
     const res = await h.call('positions', { body: { refresh: true } });
-    assert.deepEqual(h.fetches[0].ids, ['101']);
+    assert.deepEqual(h.fetches[0].ids.sort(), ['101', '102', '103', '105']);
     assert.equal(res.body.selection.mode, 'linked');
 });
 
-test('positions: the saved position lands on an unlinked unit too', async () => {
+test('positions: a refresh saves points and last_* for ALL active units of the org, whatever the selection; the answer follows the selection', async () => {
     const h = harness();
-    await h.call('positions', { body: { refresh: true, unit_ids: [U(2)] } });
-    assert.equal(h.w.units.find((u) => u.id === U(2)).last_lat, 50);
-    assert.equal(h.w.positions.length, 1);
-    assert.equal(h.w.positions[0].gps_vehicle_id, U(2));
+    const res = await h.call('positions', { body: { refresh: true, unit_ids: [U(2)] } });
+    assert.deepEqual(res.body.vehicles.map((v) => v.gps_vehicle_id), [U(2)], 'only the selected unit is returned');
+    const saved = h.w.positions.map((p) => p.gps_vehicle_id).sort();
+    assert.deepEqual(saved, [U(1), U(2), U(3), U(5)], 'active units of org A only: no inactive, no foreign');
+    for (const id of [U(1), U(2), U(3), U(5)]) assert.ok(h.w.units.find((u) => u.id === id).last_lat !== undefined, 'last_* of ' + id);
+    assert.equal(h.w.units.find((u) => u.id === U(9)).last_lat, undefined, 'a foreign unit is untouched');
+    assert.equal(h.w.units.find((u) => u.id === U(4)).last_lat, undefined, 'an inactive unit is untouched');
+    assert.equal(h.fetches.length, 1, 'one Wialon call for everybody');
+    // Інший користувач з іншим вибором за хвилину — без нового виклику, але з уже свіжими даними.
+    const other = await h.call('positions', { jwt: 'jwt-logist', body: { unit_ids: [U(1)] } });
+    assert.equal(h.fetches.length, 1);
+    assert.equal(other.body.vehicles[0].lat, 50, 'fresh data for a unit that was not in the first selection');
+    assert.equal(other.body.vehicles[0].no_signal, false);
+});
+
+test('positions: only kinds[] → every active unit of that kind, linked or not (mode kinds)', async () => {
+    const h = harness();
+    assert.equal(parseSelection({ kinds: ['tractor'] }).mode, 'kinds');
+    assert.equal(parseSelection({ kinds: ['tractor'], all: true }).mode, 'all');
+    const res = await h.call('positions', { body: { refresh: true, kinds: ['tractor', 'special'] } });
+    assert.equal(res.body.selection.mode, 'kinds');
+    assert.deepEqual(res.body.vehicles.map((v) => [v.gps_vehicle_id, v.linked]).sort(), [[U(2), false], [U(5), false]], 'unlinked units are returned');
+    const none = await h.call('positions', { jwt: 'jwt-logist', body: { kinds: ['none'] } });
+    assert.deepEqual(none.body.vehicles.map((v) => v.gps_vehicle_id), [U(3)]);
+    const store = createSupabaseStore(fakeSupabase({ gps_vehicles: h.w.units, gps_group_members: h.w.members }));
+    assert.deepEqual((await store.selectedUnits('A', { kinds: ['truck'] })).map((u) => u.id), [U(1)]);
+    assert.deepEqual((await store.selectedUnits('A', { kinds: ['tractor'], groupIds: [G2] })).map((u) => u.id), [], 'with a group the base is the group, kinds narrows it');
+});
+
+test('store.updateLastPositions: ONE rpc for 721 units, batches of 500 beyond that; no per-unit UPDATE', async () => {
+    const calls = [];
+    const supabase = {
+        rpc: async (fn, args) => { calls.push({ fn, args }); return { data: args.p_rows.length, error: null }; },
+        from() { throw new Error('no table access expected'); },
+    };
+    const store = createSupabaseStore(supabase);
+    const rows = Array.from({ length: 721 }, (_, i) => ({ id: 'u' + i, last_pos_at: '2026-11-19T08:00:00.000Z', last_lat: 50, last_lon: 30, last_speed: 1, last_course: 2, last_seen_at: '2026-11-19T09:00:00.000Z' }));
+    await store.updateLastPositions('A', rows.slice(0, 500));
+    assert.equal(calls.length, 1);
+    calls.length = 0;
+    await store.updateLastPositions('A', rows);
+    assert.deepEqual(calls.map((c) => [c.fn, c.args.p_org, c.args.p_rows.length]), [['gps_update_last_positions', 'A', 500], ['gps_update_last_positions', 'A', 221]]);
+    calls.length = 0;
+    await store.updateLastPositions('A', rows.slice(0, 500));
+    assert.equal(calls.length, 1);
+    await assert.rejects(() => createSupabaseStore({ rpc: async () => ({ data: null, error: { message: 'secret db text' } }) }).updateLastPositions('A', rows), /gps store: update last positions/);
 });
 
 test('positions: bad selection → 400, no call to Wialon; response carries the sync state and the error code', async () => {
@@ -549,4 +592,22 @@ test('layout: buttons of the map filter and the GPS tab are content-sized (no .b
     assert.equal(/(^|[\s;{])width:\s*100%/.test(block.replace(/\.gps-unit-(search|result) [^\n]*/g, '')), false, 'only the search field and the rows of the result list fill their cell');
     assert.match(css, /@media \(max-width: 600px\) \{\s*\/\* Телефон[^\n]*\n\s*#kp-crm \.gps-filter-row \{ grid-template-columns: minmax\(0, 1fr\); \}/);
     assert.match(read('../src/cabinet-slot.css'), /\.gps-filter-row/, 'the generated slot copy has the new rules');
+});
+
+test('migration kp_gps_groups: gps_update_last_positions — one UPDATE … FROM with the explicit WHERE (org, id, newer point), service_role only', () => {
+    const sql = fs.readFileSync(new URL('../../../supabase/migrations/' + MIGRATION, import.meta.url), 'utf8').split(String.fromCharCode(13)).join('');
+    const body = sql.slice(sql.indexOf('CREATE OR REPLACE FUNCTION public.gps_update_last_positions'));
+    const code = body.replace(/^\s*--.*$/gm, '');
+    assert.match(code, /SECURITY DEFINER\s+SET search_path = public/);
+    assert.match(code, /is_service_role\(\)/);
+    const updates = [...code.matchAll(/UPDATE\s+public\.gps_vehicles\s+AS\s+gv\s+SET[\s\S]*?;/gi)];
+    assert.equal(updates.length, 1, 'exactly one UPDATE, no loop');
+    assert.match(updates[0][0], /FROM jsonb_to_recordset\(p_rows\)/);
+    assert.match(updates[0][0], /WHERE gv\.id = r\.id\s+AND gv\.org_id = p_org/);
+    assert.match(updates[0][0], /gv\.last_pos_at IS NULL OR gv\.last_pos_at < r\.last_pos_at/);
+    assert.equal(/\bLOOP\b|\bFOR\b\s+\w+\s+IN/i.test(code), false);
+    assert.match(code, /REVOKE ALL ON FUNCTION public\.gps_update_last_positions\(uuid, jsonb\) FROM PUBLIC, anon, authenticated/);
+    assert.match(code, /GRANT EXECUTE ON FUNCTION public\.gps_update_last_positions\(uuid, jsonb\) TO service_role/);
+    assert.equal(/GRANT[^;]*gps_update_last_positions[^;]*authenticated/i.test(code.replace(/REVOKE[^;]*;/g, '')), false);
+    assert.equal(sql.split('\n')[0], '-- Apply manually after review. This file is not applied to any database by the agent.');
 });

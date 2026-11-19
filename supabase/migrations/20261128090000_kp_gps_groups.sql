@@ -19,6 +19,7 @@
 -- safeupdate). Без CREATE EXTENSION.
 --
 -- РУЧНИЙ ВІДКАТ (не виконується автоматично):
+--   DROP FUNCTION IF EXISTS public.gps_update_last_positions(uuid, jsonb);
 --   DROP FUNCTION IF EXISTS public.gps_sync_groups(uuid, jsonb);
 --   DROP FUNCTION IF EXISTS public.gps_set_kind(uuid, text);
 --   DROP TABLE IF EXISTS public.gps_group_members; DROP TABLE IF EXISTS public.gps_groups;
@@ -118,6 +119,9 @@ BEGIN
     NEW.org_id := v_org;
   END IF;
   NEW.name := btrim(NEW.name);
+  IF TG_OP = 'INSERT' AND NEW.source = 'manual' AND NEW.created_by IS NULL THEN
+    NEW.created_by := auth.uid();
+  END IF;
   RETURN NEW;
 END;
 $$;
@@ -375,3 +379,48 @@ $$;
 
 REVOKE ALL ON FUNCTION public.gps_sync_groups(uuid, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.gps_sync_groups(uuid, jsonb) TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- gps_update_last_positions: масовий запис останніх позицій (замість UPDATE на кожен юніт)
+-- ---------------------------------------------------------------------------
+
+-- p_rows: [{"id": "<gps_vehicles.id>", "last_pos_at": "…", "last_lat": 50.4, "last_lon": 30.5, "last_speed": 60,
+-- "last_course": 90, "last_seen_at": "…"}, …]. Один UPDATE … FROM: оновлюються лише юніти організації p_org, і лише якщо
+-- точка новіша за збережену (старіша не відкочує останню позицію). Повертає кількість оновлених юнітів. Лише service_role.
+CREATE OR REPLACE FUNCTION public.gps_update_last_positions(p_org uuid, p_rows jsonb)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_count integer := 0;
+BEGIN
+  IF NOT public.is_service_role() OR public.kp_is_client_role() THEN
+    RAISE EXCEPTION 'SERVICE_ROLE_REQUIRED' USING ERRCODE = '42501';
+  END IF;
+  IF p_org IS NULL OR p_rows IS NULL OR jsonb_typeof(p_rows) <> 'array' THEN
+    RAISE EXCEPTION 'GPS_BAD_ROWS' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE public.gps_vehicles AS gv
+  SET last_pos_at = r.last_pos_at,
+      last_lat = r.last_lat,
+      last_lon = r.last_lon,
+      last_speed = r.last_speed,
+      last_course = r.last_course,
+      last_seen_at = coalesce(r.last_seen_at, gv.last_seen_at)
+  FROM jsonb_to_recordset(p_rows) AS r(
+    id uuid, last_pos_at timestamptz, last_lat double precision, last_lon double precision,
+    last_speed smallint, last_course smallint, last_seen_at timestamptz
+  )
+  WHERE gv.id = r.id
+    AND gv.org_id = p_org
+    AND r.last_pos_at IS NOT NULL
+    AND (gv.last_pos_at IS NULL OR gv.last_pos_at < r.last_pos_at);
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.gps_update_last_positions(uuid, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.gps_update_last_positions(uuid, jsonb) TO service_role;

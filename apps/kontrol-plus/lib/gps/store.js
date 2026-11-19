@@ -96,7 +96,8 @@ export function createSupabaseStore(supabase) {
             return must(await supabase.from('gps_vehicles').select(UNIT_MAP_COLUMNS)
                 .eq('org_id', orgId).eq('active', true).not('vehicle_id', 'is', null).limit(5000), 'mapped units') || [];
         },
-        // Вибір карти: активні юніти організації — усі (all) або члени груп і/або окремі юніти; без груп / юнітів — привʼязані.
+        // Вибір карти: активні юніти організації — усі (all) або члени груп і/або окремі юніти; лише kinds — усі активні цього типу;
+        // без нічого — привʼязані.
         // Тип (kinds) фільтрує вже вибране; 'none' — тип невизначено. Усі запити з явним org_id.
         async selectedUnits(orgId, { all, groupIds = [], unitIds = [], kinds = [] }) {
             const base = () => supabase.from('gps_vehicles').select(UNIT_MAP_COLUMNS).eq('org_id', orgId).eq('active', true);
@@ -112,6 +113,9 @@ export function createSupabaseStore(supabase) {
                 }
                 rows = [];
                 for (const part of chunk([...ids])) rows.push(...(must(await base().in('id', part).limit(5000), 'selected units') || []));
+            } else if (kinds.length) {
+                // Лише тип (без груп і юнітів): усі активні юніти цих типів, привʼязані чи ні.
+                rows = must(await base().limit(5000), 'selected units') || [];
             } else {
                 rows = must(await base().not('vehicle_id', 'is', null).limit(5000), 'selected units') || [];
             }
@@ -130,12 +134,10 @@ export function createSupabaseStore(supabase) {
                 .upsert(rows, { onConflict: 'gps_vehicle_id,recorded_at', ignoreDuplicates: true }), 'insert positions');
         },
         // last_* юніта — лише якщо точка новіша за збережену (старіша точка не відкочує останню позицію).
+        // Масово: RPC gps_update_last_positions (один UPDATE … FROM на пачку, не більше 500 рядків), а не запит на кожен юніт.
         async updateLastPositions(orgId, updates) {
-            for (const u of updates) {
-                must(await supabase.from('gps_vehicles').update({
-                    last_pos_at: u.last_pos_at, last_lat: u.last_lat, last_lon: u.last_lon,
-                    last_speed: u.last_speed, last_course: u.last_course, last_seen_at: u.last_seen_at,
-                }).eq('id', u.id).eq('org_id', orgId).or('last_pos_at.is.null,last_pos_at.lt.' + quoted(u.last_pos_at)), 'update last position');
+            for (const part of chunk(updates, 500)) {
+                must(await supabase.rpc('gps_update_last_positions', { p_org: orgId, p_rows: part }), 'update last positions');
             }
         },
         // Прийняті заявки авто організації, що могли початися не пізніше сьогодні (вікно точно рахує lib/gps/map.js).
