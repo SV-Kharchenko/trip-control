@@ -6,6 +6,7 @@
   "outputDirectory": "dist",
   "cleanUrls": false,
   "trailingSlash": false,
+  "regions": ["fra1"],
   "functions": {
     "api/gps/*.js": { "maxDuration": 30 },
     "api/repairs/*.js": { "maxDuration": 15 },

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { SCOPE_ALLOWLIST, isAllowedOutside, outsideScope } from '../scripts/check-scope.mjs';
 
 test('check-scope allowlist: exactly the GPS migration and its pgTAP file', () => {
-    assert.equal(SCOPE_ALLOWLIST.length, 60); // 1 для tests/volume-norm-labels.test.mjs + 1 для скрінів щільності КП (docs/screens/kp-density/*.png) + 1 для порядку полів «Маршруту» (tests/batch-calc.test.mjs) + 4 для AGRO SSO на сайті (api, lib, 2 тести) + 2 для AGRO (міграція + pgTAP) + 2 для телематики (міграція + pgTAP) + 3 для кабінету суперадміна (superadmin) + 35 з #128 («Власний парк», idle-label) + 11 для staging, глобального вимикача і фейкового /api/config (tests/staging-scope.test.mjs)
+    assert.equal(SCOPE_ALLOWLIST.length, 62); // 2 для GPS-груп (міграція + pgTAP, feat/kp-gps-map-groups) + 1 для tests/volume-norm-labels.test.mjs + 1 для скрінів щільності КП (docs/screens/kp-density/*.png) + 1 для порядку полів «Маршруту» (tests/batch-calc.test.mjs) + 4 для AGRO SSO на сайті (api, lib, 2 тести) + 2 для AGRO (міграція + pgTAP) + 2 для телематики (міграція + pgTAP) + 3 для кабінету суперадміна (superadmin) + 35 з #128 («Власний парк», idle-label) + 11 для staging, глобального вимикача і фейкового /api/config (tests/staging-scope.test.mjs)
     for (const ok of ['supabase/migrations/20261024111415_gps_integrations.sql', 'supabase/tests/gps_integrations.sql']) {
         assert.equal(isAllowedOutside(ok), true, ok);
     }

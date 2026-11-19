@@ -5,7 +5,10 @@ import { addDays } from './map.js';
 
 const INTEGRATION_COLUMNS = 'id, org_id, provider, host_kind, api_host, token_secret_id, token_hint, status, provider_account, '
     + 'units_total, consecutive_failures, last_checked_at, last_ok_at, last_error_code, last_error_at, lock_until';
-const UNIT_MAP_COLUMNS = 'id, name, vehicle_id, external_id, active, last_pos_at, last_lat, last_lon, last_speed, last_course';
+const UNIT_MAP_COLUMNS = 'id, name, vehicle_id, external_id, active, last_pos_at, last_lat, last_lon, last_speed, last_course, kind, kind_manual';
+// PostgREST: id у фільтрі in.(…) іде в URL, тож великі списки діляться на пачки.
+const ID_CHUNK = 100;
+const chunk = (list, size = ID_CHUNK) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
 // Значення для фільтра or() PostgREST — у лапках (час містить ':' і '.').
 const quoted = (value) => '"' + String(value).replace(/"/g, '') + '"';
 
@@ -59,7 +62,7 @@ export function createSupabaseStore(supabase) {
             return must(await supabase.rpc('gps_delete_token', { p_integration: id }), 'delete token');
         },
         async listUnits(integrationId) {
-            return must(await supabase.from('gps_vehicles').select('id, external_id, name, vehicle_id, active')
+            return must(await supabase.from('gps_vehicles').select('id, external_id, name, vehicle_id, active, kind, kind_manual')
                 .eq('integration_id', integrationId).order('name', { ascending: true }).limit(5000), 'units') || [];
         },
         // Upsert лише цих колонок: vehicle_id (мапінг) і first_seen_at не перезаписуються.
@@ -93,6 +96,37 @@ export function createSupabaseStore(supabase) {
             return must(await supabase.from('gps_vehicles').select(UNIT_MAP_COLUMNS)
                 .eq('org_id', orgId).eq('active', true).not('vehicle_id', 'is', null).limit(5000), 'mapped units') || [];
         },
+        // Вибір карти: активні юніти організації — усі (all) або члени груп і/або окремі юніти; лише kinds — усі активні цього типу;
+        // без нічого — привʼязані.
+        // Тип (kinds) фільтрує вже вибране; 'none' — тип невизначено. Усі запити з явним org_id.
+        async selectedUnits(orgId, { all, groupIds = [], unitIds = [], kinds = [] }) {
+            const base = () => supabase.from('gps_vehicles').select(UNIT_MAP_COLUMNS).eq('org_id', orgId).eq('active', true);
+            let rows;
+            if (all) {
+                rows = must(await base().limit(5000), 'selected units') || [];
+            } else if (groupIds.length || unitIds.length) {
+                const ids = new Set(unitIds);
+                for (const part of chunk(groupIds)) {
+                    const members = must(await supabase.from('gps_group_members').select('gps_vehicle_id')
+                        .eq('org_id', orgId).in('group_id', part).limit(5000), 'group members') || [];
+                    for (const m of members) ids.add(m.gps_vehicle_id);
+                }
+                rows = [];
+                for (const part of chunk([...ids])) rows.push(...(must(await base().in('id', part).limit(5000), 'selected units') || []));
+            } else if (kinds.length) {
+                // Лише тип (без груп і юнітів): усі активні юніти цих типів, привʼязані чи ні.
+                rows = must(await base().limit(5000), 'selected units') || [];
+            } else {
+                rows = must(await base().not('vehicle_id', 'is', null).limit(5000), 'selected units') || [];
+            }
+            if (!kinds.length) return rows;
+            return rows.filter((u) => kinds.includes(u.kind || 'none'));
+        },
+        // Дзеркало груп Wialon (RPC gps_sync_groups, одна транзакція; ручні групи не чіпає). groups: [{ external_id, name, units: [external_id] }].
+        async syncGroups(integrationId, groups) {
+            const data = must(await supabase.rpc('gps_sync_groups', { p_integration: integrationId, p_groups: groups }), 'sync groups');
+            return (Array.isArray(data) ? data[0] : data) || {};
+        },
         // Точки без дублів (unique gps_vehicle_id + recorded_at): наявні не перезаписуються.
         async insertPositions(rows) {
             if (!rows.length) return;
@@ -100,12 +134,10 @@ export function createSupabaseStore(supabase) {
                 .upsert(rows, { onConflict: 'gps_vehicle_id,recorded_at', ignoreDuplicates: true }), 'insert positions');
         },
         // last_* юніта — лише якщо точка новіша за збережену (старіша точка не відкочує останню позицію).
+        // Масово: RPC gps_update_last_positions (один UPDATE … FROM на пачку, не більше 500 рядків), а не запит на кожен юніт.
         async updateLastPositions(orgId, updates) {
-            for (const u of updates) {
-                must(await supabase.from('gps_vehicles').update({
-                    last_pos_at: u.last_pos_at, last_lat: u.last_lat, last_lon: u.last_lon,
-                    last_speed: u.last_speed, last_course: u.last_course, last_seen_at: u.last_seen_at,
-                }).eq('id', u.id).eq('org_id', orgId).or('last_pos_at.is.null,last_pos_at.lt.' + quoted(u.last_pos_at)), 'update last position');
+            for (const part of chunk(updates, 500)) {
+                must(await supabase.rpc('gps_update_last_positions', { p_org: orgId, p_rows: part }), 'update last positions');
             }
         },
         // Прийняті заявки авто організації, що могли початися не пізніше сьогодні (вікно точно рахує lib/gps/map.js).

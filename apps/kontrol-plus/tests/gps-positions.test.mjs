@@ -64,6 +64,7 @@ function memoryStore({ integration = {}, units, orders } = {}) {
             return true;
         },
         async mappedUnits(org) { return s.units.filter((u) => u.org_id === org && u.active && u.vehicle_id).map((u) => ({ ...u })); },
+        async selectedUnits(org, sel) { return s.units.filter((u) => u.org_id === org && u.active && (sel.all || u.vehicle_id)).map((u) => ({ ...u })); },
         async insertPositions(rows) {
             for (const row of rows) {
                 if (!s.positions.some((p) => p.gps_vehicle_id === row.gps_vehicle_id && p.recorded_at === row.recorded_at)) s.positions.push(row);
@@ -165,7 +166,7 @@ test('response has no api_host, token_hint, external_id, provider_account; token
     }
 });
 
-test('lock free → one Wialon call for mapped active units only; points saved; last_* updated', async () => {
+test('lock free → one Wialon call for ALL active units of the org (not inactive, not foreign); the response stays the mapped selection', async () => {
     const h = harness();
     const res = await h.call();
     assert.equal(res.statusCode, 200);
@@ -173,7 +174,8 @@ test('lock free → one Wialon call for mapped active units only; points saved; 
     assert.equal(res.body.integration_status, 'active');
     assert.equal(res.body.next_refresh_at, new Date(T0 + MAP_LOCK_MS).toISOString());
     assert.equal(h.calls.length, 1);
-    assert.deepEqual(h.calls[0].ids.sort(), ['101', '102'], 'no unmapped / inactive units');
+    assert.deepEqual(h.calls[0].ids.sort(), ['101', '102', '103'], 'unmapped units are fetched too; inactive and foreign never');
+    assert.deepEqual(res.body.vehicles.map((v) => v.gps_vehicle_id).sort(), ['g1', 'g2'], 'the map answer follows the selection (mapped)');
     assert.equal(h.s.positions.length, 2);
     assert.equal(h.s.positions[0].speed, 72, 'smallint');
     const v1 = res.body.vehicles.find((v) => v.gps_vehicle_id === 'g1');

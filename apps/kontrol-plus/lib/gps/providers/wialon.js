@@ -9,7 +9,13 @@ const PATH = '/wialon/ajax.html';
 const UNIT_SPEC = { itemsType: 'avl_unit', propName: 'sys_name', propValueMask: '*', sortType: 'sys_name' };
 const FLAG_BASE = 1; // id, nm
 const FLAG_POSITION = 0x400000; // pos: {t, y, x, z, s, c, sc}
+const GROUP_SPEC = { itemsType: 'avl_unit_group', propName: 'sys_name', propValueMask: '*', sortType: 'sys_name' };
 const MAX_UNITS = 5000;
+const MAX_GROUPS = 1000;
+// Карта (positions): загальний бюджет часу на всі виклики до Wialon і стеля одного виклику.
+export const POSITIONS_BUDGET_MS = 8000;
+export const CALL_CAP_MS = 4000;
+const LOGOUT_MIN_MS = 500;
 
 export const WIALON_ERRORS = {
     1: 'invalid_session',
@@ -29,14 +35,22 @@ export function wialonErrorCode(error) {
 }
 
 // creds: { apiHost, hostKind, token }. transport — safeRequest (у тестах — підміна без мережі).
-export function createWialonProvider({ transport = safeRequest, timeoutMs = 15000, maxBytes = 5000000 } = {}) {
-    async function call(creds, svc, params, sid) {
+export function createWialonProvider({ transport = safeRequest, timeoutMs = 15000, maxBytes = 5000000, now = () => Date.now() } = {}) {
+    // budget: { deadline } — кожен виклик отримує min(CALL_CAP_MS, залишок); без бюджету — timeoutMs, як раніше.
+    async function call(creds, svc, params, sid, budget) {
         const target = parseApiHost(creds.apiHost, creds.hostKind);
         const form = new URLSearchParams();
         form.set('svc', svc);
         form.set('params', JSON.stringify(params));
         if (sid) form.set('sid', sid);
-        const res = await transport({ host: target.host, port: target.port, path: PATH, body: form.toString(), timeoutMs, maxBytes });
+        let callTimeout = timeoutMs;
+        if (budget) {
+            const left = budget.deadline - now();
+            // Вихід із сесії (logout) пробуємо навіть із вичерпаним бюджетом, але коротко.
+            if (left <= 0 && svc !== 'core/logout') throw new GpsError('timeout', 'budget');
+            callTimeout = Math.max(svc === 'core/logout' ? LOGOUT_MIN_MS : 1, Math.min(CALL_CAP_MS, left));
+        }
+        const res = await transport({ host: target.host, port: target.port, path: PATH, body: form.toString(), timeoutMs: callTimeout, maxBytes });
         if (res.status === 429) throw new GpsError('rate_limited', 'http_429');
         if (res.status !== 200) throw new GpsError('network', 'http_' + res.status);
         let json;
@@ -51,24 +65,24 @@ export function createWialonProvider({ transport = safeRequest, timeoutMs = 1500
         return json;
     }
 
-    async function withSession(creds, fn) {
+    async function withSession(creds, fn, budget) {
         if (!creds || typeof creds.token !== 'string' || !creds.token) throw new GpsError('invalid_token', 'empty');
-        const login = await call(creds, 'token/login', { token: creds.token, fl: 1 });
+        const login = await call(creds, 'token/login', { token: creds.token, fl: 1 }, undefined, budget);
         const sid = login && typeof login.eid === 'string' ? login.eid : null;
         if (!sid) throw new GpsError('provider_error', 'no_sid');
         try {
             return await fn(sid, login);
         } finally {
             try {
-                await call(creds, 'core/logout', {}, sid);
+                await call(creds, 'core/logout', {}, sid, budget);
             } catch {
                 // Сесія сама закінчиться на сервері Wialon; помилку виходу не показуємо.
             }
         }
     }
 
-    function search(creds, sid, flags) {
-        return call(creds, 'core/search_items', { spec: UNIT_SPEC, force: 1, flags, from: 0, to: 0 }, sid);
+    function search(creds, sid, flags, budget, spec = UNIT_SPEC) {
+        return call(creds, 'core/search_items', { spec, force: 1, flags, from: 0, to: 0 }, sid, budget);
     }
 
     function items(result) {
@@ -96,13 +110,43 @@ export function createWialonProvider({ transport = safeRequest, timeoutMs = 1500
             .map((u) => ({ externalId: String(u.id), name: String(u.nm == null ? '' : u.nm).slice(0, 200) })));
     }
 
-    // Остання позиція юнітів (для збирача 2b; у 2a ніхто не викликає). Юніти без позиції й приватні точки
+    // Групи Wialon (avl_unit_group): з базовим прапорцем сервер повертає id, nm і u — id юнітів групи.
+    function parseGroups(result) {
+        return items(result).slice(0, MAX_GROUPS)
+            .filter((g) => g && (typeof g.id === 'number' || typeof g.id === 'string') && String(g.id).length <= 64)
+            .map((g) => ({
+                externalId: String(g.id),
+                name: String(g.nm == null ? '' : g.nm).slice(0, 200),
+                unitIds: Array.isArray(g.u) ? [...new Set(g.u.filter((id) => typeof id === 'number' || typeof id === 'string').map(String))].slice(0, MAX_UNITS) : [],
+            }));
+    }
+
+    // Юніти й групи за одну сесію. Якщо групи не прочитались (немає права на групи, збій) — groups: null і groupsError
+    // (код); юніти повертаються все одно, помилку групи показуємо, а не ховаємо.
+    async function listUnitsWithGroups(creds) {
+        return withSession(creds, async (sid) => {
+            const units = items(await search(creds, sid, FLAG_BASE))
+                .filter((u) => u && (typeof u.id === 'number' || typeof u.id === 'string') && String(u.id).length <= 64)
+                .map((u) => ({ externalId: String(u.id), name: String(u.nm == null ? '' : u.nm).slice(0, 200) }));
+            try {
+                return { units, groups: parseGroups(await search(creds, sid, FLAG_BASE, undefined, GROUP_SPEC)), groupsError: null };
+            } catch (error) {
+                if (!(error instanceof GpsError)) throw error;
+                if (error.code === 'invalid_session' || error.code === 'invalid_token') throw error;
+                return { units, groups: null, groupsError: error.code };
+            }
+        });
+    }
+
+    // Остання позиція вибраних юнітів (карта). budgetMs — загальний бюджет часу; кожен виклик min(4 с, залишок);
+    // logout — у finally (withSession). Юніти без позиції й приватні точки
     // (pos без x / y) пропускаємо.
-    async function fetchPositions(creds, externalIds) {
+    async function fetchPositions(creds, externalIds, { budgetMs = POSITIONS_BUDGET_MS } = {}) {
+        const budget = { deadline: now() + budgetMs };
         const wanted = Array.isArray(externalIds) ? new Set(externalIds.map(String)) : null;
         return withSession(creds, async (sid) => {
             const out = [];
-            for (const unit of items(await search(creds, sid, FLAG_BASE | FLAG_POSITION))) {
+            for (const unit of items(await search(creds, sid, FLAG_BASE | FLAG_POSITION, budget))) {
                 if (!unit || (wanted && !wanted.has(String(unit.id)))) continue;
                 const pos = unit.pos;
                 if (!pos || typeof pos !== 'object') continue;
@@ -124,8 +168,8 @@ export function createWialonProvider({ transport = safeRequest, timeoutMs = 1500
                 });
             }
             return out;
-        });
+        }, budget);
     }
 
-    return { id: 'wialon', validateCredentials, listUnits, fetchPositions };
+    return { id: 'wialon', validateCredentials, listUnits, listUnitsWithGroups, fetchPositions };
 }

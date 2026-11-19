@@ -3,7 +3,8 @@
 // Залежності підмінні (store, провайдер, час), тож логіка тестується без мережі й без БД.
 // Токен Wialon: перевіряється, передається в Vault (gps_store_token) і далі ніде не зʼявляється — ні у відповідях,
 // ні в логах, ні в повідомленнях помилок. Тіла запитів не логуємо.
-import { getProvider as defaultGetProvider } from './index.js';
+import { getProvider as defaultGetProvider, PROVIDER_IDS } from './index.js';
+import { guessKind, isKind } from './kind.js';
 import { GpsError, gpsMessage, AUTH_CODES } from './errors.js';
 import { hostingHost, normalizeLocalUrl, parseApiHost } from './safe-host.js';
 import { readMap } from './map.js';
@@ -12,6 +13,11 @@ export const GPS_ROUTES = ['connect', 'test', 'sync-units', 'disconnect', 'posit
 const TOKEN_RE = /^[0-9A-Za-z]{32,128}$/;
 const RATE_WINDOW_MS = 10000;
 const PROVIDER = 'wialon';
+// Агроконтроль (лише каркас): токен 8–512 друкованих ASCII-символів без пробілів; формат справжнього токена невідомий.
+const AGRO_TOKEN_RE = /^[!-~]{8,512}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const MAX_SELECTION_IDS = 300;
+export const KIND_FILTERS = ['truck', 'tractor', 'special', 'van', 'other', 'none'];
 // Карта: не частіше одного звернення до Wialon на хвилину на організацію; дані старші за хвилину — застарілі.
 export const MAP_LOCK_MS = 60000;
 const MAP_STALE_MS = 60000;
@@ -111,11 +117,43 @@ class HttpError extends Error {
     }
 }
 
+// Провайдер із тіла запиту: без поля — wialon (сумісність із попередніми версіями інтерфейсу).
+function providerOf(body) {
+    const raw = body.provider;
+    if (raw === undefined || raw === null || raw === '') return PROVIDER;
+    if (typeof raw !== 'string' || !PROVIDER_IDS.includes(raw)) throw new HttpError(400, 'BAD_PROVIDER', 'Невідомий провайдер GPS.');
+    return raw;
+}
+
+function idList(value, field) {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value)) throw new HttpError(400, 'BAD_INPUT', field + ': очікується масив.');
+    if (value.length > MAX_SELECTION_IDS) throw new HttpError(400, 'BAD_INPUT', field + ': забагато елементів (максимум ' + MAX_SELECTION_IDS + ').');
+    const out = new Set();
+    for (const id of value) {
+        if (typeof id !== 'string' || !UUID_RE.test(id)) throw new HttpError(400, 'BAD_INPUT', field + ': некоректний ідентифікатор.');
+        out.add(id.toLowerCase());
+    }
+    return [...out];
+}
+
+// Вибір карти: all | group_ids[] і/або unit_ids[]; kinds[] — додатковий фільтр за типом ('none' — тип невизначено).
+export function parseSelection(body) {
+    const kinds = body.kinds === undefined || body.kinds === null ? [] : body.kinds;
+    if (!Array.isArray(kinds) || kinds.length > KIND_FILTERS.length || kinds.some((k) => !KIND_FILTERS.includes(k))) {
+        throw new HttpError(400, 'BAD_INPUT', 'kinds: некоректний тип.');
+    }
+    const sel = { all: body.all === true, groupIds: idList(body.group_ids, 'group_ids'), unitIds: idList(body.unit_ids, 'unit_ids'), kinds: [...new Set(kinds)] };
+    sel.active = sel.all || sel.groupIds.length > 0 || sel.unitIds.length > 0 || sel.kinds.length > 0;
+    sel.mode = sel.all ? 'all' : (sel.groupIds.length || sel.unitIds.length ? 'custom' : (sel.kinds.length ? 'kinds' : 'linked'));
+    return sel;
+}
+
 const providerStatus = (code) => (code === 'unsafe_host' ? 400 : AUTH_CODES.has(code) ? 422 : 502);
 
 export function createGpsHandler({ store, getProvider = defaultGetProvider, providerDeps, now = () => new Date(),
     limiter = createLimiter(), mapLimiter, log = console } = {}) {
-    const provider = () => getProvider(PROVIDER, providerDeps);
+    const provider = (id = PROVIDER) => getProvider(id, providerDeps);
     // Перший бар'єр карти — у памʼяті інстансу; другий, міжінстансний — лок у БД (store.claimRefresh).
     const mapGate = mapLimiter || createLimiter({ windowMs: MAP_LOCK_MS, now: () => now().getTime() });
 
@@ -166,8 +204,8 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         }
     }
 
-    async function connected(orgId) {
-        const integration = await store.getIntegration(orgId, PROVIDER);
+    async function connected(orgId, providerId = PROVIDER) {
+        const integration = await store.getIntegration(orgId, providerId);
         if (!integration || !integration.token_secret_id || integration.status === 'disabled') {
             throw new HttpError(404, 'NOT_CONNECTED', 'GPS ще не підключено.');
         }
@@ -182,6 +220,10 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
 
     async function markFailure(integration, code) {
         const at = now().toISOString();
+        // Агроконтроль без інтеграції: підключення лишається «очікує», це не збій і не лічильник невдач.
+        if (code === 'not_configured') {
+            return store.updateIntegration(integration.id, { status: 'pending', last_checked_at: at, last_error_code: code, last_error_at: at });
+        }
         return store.updateIntegration(integration.id, {
             status: AUTH_CODES.has(code) ? 'error_auth' : 'error',
             last_checked_at: at,
@@ -204,7 +246,31 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         });
     }
 
+    // Агроконтроль: лише зберігаємо доступ (токен — у Vault). Нікуди не звертаємось; статус лишається «очікує».
+    async function connectAgro(auth, body) {
+        if (typeof body.token !== 'string' || !AGRO_TOKEN_RE.test(body.token)) {
+            throw new HttpError(400, 'BAD_TOKEN_FORMAT', 'Токен має містити 8–512 символів без пробілів.');
+        }
+        const existing = await store.getIntegration(auth.orgId, 'agrocontrol');
+        limit(auth.orgId, existing);
+        let integration;
+        try {
+            integration = await store.connect({
+                orgId: auth.orgId, provider: 'agrocontrol', hostKind: 'hosting', apiHost: 'not-configured', account: null,
+                unitsTotal: null, token: body.token, userId: auth.user.id,
+            });
+        } catch {
+            throw new HttpError(500, 'TOKEN_STORE', 'Не вдалося безпечно зберегти токен. Спробуйте ще раз.');
+        }
+        const at = now().toISOString();
+        const row = await store.updateIntegration(integration.id, {
+            status: 'pending', last_checked_at: at, last_ok_at: null, last_error_code: 'not_configured', last_error_at: at,
+        });
+        return { status: 200, body: { ok: true, code: 'not_configured', message: gpsMessage('not_configured'), ...publicIntegration(row) } };
+    }
+
     async function connect(auth, body) {
+        if (providerOf(body) === 'agrocontrol') return connectAgro(auth, body);
         const hasRegion = body.region !== undefined && body.region !== null && body.region !== '';
         const hasLocal = body.localUrl !== undefined && body.localUrl !== null && body.localUrl !== '';
         if (hasRegion === hasLocal) throw new HttpError(400, 'BAD_INPUT', 'Оберіть Wialon Hosting (регіон) або Wialon Local (адреса сервера).');
@@ -263,54 +329,70 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         }
     }
 
-    async function test(auth) {
-        const integration = await connected(auth.orgId);
+    async function test(auth, body) {
+        const providerId = providerOf(body);
+        const integration = await connected(auth.orgId, providerId);
         limit(auth.orgId, integration);
         let result;
         try {
-            parseApiHost(integration.api_host, integration.host_kind);
-            result = await provider().validateCredentials(await credsOf(integration));
+            if (providerId === PROVIDER) parseApiHost(integration.api_host, integration.host_kind);
+            result = await provider(providerId).validateCredentials(await credsOf(integration));
         } catch (error) {
             if (!(error instanceof GpsError)) throw error;
             result = { ok: false, code: error.code };
         }
         if (!result.ok) {
             const row = await markFailure(integration, result.code);
-            return { status: 200, body: { ok: false, message: gpsMessage(result.code), ...publicIntegration(row) } };
+            return { status: 200, body: { ok: false, ...(result.code === 'not_configured' ? { code: result.code } : {}), message: gpsMessage(result.code), ...publicIntegration(row) } };
         }
         const row = await markOk(integration, { provider_account: result.account, units_total: result.unitsTotal });
         return { status: 200, body: { ok: true, ...publicIntegration(row) } };
     }
 
-    async function syncUnits(auth) {
-        const integration = await connected(auth.orgId);
+    // Юніти + групи + вгаданий тип. Тип (kind) пишемо лише юнітам без kind_manual: ручні йдуть окремим upsert БЕЗ колонки kind,
+    // тож PostgREST їх не чіпає (а тригер gps_vehicles_kind_guard у БД — друга лінія захисту). Ручні групи sync не бачить взагалі:
+    // gps_sync_groups працює лише з source = 'wialon'. Помилка читання / збереження груп не ховається: groups.error у відповіді.
+    async function syncUnits(auth, body) {
+        const providerId = providerOf(body);
+        const integration = await connected(auth.orgId, providerId);
         limit(auth.orgId, integration);
-        let units;
+        let listed;
         try {
-            units = await provider().listUnits(await credsOf(integration));
+            const api = provider(providerId);
+            const creds = await credsOf(integration);
+            listed = typeof api.listUnitsWithGroups === 'function'
+                ? await api.listUnitsWithGroups(creds)
+                : { units: await api.listUnits(creds), groups: null, groupsError: null };
         } catch (error) {
             if (!(error instanceof GpsError)) throw error;
             const row = await markFailure(integration, error.code);
-            return { status: 200, body: { ok: false, message: gpsMessage(error.code), ...publicIntegration(row) } };
+            return { status: 200, body: { ok: false, ...(error.code === 'not_configured' ? { code: error.code } : {}), message: gpsMessage(error.code), ...publicIntegration(row) } };
         }
+        const units = listed.units;
         const at = now().toISOString();
         const existing = await store.listUnits(integration.id);
         const incoming = new Map(units.map((u) => [u.externalId, u]));
         const known = new Set(existing.map((u) => u.external_id));
+        const manualKind = new Set(existing.filter((u) => u.kind_manual).map((u) => u.external_id));
         const added = units.filter((u) => !known.has(u.externalId)).length;
         const gone = existing.filter((u) => u.active && !incoming.has(u.external_id));
-        if (units.length) {
-            await store.upsertUnits(units.map((u) => ({
-                org_id: auth.orgId,
-                integration_id: integration.id,
-                external_id: u.externalId,
-                name: u.name,
-                active: true,
-                last_seen_at: at,
-            })));
-        }
-        // Юніти, яких більше нема в провайдері, — неактивні; мапінг не чіпаємо.
+        const base = (u) => ({ org_id: auth.orgId, integration_id: integration.id, external_id: u.externalId, name: u.name, active: true, last_seen_at: at });
+        const auto = units.filter((u) => !manualKind.has(u.externalId)).map((u) => ({ ...base(u), kind: guessKind(u.name) }));
+        const manual = units.filter((u) => manualKind.has(u.externalId)).map(base);
+        if (auto.length) await store.upsertUnits(auto);
+        if (manual.length) await store.upsertUnits(manual);
+        // Юніти, яких більше нема в провайдері, — неактивні; мапінг, ручний тип і ручні групи не чіпаємо.
         if (gone.length) await store.deactivateUnits(integration.id, gone.map((u) => u.id));
+        const groups = { synced: false, total: null, removed: null, members: null, error: listed.groupsError || null };
+        if (Array.isArray(listed.groups)) {
+            try {
+                const out = await store.syncGroups(integration.id, listed.groups.map((g) => ({ external_id: g.externalId, name: g.name, units: g.unitIds })));
+                Object.assign(groups, { synced: true, total: out.groups_total ?? null, removed: out.groups_removed ?? null, members: out.members_total ?? null });
+            } catch {
+                groups.error = 'groups_store';
+            }
+        }
+        if (groups.error) groups.message = gpsMessage(groups.error);
         await markOk(integration, { units_total: units.length });
         const rows = await store.listUnits(integration.id);
         const suggestions = suggestMapping(rows, await store.fleetVehicles(auth.orgId));
@@ -319,20 +401,23 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
             body: {
                 ok: true,
                 counts: { total: units.length, added, updated: units.length - added, deactivated: gone.length },
+                groups,
                 units: rows.map((u) => ({
                     id: u.id,
                     external_id: u.external_id,
                     name: u.name,
                     active: u.active,
                     vehicle_id: u.vehicle_id ?? null,
+                    kind: u.kind ?? null,
+                    kind_manual: u.kind_manual === true,
                     suggested_vehicle_id: suggestions.get(u.id) || null,
                 })),
             },
         };
     }
 
-    async function disconnect(auth) {
-        const integration = await store.getIntegration(auth.orgId, PROVIDER);
+    async function disconnect(auth, body) {
+        const integration = await store.getIntegration(auth.orgId, providerOf(body));
         if (!integration) throw new HttpError(404, 'NOT_CONNECTED', 'GPS ще не підключено.');
         await store.deleteToken(integration.id);
         const row = await store.updateIntegration(integration.id, { status: 'disabled', token_secret_id: null, token_hint: null });
@@ -383,6 +468,7 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
     // Карта: віддаємо рядки з бази; перед цим — оновлення з Wialon, якщо дані застарілі або просять refresh,
     // і лише під локом (не частіше разу на хвилину на організацію). Лок зайнятий — це не помилка: кеш + next_refresh_at.
     async function positions(auth, body) {
+        const selection = parseSelection(body);
         const t = now();
         const nowIso = t.toISOString();
         const refresh = body.refresh === true;
@@ -391,10 +477,11 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
         let nextRefreshAt = lockedUntil;
         let refreshed = false;
         let refreshError = null;
+        let refreshErrorCode = null;
         let rateLimited = false;
         let current = integration;
         if (integration && integration.token_secret_id && MAP_REFRESH_STATUSES.has(integration.status)) {
-            const units = await store.mappedUnits(auth.orgId);
+            const units = selection.active ? await store.selectedUnits(auth.orgId, selection) : await store.mappedUnits(auth.orgId);
             if (units.length && (refresh || isStale(integration, units, t))) {
                 const until = new Date(t.getTime() + MAP_LOCK_MS).toISOString();
                 // gps_integrations.lock_until у 2c належить ЛИШЕ ліміту оновлення карти. Збирач 2b має отримати
@@ -408,14 +495,19 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
                     nextRefreshAt = until;
                     try {
                         const creds = await credsOf(integration);
-                        const points = await provider().fetchPositions(creds, units.map((u) => String(u.external_id)));
-                        await savePoints(auth.orgId, units, points, nowIso);
+                        // Wialon віддає позиції всіх юнітів одним search_items, тож під спільним локом організації зберігаємо точки й last_*
+                        // для ВСІХ активних юнітів (незалежно від привʼязки й вибору): інший користувач з іншим вибором за хвилину не побачить
+                        // застарілих даних. Відповідь карти фільтрується за вибором нижче. Бюджет часу 8 с — усередині провайдера.
+                        const everyone = await store.selectedUnits(auth.orgId, { all: true, groupIds: [], unitIds: [], kinds: [] });
+                        const points = await provider().fetchPositions(creds, everyone.map((u) => String(u.external_id)));
+                        await savePoints(auth.orgId, everyone, points, nowIso);
                         current = await markOk(integration, {});
                         refreshed = true;
                     } catch (error) {
                         if (error instanceof GpsError) {
                             current = await markFailure(integration, error.code);
                             refreshError = gpsMessage(error.code);
+                            refreshErrorCode = error.code;
                         } else if (error instanceof HttpError) {
                             refreshError = error.publicMessage;
                         } else throw error;
@@ -423,13 +515,24 @@ export function createGpsHandler({ store, getProvider = defaultGetProvider, prov
                 }
             }
         }
+        const vehicles = await readMap(store, auth.orgId, t, selection.active ? selection : null);
+        // Стан синхронізації для екрана: статус, час останнього успіху / спроби, код останньої помилки (текст — окремо).
         const out = {
             integration_status: mapIntegrationStatus(current),
             refreshed,
             next_refresh_at: nextRefreshAt,
-            vehicles: await readMap(store, auth.orgId, t),
+            sync: {
+                last_ok_at: current ? current.last_ok_at ?? null : null,
+                last_checked_at: current ? current.last_checked_at ?? null : null,
+                last_error_code: current ? current.last_error_code ?? null : null,
+            },
+            selection: { mode: selection.mode, total: vehicles.length },
+            vehicles,
         };
-        if (refreshError) out.refresh_error = refreshError;
+        if (refreshError) {
+            out.refresh_error = refreshError;
+            out.refresh_error_code = refreshErrorCode;
+        }
         if (rateLimited) {
             const seconds = Math.max(1, Math.ceil((Date.parse(nextRefreshAt) - t.getTime()) / 1000));
             return { status: 429, body: { code: 'RATE_LIMITED', error: 'Оновлення доступне через ' + seconds + ' с.', ...out } };

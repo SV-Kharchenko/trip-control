@@ -26,3 +26,9 @@ export function crmPermissions(context) {
         canDelete: role === 'owner',
     };
 }
+
+// Виправлення типу юніта GPS і ручні групи: «Директор» (owner) і «Менеджер» (director), як RLS gps_groups / gps_set_kind.
+export function gpsCanEditKinds(context) {
+    const role = context && context.control_plus === true ? context.role : null;
+    return role === 'owner' || role === 'director';
+}

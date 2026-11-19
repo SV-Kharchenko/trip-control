@@ -26,8 +26,8 @@ function transportOf(replies) {
 const LOGIN = { eid: 'sid-1', au: 'fleet_viewer', user: { nm: 'fleet_viewer' } };
 const UNITS = { totalItemsCount: 3, items: [{ id: 101, nm: 'AA1111AA' }, { id: 102, nm: 'BB2222BB' }, { id: 103, nm: 'Тягач' }] };
 
-test('registry: wialon only', () => {
-    assert.deepEqual(PROVIDER_IDS, ['wialon']);
+test('registry: wialon + the agrocontrol skeleton', () => {
+    assert.deepEqual(PROVIDER_IDS, ['wialon', 'agrocontrol']);
     assert.throws(() => getProvider('traccar'), /Unknown GPS provider/);
     assert.throws(() => getProvider('__proto__'), /Unknown GPS provider/);
 });

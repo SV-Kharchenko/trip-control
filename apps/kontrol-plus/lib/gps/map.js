@@ -58,6 +58,7 @@ const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinit
 
 // Відповідь карти. Лише привʼязані активні юніти своєї організації; без external_id, api_host, токена.
 export function buildMapVehicles(units, fleet, orders, now) {
+    // Вибір карти: юніти можуть бути без привʼязки до Автопарку (linked = false) — тоді мітка = назва з Wialon.
     const today = kyivDate(now);
     const labels = new Map((fleet || []).map((v) => [v.id, v.label]));
     const byVehicle = new Map();
@@ -66,16 +67,19 @@ export function buildMapVehicles(units, fleet, orders, now) {
         byVehicle.get(o.vehicle_id).push(o);
     }
     return (units || [])
-        .filter((u) => u && u.active && u.vehicle_id)
+        .filter((u) => u && u.active)
         .map((u) => {
-            const { order, more_orders } = currentOrder(byVehicle.get(u.vehicle_id), today);
+            const { order, more_orders } = u.vehicle_id ? currentOrder(byVehicle.get(u.vehicle_id), today) : { order: null, more_orders: 0 };
             const lat = num(u.last_lat);
             const lon = num(u.last_lon);
             return {
                 gps_vehicle_id: u.id,
-                vehicle_id: u.vehicle_id,
-                plate: labels.get(u.vehicle_id) || null,
+                vehicle_id: u.vehicle_id || null,
+                linked: Boolean(u.vehicle_id),
+                plate: u.vehicle_id ? labels.get(u.vehicle_id) || null : null,
                 unit_name: u.name || null,
+                kind: u.kind || null,
+                kind_manual: u.kind_manual === true,
                 lat: lat !== null && lon !== null ? lat : null,
                 lon: lat !== null && lon !== null ? lon : null,
                 speed: num(u.last_speed),
@@ -88,8 +92,9 @@ export function buildMapVehicles(units, fleet, orders, now) {
         });
 }
 
-export async function readMap(store, orgId, now = new Date()) {
-    const units = await store.mappedUnits(orgId);
+// selection — вибір карти (null: лише привʼязані юніти, як раніше).
+export async function readMap(store, orgId, now = new Date(), selection = null) {
+    const units = selection ? await store.selectedUnits(orgId, selection) : await store.mappedUnits(orgId);
     const vehicleIds = [...new Set(units.map((u) => u.vehicle_id).filter(Boolean))];
     const [fleet, orders] = await Promise.all([
         store.fleetVehicles(orgId),
