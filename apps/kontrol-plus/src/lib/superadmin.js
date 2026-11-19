@@ -13,7 +13,7 @@ export function moduleInfo(key) {
     return MODULES.find((m) => m.key === key) || { key, label: key, desc: 'Модуль без опису.' };
 }
 
-const ACTIONS = { 'setting.set': 'Глобальний перемикач', 'setting.create': 'Створено рядок перемикача', 'org.feature.set': 'Модуль компанії', 'user.agro.set': 'Доступ до Park-Control (користувач)' };
+const ACTIONS = { 'setting.set': 'Глобальний перемикач', 'setting.create': 'Створено рядок перемикача', 'org.feature.set': 'Модуль компанії', 'org.plan.set': 'Тариф компанії', 'user.agro.set': 'Доступ до Park-Control (користувач)' };
 
 // «Доступ до AGRO для користувачів» у картці компанії: перевизначення (null — як у компанії) і причина ефективного стану (agro_access_for).
 export const AGRO_CHOICES = [['', 'Як у компанії'], ['true', 'Дозволено'], ['false', 'Заборонено']];
@@ -30,6 +30,20 @@ const AGRO_REASONS = {
 export function agroEffectiveText(row) {
     const reason = AGRO_REASONS[row && row.reason] || '';
     return (row && row.allowed === true ? 'Доступ є' : 'Доступу немає') + (reason ? ' · ' + reason : '');
+}
+// Тариф компанії (organizations.plan): company = «Сайт», control_plus = «Контроль+». Оплата (org_subscriptions.paid_until) від тарифу не залежить.
+export const PLANS = [{ key: 'company', label: 'Сайт' }, { key: 'control_plus', label: 'Контроль+' }];
+export function planLabel(plan) {
+    const found = PLANS.find((p) => p.key === plan);
+    return found ? found.label : '—';
+}
+export const PLAN_MODULES_HINT = 'Модулі (Власний парк, Park-Control) працюють лише на тарифі Контроль+.';
+// Текст підтвердження зміни тарифу: { title, text } для tcModal.
+export function planConfirm(name, plan) {
+    const n = '«' + (name || 'компанії') + '»';
+    return plan === 'control_plus'
+        ? { title: 'Увімкнути тариф Контроль+ для ' + n + '?', text: '' }
+        : { title: 'Перевести ' + n + ' на тариф Сайт?', text: 'Розділи Контроль+ (клієнти, GPS, ремонти, документи, план/факт) стануть недоступні, дані не видаляються.' };
 }
 export function actionLabel(action) {
     return ACTIONS[action] || String(action || '');
@@ -73,6 +87,7 @@ export function auditValue(obj) {
     if (!obj || typeof obj !== 'object') return '—';
     const keys = Object.keys(obj);
     if (!keys.length) return '—';
+    if (keys.includes('plan')) return planLabel(obj.plan);
     return keys.map((k) => YES(obj[k])).join(', ');
 }
 export function auditTarget(row) {
@@ -80,7 +95,7 @@ export function auditTarget(row) {
     if (row.target_type === 'user') return 'Користувач ' + String(row.target_id || '').slice(0, 8) + ' · Park-Control';
     if (row.target_type === 'organization') {
         const keys = Object.keys(row.after || {});
-        return 'Компанія ' + String(row.target_id || '').slice(0, 8) + (keys.length ? ' · ' + moduleInfo(keys[0]).label : '');
+        return 'Компанія ' + String(row.target_id || '').slice(0, 8) + (keys.length ? ' · ' + (keys[0] === 'plan' ? 'Тариф' : moduleInfo(keys[0]).label) : '');
     }
     return String(row.target_id || '');
 }

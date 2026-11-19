@@ -25,10 +25,10 @@ function fixtures() {
         before: i % 2 ? { own_fleet: false } : { enabled: false }, after: i % 2 ? { own_fleet: true } : { enabled: true }, total: 120,
     }));
     const orgs = [
-        { id: ORG_A, name: 'Агро Північ ТОВ', edrpou: '90909091', legal_form: 'ТОВ', members: 7, features: { own_fleet: true }, total: 3 },
-        { id: ORG_B, name: 'Транс Захід ФОП із дуже довгою назвою для перевірки переносу рядків', edrpou: null, legal_form: 'ФОП', members: 1, features: {}, total: 3 },
+        { id: ORG_A, name: 'Агро Північ ТОВ', edrpou: '90909091', legal_form: 'ТОВ', members: 7, features: { own_fleet: true }, plan: 'control_plus', total: 3 },
+        { id: ORG_B, name: 'Транс Захід ФОП із дуже довгою назвою для перевірки переносу рядків', edrpou: null, legal_form: 'ФОП', members: 1, features: {}, plan: 'company', total: 3 },
         // База вважає «увімкнено» і булеве true, і рядок "true" (features ->> key = 'true').
-        { id: ORG_C, name: 'Рядковий прапорець', edrpou: '12345678', legal_form: 'ТОВ', members: 2, features: { own_fleet: 'true' }, total: 3 },
+        { id: ORG_C, name: 'Рядковий прапорець', edrpou: '12345678', legal_form: 'ТОВ', members: 2, features: { own_fleet: 'true' }, plan: 'company', total: 3 },
     ];
     return { audit, orgs };
 }
@@ -43,12 +43,21 @@ window.__modals = [];
 window.__answer = true;
 window.tcModal = async (options) => { window.__modals.push(options); return { ok: window.__answer, value: '' }; };
 let settings = cfg.settings.map((s) => ({ ...s }));
+const orgs = fx.orgs.map((o) => ({ ...o }));
+const planAudit = [];
 const supabase = {
     rpc: async (name, args) => {
         calls.push([name, args || null]);
         if (name === 'sa_list_settings') return { data: settings, error: null };
-        if (name === 'sa_search_orgs') return { data: fx.orgs, error: null };
-        if (name === 'sa_list_audit') return { data: fx.audit.slice(args.p_offset, args.p_offset + args.p_limit), error: null };
+        if (name === 'sa_search_orgs') return { data: orgs.map((o) => ({ ...o })), error: null };
+        if (name === 'sa_set_org_plan') {
+            if (window.__planError) return { data: null, error: { message: window.__planError } };
+            const o = orgs.find((x) => x.id === args.p_org);
+            planAudit.unshift({ id: 1000 + planAudit.length, at: new Date().toISOString(), admin_id: 'a1', admin_email: 'admin@example.com', action: 'org.plan.set', target_type: 'organization', target_id: args.p_org, before: { plan: o.plan }, after: { plan: args.p_plan }, total: 121 });
+            o.plan = args.p_plan;
+            return { data: { org_id: args.p_org, plan: args.p_plan }, error: null };
+        }
+        if (name === 'sa_list_audit') return { data: [...planAudit, ...fx.audit].slice(args.p_offset, args.p_offset + args.p_limit), error: null };
         if (name === 'sa_create_setting') { settings = [...settings, { key: args.p_key, enabled: args.p_enabled }]; return { data: {}, error: null }; }
         if (name === 'sa_set_setting') { settings = settings.map((s) => (s.key === args.p_key ? { ...s, enabled: args.p_enabled } : s)); return { data: {}, error: null }; }
         if (name === 'sa_list_org_agro_users') {
@@ -255,4 +264,50 @@ test('AGRO: у картці компанії блок «Доступ до AGRO �
             assert.equal(await page.locator('.kpsa-global[data-key="agro"]').count(), 1, 'Park-Control — у глобальних функціях');
         });
     }
+});
+
+test('тариф: бейдж «Сайт» / «Контроль+» у рядку, сегмент у картці; підтвердження, sa_set_org_plan, оновлений бейдж і підпис у журналі', async (t) => {
+    await run(t, GLOBAL_OFF, { width: 1366, height: 900 }, async (page) => {
+        const badge = (org) => page.textContent(`.kpsa-org[data-org="${org}"] .kpsa-plan-badge`);
+        assert.equal(await badge(ORG_A), 'Контроль+');
+        assert.equal(await badge(ORG_B), 'Сайт');
+        assert.match(await page.textContent(`.kpsa-org[data-org="${ORG_B}"] .kpsa-plan`), /Модулі \(Власний парк, Park-Control\) працюють лише на тарифі Контроль\+\./);
+        assert.equal(await page.getAttribute(`.kpsa-org[data-org="${ORG_B}"] .kpsa-seg-btn[data-plan="company"]`, 'aria-pressed'), 'true');
+        // Той самий тариф — діалогу немає. Скасування нічого не пише.
+        await page.click(`.kpsa-org[data-org="${ORG_B}"] .kpsa-seg-btn[data-plan="company"]`);
+        assert.equal(await page.evaluate(() => window.__modals.length), 0);
+        await page.evaluate(() => { window.__answer = false; });
+        await page.click(`.kpsa-org[data-org="${ORG_B}"] .kpsa-seg-btn[data-plan="control_plus"]`);
+        assert.equal((await callsOf(page, 'sa_set_org_plan')).length, 0);
+        await page.evaluate(() => { window.__answer = true; });
+        await page.click(`.kpsa-org[data-org="${ORG_B}"] .kpsa-seg-btn[data-plan="control_plus"]`);
+        await page.waitForFunction((id) => document.querySelector(`.kpsa-org[data-org="${id}"] .kpsa-plan-badge`).textContent === 'Контроль+', ORG_B);
+        assert.deepEqual(await callsOf(page, 'sa_set_org_plan'), [{ p_org: ORG_B, p_plan: 'control_plus' }]);
+        const titles = await page.evaluate(() => window.__modals.map((m) => m.title));
+        assert.equal(titles[1], 'Увімкнути тариф Контроль+ для «Транс Захід ФОП із дуже довгою назвою для перевірки переносу рядків»?');
+        assert.equal(await page.getAttribute(`.kpsa-org[data-org="${ORG_B}"] .kpsa-seg-btn[data-plan="control_plus"]`, 'aria-pressed'), 'true');
+        await page.waitForFunction(() => /Тариф компанії/.test(document.querySelector('#kpsa-audit').textContent));
+        assert.match(await page.textContent('#kpsa-audit .kpsa-audit'), /Тариф компанії[\s\S]*Сайт → Контроль\+/);
+        // Перехід на «Сайт»: застереження в тексті діалогу.
+        await page.click(`.kpsa-org[data-org="${ORG_A}"] .kpsa-seg-btn[data-plan="company"]`);
+        await page.waitForFunction((id) => document.querySelector(`.kpsa-org[data-org="${id}"] .kpsa-plan-badge`).textContent === 'Сайт', ORG_A);
+        const last = await page.evaluate(() => window.__modals[window.__modals.length - 1]);
+        assert.equal(last.title, 'Перевести «Агро Північ ТОВ» на тариф Сайт?');
+        assert.equal(last.text, 'Розділи Контроль+ (клієнти, GPS, ремонти, документи, план/факт) стануть недоступні, дані не видаляються.');
+        assert.deepEqual((await callsOf(page, 'sa_set_org_plan')).pop(), { p_org: ORG_A, p_plan: 'company' });
+        assert.equal(await noOverflow(page), true);
+        await shot(page, 'superadmin-plan-1366.png');
+    });
+});
+
+test('тариф: помилка бази показується через superadminErrorText, бейдж не змінюється', async (t) => {
+    await run(t, GLOBAL_OFF, { width: 390, height: 844 }, async (page) => {
+        await page.evaluate(() => { window.__planError = 'SUPERADMIN_REQUIRED'; });
+        await page.click(`.kpsa-org[data-org="${ORG_B}"] .kpsa-seg-btn[data-plan="control_plus"]`);
+        await page.waitForFunction(() => window.__calls.some((c) => c[0] === 'sa_set_org_plan'));
+        assert.equal(await page.textContent(`.kpsa-org[data-org="${ORG_B}"] .kpsa-plan-badge`), 'Сайт');
+        await page.waitForFunction(() => /Немає доступу: ця сторінка лише для адміністраторів платформи\./.test(document.body.textContent));
+        assert.equal(await noOverflow(page), true);
+        await shot(page, 'superadmin-plan-390.png');
+    });
 });

@@ -783,6 +783,8 @@ check(killTap.length === killPlanned, 'pgTAP app_settings.sql: ran ' + killTap.l
 const SA = all.find((f) => /^\d{14}_superadmin\.sql$/.test(f));
 if (!SA) throw new Error('немає міграції *_superadmin.sql');
 const saSql = fs.readFileSync(new URL(SA, DIR), 'utf8');
+// Пізніша міграція (*_sa_org_plan.sql) змінила RETURNS TABLE у sa_search_orgs: стару версію накочуємо на чистий слід (нову повертає блок нижче).
+await db.exec('DROP FUNCTION IF EXISTS public.sa_search_orgs(text, integer, integer)');
 await db.exec(saSql);
 await db.exec(saSql);
 const saCode = saSql.replace(/^\s*--.*$/gm, '');
@@ -797,6 +799,23 @@ await db.exec(saTapSql);
 const saTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(saBefore);
 for (const row of saTap) check(row.ok, 'pgTAP superadmin.sql: ' + row.label);
 check(saTap.length === saPlanned, 'pgTAP superadmin.sql: ran ' + saTap.length + ' of plan(' + saPlanned + ')');
+
+// Тариф компанії в кабінеті суперадміна: міграція двічі (ідемпотентність), pgTAP через той самий shim.
+const SAP = all.find((f) => /^\d{14}_sa_org_plan\.sql$/.test(f));
+if (!SAP) throw new Error('немає міграції *_sa_org_plan.sql');
+const sapSql = fs.readFileSync(new URL(SAP, DIR), 'utf8');
+await db.exec(sapSql);
+await db.exec(sapSql);
+check(/^-- Apply manually after review\. This file is not applied to any database by the agent\./.test(sapSql) && !/CREATE EXTENSION/i.test(sapSql),
+    'sa_org_plan: ' + SAP + ' applied twice, manual-apply header');
+const sapTapSql = fs.readFileSync(new URL('../../../supabase/tests/sa_org_plan.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const sapPlanned = Number((sapTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const sapBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(sapTapSql);
+const sapTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(sapBefore);
+for (const row of sapTap) check(row.ok, 'pgTAP sa_org_plan.sql: ' + row.label);
+check(sapTap.length === sapPlanned, 'pgTAP sa_org_plan.sql: ran ' + sapTap.length + ' of plan(' + sapPlanned + ')');
 
 // Телематика (Агроконтроль, етап 2 «Власного парку»): міграція двічі (ідемпотентність) і pgTAP через той самий shim.
 const TM = all.find((f) => /^\d{14}_telematics\.sql$/.test(f));

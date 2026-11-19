@@ -99,9 +99,9 @@ SELECT throws_ok($$SELECT public.is_platform_superadmin()$$, '42501', NULL, 'ano
 SELECT throws_ok($$SELECT * FROM public.platform_admins$$, '42501', NULL, 'anon не читає platform_admins');
 RESET ROLE;
 
--- Немає жодної функції додавання адмінів, а sa_* рівно дев'ять (сім кабінету + sa_set_user_agro і sa_list_org_agro_users із *_agro_access.sql).
+-- Немає жодної функції додавання адмінів, а sa_* рівно десять (сім кабінету + sa_set_user_agro і sa_list_org_agro_users із *_agro_access.sql + sa_set_org_plan із *_sa_org_plan.sql).
 SELECT is((SELECT count(*)::integer FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
-  WHERE n.nspname = 'public' AND p.proname LIKE 'sa\_%' AND p.proname <> 'sa_audit'), 9, 'рівно дев''ять sa_* RPC');
+  WHERE n.nspname = 'public' AND p.proname LIKE 'sa\_%' AND p.proname <> 'sa_audit'), 10, 'рівно десять sa_* RPC');
 SELECT is((SELECT count(*)::integer FROM pg_proc AS p JOIN pg_namespace AS n ON n.oid = p.pronamespace
   WHERE n.nspname = 'public' AND p.prosrc ~* 'INSERT INTO public\.platform_admins' AND p.proname <> 'is_platform_superadmin'), 0, 'жодна функція не вписує в platform_admins');
 SELECT is((SELECT count(*)::integer FROM public.platform_admins), 1, 'у platform_admins лише рядок, доданий вручну (міграція нікого не вписала)');

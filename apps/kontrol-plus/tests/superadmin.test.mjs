@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseCrmHash, tabOf } from '../src/lib/route.js';
 import { SHELL_ITEMS } from '../src/shell-menu.js';
-import { auditValue, featureOn, orgModuleNote, settingRows, settingState, superadminErrorText } from '../src/lib/superadmin.js';
+import { actionLabel, auditTarget, auditValue, featureOn, planConfirm, planLabel, orgModuleNote, settingRows, settingState, superadminErrorText } from '../src/lib/superadmin.js';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(APP, p), 'utf8');
@@ -45,7 +45,7 @@ test('сторінка: лише sa_* RPC, без confirm / alert, підтве�
     assert.equal(/\b(window\.)?(confirm|alert|prompt)\(/.test(view), false);
     assert.match(view, /window\.tcModal/);
     assert.deepEqual([...new Set([...view.matchAll(/rpc\('([a-z_]+)'/g)].map((m) => m[1]))].sort(),
-        ['sa_create_setting', 'sa_list_audit', 'sa_list_org_agro_users', 'sa_list_settings', 'sa_search_orgs', 'sa_set_org_feature', 'sa_set_setting', 'sa_set_user_agro']);
+        ['sa_create_setting', 'sa_list_audit', 'sa_list_org_agro_users', 'sa_list_settings', 'sa_search_orgs', 'sa_set_org_feature', 'sa_set_org_plan', 'sa_set_setting', 'sa_set_user_agro']);
     assert.equal(/\.from\(/.test(view), false, 'таблиць напряму не читаємо');
     assert.match(read('src/lib/superadmin.js'), /AUDIT_PAGE = 50/);
 });
@@ -62,4 +62,43 @@ test('featureOn: true або рядок "true" — як features ->> key у ба
     for (const v of [false, 'false', 'TRUE', 1, null, undefined, 'yes']) assert.equal(featureOn({ own_fleet: v }, 'own_fleet'), false, String(v));
     assert.equal(featureOn(null, 'own_fleet'), false);
     assert.equal(featureOn({}, 'own_fleet'), false);
+});
+
+test('тариф компанії: підписи «Сайт» / «Контроль+», текст підтвердження і журнал «Тариф компанії»', () => {
+    assert.equal(planLabel('company'), 'Сайт');
+    assert.equal(planLabel('control_plus'), 'Контроль+');
+    assert.deepEqual(planConfirm('Агро', 'control_plus'), { title: 'Увімкнути тариф Контроль+ для «Агро»?', text: '' });
+    assert.deepEqual(planConfirm('Агро', 'company'), {
+        title: 'Перевести «Агро» на тариф Сайт?',
+        text: 'Розділи Контроль+ (клієнти, GPS, ремонти, документи, план/факт) стануть недоступні, дані не видаляються.',
+    });
+    assert.equal(actionLabel('org.plan.set'), 'Тариф компанії');
+    assert.equal(auditValue({ plan: 'company' }), 'Сайт');
+    assert.equal(auditValue({ plan: 'control_plus' }), 'Контроль+');
+    assert.equal(auditTarget({ target_type: 'organization', target_id: '9c000000-0000', after: { plan: 'control_plus' } }), 'Компанія 9c000000 · Тариф');
+    assert.match(superadminErrorText({ message: 'SA_INVALID' }), /Некоректне/);
+});
+
+test('міграція *_sa_org_plan.sql: шапка, кожен UPDATE / DELETE має WHERE, set_org_plan не чіпаємо, sa_set_org_plan закрита від anon', () => {
+    const dir = path.join(APP, '../../supabase/migrations');
+    const file = fs.readdirSync(dir).filter((f) => /^\d{14}_sa_org_plan\.sql$/.test(f));
+    assert.equal(file.length, 1);
+    assert.ok(file[0] > '20261128090000', 'timestamp пізніший за 20261128090000');
+    const sql = fs.readFileSync(path.join(dir, file[0]), 'utf8').replace(/\r\n/g, '\n');
+    assert.equal(sql.split('\n')[0], '-- Apply manually after review. This file is not applied to any database by the agent.');
+    const code = sql.replace(/^\s*--.*$/gm, '');
+    const stmts = code.split(';').map((x) => x.trim()).filter((x) => /(^|[\s(])(UPDATE|DELETE\s+FROM)\s+public\./i.test(x));
+    assert.ok(stmts.length >= 1, 'є принаймні один UPDATE');
+    for (const st of stmts) assert.match(st.replace(/^[\s\S]*?(UPDATE|DELETE\s+FROM)\s+public\./i, '$1 public.'), /\bWHERE\b/i, 'UPDATE / DELETE без WHERE: ' + st.slice(0, 80));
+    assert.equal(/FUNCTION public\.set_org_plan\(/.test(code), false, 'public.set_org_plan не перевизначається і не чіпається');
+    assert.match(code, /REVOKE ALL ON FUNCTION public\.sa_set_org_plan\(uuid, text\) FROM PUBLIC, anon;/);
+    assert.match(code, /GRANT EXECUTE ON FUNCTION public\.sa_set_org_plan\(uuid, text\) TO authenticated;/);
+    assert.match(code, /DROP FUNCTION IF EXISTS public\.sa_search_orgs\(text, integer, integer\);/);
+    assert.match(code, /PERFORM public\.sa_audit\('org\.plan\.set', 'organization'/);
+});
+
+test('api/ Контроль+: рівно 12 функцій, у цій зміні нових немає', () => {
+    const dir = path.join(APP, 'api');
+    const files = fs.readdirSync(dir, { recursive: true }).map((f) => String(f).split(String.fromCharCode(92)).join('/')).filter((f) => /\.(js|mjs|cjs|ts)$/.test(f));
+    assert.equal(files.length, 12, files.join(', '));
 });
