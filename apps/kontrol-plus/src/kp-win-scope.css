@@ -169,6 +169,39 @@ body.kp-shell-on .kp-win .gps-map-main { display: grid; gap: 2px; min-width: 0; 
 body.kp-shell-on .kp-win .gps-map-item .dot { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--positive); }
 body.kp-shell-on .kp-win .gps-map-item.is-nosignal .dot { background: var(--muted); }
 body.kp-shell-on .kp-win .gps-to-form { margin-left: 8px; }
+body.kp-shell-on .kp-win .gps-filter { display: grid; gap: 8px; margin-bottom: 10px; padding: 10px 12px; }
+body.kp-shell-on .kp-win .gps-filter-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, max-content)); gap: 8px 12px; align-items: start; }
+body.kp-shell-on .kp-win .gps-filter-row .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+body.kp-shell-on .kp-win .gps-multi { position: relative; }
+body.kp-shell-on .kp-win .gps-multi > summary { list-style: none; width: max-content; max-width: 100%; }
+body.kp-shell-on .kp-win .gps-multi > summary::-webkit-details-marker { display: none; }
+body.kp-shell-on .kp-win .gps-multi-list { position: absolute; z-index: 500; top: calc(100% + 4px); left: 0; display: grid; gap: 4px; min-width: 240px; max-width: min(360px, 90vw);
+    max-height: 260px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 4px 14px var(--kp-marker-shadow); }
+body.kp-shell-on .kp-win .gps-multi-list .check { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; overflow-wrap: anywhere; }
+body.kp-shell-on .kp-win .gps-unit-pick { position: relative; min-width: 220px; }
+body.kp-shell-on .kp-win .gps-unit-search { width: 100%; min-height: 30px; box-sizing: border-box; }
+body.kp-shell-on .kp-win .gps-unit-results { position: absolute; z-index: 500; top: calc(100% + 2px); left: 0; right: 0; list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto;
+    border-radius: var(--radius-control); background: var(--surface); }
+body.kp-shell-on .kp-win .gps-unit-results:not(:empty) { border: 1px solid var(--border); box-shadow: 0 4px 14px var(--kp-marker-shadow); }
+body.kp-shell-on .kp-win .gps-unit-result { display: block; width: 100%; padding: 6px 10px; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; overflow-wrap: anywhere; }
+body.kp-shell-on .kp-win .gps-unit-result:hover:not(:disabled) { background: var(--bg); }
+body.kp-shell-on .kp-win .gps-unit-result:disabled { opacity: 0.5; cursor: default; }
+body.kp-shell-on .kp-win .gps-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+body.kp-shell-on .kp-win .gps-chips:empty { display: none; }
+body.kp-shell-on .kp-win .gps-chip { display: inline-flex; gap: 6px; align-items: center; max-width: 100%; overflow-wrap: anywhere; }
+body.kp-shell-on .kp-win .gps-chip-x { border: 0; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 0 2px; }
+body.kp-shell-on .kp-win .gps-filter-hint { margin: 0; }
+body.kp-shell-on .kp-win .gps-sync { margin: 0 0 8px; color: var(--muted); overflow-wrap: anywhere; }
+body.kp-shell-on .kp-win .gps-provider .field { max-width: 320px; margin-bottom: 8px; }
+body.kp-shell-on .kp-win .gps-agro-form { max-width: 420px; margin-top: 12px; }
+body.kp-shell-on .kp-win .kp-marker.is-unlinked { background: var(--kp-marker-off); }
+body.kp-shell-on .kp-win .kp-marker .kp-marker-order { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 600px) {
+  body.kp-shell-on .kp-win .gps-filter-row { grid-template-columns: minmax(0, 1fr); }
+  body.kp-shell-on .kp-win .gps-multi-list,
+  body.kp-shell-on .kp-win .gps-unit-results { position: static; max-width: none; box-shadow: none; margin-top: 4px; }
+  body.kp-shell-on .kp-win .gps-unit-pick { min-width: 0; }
+}
 body.kp-shell-on .kp-win .kp-marker-wrap { background: none; border: 0; }
 body.kp-shell-on .kp-win .kp-marker { transform: translate(-50%, -100%); display: grid; gap: 1px; padding: 3px 7px; border-radius: 8px; white-space: nowrap;
     font: 600 12px/1.2 var(--font-ui, sans-serif); color: var(--kp-on-strong); background: var(--kp-marker-bg); box-shadow: 0 1px 4px var(--kp-marker-shadow); border: 2px solid var(--kp-on-strong); }

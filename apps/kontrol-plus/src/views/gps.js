@@ -3,7 +3,9 @@
 // Токен живе лише в полі форми до відправки: після відправки поле й змінна очищаються, у сховище браузера не йде.
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
-import { gpsAccess } from '../lib/gate.js';
+import { gpsAccess, gpsCanEditKinds } from '../lib/gate.js';
+import { KIND_OPTIONS } from '../lib/gps-catalog.js';
+import { KIND_LABELS } from '../../lib/gps/kind.js';
 import { gpsMessage } from '../../lib/gps/errors.js';
 import { callGpsApi } from '../lib/gps-client.js';
 import { renderGpsMap } from './gps-map.js';
@@ -23,7 +25,17 @@ const STATUS_LABELS = {
     disabled: 'Відключено',
 };
 
-const INTEGRATION_COLUMNS = 'id, status, host_kind, api_host, provider_account, units_total, token_hint, last_checked_at, last_ok_at, last_error_code';
+const INTEGRATION_COLUMNS = 'id, provider, status, host_kind, api_host, provider_account, units_total, token_hint, last_checked_at, last_ok_at, last_error_code';
+
+// Провайдери GPS у списку вибору. Агроконтроль — лише збереження доступу: інтеграції ще немає.
+export const GPS_PROVIDERS = [
+    { value: 'wialon', label: 'Wialon' },
+    { value: 'agrocontrol', label: 'Агроконтроль (скоро)' },
+];
+
+export function kindLabel(kind) {
+    return KIND_LABELS[kind] || '—';
+}
 
 export function gpsStatusLabel(status) {
     return STATUS_LABELS[status] || 'Невідомо';
@@ -77,7 +89,9 @@ export function renderGps(app) {
     const access = gpsAccess(app.context);
     const statusBox = h('div', { class: 'gps-status' });
     const unitsBox = h('div', { class: 'list' }, spinner());
-    const state = { integration: null, units: [], fleet: [], suggestions: new Map(), busy: false };
+    const canEditKinds = gpsCanEditKinds(app.context);
+    const state = { provider: 'wialon', integrations: {}, integration: null, units: [], fleet: [], suggestions: new Map(), busy: false };
+    let mapSection = null;
 
     function connectForm() {
         const kindHosting = h('input', { type: 'radio', name: 'gps-kind', value: 'hosting', id: 'gps-kind-hosting', checked: true });
@@ -154,10 +168,10 @@ export function renderGps(app) {
             const button = event.currentTarget;
             button.disabled = true;
             clear(message, spinner(label + '…'));
-            const out = await callApi(app, route);
+            const out = await callApi(app, route, { provider: state.provider });
             button.disabled = false;
             if (!out.ok) {
-                clear(message, notice(out.error));
+                clear(message, notice(out.error || out.message || 'Не вдалося виконати дію.'));
                 return;
             }
             clear(message, out.message ? notice(out.message) : null);
@@ -169,11 +183,14 @@ export function renderGps(app) {
                 run('Оновити список юнітів', 'sync-units', async (out) => {
                     if (out.ok === false) return load();
                     state.suggestions = new Map((out.units || []).filter((u) => u.suggested_vehicle_id).map((u) => [u.id, u.suggested_vehicle_id]));
-                    toast('Юнітів: ' + out.counts.total + ' (нових ' + out.counts.added + ', неактивних ' + out.counts.deactivated + ')');
+                    toast('Юнітів: ' + out.counts.total + ' (нових ' + out.counts.added + ', неактивних ' + out.counts.deactivated + ')'
+                        + (out.groups && out.groups.synced ? ', груп ' + out.groups.total : ''));
+                    // Помилку груп не ховаємо: код і текст лишаються на екрані.
+                    if (out.groups && out.groups.error) clear(message, notice(out.groups.message + ' (код: ' + out.groups.error + ')'));
                     await load(true);
                 }),
                 confirmButton('Відключити', 'Точно відключити? Токен буде видалено', async () => {
-                    const out = await callApi(app, 'disconnect');
+                    const out = await callApi(app, 'disconnect', { provider: state.provider });
                     if (!out.ok) clear(message, notice(out.error));
                     else {
                         toast('GPS відключено');
@@ -197,12 +214,91 @@ export function renderGps(app) {
             actions);
     }
 
+    const providerBox = h('div', { class: 'gps-provider' });
+
+    function drawProviderSwitch() {
+        const select = h('select', { id: 'gps-provider', onchange: (event) => {
+            state.provider = event.currentTarget.value;
+            state.integration = state.integrations[state.provider] || null;
+            drawStatus();
+        } }, GPS_PROVIDERS.map((o) => h('option', { value: o.value, selected: o.value === state.provider }, o.label)));
+        clear(providerBox, h('div', { class: 'field' }, h('label', { for: 'gps-provider' }, 'Провайдер GPS'), select));
+    }
+
+    // Агроконтроль: можна зберегти доступ, але підключення ще не налаштовано — тест чесно повертає «не налаштовано».
+    function agroBlock(it) {
+        const message = h('div', { 'aria-live': 'polite' });
+        const stored = it && it.token_hint;
+        const row = (label, value) => h('div', { class: 'gps-row' }, h('span', { class: 'muted' }, label), h('b', null, value));
+        const token = h('input', { id: 'gps-agro-token', type: 'password', autocomplete: 'off', spellcheck: 'false', maxlength: '512' });
+        const submit = h('button', { type: 'submit', class: 'btn btn-primary' }, stored ? 'Замінити токен' : 'Зберегти доступ');
+        const form = access.canManage ? h('form', { class: 'form gps-agro-form', novalidate: true, onsubmit: async (event) => {
+            event.preventDefault();
+            let value = token.value.trim();
+            token.value = '';
+            if (value.length < 8 || /\s/.test(value)) {
+                value = null;
+                clear(message, notice('Токен має містити від 8 символів без пробілів.'));
+                return;
+            }
+            submit.disabled = true;
+            clear(message, spinner('Зберігаємо доступ…'));
+            const body = { provider: 'agrocontrol', token: value };
+            value = null;
+            const out = await callApi(app, 'connect', body);
+            body.token = null;
+            submit.disabled = false;
+            if (!out.ok) {
+                clear(message, notice(out.error || out.message || 'Не вдалося зберегти доступ.'));
+                return;
+            }
+            clear(message);
+            toast('Доступ до Агроконтролю збережено');
+            await load();
+        } },
+        h('div', { class: 'field' }, h('label', { for: 'gps-agro-token' }, 'Токен доступу Агроконтролю'), token,
+            h('span', { class: 'hint' }, 'Зберігається зашифровано у сховищі секретів; тут показуємо лише останні 4 символи.')),
+        h('div', { class: 'actions' }, submit)) : null;
+        const actions = h('div', { class: 'actions' });
+        if (stored && access.canManage) {
+            actions.append(
+                h('button', { type: 'button', class: 'btn', onclick: async (event) => {
+                    const button = event.currentTarget;
+                    button.disabled = true;
+                    clear(message, spinner('Перевіряємо…'));
+                    const out = await callApi(app, 'test', { provider: 'agrocontrol' });
+                    button.disabled = false;
+                    clear(message, notice(out.message || out.error || 'Не налаштовано.', out.ok === false || !out.ok ? 'info' : undefined));
+                    await load();
+                } }, 'Перевірити підключення'),
+                confirmButton('Відключити', 'Точно відключити? Токен буде видалено', async () => {
+                    const out = await callApi(app, 'disconnect', { provider: 'agrocontrol' });
+                    if (!out.ok) clear(message, notice(out.error || 'Не вдалося відключити.'));
+                    else {
+                        toast('Доступ видалено');
+                        await load();
+                    }
+                }));
+        }
+        return h('div', { class: 'card gps-card' },
+            h('div', { class: 'page-head' }, h('h2', null, 'Агроконтроль'), h('span', { class: 'badge gps-badge gps-pending' }, 'Скоро')),
+            notice('Інтеграцію з Агроконтролем ще не налаштовано: токен можна зберегти заздалегідь, перевірка поки поверне «не налаштовано». Карта й юніти Агроконтролю зʼявляться пізніше.', 'info'),
+            stored ? h('div', { class: 'gps-rows' }, row('Токен', it.token_hint), row('Перевірено', minutesAgo(it.last_checked_at))) : null,
+            it && it.last_error_code ? notice(gpsMessage(it.last_error_code) + ' (код: ' + it.last_error_code + ')', 'info') : null,
+            message, actions, form);
+    }
+
     function drawStatus() {
         if (!access.seesIntegration) {
             clear(statusBox);
             return;
         }
+        drawProviderSwitch();
         const it = state.integration;
+        if (state.provider === 'agrocontrol') {
+            clear(statusBox, agroBlock(it));
+            return;
+        }
         // 'pending' без токена — лише слід невдалої спроби (ліміт перебору): показуємо форму, а не картку.
         if (!it || it.status === 'disabled' || (it.status === 'pending' && !it.token_hint)) {
             if (access.canManage) clear(statusBox, connectForm());
@@ -220,6 +316,33 @@ export function renderGps(app) {
         }
         state.suggestions.delete(unitId);
         return true;
+    }
+
+    // Тип юніта: усі бачать; «Директор» і «Менеджер» виправляють вручну (kind_manual = true, sync не перезапише).
+    async function setKind(unitId, kind, inline) {
+        const { error } = await app.supabase.rpc('gps_set_kind', { p_gps_vehicle: unitId, p_kind: kind || null });
+        if (error) {
+            clear(inline, h('span', { class: 'hint hint-error' }, errorText(error)));
+            return false;
+        }
+        return true;
+    }
+
+    function kindCell(u) {
+        if (!canEditKinds) return h('span', null, kindLabel(u.kind), u.kind_manual ? h('span', { class: 'tag' }, 'вручну') : null);
+        const inline = h('div', { 'aria-live': 'polite' });
+        const select = h('select', { 'aria-label': 'Тип юніта ' + u.name, onchange: async (event) => {
+            clear(inline);
+            event.currentTarget.disabled = true;
+            if (await setKind(u.id, event.currentTarget.value, inline)) {
+                toast(event.currentTarget.value ? 'Тип збережено вручну' : 'Ручний тип знято');
+                await load(true);
+                if (mapSection && mapSection.reloadCatalog) mapSection.reloadCatalog();
+            } else event.currentTarget.disabled = false;
+        } },
+        h('option', { value: '' }, u.kind_manual ? '— зняти ручний тип —' : (u.kind ? kindLabel(u.kind) + ' (за назвою)' : 'Не визначено')),
+        KIND_OPTIONS.filter((o) => o.value !== 'none').map((o) => h('option', { value: o.value, selected: u.kind_manual && o.value === u.kind }, o.label)));
+        return h('div', null, select, u.kind_manual ? h('span', { class: 'tag' }, 'вручну') : null, inline);
     }
 
     function drawUnits() {
@@ -263,12 +386,13 @@ export function renderGps(app) {
             return h('tr', { class: u.active ? '' : 'is-archived' },
                 h('td', null, u.name || '—', u.active ? null : h('span', { class: 'tag' }, 'немає у Wialon')),
                 cell,
+                h('td', null, kindCell(u)),
                 h('td', { class: 'mono small' }, u.external_id));
         });
         clear(unitsBox,
             acceptAll ? h('div', { class: 'toolbar' }, acceptAll, h('span', { class: 'muted small' }, 'Підказки — за збігом назви юніта з номером авто. Без кнопки нічого не змінюється.')) : null,
             h('div', { class: 'table-wrap' }, h('table', { class: 'table gps-units' },
-                h('thead', null, h('tr', null, h('th', null, 'Юніт Wialon'), h('th', null, 'Авто'), h('th', null, 'ID'))),
+                h('thead', null, h('tr', null, h('th', null, 'Юніт Wialon'), h('th', null, 'Авто'), h('th', null, 'Тип'), h('th', null, 'ID'))),
                 h('tbody', null, rows))));
     }
 
@@ -276,20 +400,23 @@ export function renderGps(app) {
         if (!keepSuggestions) state.suggestions = new Map();
         const tasks = [app.supabase.rpc('gps_units')];
         tasks.push(access.seesIntegration
-            ? app.supabase.from('gps_integrations').select(INTEGRATION_COLUMNS).eq('provider', 'wialon').maybeSingle()
-            : Promise.resolve({ data: null, error: null }));
+            ? app.supabase.from('gps_integrations').select(INTEGRATION_COLUMNS).in('provider', GPS_PROVIDERS.map((o) => o.value))
+            : Promise.resolve({ data: [], error: null }));
+        tasks.push(app.supabase.from('gps_vehicles').select('id, kind, kind_manual').limit(5000));
         tasks.push(access.canManage
             ? app.supabase.from('fleet_vehicles').select('id, label').order('label', { ascending: true }).limit(1000)
             : Promise.resolve({ data: [], error: null }));
-        const [units, integration, fleet] = await Promise.all(tasks);
-        const error = units.error || integration.error || fleet.error;
+        const [units, integration, kinds, fleet] = await Promise.all(tasks);
+        const error = units.error || integration.error || kinds.error || fleet.error;
         if (error) {
             if (isPlanError(error)) return app.onPlanLost();
             clear(unitsBox, notice(errorText(error)));
             return;
         }
-        state.units = units.data || [];
-        state.integration = integration.data || null;
+        const kindOf = new Map((kinds.data || []).map((k) => [k.id, k]));
+        state.units = (units.data || []).map((u) => ({ ...u, kind: (kindOf.get(u.id) || {}).kind || null, kind_manual: Boolean((kindOf.get(u.id) || {}).kind_manual) }));
+        state.integrations = Object.fromEntries((integration.data || []).map((i) => [i.provider, i]));
+        state.integration = state.integrations[state.provider] || null;
         state.fleet = fleet.data || [];
         // Підказки лише для юнітів, які досі без авто, і лише на вільні авто.
         for (const [unitId, vehicleId] of [...state.suggestions]) {
@@ -304,6 +431,7 @@ export function renderGps(app) {
 
     // Карта (етап 2c) — для всіх ролей організації на control_plus; owner «До форми підключення» веде до форми нижче.
     const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
+    mapSection = map;
 
     return h('section', { class: 'page gps-page' },
         h('div', { class: 'page-head' }, h('h1', null, 'GPS')),
@@ -312,6 +440,7 @@ export function renderGps(app) {
             : 'Режим перегляду: юніти GPS і привʼязка до авто вашої компанії.', 'info'),
         map,
         access.seesIntegration ? h('h2', { class: 'section-title' }, access.canManage ? 'Підключення' : 'Підключення (перегляд)') : null,
+        providerBox,
         statusBox,
         h('h2', { class: 'section-title' }, 'Юніти й авто'),
         unitsBox);

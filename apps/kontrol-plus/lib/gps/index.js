@@ -4,8 +4,9 @@
 //   fetchPositions(creds, externalIds?) → [{ externalId, t, lat, lon, speed, course, sats, altitude }]
 // Новий провайдер = новий файл у providers/ + рядок тут + розширення CHECK provider в окремій міграції.
 import { createWialonProvider } from './providers/wialon.js';
+import { createAgrocontrolProvider } from './providers/agrocontrol.js';
 
-const FACTORIES = { wialon: createWialonProvider };
+const FACTORIES = { wialon: createWialonProvider, agrocontrol: createAgrocontrolProvider };
 
 export const PROVIDER_IDS = Object.keys(FACTORIES);
 

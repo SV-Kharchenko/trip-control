@@ -74,7 +74,7 @@ test('no_signal: 29 / 30 min — signal, 31 min and null — no signal', () => {
     assert.equal(isNoSignal('garbage', now), true);
 });
 
-test('map vehicles: only mapped active units; no external_id / api_host / token; no hidden field', () => {
+test('map vehicles: active units (linked or not); no external_id / api_host / token; no hidden field', () => {
     const now = new Date('2026-10-21T09:00:00Z');
     const units = [
         { id: 'g1', name: 'Unit 1', vehicle_id: 'v1', external_id: '101', active: true, last_pos_at: '2026-10-21T08:50:00Z', last_lat: 50.45, last_lon: 30.52, last_speed: 72, last_course: 90 },
@@ -85,13 +85,14 @@ test('map vehicles: only mapped active units; no external_id / api_host / token;
     const fleet = [{ id: 'v1', label: 'AA1111AA' }, { id: 'v4', label: 'BB2222BB' }];
     const orders = [{ vehicle_id: 'v1', ...o({ calculation_id: 'x' }) }];
     const out = buildMapVehicles(units, fleet, orders, now);
-    assert.deepEqual(out.map((v) => v.gps_vehicle_id), ['g1', 'g4']);
-    assert.deepEqual(Object.keys(out[0]).sort(), ['course', 'gps_vehicle_id', 'last_pos_at', 'lat', 'lon', 'more_orders', 'no_signal', 'order',
-        'plate', 'speed', 'unit_name', 'vehicle_id']);
+    assert.deepEqual(out.map((v) => v.gps_vehicle_id), ['g1', 'g2', 'g4'], 'the unlinked unit stays: the caller decides who is selected');
+    assert.deepEqual(Object.keys(out[0]).sort(), ['course', 'gps_vehicle_id', 'kind', 'kind_manual', 'last_pos_at', 'lat', 'linked', 'lon', 'more_orders',
+        'no_signal', 'order', 'plate', 'speed', 'unit_name', 'vehicle_id']);
+    assert.deepEqual([out[1].linked, out[1].plate, out[1].unit_name, out[1].vehicle_id, out[1].order], [false, null, 'Unit 2', null, null], 'unlinked: Wialon name, no plate, no order');
     assert.equal(out[0].plate, 'AA1111AA');
     assert.equal(out[0].no_signal, false);
     assert.equal(out[0].order.calculation_id, 'x');
-    assert.deepEqual([out[1].lat, out[1].lon, out[1].no_signal, out[1].order], [null, null, true, null], 'half coordinates → no coordinates');
+    assert.deepEqual([out[2].lat, out[2].lon, out[2].no_signal, out[2].order], [null, null, true, null], 'half coordinates → no coordinates');
     assert.equal(/external_id|api_host|token|hidden/.test(JSON.stringify(out)), false);
 });
 

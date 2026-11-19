@@ -13,7 +13,10 @@ const OURS = ['20261022090000_kontrol_plus_access.sql', '20261022091000_kontrol_
 const all = fs.readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort();
 const before = all.filter((f) => f < OURS[0]);
 const GPS = all.find((f) => /^\d{14}_gps_integrations\.sql$/.test(f));
-const later = all.filter((f) => f > OURS[1] && f !== GPS);
+const GPS_GROUPS = all.find((f) => /^\d{14}_kp_gps_groups\.sql$/.test(f));
+if (!GPS_GROUPS) throw new Error('немає міграції *_kp_gps_groups.sql');
+// Міграція груп залежить від таблиць GPS: застосовується одразу після GPS-міграції (нижче), а не серед later.
+const later = all.filter((f) => f > OURS[1] && f !== GPS && f !== GPS_GROUPS);
 if (!GPS) throw new Error('немає міграції *_gps_integrations.sql');
 const db = new PGlite();
 
@@ -177,6 +180,11 @@ check(/^-- Apply manually after review\. This file is not applied to production 
     // Рядки верхнього рівня (не коментарі й не тіла функцій з відступом): без CREATE EXTENSION і без vault.*.
     && !gpsSql.split('\n').some((line) => !/^\s*--/.test(line) && !/^\s/.test(line) && /CREATE EXTENSION|vault\./i.test(line)),
     'gps: migration header, no CREATE EXTENSION and no vault.* in top-level DDL');
+const gpsGroupsSql = fs.readFileSync(new URL(GPS_GROUPS, DIR), 'utf8');
+await db.exec(gpsGroupsSql);
+await db.exec(gpsGroupsSql);
+check(/^-- Apply manually after review\. This file is not applied to any database by the agent\./.test(gpsGroupsSql) && !/CREATE EXTENSION/i.test(gpsGroupsSql.replace(/^\s*--.*$/gm, '')),
+    'gps groups: ' + GPS_GROUPS + ' applied twice (idempotent), manual-apply header, no CREATE EXTENSION');
 check(true, 'gps: ' + later.length + ' later migration(s) + ' + GPS + ' (twice) applied');
 
 async function one(sql, params = []) {
@@ -674,6 +682,16 @@ await db.exec(gpsTapSql);
 const gpsTap = (await db.query(`SELECT ok, label FROM extensions.tap ORDER BY n`)).rows.slice(tapBefore);
 for (const row of gpsTap) check(row.ok, 'pgTAP gps_integrations.sql: ' + row.label);
 check(gpsTap.length === gpsPlanned, `pgTAP gps_integrations.sql: ran ${gpsTap.length} of plan(${gpsPlanned})`);
+
+// supabase/tests/gps_groups.sql — групи юнітів, тип юніта, провайдер agrocontrol (той самий shim pgTAP).
+const ggTapSql = fs.readFileSync(new URL('../../../supabase/tests/gps_groups.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const ggPlanned = Number((ggTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const ggBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(ggTapSql);
+const ggTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(ggBefore);
+for (const row of ggTap) check(row.ok, 'pgTAP gps_groups.sql: ' + row.label);
+check(ggTap.length === ggPlanned, 'pgTAP gps_groups.sql: ran ' + ggTap.length + ' of plan(' + ggPlanned + ')');
 
 // supabase/tests/repairs_stock.sql — той самий shim pgTAP.
 const repTapSql = fs.readFileSync(new URL('../../../supabase/tests/repairs_stock.sql', import.meta.url), 'utf8')
