@@ -4,11 +4,13 @@
 import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import { gpsAccess, gpsCanEditKinds } from '../lib/gate.js';
-import { KIND_OPTIONS } from '../lib/gps-catalog.js';
+import {
+    KIND_OPTIONS, LINK_OPTIONS, TABLE_PAGE, emptyTableFilters, filterUnitRows, loadTableFilters, pruneTableFilters, saveTableFilters, tableFiltersActive,
+} from '../lib/gps-catalog.js';
 import { KIND_LABELS } from '../../lib/gps/kind.js';
 import { gpsMessage } from '../../lib/gps/errors.js';
 import { callGpsApi } from '../lib/gps-client.js';
-import { renderGpsMap } from './gps-map.js';
+import { multiPick, renderGpsMap } from './gps-map.js';
 
 export const GPS_REGIONS = [
     { value: 'com', label: 'hst-api.wialon.com (основний)' },
@@ -92,6 +94,9 @@ export function renderGps(app) {
     const canEditKinds = gpsCanEditKinds(app.context);
     const state = { provider: 'wialon', integrations: {}, integration: null, units: [], fleet: [], suggestions: new Map(), busy: false };
     let mapSection = null;
+    const orgId = app.context && app.context.org_id;
+    // Фільтри таблиці — окремо від вибору на карті (власний ключ у сховищі браузера), працюють на клієнті по вже завантаженому списку.
+    const tstate = { filters: loadTableFilters(orgId), catalog: { groups: [], memberships: {} }, ready: false, shown: TABLE_PAGE };
 
     function connectForm() {
         const kindHosting = h('input', { type: 'radio', name: 'gps-kind', value: 'hosting', id: 'gps-kind-hosting', checked: true });
@@ -188,6 +193,8 @@ export function renderGps(app) {
                     // Помилку груп не ховаємо: код і текст лишаються на екрані.
                     if (out.groups && out.groups.error) clear(message, notice(out.groups.message + ' (код: ' + out.groups.error + ')'));
                     await load(true);
+                    // Групи, типи й юніти над картою й у фільтрах таблиці оновлюються без F5.
+                    if (mapSection && mapSection.reloadCatalog) await mapSection.reloadCatalog();
                 }),
                 confirmButton('Відключити', 'Точно відключити? Токен буде видалено', async () => {
                     const out = await callApi(app, 'disconnect', { provider: state.provider });
@@ -345,8 +352,61 @@ export function renderGps(app) {
         return h('div', null, select, u.kind_manual ? h('span', { class: 'tag' }, 'вручну') : null, inline);
     }
 
+    // ---------- Фільтри таблиці «Юніти й авто» ----------
+    const tGroupPick = multiPick({ label: 'Групи', onChange: (groupIds) => setTableFilters({ groupIds }) });
+    const tKindPick = multiPick({ label: 'Тип', onChange: (kinds) => setTableFilters({ kinds }) });
+    let searchTimer = null;
+    const tSearch = h('input', { type: 'search', class: 'gps-unit-search gps-tsearch', placeholder: 'Юніт: назва або номер', 'aria-label': 'Пошук у таблиці за назвою юніта або номером авто',
+        autocomplete: 'off', maxlength: '60', value: tstate.filters.q, oninput: () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => setTableFilters({ q: tSearch.value }), 200);
+        } });
+    const tLink = h('select', { class: 'gps-tlink', 'aria-label': 'Прив’язка до авто', onchange: () => setTableFilters({ link: tLink.value }) },
+        LINK_OPTIONS.map((o) => h('option', { value: o.value }, o.value === 'all' ? 'Прив’язка: усі' : o.label)));
+    const tCount = h('span', { class: 'muted small gps-tcount', 'aria-live': 'polite' });
+    const tReset = h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'data-act': 'treset', onclick: () => {
+        clearTimeout(searchTimer);
+        tstate.filters = emptyTableFilters();
+        tSearch.value = '';
+        persistTableFilters();
+    } }, 'Скинути');
+    const tBar = h('div', { class: 'gps-tfilter card', hidden: true },
+        h('div', { class: 'gps-filter-row' }, tGroupPick.element, tSearch, tKindPick.element, tLink, h('div', { class: 'actions' }, tReset, tCount)));
+
+    function drawTableFilters() {
+        const f2 = tstate.filters;
+        tGroupPick.draw(tstate.catalog.groups.map((g) => ({ value: g.id, label: g.name + ' (' + g.count + ')' })), f2.groupIds);
+        tKindPick.draw(KIND_OPTIONS, f2.kinds);
+        tLink.value = f2.link;
+        tReset.disabled = !tableFiltersActive(f2);
+    }
+    function persistTableFilters() {
+        tstate.shown = TABLE_PAGE;
+        saveTableFilters(orgId, tstate.filters);
+        drawTableFilters();
+        drawUnits();
+    }
+    function setTableFilters(patch) {
+        tstate.filters = { ...tstate.filters, ...patch };
+        persistTableFilters();
+    }
+    // Каталог карти (групи, склад груп) прийшов або оновився: фільтри таблиці й варіанти списків перемальовуються; зниклі групи прибираємо.
+    function onCatalog(catalog) {
+        tstate.catalog = catalog;
+        tstate.ready = true;
+        const pruned = pruneTableFilters(tstate.filters, catalog);
+        if (JSON.stringify(pruned) !== JSON.stringify(tstate.filters)) {
+            tstate.filters = pruned;
+            saveTableFilters(orgId, pruned);
+        }
+        drawTableFilters();
+        if (state.units.length) drawUnits();
+    }
+    drawTableFilters();
+
     function drawUnits() {
         const { units, fleet, suggestions } = state;
+        tBar.hidden = !units.length;
         if (!units.length) {
             clear(unitsBox, h('p', { class: 'muted empty' }, access.canManage && state.integration && state.integration.status !== 'disabled'
                 ? 'Юнітів ще немає — натисніть «Оновити список юнітів».'
@@ -360,9 +420,17 @@ export function renderGps(app) {
                 for (const [unitId, vehicleId] of [...suggestions]) await mapUnit(unitId, vehicleId, null);
                 toast('Підказки застосовано');
                 await load(true);
+                if (mapSection && mapSection.reloadCatalog) mapSection.reloadCatalog();
             } }, 'Прийняти всі підказки (' + suggestions.size + ')')
             : null;
-        const rows = units.map((u) => {
+        const filtered = filterUnitRows(units, tstate.ready ? tstate.filters : { ...tstate.filters, groupIds: [] }, tstate.catalog.memberships);
+        const visible = filtered.slice(0, tstate.shown);
+        tCount.textContent = 'Показано ' + visible.length + ' з ' + units.length + (filtered.length > visible.length && filtered.length < units.length ? ' (знайдено ' + filtered.length + ')' : '');
+        const more = filtered.length > visible.length
+            ? h('button', { type: 'button', class: 'btn btn-sm', 'data-act': 'more', onclick: () => { tstate.shown += TABLE_PAGE; drawUnits(); } },
+                'Показати ще (' + Math.min(TABLE_PAGE, filtered.length - visible.length) + ')')
+            : null;
+        const rows = visible.map((u) => {
             const inline = h('div', { 'aria-live': 'polite' });
             let cell;
             if (access.canManage) {
@@ -373,6 +441,7 @@ export function renderGps(app) {
                     if (await mapUnit(u.id, event.currentTarget.value, inline)) {
                         toast(event.currentTarget.value ? 'Авто привʼязано' : 'Привʼязку знято');
                         await load(true);
+                        if (mapSection && mapSection.reloadCatalog) mapSection.reloadCatalog();
                     } else event.currentTarget.disabled = false;
                 } },
                 h('option', { value: '' }, '— не привʼязано —'),
@@ -393,7 +462,8 @@ export function renderGps(app) {
             acceptAll ? h('div', { class: 'toolbar' }, acceptAll, h('span', { class: 'muted small' }, 'Підказки — за збігом назви юніта з номером авто. Без кнопки нічого не змінюється.')) : null,
             h('div', { class: 'table-wrap' }, h('table', { class: 'table gps-units' },
                 h('thead', null, h('tr', null, h('th', null, 'Юніт Wialon'), h('th', null, 'Авто'), h('th', null, 'Тип'), h('th', null, 'ID'))),
-                h('tbody', null, rows))));
+                h('tbody', null, rows.length ? rows : h('tr', null, h('td', { colspan: 4, class: 'muted empty' }, 'За вибраними умовами юнітів немає.'))))),
+            more ? h('div', { class: 'toolbar' }, more) : null);
     }
 
     async function load(keepSuggestions) {
@@ -430,7 +500,7 @@ export function renderGps(app) {
     load();
 
     // Карта (етап 2c) — для всіх ролей організації на control_plus; owner «До форми підключення» веде до форми нижче.
-    const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }) });
+    const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), onCatalog });
     mapSection = map;
 
     return h('section', { class: 'page gps-page' },
@@ -443,5 +513,6 @@ export function renderGps(app) {
         providerBox,
         statusBox,
         h('h2', { class: 'section-title' }, 'Юніти й авто'),
+        tBar,
         unitsBox);
 }

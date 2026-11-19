@@ -20,7 +20,7 @@ function storage() {
     }
 }
 
-const keyFor = (orgId) => SELECTION_KEY + ':' + String(orgId || '');
+const keyFor = (orgId, base = SELECTION_KEY) => base + ':' + String(orgId || '');
 
 export function loadSelection(orgId, store = storage()) {
     try {
@@ -71,7 +71,12 @@ export function selectionBody(selection, refresh) {
     return body;
 }
 
-const plateKey = (s) => String(s || '').toLowerCase().replace(/[\s_.-]+/g, '');
+// Ключ для пошуку: без регістру, пробілів, «_», «.», «-» і з латинськими двійниками кириличних літер (А/A, В/B, Е/E, І/I, К/K, М/M, Н/H, О/O, Р/P, С/C, Т/T, Х/X).
+const TWINS = { 'а': 'a', 'в': 'b', 'е': 'e', 'і': 'i', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o', 'р': 'p', 'с': 'c', 'т': 't', 'х': 'x' };
+export function normKey(s) {
+    return String(s || '').toLowerCase().replace(/[\s_.\-–—]+/g, '').replace(/[авеікмнорстх]/g, (ch) => TWINS[ch]);
+}
+const plateKey = normKey;
 
 // Пошук юнітів за назвою з Wialon і номером авто з Автопарку (без урахування регістру й роздільників).
 export function searchUnits(units, query, limit = 30) {
@@ -88,6 +93,65 @@ export function searchUnits(units, query, limit = 30) {
         }
     }
     return out;
+}
+
+// --- Фільтри таблиці «Юніти й авто» (окремо від вибору на карті) ---
+export const TABLE_FILTER_KEY = 'kp.gps.table.v1';
+export const LINK_OPTIONS = [{ value: 'all', label: 'Усі' }, { value: 'linked', label: 'Прив’язані' }, { value: 'unlinked', label: 'Неприв’язані' }];
+export const TABLE_PAGE = 200;
+
+export function emptyTableFilters() {
+    return { groupIds: [], kinds: [], q: '', link: 'all' };
+}
+
+export function tableFiltersActive(f) {
+    return f.groupIds.length > 0 || f.kinds.length > 0 || normKey(f.q) !== '' || f.link !== 'all';
+}
+
+export function loadTableFilters(orgId, store = storage()) {
+    try {
+        const raw = store && store.getItem(keyFor(orgId, TABLE_FILTER_KEY));
+        const v = raw ? JSON.parse(raw) : null;
+        if (!v || typeof v !== 'object') return emptyTableFilters();
+        const list = (x) => (Array.isArray(x) ? x.filter((i) => typeof i === 'string').slice(0, MAX_IDS) : []);
+        return {
+            groupIds: list(v.groupIds),
+            kinds: list(v.kinds).filter((k) => KIND_OPTIONS.some((o) => o.value === k)),
+            q: typeof v.q === 'string' ? v.q.slice(0, 60) : '',
+            link: LINK_OPTIONS.some((o) => o.value === v.link) ? v.link : 'all',
+        };
+    } catch {
+        return emptyTableFilters();
+    }
+}
+
+export function saveTableFilters(orgId, filters, store = storage()) {
+    try {
+        if (store) store.setItem(keyFor(orgId, TABLE_FILTER_KEY), JSON.stringify(filters));
+    } catch {
+        // Сховище недоступне — фільтри живуть до перезавантаження.
+    }
+}
+
+// Групи, яких уже немає в каталозі (видалена, змінена синхронізацією), з фільтра таблиці прибираємо.
+export function pruneTableFilters(filters, catalog) {
+    const groups = new Set((catalog.groups || []).map((g) => g.id));
+    return { ...filters, groupIds: filters.groupIds.filter((id) => groups.has(id)), kinds: filters.kinds.slice() };
+}
+
+// Фільтр по вже завантажених юнітах. memberships — { unitId: [groupId, …] } з каталогу. Тип «none» = «Не визначено».
+export function filterUnitRows(units, filters, memberships = {}) {
+    const q = normKey(filters.q);
+    const groups = new Set(filters.groupIds);
+    const kinds = new Set(filters.kinds);
+    return units.filter((u) => {
+        if (groups.size && !(memberships[u.id] || []).some((id) => groups.has(id))) return false;
+        if (kinds.size && !kinds.has(u.kind || 'none')) return false;
+        if (filters.link === 'linked' && !u.vehicle_id) return false;
+        if (filters.link === 'unlinked' && u.vehicle_id) return false;
+        if (q && !normKey(u.name).includes(q) && !normKey(u.vehicle_label).includes(q)) return false;
+        return true;
+    });
 }
 
 export function unitTitle(u) {
@@ -113,7 +177,7 @@ export async function fetchCatalog(supabase) {
         fetchAll(() => supabase.from('gps_group_members').select('group_id, gps_vehicle_id').order('group_id', { ascending: true }).order('gps_vehicle_id', { ascending: true })),
     ]);
     const error = units.error || kinds.error || groups.error || members.error;
-    if (error) return { units: [], groups: [], error };
+    if (error) return { units: [], groups: [], memberships: {}, error };
     const kindOf = new Map(kinds.data.map((k) => [k.id, k]));
     const unitList = (units.data || []).map((u) => ({
         id: u.id, name: u.name, vehicle_id: u.vehicle_id, vehicle_label: u.vehicle_label, active: u.active,
@@ -121,6 +185,10 @@ export async function fetchCatalog(supabase) {
     }));
     const active = new Set(unitList.filter((u) => u.active).map((u) => u.id));
     const counts = new Map();
-    for (const m of members.data) if (active.has(m.gps_vehicle_id)) counts.set(m.group_id, (counts.get(m.group_id) || 0) + 1);
-    return { units: unitList, groups: groups.data.map((g) => ({ id: g.id, name: g.name, source: g.source, count: counts.get(g.id) || 0 })), error: null };
+    const memberships = {};
+    for (const m of members.data) {
+        (memberships[m.gps_vehicle_id] = memberships[m.gps_vehicle_id] || []).push(m.group_id);
+        if (active.has(m.gps_vehicle_id)) counts.set(m.group_id, (counts.get(m.group_id) || 0) + 1);
+    }
+    return { units: unitList, groups: groups.data.map((g) => ({ id: g.id, name: g.name, source: g.source, count: counts.get(g.id) || 0 })), memberships, error: null };
 }

@@ -215,7 +215,8 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .gps-map-section { margin-bottom: 8px; }
 #kp-crm .gps-map-section .page-head { align-items: center; }
 #kp-crm .gps-map-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: stretch; }
-#kp-crm .gps-map { height: 520px; min-height: 320px; border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; background: var(--bg); }
+/* Карта — окремий контекст накладання: z-index панелей Leaflet (до 1000) лишаються всередині й не лізуть над списками фільтрів. */
+#kp-crm .gps-map { position: relative; z-index: 0; isolation: isolate; height: 520px; min-height: 320px; border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; background: var(--bg); }
 #kp-crm .gps-map-list { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; display: grid; gap: 6px; align-content: start; }
 #kp-crm .gps-map-item { width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 8px 10px;
     border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
@@ -226,18 +227,29 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .gps-map-item.is-nosignal .dot { background: var(--muted); }
 #kp-crm .gps-to-form { margin-left: 8px; }
 /* Вибір на карті: групи, окремі юніти, тип. Кнопки — за розміром вмісту (повна ширина лише класом .btn-block). */
-#kp-crm .gps-filter { display: grid; gap: 8px; margin-bottom: 10px; padding: 10px 12px; }
-#kp-crm .gps-filter-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, max-content)); gap: 8px 12px; align-items: start; }
+/* Одна висота керування в рядку фільтрів: --gps-ctl-h. Випадні списки (Групи, Тип, результати пошуку) — над картою: --gps-pop-z вище за панелі Leaflet (до 1000);
+   жоден предок списку не має overflow, що обрізає. */
+#kp-crm .gps-filter, #kp-crm .gps-tfilter { --gps-ctl-h: 34px; --gps-pop-z: 1100; overflow: visible; backdrop-filter: none; position: relative; z-index: var(--gps-pop-z); display: grid; gap: 8px; margin-bottom: 10px; padding: 10px 12px; }
+#kp-crm .gps-tfilter[hidden] { display: none; }
+/* Сторінка GPS — власний контекст накладання (z-index: 0): списки з z-index 1100 не перекривають шапку й меню оболонки (z-index 35…60) і вікна. */
+#kp-crm .gps-page { position: relative; z-index: 0; isolation: isolate; }
+#kp-crm .gps-filter .btn, #kp-crm .gps-tfilter .btn, #kp-crm .gps-multi > summary, #kp-crm .gps-unit-search, #kp-crm .gps-tfilter select {
+    box-sizing: border-box; height: var(--gps-ctl-h); min-height: var(--gps-ctl-h); padding-top: 0; padding-bottom: 0; line-height: 1.2; font-size: 13px; }
+#kp-crm .gps-filter .btn, #kp-crm .gps-tfilter .btn, #kp-crm .gps-multi > summary { display: inline-flex; align-items: center; justify-content: center; width: auto; white-space: nowrap; }
+#kp-crm .gps-tfilter select { width: auto; max-width: 100%; }
+#kp-crm .gps-tfilter .gps-unit-search { width: 260px; max-width: 100%; }
+#kp-crm .gps-tcount { white-space: nowrap; }
+#kp-crm .gps-filter-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 #kp-crm .gps-filter-row .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #kp-crm .gps-multi { position: relative; }
 #kp-crm .gps-multi > summary { list-style: none; width: max-content; max-width: 100%; }
 #kp-crm .gps-multi > summary::-webkit-details-marker { display: none; }
-#kp-crm .gps-multi-list { position: absolute; z-index: 500; top: calc(100% + 4px); left: 0; display: grid; gap: 4px; min-width: 240px; max-width: min(360px, 90vw);
+#kp-crm .gps-multi-list { position: absolute; z-index: var(--gps-pop-z, 1100); top: calc(100% + 4px); left: 0; display: grid; gap: 4px; min-width: 240px; max-width: min(360px, 90vw);
     max-height: 260px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 4px 14px var(--kp-marker-shadow); }
 #kp-crm .gps-multi-list .check { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; overflow-wrap: anywhere; }
-#kp-crm .gps-unit-pick { position: relative; min-width: 220px; }
-#kp-crm .gps-unit-search { width: 100%; min-height: 30px; box-sizing: border-box; }
-#kp-crm .gps-unit-results { position: absolute; z-index: 500; top: calc(100% + 2px); left: 0; right: 0; list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto;
+#kp-crm .gps-unit-pick { position: relative; width: 260px; max-width: 100%; }
+#kp-crm .gps-unit-search { width: 100%; }
+#kp-crm .gps-unit-results { position: absolute; z-index: var(--gps-pop-z, 1100); top: calc(100% + 2px); left: 0; right: 0; list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto;
     border-radius: var(--radius-control); background: var(--surface); }
 #kp-crm .gps-unit-results:not(:empty) { border: 1px solid var(--border); box-shadow: 0 4px 14px var(--kp-marker-shadow); }
 #kp-crm .gps-unit-result { display: block; width: 100%; padding: 6px 10px; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; overflow-wrap: anywhere; }
@@ -255,9 +267,9 @@ body[data-theme="dark"] #kp-crm, body[data-theme="dark"] #kp-toast, body[data-th
 #kp-crm .kp-marker .kp-marker-order { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 600px) {
     /* Телефон: списки розкриваються в потоці сторінки, без виходу за край екрана. */
-    #kp-crm .gps-filter-row { grid-template-columns: minmax(0, 1fr); }
+    #kp-crm .gps-filter-row { gap: 8px; }
+    #kp-crm .gps-unit-pick, #kp-crm .gps-tfilter .gps-unit-search { width: 100%; }
     #kp-crm .gps-multi-list, #kp-crm .gps-unit-results { position: static; max-width: none; box-shadow: none; margin-top: 4px; }
-    #kp-crm .gps-unit-pick { min-width: 0; }
 }
 /* Маркери (L.divIcon): мітка над точкою; тайли не інвертуємо в темній темі. */
 #kp-crm .kp-marker-wrap { background: none; border: 0; }

@@ -179,7 +179,7 @@ body[data-theme="dark"] #cabinet-screen .cab-slot {
 #cabinet-screen .cab-slot .gps-map-section { margin-bottom: 8px; }
 #cabinet-screen .cab-slot .gps-map-section .page-head { align-items: center; }
 #cabinet-screen .cab-slot .gps-map-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: stretch; }
-#cabinet-screen .cab-slot .gps-map { height: 520px; min-height: 320px; border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; background: var(--bg); }
+#cabinet-screen .cab-slot .gps-map { position: relative; z-index: 0; isolation: isolate; height: 520px; min-height: 320px; border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden; background: var(--bg); }
 #cabinet-screen .cab-slot .gps-map-list { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow-y: auto; display: grid; gap: 6px; align-content: start; }
 #cabinet-screen .cab-slot .gps-map-item { width: 100%; display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 8px 10px;
     border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--text); cursor: pointer; font: inherit; }
@@ -189,18 +189,33 @@ body[data-theme="dark"] #cabinet-screen .cab-slot {
 #cabinet-screen .cab-slot .gps-map-item .dot { flex: none; width: 10px; height: 10px; margin-top: 5px; border-radius: 50%; background: var(--positive); }
 #cabinet-screen .cab-slot .gps-map-item.is-nosignal .dot { background: var(--muted); }
 #cabinet-screen .cab-slot .gps-to-form { margin-left: 8px; }
-#cabinet-screen .cab-slot .gps-filter { display: grid; gap: 8px; margin-bottom: 10px; padding: 10px 12px; }
-#cabinet-screen .cab-slot .gps-filter-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, max-content)); gap: 8px 12px; align-items: start; }
+#cabinet-screen .cab-slot .gps-filter,
+#cabinet-screen .cab-slot .gps-tfilter { --gps-ctl-h: 34px; --gps-pop-z: 1100; overflow: visible; backdrop-filter: none; position: relative; z-index: var(--gps-pop-z); display: grid; gap: 8px; margin-bottom: 10px; padding: 10px 12px; }
+#cabinet-screen .cab-slot .gps-tfilter[hidden] { display: none; }
+#cabinet-screen .cab-slot .gps-page { position: relative; z-index: 0; isolation: isolate; }
+#cabinet-screen .cab-slot .gps-filter .btn,
+#cabinet-screen .cab-slot .gps-tfilter .btn,
+#cabinet-screen .cab-slot .gps-multi > summary,
+#cabinet-screen .cab-slot .gps-unit-search,
+#cabinet-screen .cab-slot .gps-tfilter select {
+    box-sizing: border-box; height: var(--gps-ctl-h); min-height: var(--gps-ctl-h); padding-top: 0; padding-bottom: 0; line-height: 1.2; font-size: 13px; }
+#cabinet-screen .cab-slot .gps-filter .btn,
+#cabinet-screen .cab-slot .gps-tfilter .btn,
+#cabinet-screen .cab-slot .gps-multi > summary { display: inline-flex; align-items: center; justify-content: center; width: auto; white-space: nowrap; }
+#cabinet-screen .cab-slot .gps-tfilter select { width: auto; max-width: 100%; }
+#cabinet-screen .cab-slot .gps-tfilter .gps-unit-search { width: 260px; max-width: 100%; }
+#cabinet-screen .cab-slot .gps-tcount { white-space: nowrap; }
+#cabinet-screen .cab-slot .gps-filter-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 #cabinet-screen .cab-slot .gps-filter-row .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #cabinet-screen .cab-slot .gps-multi { position: relative; }
 #cabinet-screen .cab-slot .gps-multi > summary { list-style: none; width: max-content; max-width: 100%; }
 #cabinet-screen .cab-slot .gps-multi > summary::-webkit-details-marker { display: none; }
-#cabinet-screen .cab-slot .gps-multi-list { position: absolute; z-index: 500; top: calc(100% + 4px); left: 0; display: grid; gap: 4px; min-width: 240px; max-width: min(360px, 90vw);
+#cabinet-screen .cab-slot .gps-multi-list { position: absolute; z-index: var(--gps-pop-z, 1100); top: calc(100% + 4px); left: 0; display: grid; gap: 4px; min-width: 240px; max-width: min(360px, 90vw);
     max-height: 260px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 4px 14px var(--kp-marker-shadow); }
 #cabinet-screen .cab-slot .gps-multi-list .check { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; overflow-wrap: anywhere; }
-#cabinet-screen .cab-slot .gps-unit-pick { position: relative; min-width: 220px; }
-#cabinet-screen .cab-slot .gps-unit-search { width: 100%; min-height: 30px; box-sizing: border-box; }
-#cabinet-screen .cab-slot .gps-unit-results { position: absolute; z-index: 500; top: calc(100% + 2px); left: 0; right: 0; list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto;
+#cabinet-screen .cab-slot .gps-unit-pick { position: relative; width: 260px; max-width: 100%; }
+#cabinet-screen .cab-slot .gps-unit-search { width: 100%; }
+#cabinet-screen .cab-slot .gps-unit-results { position: absolute; z-index: var(--gps-pop-z, 1100); top: calc(100% + 2px); left: 0; right: 0; list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto;
     border-radius: var(--radius-control); background: var(--surface); }
 #cabinet-screen .cab-slot .gps-unit-results:not(:empty) { border: 1px solid var(--border); box-shadow: 0 4px 14px var(--kp-marker-shadow); }
 #cabinet-screen .cab-slot .gps-unit-result { display: block; width: 100%; padding: 6px 10px; text-align: left; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; cursor: pointer; overflow-wrap: anywhere; }
@@ -217,10 +232,11 @@ body[data-theme="dark"] #cabinet-screen .cab-slot {
 #cabinet-screen .cab-slot .kp-marker.is-unlinked { background: var(--kp-marker-off); }
 #cabinet-screen .cab-slot .kp-marker .kp-marker-order { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 600px) {
-  #cabinet-screen .cab-slot .gps-filter-row { grid-template-columns: minmax(0, 1fr); }
+  #cabinet-screen .cab-slot .gps-filter-row { gap: 8px; }
+  #cabinet-screen .cab-slot .gps-unit-pick,
+  #cabinet-screen .cab-slot .gps-tfilter .gps-unit-search { width: 100%; }
   #cabinet-screen .cab-slot .gps-multi-list,
   #cabinet-screen .cab-slot .gps-unit-results { position: static; max-width: none; box-shadow: none; margin-top: 4px; }
-  #cabinet-screen .cab-slot .gps-unit-pick { min-width: 0; }
 }
 #cabinet-screen .cab-slot .kp-marker-wrap { background: none; border: 0; }
 #cabinet-screen .cab-slot .kp-marker { transform: translate(-50%, -100%); display: grid; gap: 1px; padding: 3px 7px; border-radius: 8px; white-space: nowrap;

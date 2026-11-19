@@ -153,11 +153,40 @@ export function syncStatusText(out, now = Date.now()) {
     return parts.join(' · ');
 }
 
+// Закриття випадного списку по кліку поза ним і по Esc. Слухачі живуть, лише поки список відкритий;
+// якщо елемент уже вилучено зі сторінки — слухачі знімаються самі.
+export function dismissOnOutside(element, isOpen, close, returnFocus) {
+    const stop = () => {
+        document.removeEventListener('pointerdown', onDown, true);
+        document.removeEventListener('keydown', onKey, true);
+    };
+    function onDown(event) {
+        if (!element.isConnected) return stop();
+        if (!element.contains(event.target)) close();
+    }
+    function onKey(event) {
+        if (!element.isConnected) return stop();
+        if (event.key !== 'Escape' || !isOpen()) return;
+        close();
+        if (returnFocus) returnFocus.focus();
+    }
+    return {
+        start() {
+            stop();
+            document.addEventListener('pointerdown', onDown, true);
+            document.addEventListener('keydown', onKey, true);
+        },
+        stop,
+    };
+}
+
 // Випадний список із прапорцями (групи, тип). draw(options, selectedValues) перемальовує список.
-function multiPick({ label, onChange }) {
+export function multiPick({ label, onChange }) {
     const box = h('div', { class: 'gps-multi-list' });
     const summary = h('summary', { class: 'btn btn-sm' });
     const element = h('details', { class: 'gps-multi' }, summary, box);
+    const dismiss = dismissOnOutside(element, () => element.open, () => { element.open = false; }, summary);
+    element.addEventListener('toggle', () => (element.open ? dismiss.start() : dismiss.stop()));
     function draw(options, selected) {
         const chosen = new Set(selected);
         summary.textContent = label + (chosen.size ? ': ' + chosen.size : '');
@@ -177,7 +206,7 @@ function multiPick({ label, onChange }) {
     return { element, draw };
 }
 
-export function renderGpsMap(app, { onConnect } = {}) {
+export function renderGpsMap(app, { onConnect, onCatalog } = {}) {
     const access = gpsAccess(app.context);
     const orgId = app.context && app.context.org_id;
     const banner = h('div', { 'aria-live': 'polite' });
@@ -196,6 +225,7 @@ export function renderGpsMap(app, { onConnect } = {}) {
     const search = h('input', { type: 'search', class: 'gps-unit-search', placeholder: 'Юніт: назва або номер', 'aria-label': 'Пошук юніта за назвою або номером',
         autocomplete: 'off', maxlength: '60', oninput: () => drawResults() });
     const results = h('ul', { class: 'gps-unit-results', 'aria-label': 'Знайдені юніти' });
+    const unitPick = h('div', { class: 'gps-unit-pick' }, search, results);
     const chips = h('div', { class: 'gps-chips' });
     const allBtn = h('button', { type: 'button', class: 'btn btn-sm', onclick: () => change({ all: !state.selection.all }) }, 'Усі юніти');
     const resetBtn = h('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: () => {
@@ -205,7 +235,7 @@ export function renderGpsMap(app, { onConnect } = {}) {
     const hint = h('div', { class: 'muted small gps-filter-hint' });
     const filters = h('div', { class: 'gps-filter card' },
         h('div', { class: 'gps-filter-row' }, groupPick.element,
-            h('div', { class: 'gps-unit-pick' }, search, results), kindPick.element,
+            unitPick, kindPick.element,
             h('div', { class: 'actions' }, allBtn, resetBtn)),
         chips, hint);
 
@@ -221,8 +251,13 @@ export function renderGpsMap(app, { onConnect } = {}) {
         persist();
     }
 
+    // Результати пошуку закриваються кліком поза полем і Esc (поле при цьому не очищується).
+    const resultsDismiss = dismissOnOutside(unitPick, () => results.childElementCount > 0, () => { clear(results); resultsDismiss.stop(); }, search);
+
     function drawResults() {
         const found = searchUnits(state.catalog.units, search.value);
+        if (found.length) resultsDismiss.start();
+        else resultsDismiss.stop();
         const picked = new Set(state.selection.unitIds);
         clear(results, found.map((u) => h('li', null, h('button', { type: 'button', class: 'gps-unit-result', disabled: picked.has(u.id), onclick: () => {
             search.value = '';
@@ -257,6 +292,7 @@ export function renderGpsMap(app, { onConnect } = {}) {
             return;
         }
         state.catalog = catalog;
+        if (onCatalog) onCatalog(catalog);
         const pruned = pruneSelection(state.selection, catalog);
         const changed = JSON.stringify(pruned) !== JSON.stringify(state.selection);
         state.selection = pruned;
