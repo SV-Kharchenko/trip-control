@@ -34,22 +34,22 @@ test('shell: «АГРО» у шапці перед назвою компанії
     // Телефон (< 900px): у шапці кнопки нема, у шторці є на всю ширину.
     const phone = css.slice(css.indexOf('@media (max-width: 899px)'));
     assert.match(phone, /body\.kp-shell-on \.kp-shell-agro \{ display: none; \}/);
-    assert.match(phone, /\.kp-shell-agro\.kp-shell-agro-m \{ display: block; width: calc\(100% - 24px\)/);
-    assert.equal(/#[0-9a-fA-F]{3,8}\b/.test(css.slice(css.indexOf('«АГРО»'), css.indexOf('body.kp-shell-on .kp-shell-bell {'))), false, 'кольори лише змінними');
+    assert.match(phone, /\.kp-shell-agro\.kp-shell-agro-m \{ display: inline-flex; align-items: center; justify-content: center; width: auto/);
+    assert.equal(/#[0-9a-fA-F]{3,8}\b/.test(css.slice(css.indexOf('«Park-Control»'), css.indexOf('body.kp-shell-on .kp-shell-bell {'))), false, 'кольори лише змінними');
 });
 
 test('кабінет «Платформа»: модуль AGRO у довіднику, підписи журналу й помилок, вибір «Як у компанії / Дозволено / Заборонено»', () => {
     assert.deepEqual(MODULES.map((m) => m.key), ['own_fleet', 'agro']);
     const agro = MODULES.find((m) => m.key === 'agro');
-    assert.equal(agro.label, 'AGRO');
-    assert.equal(agro.desc, 'Вхід в AGRO · Власний парк із Контроль+ без повторного логіну.');
+    assert.equal(agro.label, 'Park-Control');
+    assert.equal(agro.desc, 'Вхід в Park-Control із Контроль+ без повторного логіну.');
     assert.deepEqual(AGRO_CHOICES, [['', 'Як у компанії'], ['true', 'Дозволено'], ['false', 'Заборонено']]);
     assert.deepEqual([null, true, false].map(agroChoiceValue), ['', 'true', 'false']);
     assert.deepEqual(['', 'true', 'false'].map(agroChoiceArg), [null, true, false]);
     assert.equal(agroEffectiveText({ allowed: true, reason: 'org' }), 'Доступ є · за прапорцем компанії');
     assert.equal(agroEffectiveText({ allowed: false, reason: 'org_blocked' }), 'Доступу немає · компанію заблоковано');
-    assert.equal(actionLabel('user.agro.set'), 'Доступ до AGRO (користувач)');
-    assert.equal(auditTarget({ target_type: 'user', target_id: '12345678-aaaa' }), 'Користувач 12345678 · AGRO');
+    assert.equal(actionLabel('user.agro.set'), 'Доступ до Park-Control (користувач)');
+    assert.equal(auditTarget({ target_type: 'user', target_id: '12345678-aaaa' }), 'Користувач 12345678 · Park-Control');
     assert.match(superadminErrorText({ message: 'SA_USER_NOT_FOUND' }), /Користувача не знайдено/);
 });
 

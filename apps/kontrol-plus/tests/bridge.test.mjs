@@ -551,9 +551,9 @@ test('bridge: прямий URL #/own-fleet без прапорця веде на
         assert.equal(req.loc.hash, '#/clients', 'редіректу в «Власний парк» більше немає');
         const dump = (el) => (el && typeof el === 'object' ? (el.text || '') + ' ' + (el.tagName || '') + ' ' + (el.children || []).map(dump).join(' ') : String(el || ''));
         const stub = dump(req.byId['main-app'].children.find((c) => c.id === 'kp-crm'));
-        assert.match(stub, /Перевезення між компаніями холдингу тепер в АГРО/);
-        assert.match(stub, /Зверніться до директора за доступом до АГРО/, 'AGRO вимкнений → лише текст');
-        assert.equal(/Перейти в АГРО/.test(stub), false);
+        assert.match(stub, /Перевезення між компаніями холдингу тепер в Park-Control/);
+        assert.match(stub, /Зверніться до директора за доступом до Park-Control/, 'AGRO вимкнений → лише текст');
+        assert.equal(/Перейти в Park-Control/.test(stub), false);
     } finally {
         req.restore();
     }

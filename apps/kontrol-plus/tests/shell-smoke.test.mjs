@@ -252,7 +252,7 @@ test('«АГРО»: кнопки в шапці й у шторці сховані
         mountShell(env.options);
         const buttons = [...env.byId['kp-shell-top'].all('kp-shell-agro'), ...env.byId['kp-shell-side'].all('kp-shell-agro')];
         assert.equal(buttons.length, 2, 'одна в шапці, одна в шторці бургер-меню');
-        assert.deepEqual(buttons.map((b) => b.attrs['aria-label']), ['Відкрити AGRO', 'Відкрити AGRO']);
+        assert.deepEqual(buttons.map((b) => b.attrs['aria-label']), ['Відкрити Park-Control', 'Відкрити Park-Control']);
         assert.equal(env.byId['kp-shell-top'].children.findIndex((c) => c.className === 'kp-shell-agro') < env.byId['kp-shell-top'].children.findIndex((c) => c.className === 'kp-shell-company'), true, 'у шапці — перед назвою компанії');
         assert.deepEqual(buttons.map((b) => b.hidden), [true, true], 'без підтвердженого доступу кнопки сховані');
         // bridge.js підтвердив доступ: window.tcKpAgro + подія tc-kp-agro.

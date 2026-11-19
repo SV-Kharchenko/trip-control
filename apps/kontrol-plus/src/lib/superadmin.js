@@ -6,14 +6,14 @@ export const ORGS_PAGE = 25;
 // Модулі платформи. Ключ = app_settings.key = organizations.features ->> key. Опис у таблиці app_settings не зберігається.
 export const MODULES = [
     { key: 'own_fleet', label: 'Власний парк', desc: 'Підрозділи, точки, заявки на рейс, дошка диспетчера й замовники підрозділів.' },
-    { key: 'agro', label: 'AGRO', desc: 'Вхід в AGRO · Власний парк із Контроль+ без повторного логіну.' },
+    { key: 'agro', label: 'Park-Control', desc: 'Вхід в Park-Control із Контроль+ без повторного логіну.' },
 ];
 
 export function moduleInfo(key) {
     return MODULES.find((m) => m.key === key) || { key, label: key, desc: 'Модуль без опису.' };
 }
 
-const ACTIONS = { 'setting.set': 'Глобальний перемикач', 'setting.create': 'Створено рядок перемикача', 'org.feature.set': 'Модуль компанії', 'user.agro.set': 'Доступ до AGRO (користувач)' };
+const ACTIONS = { 'setting.set': 'Глобальний перемикач', 'setting.create': 'Створено рядок перемикача', 'org.feature.set': 'Модуль компанії', 'user.agro.set': 'Доступ до Park-Control (користувач)' };
 
 // «Доступ до AGRO для користувачів» у картці компанії: перевизначення (null — як у компанії) і причина ефективного стану (agro_access_for).
 export const AGRO_CHOICES = [['', 'Як у компанії'], ['true', 'Дозволено'], ['false', 'Заборонено']];
@@ -77,7 +77,7 @@ export function auditValue(obj) {
 }
 export function auditTarget(row) {
     if (row.target_type === 'app_setting') return moduleInfo(row.target_id).label;
-    if (row.target_type === 'user') return 'Користувач ' + String(row.target_id || '').slice(0, 8) + ' · AGRO';
+    if (row.target_type === 'user') return 'Користувач ' + String(row.target_id || '').slice(0, 8) + ' · Park-Control';
     if (row.target_type === 'organization') {
         const keys = Object.keys(row.after || {});
         return 'Компанія ' + String(row.target_id || '').slice(0, 8) + (keys.length ? ' · ' + moduleInfo(keys[0]).label : '');
