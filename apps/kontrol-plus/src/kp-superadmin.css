@@ -24,6 +24,17 @@
 .kpsa-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
 .kpsa-switch input { width: 18px; height: 18px; }
 .kpsa-hint { margin-top: 2px; }
+/* Тариф компанії: бейдж у рядку й сегмент із двох кнопок у картці; кнопки за розміром вмісту */
+.kpsa-plan-badge { display: inline-block; margin: 4px 0 0; padding: 2px 9px; border-radius: 6px; font-size: 0.76rem; font-weight: 700; line-height: 1.3; white-space: nowrap; user-select: none; }
+.kpsa-plan-site { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+.kpsa-plan-cp { background: color-mix(in srgb, var(--positive) 15%, transparent); color: var(--positive); }
+.kpsa-org > .kpsa-plan { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.kpsa-plan-title { font-weight: 600; font-size: 0.9rem; }
+.kpsa-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.kpsa-seg-btn { width: auto; padding: 6px 14px; border: 0; border-left: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.kpsa-seg-btn:first-child { border-left: 0; }
+.kpsa-seg-btn.is-active { background: color-mix(in srgb, var(--accent, var(--positive)) 18%, var(--surface)); cursor: default; }
+.kpsa-plan-hint { flex: 1 1 240px; }
 /* Блок «Доступ до AGRO для користувачів» у картці компанії: на всю ширину рядка, у стовпчик на вузьких екранах */
 .kpsa-org > .kpsa-agro { grid-column: 1 / -1; }
 .kpsa-agro > summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
@@ -53,6 +64,6 @@
     .kpsa-cell[data-label]::before, .kpsa-mods[data-label]::before { content: attr(data-label) ': '; color: var(--muted); font-size: 0.78rem; font-weight: 600; }
     .kpsa-mods[data-label]::before { display: block; margin-bottom: 4px; }
     .kpsa-global .kpsa-acts { grid-column: auto; }
-    .kpsa-acts .btn, .kpsa-pager .btn { min-height: 40px; }
+    .kpsa-acts .btn, .kpsa-pager .btn, .kpsa-seg-btn { min-height: 40px; }
     .kpsa-search input { flex-basis: 100%; max-width: none; }
 }

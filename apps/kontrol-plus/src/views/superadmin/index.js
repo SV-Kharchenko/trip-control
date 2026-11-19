@@ -3,7 +3,7 @@
 import '../../kp-superadmin.css';
 import { h, clear, notice, spinner, toast } from '../../ui.js';
 import {
-    AGRO_CHOICES, AUDIT_PAGE, MODULES, ORGS_PAGE, actionLabel, agroChoiceArg, agroChoiceValue, agroEffectiveText, auditTarget, auditValue, formatWhen, featureOn, moduleInfo, orgModuleNote, settingRows, superadminErrorText,
+    AGRO_CHOICES, AUDIT_PAGE, MODULES, ORGS_PAGE, PLANS, PLAN_MODULES_HINT, actionLabel, agroChoiceArg, agroChoiceValue, agroEffectiveText, auditTarget, auditValue, formatWhen, featureOn, moduleInfo, orgModuleNote, planConfirm, planLabel, settingRows, superadminErrorText,
 } from '../../lib/superadmin.js';
 
 // Підтвердження — діалог сайту (tcModal); без нього дію НЕ виконуємо.
@@ -88,6 +88,29 @@ export function renderSuperadmin(app) {
         toast('Збережено', 'ok');
         await Promise.all([loadOrgs(), loadAudit()]);
     }
+    // Тариф: «Сайт» / «Контроль+». Лише підтвердження + sa_set_org_plan; оплата не чіпається.
+    async function setOrgPlan(org, plan) {
+        if (org.plan === plan) return;
+        const confirm = planConfirm(org.name, plan);
+        const answer = await confirmDialog({ title: confirm.title, text: confirm.text, confirmText: plan === 'control_plus' ? 'Увімкнути' : 'Перевести', danger: plan === 'company' });
+        if (!answer || !answer.ok) return;
+        const { error } = await rpc('sa_set_org_plan', { p_org: org.id, p_plan: plan });
+        if (error) { toast(superadminErrorText(error), 'error'); return; }
+        org.plan = plan;
+        toast('Тариф змінено: ' + planLabel(plan), 'ok');
+        await Promise.all([loadOrgs(), loadAudit()]);
+    }
+    function planBadge(plan) {
+        return h('span', { class: 'kpsa-plan-badge kpsa-plan-' + (plan === 'control_plus' ? 'cp' : 'site'), 'data-plan': plan || '' }, planLabel(plan));
+    }
+    function planBlock(org) {
+        return h('div', { class: 'kpsa-plan' },
+            h('span', { class: 'kpsa-plan-title' }, 'Тариф'),
+            h('div', { class: 'kpsa-seg', role: 'group', 'aria-label': 'Тариф компанії ' + (org.name || '') },
+                PLANS.map((p) => h('button', { type: 'button', class: 'kpsa-seg-btn' + (org.plan === p.key ? ' is-active' : ''), 'data-plan': p.key, 'aria-pressed': String(org.plan === p.key),
+                    onclick: () => setOrgPlan(org, p.key) }, p.label))),
+            h('div', { class: 'muted small kpsa-plan-hint' }, PLAN_MODULES_HINT));
+    }
     // Блок «Доступ до AGRO для користувачів»: вантажиться, лише коли його розгорнули; зміна — через sa_set_user_agro із підтвердженням.
     function agroUsersBlock(org) {
         const body = h('div', { class: 'kpsa-agro-list', role: 'list' });
@@ -139,9 +162,10 @@ export function renderSuperadmin(app) {
                 note ? h('div', { class: 'kpsa-hint ' + (on ? 'kpsa-warn' : 'muted small') }, note) : null);
         });
         return h('div', { class: 'kpsa-row kpsa-org', role: 'listitem', 'data-org': org.id },
-            h('div', { class: 'kpsa-main' }, h('b', null, org.name || 'Без назви'), h('div', { class: 'muted small' }, org.edrpou ? 'ЄДРПОУ ' + org.edrpou : 'ЄДРПОУ не вказано')),
+            h('div', { class: 'kpsa-main' }, h('b', null, org.name || 'Без назви'), planBadge(org.plan), h('div', { class: 'muted small' }, org.edrpou ? 'ЄДРПОУ ' + org.edrpou : 'ЄДРПОУ не вказано')),
             h('div', { class: 'kpsa-cell', 'data-label': 'Тип' }, org.legal_form || '—'),
             h('div', { class: 'kpsa-cell', 'data-label': 'Користувачів' }, String(org.members ?? 0)),
+            planBlock(org),
             h('div', { class: 'kpsa-mods', 'data-label': 'Модулі' }, modules),
             agroUsersBlock(org));
     }
