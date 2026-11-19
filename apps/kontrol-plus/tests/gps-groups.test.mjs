@@ -588,9 +588,9 @@ test('layout: buttons of the map filter and the GPS tab are content-sized (no .b
     const read = (rel) => fs.readFileSync(new URL(rel, import.meta.url), 'utf8').split(String.fromCharCode(13)).join('');
     for (const file of ['../src/views/gps-map.js', '../src/views/gps.js']) assert.equal(/btn-block/.test(read(file)), false, file);
     const css = read('../src/crm.css');
-    const block = css.slice(css.indexOf('.gps-filter {'), css.indexOf('.kp-marker.is-unlinked'));
-    assert.equal(/(^|[\s;{])width:\s*100%/.test(block.replace(/\.gps-unit-(search|result) [^\n]*/g, '')), false, 'only the search field and the rows of the result list fill their cell');
-    assert.match(css, /@media \(max-width: 600px\) \{\s*\/\* Телефон[^\n]*\n\s*#kp-crm \.gps-filter-row \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+    const block = css.slice(css.indexOf('#kp-crm .gps-filter, #kp-crm .gps-tfilter {'), css.indexOf('.kp-marker.is-unlinked'));
+    assert.equal(/(^|[\s;{])width:\s*100%/.test(block.replace(/[^\n]*\.gps-unit-(search|result|pick)[^\n]*/g, '')), false, 'only the search field and the rows of the result list fill their cell');
+    assert.match(css, /@media \(max-width: 600px\) \{\s*\/\* Телефон[^\n]*\n\s*#kp-crm \.gps-filter-row \{ gap: 8px; \}/);
     assert.match(read('../src/cabinet-slot.css'), /\.gps-filter-row/, 'the generated slot copy has the new rules');
 });
 
