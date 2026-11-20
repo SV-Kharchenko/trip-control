@@ -9,6 +9,7 @@ import { navIcon } from './nav-icons.js';
 import { ROLE_LABELS, crmAccess, crmPermissions, gpsAccess } from './lib/gate.js';
 import { renderPaywall } from './views/paywall.js';
 import { renderAgroStub } from './views/agro-stub.js';
+import { ERROR, createFlagCheck, parseFlag } from './lib/flag-check.js';
 import { renderClients } from './views/clients.js';
 import { renderClientCard } from './views/client-card.js';
 import { renderClientForm } from './views/client-form.js';
@@ -312,41 +313,57 @@ function invalidateAgro(force = false) {
     state.agroUser = null;
     ensureAgro().catch(() => {});
 }
+// Три результати: true, false і ERROR. Кешується лише точна відповідь; помилка нічого не кешує, не перезаписує відоме значення й
+// запускає повтори (1 с, 3 с, 10 с, лише поки той самий користувач залогінений), див. lib/flag-check.js.
+const agroCheck = createFlagCheck({
+    query: () => loadAgro(),
+    userId: () => (state.session ? state.session.user.id : null),
+    cachedUser: () => state.agroUser,
+    onResolve: (value, uid) => setAgro(value, uid),
+});
 async function ensureAgro() {
-    if (!state.session) { if (state.agro || state.agroUser) setAgro(false, null); return; }
-    const userId = state.session.user.id;
-    if (state.agroUser === userId) return;
-    agroCheckedAt = Date.now();
-    const value = await loadAgro();
-    if (!state.session || state.session.user.id !== userId) return;
-    setAgro(value, userId);
+    if (!state.session) { if (state.agro || state.agroUser) setAgro(false, null); agroCheck.cancel(); return { error: false }; }
+    if (state.agroUser !== state.session.user.id) agroCheckedAt = Date.now();
+    return agroCheck.ensure();
 }
 async function loadAgro() {
     try {
-        const { data, error } = await state.supabase.rpc('agro_access_me');
-        return !error && data === true;
+        return parseFlag(await state.supabase.rpc('agro_access_me'));
     } catch {
-        return false;
+        return ERROR;
     }
 }
 
+const superadminCheck = createFlagCheck({
+    query: () => loadSuperadmin(),
+    userId: () => (state.session ? state.session.user.id : null),
+    cachedUser: () => state.superadminUser,
+    onResolve: (value, uid) => {
+        state.superadmin = value;
+        state.superadminUser = uid;
+        syncGpsTab();
+        // Сторінка «Платформа» чекала на відповідь (показано «Не вдалося перевірити доступ»): повтор вдався — малюємо її без перезавантаження.
+        if (superadminRetryShown && state.route && state.route.view === 'superadmin') render();
+    },
+});
+let superadminRetryShown = false;
 async function ensureSuperadmin() {
-    if (!state.session) { state.superadmin = false; state.superadminUser = null; return; }
-    const userId = state.session.user.id;
-    if (state.superadminUser === userId) return;
-    const value = await loadSuperadmin();
-    if (!state.session || state.session.user.id !== userId) return;
-    state.superadmin = value;
-    state.superadminUser = userId;
+    if (!state.session) { state.superadmin = false; state.superadminUser = null; superadminCheck.cancel(); return { error: false }; }
+    return superadminCheck.ensure();
+}
+// Кеш порожній через помилку (а не через точну відповідь) — питаємо знову: вхід, оновлення токена, повернення у вкладку, online.
+function recheckFlags() {
+    if (!state.session) return;
+    superadminCheck.recheck().catch(() => {});
+    agroCheck.recheck().catch(() => {});
 }
 
-// Чи поточний користувач — суперадмін платформи. Помилка (немає міграції, мережа) = ні. Лише для показу пункту меню: усі sa_* перевіряє база.
+// Чи поточний користувач — суперадмін платформи: true, false або ERROR (немає міграції, мережа, токен ще не готовий). Лише для показу пункту меню: усі sa_* перевіряє база.
 async function loadSuperadmin() {
     try {
-        const { data, error } = await state.supabase.rpc('is_platform_superadmin');
-        return !error && data === true;
+        return parseFlag(await state.supabase.rpc('is_platform_superadmin'));
     } catch {
-        return false;
+        return ERROR;
     }
 }
 
@@ -495,7 +512,7 @@ async function render() {
     }
     // Кабінет суперадміна не залежить від організації й тарифу: перевіряємо до kp_context. Не суперадмін — сторінки не існує, редирект на огляд.
     if (route.view === 'superadmin') {
-        await ensureSuperadmin();
+        const check = await ensureSuperadmin();
         if (state.route !== route) return;
         // Меню рахується за контекстом компанії, але сторінка від нього не залежить: помилка контексту її не блокує.
         if (!state.context || state.contextUser !== state.session.user.id) {
@@ -503,6 +520,15 @@ async function render() {
             if (state.route !== route) return;
         }
         syncGpsTab();
+        const known = state.superadminUser === state.session.user.id;
+        if (check && check.error && !known) {
+            // Перевірка не вдалась: не редиректимо (це був би хибний «ні»), а даємо повторити. Редирект — лише при точному false.
+            superadminRetryShown = true;
+            clear(root, h('section', { class: 'page narrow' }, notice('Не вдалося перевірити доступ. Спробуйте ще раз.'),
+                h('button', { type: 'button', class: 'btn', 'data-act': 'retry-superadmin', onclick: () => { superadminCheck.recheck().catch(() => {}); render(); } }, 'Повторити')));
+            return;
+        }
+        superadminRetryShown = false;
         if (!state.superadmin) {
             location.hash = '#/dashboard';
             return;
@@ -906,6 +932,8 @@ export async function startBridge() {
             state.ownFleet = null;
             state.superadmin = false;
             state.superadminUser = null;
+            superadminCheck.cancel();
+            agroCheck.cancel();
             setAgro(false, null);
             state.docs = null;
             if (windows) windows.setScope(null, null).catch(() => {});
@@ -918,12 +946,16 @@ export async function startBridge() {
         } else if (session && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
             // Сесія оновилась (повторний вхід, зміна профілю): доступ до AGRO перевіряємо знову.
             setTimeout(() => invalidateAgro(true), 0);
+            setTimeout(recheckFlags, 0);
+        } else if (session && event === 'TOKEN_REFRESHED') {
+            setTimeout(recheckFlags, 0);
         }
     });
     // Повернення на вкладку: доступ до AGRO міг змінитись, поки її не було видно.
     if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
-        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') invalidateAgro(); });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { invalidateAgro(); recheckFlags(); } });
     }
+    window.addEventListener('online', recheckFlags);
     window.addEventListener('hashchange', onHash);
     window.addEventListener('tc:cabinet-tab', onCabinetTab);
     onHash();

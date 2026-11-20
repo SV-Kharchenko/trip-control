@@ -4,17 +4,18 @@ import fs from 'node:fs';
 import test from 'node:test';
 import { AGRO_CHOICES, MODULES, actionLabel, agroChoiceArg, agroChoiceValue, agroEffectiveText, auditTarget, superadminErrorText } from '../src/lib/superadmin.js';
 
-const read = (rel) => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8');
+const read = (rel) => fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 test('bridge: кнопку вмикає лише rpc agro_access_me() === true; помилка RPC / немає функції / вихід → схована; токен видає лише /api/agro/sso', () => {
     const bridge = read('src/bridge.js');
     assert.match(bridge, /rpc\('agro_access_me'\)/);
-    assert.match(bridge, /return !error && data === true;/);
+    assert.match(bridge, /parseFlag\(await state\.supabase\.rpc\('agro_access_me'\)\)/);
+    assert.match(read('src/lib/flag-check.js'), /response\.data === true\) return true;/);
     assert.match(bridge, /window\.tcKpAgro = value;/);
     assert.match(bridge, /window\.tcKpOpenAgro = \(\) => callKpApi\(\{ supabase: state\.supabase \}, '\/api\/agro\/sso', \{\}\);/);
     // Перевірка після входу (refreshGpsTab) і скидання при виході / зміні користувача.
     assert.match(bridge, /async function refreshGpsTab\(\) \{\n\s+ensureAgro\(\)\.catch/);
-    assert.match(bridge, /state\.superadminUser = null;\n\s+setAgro\(false, null\);/);
+    assert.match(bridge, /state\.superadminUser = null;\n\s+superadminCheck\.cancel\(\);\n\s+agroCheck\.cancel\(\);\n\s+setAgro\(false, null\);/);
     // Токен у клієнті не зʼявляється: лише url із відповіді.
     assert.equal(/AGRO_SSO_SECRET|jsonwebtoken|createHmac/.test(bridge + read('src/shell.js')), false);
 });
@@ -76,7 +77,7 @@ test('bridge: кеш agro_access_me скидається при зміні се�
     assert.match(bridge, /function invalidateAgro\(force = false\)/);
     assert.match(bridge, /state\.agroUser = null;\n\s+ensureAgro\(\)/);
     assert.match(bridge, /else if \(session && \(event === 'SIGNED_IN' \|\| event === 'USER_UPDATED'\)\) \{\n[^\n]*\n\s+setTimeout\(\(\) => invalidateAgro\(true\), 0\);/);
-    assert.match(bridge, /document\.addEventListener\('visibilitychange', \(\) => \{ if \(document\.visibilityState === 'visible'\) invalidateAgro\(\); \}\)/);
+    assert.match(bridge, /document\.addEventListener\('visibilitychange', \(\) => \{ if \(document\.visibilityState === 'visible'\) \{ invalidateAgro\(\); recheckFlags\(\); \} \}\)/);
     // Щоразу, коли вкладка стає видимою, — не частіше ніж раз на 5 с; setInterval для AGRO немає.
     assert.match(bridge, /const AGRO_RECHECK_MS = 5000;/);
     const agroPart = bridge.slice(bridge.indexOf('const AGRO_RECHECK_MS'), bridge.indexOf('async function ensureSuperadmin'));
