@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-    SELECTION_KEY, TABLE_FILTER_KEY, emptyTableFilters, filterUnitRows, loadSelection, loadTableFilters, normKey, pruneTableFilters, saveSelection,
+    SELECTION_KEY, TABLE_FILTER_KEY, tableCountText, emptyTableFilters, filterUnitRows, loadSelection, loadTableFilters, normKey, pruneTableFilters, saveSelection,
     saveTableFilters, searchUnits, tableFiltersActive,
 } from '../src/lib/gps-catalog.js';
 
@@ -60,7 +60,12 @@ test('фільтр таблиці: група, тип (включно з «Не 
 test('лічильник і скидання: «Показано N з M» рахується від довжини результату; скинутий фільтр повертає всі юніти', () => {
     const f = F({ kinds: ['none'], link: 'linked' });
     assert.equal(tableFiltersActive(f), true);
-    assert.equal(`Показано ${filterUnitRows(UNITS, f, MEMBERS).length} з ${UNITS.length}`, 'Показано 1 з 5');
+    const found = filterUnitRows(UNITS, f, MEMBERS).length;
+    assert.equal(tableCountText(found, found, UNITS.length), 'Знайдено 1 з 5');
+    assert.equal(tableCountText(721, 721, 721), 'Показано 721', 'без фільтрів і все видно');
+    assert.equal(tableCountText(500, 200, 721), 'Знайдено 500 з 721 · показано 200');
+    assert.equal(tableCountText(721, 200, 721), 'Знайдено 721 з 721 · показано 200', 'без фільтрів, але видно не всі');
+    assert.equal(tableCountText(0, 0, 721), 'Знайдено 0 з 721');
     const reset = emptyTableFilters();
     assert.equal(tableFiltersActive(reset), false);
     assert.equal(filterUnitRows(UNITS, reset, MEMBERS).length, UNITS.length);
@@ -129,7 +134,9 @@ test('таблиця: фільтри підключені, пошук із debou
     assert.match(view, /setTimeout\(\(\) => setTableFilters\(\{ q: tSearch\.value \}\), 200\)/);
     assert.match(view, /TABLE_PAGE/);
     assert.match(view, /data-act': 'more'/);
-    assert.match(view, /Показано ' \+ visible\.length \+ ' з '/);
+    assert.match(view, /tableCountText\(filtered\.length, visible\.length, units\.length\)/);
+    assert.match(view, /groupsPending/);
+    assert.match(view, /'Завантаження груп…'/);
     const sync = view.slice(view.indexOf("run('Оновити список юнітів'"), view.indexOf("confirmButton('Відключити'"));
     assert.match(sync, /await load\(true\);[\s\S]*mapSection\.reloadCatalog\(\)/, 'після sync-units перечитуємо каталог карти');
     assert.match(view, /toast\(event\.currentTarget\.value \? 'Тип збережено вручну'[\s\S]*?mapSection\.reloadCatalog/, 'і після ручної зміни типу');
@@ -141,4 +148,18 @@ test('таблиця: фільтри підключені, пошук із debou
 test('api/ Контроль+: рівно 12 функцій', () => {
     const files = fs.readdirSync(path.join(APP, 'api'), { recursive: true }).map((f) => String(f).split(String.fromCharCode(92)).join('/')).filter((f) => /\.(js|mjs|cjs|ts)$/.test(f));
     assert.equal(files.length, 12, files.join(', '));
+});
+
+test('двійники латиниці й кирилиці: усі 13 пар, зокрема Y/У; «AY1234XY» знаходить «АУ1234ХУ»', () => {
+    const pairs = [['A', 'А'], ['B', 'В'], ['C', 'С'], ['E', 'Е'], ['H', 'Н'], ['I', 'І'], ['K', 'К'], ['M', 'М'], ['O', 'О'], ['P', 'Р'], ['T', 'Т'], ['X', 'Х'], ['Y', 'У']];
+    for (const [lat, cyr] of pairs) {
+        assert.equal(normKey(lat), normKey(cyr), lat + ' = ' + cyr);
+        assert.equal(normKey(lat.toLowerCase()), normKey(cyr.toLowerCase()));
+        assert.equal(normKey(lat), normKey(cyr.toLowerCase()), 'регістр не важливий');
+    }
+    const units = [{ id: 'y1', name: 'АУ1234ХУ Скания', vehicle_id: null, vehicle_label: null, kind: null, active: true }, { id: 'y2', name: 'ВС0000ВС', vehicle_id: null, vehicle_label: null, kind: null, active: true }];
+    assert.deepEqual(filterUnitRows(units, { ...emptyTableFilters(), q: 'AY1234XY' }, {}).map((u) => u.id), ['y1']);
+    assert.deepEqual(filterUnitRows(units, { ...emptyTableFilters(), q: 'ау 1234 ху' }, {}).map((u) => u.id), ['y1']);
+    assert.deepEqual(searchUnits(units, 'ay1234xy').map((u) => u.id), ['y1'], 'пошук карти теж');
+    assert.deepEqual(filterUnitRows([{ id: 'y3', name: 'AY1234XY', vehicle_id: 'v', vehicle_label: 'AY 1234 XY' }], { ...emptyTableFilters(), q: 'АУ1234ХУ' }, {}).map((u) => u.id), ['y3'], 'навпаки');
 });

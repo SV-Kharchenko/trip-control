@@ -5,7 +5,7 @@ import { h, clear, spinner, notice, toast, confirmButton } from '../ui.js';
 import { errorText, isPlanError } from '../lib/errors.js';
 import { gpsAccess, gpsCanEditKinds } from '../lib/gate.js';
 import {
-    KIND_OPTIONS, LINK_OPTIONS, TABLE_PAGE, emptyTableFilters, filterUnitRows, loadTableFilters, pruneTableFilters, saveTableFilters, tableFiltersActive,
+    KIND_OPTIONS, LINK_OPTIONS, TABLE_PAGE, tableCountText, emptyTableFilters, filterUnitRows, loadTableFilters, pruneTableFilters, saveTableFilters, tableFiltersActive,
 } from '../lib/gps-catalog.js';
 import { KIND_LABELS } from '../../lib/gps/kind.js';
 import { gpsMessage } from '../../lib/gps/errors.js';
@@ -96,7 +96,7 @@ export function renderGps(app) {
     let mapSection = null;
     const orgId = app.context && app.context.org_id;
     // Фільтри таблиці — окремо від вибору на карті (власний ключ у сховищі браузера), працюють на клієнті по вже завантаженому списку.
-    const tstate = { filters: loadTableFilters(orgId), catalog: { groups: [], memberships: {} }, ready: false, shown: TABLE_PAGE };
+    const tstate = { filters: loadTableFilters(orgId), catalog: { groups: [], memberships: {} }, ready: false, failed: false, shown: TABLE_PAGE };
 
     function connectForm() {
         const kindHosting = h('input', { type: 'radio', name: 'gps-kind', value: 'hosting', id: 'gps-kind-hosting', checked: true });
@@ -394,12 +394,17 @@ export function renderGps(app) {
     function onCatalog(catalog) {
         tstate.catalog = catalog;
         tstate.ready = true;
+        tstate.failed = false;
         const pruned = pruneTableFilters(tstate.filters, catalog);
         if (JSON.stringify(pruned) !== JSON.stringify(tstate.filters)) {
             tstate.filters = pruned;
             saveTableFilters(orgId, pruned);
         }
         drawTableFilters();
+        if (state.units.length) drawUnits();
+    }
+    function onCatalogError() {
+        tstate.failed = true;
         if (state.units.length) drawUnits();
     }
     drawTableFilters();
@@ -423,9 +428,12 @@ export function renderGps(app) {
                 if (mapSection && mapSection.reloadCatalog) mapSection.reloadCatalog();
             } }, 'Прийняти всі підказки (' + suggestions.size + ')')
             : null;
-        const filtered = filterUnitRows(units, tstate.ready ? tstate.filters : { ...tstate.filters, groupIds: [] }, tstate.catalog.memberships);
+        // Вибрано групу, а каталог карти ще не прийшов (або не завантажився): не показуємо всі рядки й не мовчимо.
+        const groupsPending = !tstate.ready && tstate.filters.groupIds.length > 0;
+        const pendingText = tstate.failed ? 'Не вдалося завантажити групи. Оновіть сторінку.' : 'Завантаження груп…';
+        const filtered = groupsPending ? [] : filterUnitRows(units, tstate.filters, tstate.catalog.memberships);
         const visible = filtered.slice(0, tstate.shown);
-        tCount.textContent = 'Показано ' + visible.length + ' з ' + units.length + (filtered.length > visible.length && filtered.length < units.length ? ' (знайдено ' + filtered.length + ')' : '');
+        tCount.textContent = groupsPending ? pendingText : tableCountText(filtered.length, visible.length, units.length);
         const more = filtered.length > visible.length
             ? h('button', { type: 'button', class: 'btn btn-sm', 'data-act': 'more', onclick: () => { tstate.shown += TABLE_PAGE; drawUnits(); } },
                 'Показати ще (' + Math.min(TABLE_PAGE, filtered.length - visible.length) + ')')
@@ -462,7 +470,7 @@ export function renderGps(app) {
             acceptAll ? h('div', { class: 'toolbar' }, acceptAll, h('span', { class: 'muted small' }, 'Підказки — за збігом назви юніта з номером авто. Без кнопки нічого не змінюється.')) : null,
             h('div', { class: 'table-wrap' }, h('table', { class: 'table gps-units' },
                 h('thead', null, h('tr', null, h('th', null, 'Юніт Wialon'), h('th', null, 'Авто'), h('th', null, 'Тип'), h('th', null, 'ID'))),
-                h('tbody', null, rows.length ? rows : h('tr', null, h('td', { colspan: 4, class: 'muted empty' }, 'За вибраними умовами юнітів немає.'))))),
+                h('tbody', null, rows.length ? rows : h('tr', null, h('td', { colspan: 4, class: 'muted empty gps-tpending' }, groupsPending ? pendingText : 'За вибраними умовами юнітів немає.'))))),
             more ? h('div', { class: 'toolbar' }, more) : null);
     }
 
@@ -500,7 +508,7 @@ export function renderGps(app) {
     load();
 
     // Карта (етап 2c) — для всіх ролей організації на control_plus; owner «До форми підключення» веде до форми нижче.
-    const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), onCatalog });
+    const map = renderGpsMap(app, { onConnect: () => statusBox.scrollIntoView({ behavior: 'smooth', block: 'start' }), onCatalog, onCatalogError });
     mapSection = map;
 
     return h('section', { class: 'page gps-page' },
