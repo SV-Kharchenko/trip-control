@@ -67,3 +67,37 @@
     .kpsa-acts .btn, .kpsa-pager .btn, .kpsa-seg-btn { min-height: 40px; }
     .kpsa-search input { flex-basis: 100%; max-width: none; }
 }
+
+/* Вкладки кабінету й вкладка «Активність». Кнопки за розміром вмісту; кольори — токени теми. */
+.kpsa-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.kpsa-tab { width: auto; padding: 7px 16px; border: 1px solid var(--border); border-radius: var(--radius-control, 10px); background: var(--surface); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.kpsa-tab.is-active { background: color-mix(in srgb, var(--accent, var(--positive)) 16%, var(--surface)); border-color: var(--accent, var(--positive)); }
+.kpsa-panel[hidden] { display: none; }
+.kpsa-act-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin: 12px 0 8px; }
+.kpsa-counters { display: flex; flex-wrap: wrap; gap: 6px; }
+.kpsa-chip { width: auto; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: 0.85rem; cursor: pointer; white-space: nowrap; }
+.kpsa-chip.is-on { border-color: var(--accent, var(--positive)); background: color-mix(in srgb, var(--accent, var(--positive)) 14%, var(--surface)); }
+.kpsa-chip-active b { color: var(--positive); }
+.kpsa-chip-fading b { color: var(--warn); }
+.kpsa-chip-inactive b, .kpsa-chip-never b { color: var(--muted); }
+.kpsa-sortbar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 0 0 8px; }
+.kpsa-sortbar select { width: auto; max-width: 100%; }
+.kpsa-act-count { margin: 0 0 6px; }
+.kpsa-act-active { background: color-mix(in srgb, var(--positive) 15%, transparent); color: var(--positive); }
+.kpsa-act-fading { background: var(--warn-bg); color: var(--warn); }
+.kpsa-act-inactive, .kpsa-act-never { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
+.kpsa-th { width: auto; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.kpsa-th-static { cursor: default; }
+/* Картки (вузькі й середні екрани): мітки з data-label; повний рядок-таблиця — від 1500px. */
+.kpsa-act { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); align-items: start; }
+.kpsa-act-head { display: none; }
+.kpsa-act .kpsa-cell[data-label]::before { content: attr(data-label) ': '; color: var(--muted); font-size: 0.78rem; font-weight: 600; }
+.kpsa-act .kpsa-act-email { grid-column: 1 / -1; }
+@media (max-width: 700px) { .kpsa-act { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1500px) {
+    .kpsa-act { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 78px minmax(0, 0.9fr) 112px 70px 112px 44px 44px 56px 112px 96px; align-items: center; }
+    .kpsa-act-head { display: grid; }
+    .kpsa-act .kpsa-cell[data-label]::before { content: none; }
+    .kpsa-act .kpsa-act-email { grid-column: auto; }
+    .kpsa-sortbar { display: none; }
+}
