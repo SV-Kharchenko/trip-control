@@ -206,7 +206,7 @@ export function multiPick({ label, onChange }) {
     return { element, draw };
 }
 
-export function renderGpsMap(app, { onConnect, onCatalog } = {}) {
+export function renderGpsMap(app, { onConnect, onCatalog, onCatalogError } = {}) {
     const access = gpsAccess(app.context);
     const orgId = app.context && app.context.org_id;
     const banner = h('div', { 'aria-live': 'polite' });
@@ -289,6 +289,7 @@ export function renderGpsMap(app, { onConnect, onCatalog } = {}) {
         if (catalog.error) {
             // Помилку не ховаємо: текст над картою, вибір лишається як є.
             clear(banner, notice('Не вдалося завантажити групи й юніти: ' + errorText(catalog.error)));
+            if (onCatalogError) onCatalogError(catalog.error);
             return;
         }
         state.catalog = catalog;

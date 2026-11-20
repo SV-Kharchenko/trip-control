@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET LOCAL search_path = public, extensions;
 
-SELECT plan(30);
+SELECT plan(31);
 
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000d4f00b1","role":"service_role"}', true);
 
@@ -47,8 +47,12 @@ SELECT throws_ok($$SELECT public.sa_set_org_plan('9d000000-0000-0000-0000-000000
 SELECT throws_ok($$SELECT public.set_org_plan('9d000000-0000-0000-0000-00000000000a', 'control_plus')$$, '42501', NULL, 'owner: set_org_plan недоступна');
 SELECT throws_ok($$UPDATE public.organizations SET plan = 'control_plus' WHERE id = '9d000000-0000-0000-0000-00000000000a'$$, '42501', NULL, 'owner: прямий UPDATE plan заборонено');
 SELECT throws_ok($$SELECT * FROM public.sa_search_orgs('SAPPLAN', 5, 0)$$, '42501', 'SUPERADMIN_REQUIRED', 'owner: sa_search_orgs відмовляє');
+-- Директор сам ставить службовий прапорець транзакції (як sa_set_org_plan) і пробує прямий UPDATE: тригер не пускає, бо він не суперадмін.
+SELECT set_config('kp.sa_plan_org', '9d000000-0000-0000-0000-00000000000a', true);
+SELECT throws_ok($$UPDATE public.organizations SET plan = 'control_plus' WHERE id = '9d000000-0000-0000-0000-00000000000a'$$, '42501', 'PLAN_SERVICE_ROLE_ONLY', 'owner + власний прапорець kp.sa_plan_org: PLAN_SERVICE_ROLE_ONLY');
+SELECT set_config('kp.sa_plan_org', '', true);
 RESET ROLE;
-SELECT is((SELECT plan FROM public.organizations WHERE id = '9d000000-0000-0000-0000-00000000000a'), 'company', 'після відмов тариф company');
+SELECT is((SELECT plan FROM public.organizations WHERE id = '9d000000-0000-0000-0000-00000000000a'), 'company', 'після підробленого прапорця тариф лишився company');
 
 -- 3. anon.
 SELECT set_config('request.jwt.claims', '{}', true);

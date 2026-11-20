@@ -19,7 +19,7 @@ export default async function agroSso(req, res) {
     }
     if (!handler) {
         const problem = configProblem(process.env);
-        if (problem) return res.status(503).json({ code: problem, error: 'Вхід в AGRO ще не налаштовано на сервері.' });
+        if (problem) return res.status(503).json({ code: problem, error: 'Вхід в Park-Control ще не налаштовано на сервері.' });
         const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
         handler = createAgroSsoHandler({ store: createAgroStore(supabase), env: process.env });
     }

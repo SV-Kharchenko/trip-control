@@ -41,6 +41,7 @@ import { renderGps } from './src/views/gps.js';
 const fx = window.__fx;
 window.__calls = [];
 window.__synced = false;
+window.__hold = localStorage.getItem('__hold') === '1';
 const table = (name) => {
     if (name === 'gps_vehicles') return fx.units.map((u) => ({ id: u.id, kind: u.kind, kind_manual: u.kind_manual }));
     if (name === 'gps_groups') return window.__synced ? fx.newGroups : fx.groups;
@@ -51,8 +52,9 @@ const table = (name) => {
 };
 const builder = (name) => {
     let rows = table(name);
+    const gate = name === 'gps_groups' && window.__hold ? new Promise((r) => { window.__release = r; }) : null;
     const b = { select: () => b, order: () => b, limit: () => b, in: () => b, eq: () => b, range: (a, z) => { rows = rows.slice(a, z + 1); return b; },
-        then: (res, rej) => Promise.resolve({ data: rows, error: null }).then(res, rej) };
+        then: (res, rej) => (gate || Promise.resolve()).then(() => ({ data: rows, error: null })).then(res, rej) };
     return b;
 };
 const supabase = {
@@ -85,7 +87,7 @@ const PAGE = (fx, seed) => `<!doctype html><html lang="uk" data-app="kp"><head><
 try { for (const [k, v] of Object.entries(${JSON.stringify(seed || {})})) localStorage.setItem(k, v); } catch (e) {}
 window.__fx = ${JSON.stringify(fx)};</script><script type="module" src="/entry.js"></script></body></html>`;
 
-async function run(t, viewport, fn, seed) {
+async function run(t, viewport, fn, seed, early = false) {
     let pw; let esbuild;
     try { pw = await import('playwright-core'); esbuild = await import('esbuild'); } catch { t.skip('no playwright-core / esbuild'); return; }
     let browser;
@@ -116,8 +118,10 @@ async function run(t, viewport, fn, seed) {
         await page.goto('http://127.0.0.1:' + server.address().port + '/');
         await page.waitForFunction(() => window.__ready === true);
         await page.waitForSelector('.gps-units tbody tr');
-        await page.waitForSelector('.gps-map .leaflet-pane', { state: 'attached' });
-        await page.waitForFunction(() => document.querySelectorAll('.gps-tfilter .gps-multi-list label').length > 0 && document.querySelectorAll('.gps-filter .gps-multi-list label').length > 0);
+        if (!early) {
+            await page.waitForSelector('.gps-map .leaflet-pane', { state: 'attached' });
+            await page.waitForFunction(() => document.querySelectorAll('.gps-tfilter .gps-multi-list label').length > 0 && document.querySelectorAll('.gps-filter .gps-multi-list label').length > 0);
+        }
         await fn(page);
         assert.deepEqual(errors.filter((e) => !/tile|openstreetmap/i.test(e)), []);
     } finally { await browser.close(); server.close(); }
@@ -223,38 +227,38 @@ for (const [width, height] of [[390, 844], [1024, 768], [1366, 800], [1920, 1080
 test('таблиця на 721 юніті: перші 200 і «Показати ще»; пошук із двійниками, група, тип, прив’язка, лічильник, «Скинути», localStorage окремо від карти', async (t) => {
     await run(t, { width: 1366, height: 900 }, async (page) => {
         const f = fixtures();
-        assert.equal(await countText(page), 'Показано 200 з ' + TOTAL);
+        assert.equal(await countText(page), 'Знайдено 721 з 721 · показано 200');
         assert.equal(await rowCount(page), 200);
         await page.click('.gps-units-wrap [data-act="more"], [data-act="more"]');
         assert.equal(await rowCount(page), 400);
         // Номер: кирилиця знаходить латиницю, з debounce.
         await page.fill('.gps-tsearch', 'АА2008ЕА');
-        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Показано 1 з 721');
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 1 з 721');
         assert.equal(await rowCount(page), 1);
         assert.match(await page.textContent('.gps-units tbody tr'), /AA 2008 EA_DAF/);
         assert.equal(JSON.parse(await store(page, 'kp.gps.table.v1:org1')).q, 'АА2008ЕА');
         assert.equal(await store(page, 'kp.gps.selection.v1:org1'), null, 'вибір карти не зачеплено');
         await page.click('[data-act="treset"]');
-        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Показано 200 з 721');
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 721 з 721 · показано 200');
         assert.equal(await page.inputValue('.gps-tsearch'), '');
         // Група.
         await page.locator('.gps-tfilter .gps-multi').nth(0).locator('summary').click();
         await page.locator('.gps-tfilter .gps-multi').nth(0).locator('input[value="g1"]').check();
-        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Показано 100 з 721');
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 100 з 721');
         // Прив’язка у групі: i % 3 === 0 серед 0..99 → 34.
         await page.selectOption('.gps-tlink', 'linked');
-        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Показано 34 з 721');
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 34 з 721');
         await page.selectOption('.gps-tlink', 'unlinked');
-        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Показано 66 з 721');
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 66 з 721');
         // Тип «Не визначено» (i % 5 === 4), у групі й серед неприв’язаних.
         await page.locator('.gps-tfilter .gps-multi').nth(1).locator('summary').click();
         await page.locator('.gps-tfilter .gps-multi').nth(1).locator('input[value="none"]').check();
         const expected = f.units.filter((u, i) => i < 100 && !u.vehicle_id && u.kind === null).length;
-        await page.waitForFunction((n) => document.querySelector('.gps-tcount').textContent === 'Показано ' + n + ' з 721', expected);
+        await page.waitForFunction((n) => document.querySelector('.gps-tcount').textContent === 'Знайдено ' + n + ' з 721', expected);
         const saved = JSON.parse(await store(page, 'kp.gps.table.v1:org1'));
         assert.deepEqual([saved.groupIds, saved.kinds, saved.link], [['g1'], ['none'], 'unlinked']);
         await page.click('[data-act="treset"]');
-        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Показано 200 з 721');
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 721 з 721 · показано 200');
         assert.deepEqual(JSON.parse(await store(page, 'kp.gps.table.v1:org1')), { groupIds: [], kinds: [], q: '', link: 'all' });
         assert.equal(await noOverflow(page), true);
     });
@@ -262,7 +266,7 @@ test('таблиця на 721 юніті: перші 200 і «Показати �
 
 test('таблиця: фільтри відновлюються з localStorage після перезавантаження сторінки', async (t) => {
     await run(t, { width: 1024, height: 800 }, async (page) => {
-        assert.equal(await countText(page), 'Показано 1 з ' + TOTAL);
+        assert.equal(await countText(page), 'Знайдено 1 з ' + TOTAL);
         assert.equal(await page.inputValue('.gps-tsearch'), 'АА2008ЕА');
         assert.equal(await page.inputValue('.gps-tlink'), 'all');
     }, { 'kp.gps.table.v1:org1': JSON.stringify({ groupIds: [], kinds: [], q: 'АА2008ЕА', link: 'all' }) });
@@ -299,7 +303,7 @@ test('після «Оновити список юнітів» фільтри «�
         // Нова група працює у фільтрі таблиці: g3 = юніти 200..219.
         await page.locator('.gps-tfilter .gps-multi').nth(0).locator('summary').click();
         await page.locator('.gps-tfilter .gps-multi').nth(0).locator('input[value="g3"]').check();
-        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Показано 20 з 721');
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 20 з 721');
     }, { 'kp.gps.selection.v1:org1': JSON.stringify({ all: false, groupIds: ['g2'], unitIds: [], kinds: [] }), 'kp.gps.table.v1:org1': JSON.stringify({ groupIds: ['g2'], kinds: [], q: '', link: 'all' }) });
 });
 
@@ -309,6 +313,18 @@ test('невалідна група у збереженому виборі пр�
         await page.waitForFunction(() => window.__synced === true);
         await page.waitForFunction(() => { try { return JSON.parse(localStorage.getItem('kp.gps.selection.v1:org1')).groupIds.length === 0; } catch { return false; } });
         assert.deepEqual(JSON.parse(await store(page, 'kp.gps.table.v1:org1')).groupIds, []);
-        assert.equal(await countText(page), 'Показано 200 з ' + TOTAL, 'таблиця більше не відфільтрована зниклою групою');
+        assert.equal(await countText(page), 'Знайдено 721 з 721 · показано 200', 'таблиця більше не відфільтрована зниклою групою');
     }, { 'kp.gps.selection.v1:org1': JSON.stringify({ all: false, groupIds: ['g2'], unitIds: [], kinds: [] }), 'kp.gps.table.v1:org1': JSON.stringify({ groupIds: ['g2'], kinds: [], q: '', link: 'all' }) });
+});
+
+test('вибрано групу, а каталог ще не завантажився: у таблиці «Завантаження груп…», а не всі рядки; після завантаження фільтр застосовується', async (t) => {
+    await run(t, { width: 1366, height: 900 }, async (page) => {
+        assert.equal(await countText(page), 'Завантаження груп…');
+        assert.equal(await page.textContent('.gps-units tbody tr'), 'Завантаження груп…');
+        assert.equal(await rowCount(page), 1, 'усіх рядків немає');
+        await page.waitForFunction(() => typeof window.__release === 'function');
+        await page.evaluate(() => window.__release());
+        await page.waitForFunction(() => document.querySelector('.gps-tcount').textContent === 'Знайдено 100 з 721');
+        assert.equal(await rowCount(page), 100);
+    }, { '__hold': '1', 'kp.gps.table.v1:org1': JSON.stringify({ groupIds: ['g1'], kinds: [], q: '', link: 'all' }) }, true);
 });

@@ -71,10 +71,10 @@ export function selectionBody(selection, refresh) {
     return body;
 }
 
-// Ключ для пошуку: без регістру, пробілів, «_», «.», «-» і з латинськими двійниками кириличних літер (А/A, В/B, Е/E, І/I, К/K, М/M, Н/H, О/O, Р/P, С/C, Т/T, Х/X).
-const TWINS = { 'а': 'a', 'в': 'b', 'е': 'e', 'і': 'i', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o', 'р': 'p', 'с': 'c', 'т': 't', 'х': 'x' };
+// Ключ для пошуку: без регістру, пробілів, «_», «.», «-» і з латинськими двійниками кириличних літер (А/A, В/B, Е/E, І/I, К/K, М/M, Н/H, О/O, Р/P, С/C, Т/T, У/Y, Х/X).
+const TWINS = { 'а': 'a', 'в': 'b', 'е': 'e', 'і': 'i', 'к': 'k', 'м': 'm', 'н': 'h', 'о': 'o', 'р': 'p', 'с': 'c', 'т': 't', 'у': 'y', 'х': 'x' };
 export function normKey(s) {
-    return String(s || '').toLowerCase().replace(/[\s_.\-–—]+/g, '').replace(/[авеікмнорстх]/g, (ch) => TWINS[ch]);
+    return String(s || '').toLowerCase().replace(/[\s_.\-–—]+/g, '').replace(/[авеікмнорстух]/g, (ch) => TWINS[ch]);
 }
 const plateKey = normKey;
 
@@ -99,6 +99,12 @@ export function searchUnits(units, query, limit = 30) {
 export const TABLE_FILTER_KEY = 'kp.gps.table.v1';
 export const LINK_OPTIONS = [{ value: 'all', label: 'Усі' }, { value: 'linked', label: 'Прив’язані' }, { value: 'unlinked', label: 'Неприв’язані' }];
 export const TABLE_PAGE = 200;
+
+// Лічильник таблиці: без фільтрів і коли видно всі — «Показано 721»; інакше «Знайдено 500 з 721», а якщо видно не всі рядки — «· показано 200».
+export function tableCountText(found, visible, total) {
+    if (found === total && visible === found) return 'Показано ' + total;
+    return 'Знайдено ' + found + ' з ' + total + (visible < found ? ' · показано ' + visible : '');
+}
 
 export function emptyTableFilters() {
     return { groupIds: [], kinds: [], q: '', link: 'all' };

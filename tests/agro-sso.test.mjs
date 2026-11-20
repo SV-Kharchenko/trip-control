@@ -237,3 +237,19 @@ test('production (VERCEL_ENV=production): http://localhost не приймаєт
     // Тонка обгортка віддає той самий код.
     assert.match(read('api/agro/sso.js'), /configProblem\(process\.env\)[\s\S]*code: problem/);
 });
+
+test('тексти для користувача кажуть «Park-Control», а не «AGRO»; ключі, env, URL і коди не перейменовано', async () => {
+    const fs = await import('node:fs');
+    const lib = fs.readFileSync(new URL('../lib/agro-sso.js', import.meta.url), 'utf8');
+    const route = fs.readFileSync(new URL('../api/agro/sso.js', import.meta.url), 'utf8');
+    const texts = [...(lib + route).matchAll(/'([^'\n]*[А-Яа-яІіЇїЄє][^'\n]*)'/g)].map((m) => m[1]);
+    assert.ok(texts.length > 8);
+    assert.deepEqual(texts.filter((x) => /AGRO/.test(x)), [], 'у людських текстах немає «AGRO»');
+    assert.match(lib, /Вхід в Park-Control тимчасово вимкнено/);
+    assert.match(lib, /Для входу в Park-Control потрібна компанія/);
+    assert.match(route, /Вхід в Park-Control ще не налаштовано на сервері\./);
+    assert.match(lib, /'AGRO_ACCESS_DENIED'/);
+    assert.match(lib, /'AGRO_RATE_LIMIT'/);
+    assert.match(lib, /AGRO_SSO_SECRET/);
+    assert.match(lib, /DEFAULT_AGRO_URL = 'https:\/\/agro\.trip-control\.com'/);
+});
