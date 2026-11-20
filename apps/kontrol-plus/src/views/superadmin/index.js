@@ -1,6 +1,7 @@
 // Кабінет суперадміна платформи (#/superadmin), lazy-чанк: глобальні функції (app_settings), компанії (organizations.features), журнал.
 // Усі дані й зміни — через sa_* RPC (SECURITY DEFINER, перша перевірка is_platform_superadmin()); фронт лише ховає сторінку від решти.
 import '../../kp-superadmin.css';
+import { renderActivity } from './activity.js';
 import { h, clear, notice, spinner, toast } from '../../ui.js';
 import {
     AGRO_CHOICES, AUDIT_PAGE, MODULES, ORGS_PAGE, PLANS, PLAN_MODULES_HINT, actionLabel, agroChoiceArg, agroChoiceValue, agroEffectiveText, auditTarget, auditValue, formatWhen, featureOn, moduleInfo, orgModuleNote, planConfirm, planLabel, settingRows, superadminErrorText,
@@ -208,10 +209,31 @@ export function renderSuperadmin(app) {
 
     const search = h('form', { class: 'kpsa-search', onsubmit: (e) => { e.preventDefault(); orgOffset = 0; loadOrgs(); } }, q, h('button', { class: 'btn', type: 'submit' }, 'Знайти'));
     loadAll();
-    return h('section', { class: 'page kpsa' },
-        h('h1', { class: 'kpsa-h1' }, 'Платформа'),
-        h('p', { class: 'muted' }, 'Лише для адміністраторів платформи. Кожна зміна записується в журнал.'),
+    // Вкладки: «Керування» (наявні блоки) і «Активність» (lazy: вантажиться при першому відкритті).
+    const managePanel = h('div', { class: 'kpsa-panel', id: 'kpsa-panel-manage', role: 'tabpanel' },
         h('h2', { class: 'kpsa-h2' }, 'Глобальні функції'), globalBox,
         h('h2', { class: 'kpsa-h2' }, 'Організації'), search, orgsBox,
         h('h2', { class: 'kpsa-h2' }, 'Аудит'), auditBox);
+    const activityPanel = h('div', { class: 'kpsa-panel', id: 'kpsa-panel-activity', role: 'tabpanel', hidden: true });
+    let activityLoaded = false;
+    const tabs = [['manage', 'Керування', managePanel], ['activity', 'Активність', activityPanel]];
+    const tabButtons = tabs.map(([key, label, panel]) => h('button', { type: 'button', class: 'kpsa-tab', role: 'tab', 'data-tab': key, 'aria-controls': panel.id, onclick: () => openTab(key) }, label));
+    function openTab(key) {
+        for (const [k, , panel] of tabs) panel.hidden = k !== key;
+        for (const b of tabButtons) {
+            const on = b.getAttribute('data-tab') === key;
+            b.classList.toggle('is-active', on);
+            b.setAttribute('aria-selected', String(on));
+        }
+        if (key === 'activity' && !activityLoaded) {
+            activityLoaded = true;
+            activityPanel.append(renderActivity(app));
+        }
+    }
+    openTab('manage');
+    return h('section', { class: 'page kpsa' },
+        h('h1', { class: 'kpsa-h1' }, 'Платформа'),
+        h('p', { class: 'muted' }, 'Лише для адміністраторів платформи. Кожна зміна записується в журнал.'),
+        h('div', { class: 'kpsa-tabs', role: 'tablist', 'aria-label': 'Розділи платформи' }, tabButtons),
+        managePanel, activityPanel);
 }

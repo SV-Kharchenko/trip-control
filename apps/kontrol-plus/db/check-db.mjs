@@ -42,7 +42,7 @@ CREATE TABLE public.profiles (id uuid PRIMARY KEY, org_id uuid REFERENCES public
 CREATE TABLE public.company_settings (org_id uuid PRIMARY KEY REFERENCES public.organizations (id), settings jsonb,
   updated_at timestamptz DEFAULT now());
 CREATE TABLE public.calculations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid, org_id uuid, name text,
-  inputs jsonb, results jsonb, created_at timestamptz NOT NULL DEFAULT now());
+  inputs jsonb, results jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
 CREATE TABLE public.usage_counters (org_id uuid NOT NULL, day date NOT NULL, calc_count integer NOT NULL DEFAULT 0);
 CREATE TABLE public.trailer_presets (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), org_id uuid, name text);
 CREATE FUNCTION public.my_org_id() RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER AS
@@ -642,7 +642,7 @@ async function attemptDeleteOrg(org) {
 await db.exec(`
 ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS instance_id uuid, ADD COLUMN IF NOT EXISTS aud text,
   ADD COLUMN IF NOT EXISTS role text, ADD COLUMN IF NOT EXISTS encrypted_password text,
-  ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz, ADD COLUMN IF NOT EXISTS updated_at timestamptz;
+  ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz, ADD COLUMN IF NOT EXISTS updated_at timestamptz, ADD COLUMN IF NOT EXISTS last_sign_in_at timestamptz;
 CREATE SCHEMA IF NOT EXISTS extensions;
 GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role;
 CREATE TABLE extensions.tap (n serial, ok boolean, label text);
@@ -816,6 +816,23 @@ await db.exec(sapTapSql);
 const sapTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(sapBefore);
 for (const row of sapTap) check(row.ok, 'pgTAP sa_org_plan.sql: ' + row.label);
 check(sapTap.length === sapPlanned, 'pgTAP sa_org_plan.sql: ran ' + sapTap.length + ' of plan(' + sapPlanned + ')');
+
+// Вкладка «Активність» кабінету суперадміна: міграція двічі (ідемпотентність), лише читання, pgTAP через той самий shim.
+const SAU = all.find((f) => /^\d{14}_sa_user_activity\.sql$/.test(f));
+if (!SAU) throw new Error('немає міграції *_sa_user_activity.sql');
+const sauSql = fs.readFileSync(new URL(SAU, DIR), 'utf8');
+await db.exec(sauSql);
+await db.exec(sauSql);
+check(/^-- Apply manually after review\. This file is not applied to any database by the agent\./.test(sauSql) && !/CREATE EXTENSION/i.test(sauSql),
+    'sa_user_activity: ' + SAU + ' applied twice, manual-apply header');
+const sauTapSql = fs.readFileSync(new URL('../../../supabase/tests/sa_user_activity.sql', import.meta.url), 'utf8')
+    .replace(/^CREATE EXTENSION.*$/m, '').replace(/^ROLLBACK;\s*$/m, 'COMMIT;');
+const sauPlanned = Number((sauTapSql.match(/SELECT plan\((\d+)\)/) || [])[1]);
+const sauBefore = (await db.query('SELECT count(*)::int AS n FROM extensions.tap')).rows[0].n;
+await db.exec(sauTapSql);
+const sauTap = (await db.query('SELECT ok, label FROM extensions.tap ORDER BY n')).rows.slice(sauBefore);
+for (const row of sauTap) check(row.ok, 'pgTAP sa_user_activity.sql: ' + row.label);
+check(sauTap.length === sauPlanned, 'pgTAP sa_user_activity.sql: ran ' + sauTap.length + ' of plan(' + sauPlanned + ')');
 
 // Телематика (Агроконтроль, етап 2 «Власного парку»): міграція двічі (ідемпотентність) і pgTAP через той самий shim.
 const TM = all.find((f) => /^\d{14}_telematics\.sql$/.test(f));
