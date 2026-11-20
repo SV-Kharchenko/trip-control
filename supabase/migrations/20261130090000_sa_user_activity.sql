@@ -2,7 +2,7 @@
 -- Кабінет суперадміна, вкладка «Активність»: хто із зареєстрованих користувачів реально працює.
 -- * public.sa_list_user_activity(p_days) — лише читання (SECURITY DEFINER, перша перевірка is_platform_superadmin(), як в інших sa_*).
 -- * Вхід — auth.users.last_sign_in_at; дія — розрахунки (calculations.user_id). last_calc_at = max(greatest(created_at, updated_at)):
---   updated_at береться через to_jsonb(c), тож функція створюється й працює і там, де в calculations такої колонки немає (тоді враховується created_at).
+--   колонка public.calculations.updated_at на проді є.
 -- * p_days (за замовчуванням 30, 1…365) — вікно другого лічильника (колонка calcs_30d); calcs_7d завжди 7 днів.
 -- * Жодних UPDATE / DELETE. Ідемпотентно (CREATE OR REPLACE).
 
@@ -28,7 +28,7 @@ BEGIN
            count(*)::integer AS total,
            (count(*) FILTER (WHERE c.created_at >= now() - interval '7 days'))::integer AS d7,
            (count(*) FILTER (WHERE c.created_at >= now() - make_interval(days => v_days)))::integer AS dn,
-           max(greatest(c.created_at, nullif(to_jsonb(c) ->> 'updated_at', '')::timestamptz)) AS last_at
+           max(greatest(c.created_at, c.updated_at)) AS last_at
     FROM public.calculations AS c
     WHERE c.user_id IS NOT NULL
     GROUP BY c.user_id
