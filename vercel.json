@@ -9,7 +9,8 @@
   },
   "redirects": [
     { "source": "/lib/:path((?!weekly-report[.]js$).*)", "destination": "/404", "permanent": false },
-    { "source": "/landing/kontrol-plus.html", "destination": "/kontrol-plus", "statusCode": 301 }
+    { "source": "/landing/kontrol-plus.html", "destination": "/kontrol-plus", "statusCode": 301 },
+    { "source": "/landing/park-control.html", "destination": "/park-control", "statusCode": 301 }
   ],
   "rewrites": [
     { "source": "/offer", "destination": "/legal/offer.html" },

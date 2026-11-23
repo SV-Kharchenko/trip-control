@@ -81,6 +81,22 @@ test('лист: екранування HTML і одна лінія в темі',
     assert.equal(LEAD_TO, 'support@trip-control.com');
 });
 
+test('лист: заявка з Park-Control має свою тему й заголовок, звичайна лишається «Заявка на демо Контроль+»', () => {
+    const base = { name: 'x', phone: '1', email: null, vehicles: null };
+    const pc = buildLeadEmail({ ...base, company: 'ТОВ Приклад', comment: '[Park-Control: заявка на доступ]\nпотрібен доступ' });
+    assert.equal(pc.subject, 'Заявка на доступ Park-Control: ТОВ Приклад');
+    assert.ok(pc.text.startsWith('Заявка на доступ Park-Control: ТОВ Приклад'));
+    assert.ok(pc.html.includes('<b>Заявка на доступ Park-Control: ТОВ Приклад</b>'));
+    const long = buildLeadEmail({ ...base, company: 'К'.repeat(150), comment: '[Park-Control: заявка на доступ]' });
+    assert.equal(long.subject, 'Заявка на доступ Park-Control: ' + 'К'.repeat(100));
+    for (const comment of ['звичайний коментар', null, 'текст [Park-Control: заявка на доступ] не на початку']) {
+        const demo = buildLeadEmail({ ...base, company: 'ТОВ Приклад', comment });
+        assert.equal(demo.subject, 'Заявка на демо Контроль+: ТОВ Приклад');
+        assert.ok(demo.text.startsWith('Нова заявка на демо Контроль+'));
+        assert.ok(demo.html.includes('<b>Нова заявка на демо Контроль+</b>'));
+    }
+});
+
 test('обробник: метод, ліміт за IP (429), валідація (400), успіх (200) і лист через Resend на support@', async () => {
     const methodRes = res();
     await createKpLeadHandler({ rpc: okRpc })({ method: 'GET', headers: {}, socket: {} }, methodRes);
@@ -212,7 +228,10 @@ test('413: тіло понад 16 КБ → PAYLOAD_TOO_LARGE без запису
 
 test('дубль сторінки: /landing/kontrol-plus.html → 301 на /kontrol-plus, інші rewrite-и ті самі', () => {
     const vercel = JSON.parse(read('vercel.json'));
-    assert.deepEqual(vercel.redirects.filter((r) => !r.source.startsWith('/lib/')), [{ source: '/landing/kontrol-plus.html', destination: '/kontrol-plus', statusCode: 301 }]); // правило /lib/ — tests/lib-private.test.mjs
+    assert.deepEqual(vercel.redirects.filter((r) => !r.source.startsWith('/lib/')), [
+        { source: '/landing/kontrol-plus.html', destination: '/kontrol-plus', statusCode: 301 },
+        { source: '/landing/park-control.html', destination: '/park-control', statusCode: 301 }
+    ]); // правило /lib/ — tests/lib-private.test.mjs
     assert.equal(vercel.rewrites.length, 6); // + /park-control
     assert.deepEqual(vercel.rewrites.find((r) => r.source === '/kontrol-plus'), { source: '/kontrol-plus', destination: '/landing/kontrol-plus.html' });
 });
