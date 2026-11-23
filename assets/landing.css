@@ -218,8 +218,10 @@ html[data-screen="landing"] { scroll-behavior: smooth; }
   #landing-screen .lp-inputs .lp-fields .lp-fgroup { grid-column: 1 / -1; }
   #landing-screen .lp-feat-grid { grid-template-columns: 1fr 1fr; }
 }
-@media (max-width: 960px) {
+@media (max-width: 1180px) {
   #landing-screen .lp-site-nav { display: none; }
+}
+@media (max-width: 960px) {
   #landing-screen .lp-hero-grid { grid-template-columns: 1fr; gap: 40px; }
   #landing-screen .lp-who-grid, #landing-screen .lp-price-grid { grid-template-columns: 1fr; }
   #landing-screen .lp-price-grid { max-width: 520px; }
@@ -348,10 +350,10 @@ body.lp-try-open { overflow: hidden; }
 #landing-screen .lp-mnav[hidden] { display: none; }
 #landing-screen .lp-mnav a { padding: 12px 4px; text-decoration: none; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border-soft); }
 #landing-screen .lp-mnav a:last-child { border-bottom: 0; }
-@media (max-width: 960px) {
+@media (max-width: 1180px) {
   #landing-screen .lp-burger { display: inline-flex; }
 }
-@media (min-width: 961px) {
+@media (min-width: 1181px) {
   #landing-screen .lp-mnav { display: none !important; }
 }
 #landing-screen .lp-feat { transition: transform .18s, border-color .18s; }

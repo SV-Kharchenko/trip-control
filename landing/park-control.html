@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Park-Control — керування автопарком і технікою агробізнесу · Trip Control</title>
+  <meta name="description" content="Park-Control — система керування власним автопарком і технікою агробізнесу чи холдингу: техніка підрозділів, заявки на транспорт, ремонти, GPS і звітність.">
+  <link rel="canonical" href="https://trip-control.com/park-control">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="uk_UA">
+  <meta property="og:site_name" content="TRIP-CONTROL">
+  <meta property="og:title" content="Park-Control — керування автопарком і технікою агробізнесу">
+  <meta property="og:description" content="Техніка й транспорт підрозділів, заявки на транспорт, ремонти з відповідальними, GPS-контроль і звітність для керівництва.">
+  <meta property="og:url" content="https://trip-control.com/park-control">
+  <meta property="og:image" content="https://trip-control.com/assets/brand/og-1200x630.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Park-Control — керування автопарком і технікою агробізнесу">
+  <meta name="twitter:description" content="Техніка підрозділів, заявки на транспорт, ремонти, GPS-контроль і звітність для керівництва.">
+  <meta name="twitter:image" content="https://trip-control.com/assets/brand/og-1200x630.png">
+  <meta name="theme-color" content="#F4EFE4">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <script>
+    /* Тема як у застосунку: tc_theme (light|dark, за замовчуванням light). */
+    (function () {
+      var t = 'light';
+      try { t = localStorage.getItem('tc_theme') || 'light'; } catch (e) {}
+      if (t === 'control') t = 'dark';
+      if (t !== 'dark') t = 'light';
+      document.documentElement.setAttribute('data-theme', t);
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta && t === 'dark') meta.setAttribute('content', '#0E1117');
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin="anonymous">
+  <link rel="stylesheet" href="/assets/legal-footer.css?v=2026-10-20b">
+  <link rel="stylesheet" href="/assets/product-pages.css?v=2026-11-23">
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+<header class="kp-head">
+  <div class="kp-wrap">
+    <a class="kp-brand" href="/">TRIP-CONTROL</a>
+    <div class="kp-head-actions">
+      <a class="btn btn-sm" href="https://agro.trip-control.com">Увійти</a>
+      <button type="button" class="kp-theme" id="kp-theme" aria-label="Перемкнути тему">Тема</button>
+    </div>
+    <nav class="kp-nav" aria-label="Меню">
+      <a href="/">Розрахунок рейсу</a>
+      <a href="/kontrol-plus">Контроль+</a>
+      <a href="/park-control" aria-current="page">Park-Control</a>
+    </nav>
+  </div>
+</header>
+<main>
+  <div class="kp-wrap kp-hero">
+    <div class="kp-hero-grid">
+      <div>
+        <p class="kp-eyebrow">Для агробізнесу й холдингів</p>
+        <h1>Park-Control: власний автопарк і техніка під контролем</h1>
+        <p class="lead">Одна система для техніки й транспорту всіх підрозділів: хто що має, хто що замовив, що в ремонті й куди їде. Керівництво бачить картину без дзвінків і таблиць.</p>
+        <div class="kp-cta">
+          <a class="btn" href="https://agro.trip-control.com">Увійти</a>
+          <a class="btn btn-ghost" href="#access">Залишити заявку на доступ</a>
+        </div>
+      </div>
+      <div class="mk" role="img" aria-label="Умовний приклад: заявки підрозділів на транспорт зі статусами">
+        <div class="mk-bar"><i></i><i></i><i></i><span>Заявки на транспорт</span></div>
+        <div class="mk-body">
+          <table class="mk-table">
+            <thead><tr><th>Підрозділ</th><th>Транспорт</th><th>Статус</th></tr></thead>
+            <tbody>
+              <tr><td>Підрозділ 1</td><td>Вантажівка</td><td><span class="mk-pill">Погоджено</span></td></tr>
+              <tr><td>Підрозділ 2</td><td>Самоскид</td><td><span class="mk-pill is-warn">Очікує</span></td></tr>
+              <tr><td>Підрозділ 3</td><td>Бус</td><td><span class="mk-pill">У дорозі</span></td></tr>
+              <tr><td>Підрозділ 4</td><td>Трактор</td><td><span class="mk-pill is-bad">У ремонті</span></td></tr>
+            </tbody>
+          </table>
+          <div class="mk-kpis">
+            <div class="mk-kpi"><span>Одиниць</span><b>48</b></div>
+            <div class="mk-kpi"><span>У рейсі</span><b>17</b></div>
+            <div class="mk-kpi"><span>У ремонті</span><b>5</b></div>
+          </div>
+        </div>
+        <p class="mk-note">Умовний приклад інтерфейсу, не реальні дані.</p>
+      </div>
+    </div>
+  </div>
+
+  <section class="kp-block" id="who"><div class="kp-wrap">
+    <h2>Для кого</h2>
+    <p class="kp-sub">Для великого агробізнесу й холдингів, де техніка розкидана по підрозділах, а відповідальність розподілена.</p>
+    <div class="kp-grid">
+      <div class="kp-card"><h3>Керівництво холдингу</h3><p>Бачить техніку й витрати по всіх підрозділах і отримує звіти без збору таблиць.</p></div>
+      <div class="kp-card"><h3>Логістика й диспетчери</h3><p>Розподіляють транспорт між заявками підрозділів і бачать, де кожна машина.</p></div>
+      <div class="kp-card"><h3>Служба ремонтів</h3><p>Знає, що зламалося, хто за це відповідає й коли техніка повернеться в роботу.</p></div>
+      <div class="kp-card"><h3>Підрозділи</h3><p>Подають заявку на транспорт і бачуть її статус, а не шукають, кому телефонувати.</p></div>
+    </div>
+  </div></section>
+
+  <section class="kp-block" id="features"><div class="kp-wrap">
+    <h2>Ключові можливості</h2>
+    <p class="kp-sub">Власний автопарк і техніка без розрізнених таблиць і месенджерів.</p>
+    <div class="kp-grid">
+      <div class="kp-card"><h3>Техніка й транспорт підрозділів</h3><p>Єдиний облік: до якого підрозділу належить кожна одиниця, її стан і документи.</p></div>
+      <div class="kp-card"><h3>Заявки підрозділів на транспорт</h3><p>Підрозділ подає заявку, логістика призначає машину, статус видно всім учасникам.</p></div>
+      <div class="kp-card"><h3>Ремонти й відповідальні</h3><p>Кожен ремонт має відповідального, терміни й історію, а прострочені виділяються.</p></div>
+      <div class="kp-card"><h3>GPS-контроль</h3><p>Положення, пробіг і рух техніки за даними трекерів.</p></div>
+      <div class="kp-card"><h3>Звітність для керівництва</h3><p>Зведення по підрозділах: що в роботі, що простоює, скільки це коштує.</p></div>
+      <div class="kp-card"><h3>Права доступу</h3><p>Кожна роль бачить і змінює лише своє: підрозділ не лізе в чужі заявки.</p></div>
+    </div>
+  </div></section>
+
+  <section class="kp-block" id="how"><div class="kp-wrap">
+    <h2>Як це працює</h2>
+    <p class="kp-sub">Від заявки підрозділу до звіту керівнику.</p>
+    <ol class="kp-steps">
+      <li><h3>Облік техніки</h3><p>Техніку й транспорт заносять і закріплюють за підрозділами.</p></li>
+      <li><h3>Заявка підрозділу</h3><p>Замовник підрозділу описує, який транспорт і коли потрібен.</p></li>
+      <li><h3>Призначення</h3><p>Логіст призначає машину й водія, менеджер погоджує, GPS показує рух.</p></li>
+      <li><h3>Ремонти й звіт</h3><p>Поломки йдуть відповідальному за ремонти, а керівник отримує зведений звіт.</p></li>
+    </ol>
+  </div></section>
+
+  <section class="kp-block" id="roles"><div class="kp-wrap">
+    <h2>Ролі в команді</h2>
+    <p class="kp-sub">Кожна роль бачить свою частину системи.</p>
+    <div class="kp-roles">
+      <div class="kp-card"><h3>Директор</h3><p>Бачить усі підрозділи, звіти й витрати, керує доступом команди.</p></div>
+      <div class="kp-card"><h3>Менеджер</h3><p>Погоджує заявки підрозділів і стежить за виконанням.</p></div>
+      <div class="kp-card"><h3>Логіст</h3><p>Розподіляє транспорт і водіїв, дивиться GPS.</p></div>
+      <div class="kp-card"><h3>Відповідальний за ремонти</h3><p>Веде ремонти техніки, терміни й запчастини.</p></div>
+      <div class="kp-card"><h3>Замовник підрозділу</h3><p>Подає заявки на транспорт і бачить їхній статус.</p></div>
+    </div>
+  </div></section>
+
+  <section class="kp-block kp-faq" id="faq"><div class="kp-wrap">
+    <h2>Питання й відповіді</h2>
+    <details><summary>Для яких компаній Park-Control?</summary><p>Для власного автопарку й техніки великого агробізнесу чи холдингу з кількома підрозділами. Це не система для перевізників, які возять вантажі клієнтам: для них є Контроль+.</p></details>
+    <details><summary>Як отримати доступ?</summary><p>Залиште заявку на доступ на цій сторінці, і ми зв’яжемося з вами. Якщо доступ уже є, натисніть «Увійти».</p></details>
+    <details><summary>Чи можна розмежувати доступ підрозділів?</summary><p>Так. Замовник підрозділу бачить тільки заявки свого підрозділу, відповідальний за ремонти — ремонти, директор — усе.</p></details>
+    <details><summary>Чи є GPS-контроль?</summary><p>Так, положення й пробіг техніки підтягуються з GPS-моніторингу й показуються поруч з карткою одиниці.</p></details>
+    <details><summary>Чи потрібно щось встановлювати?</summary><p>Ні, система працює в браузері на комп’ютері й телефоні.</p></details>
+    <details><summary>Що з нашими даними?</summary><p>Дані вашої компанії доступні лише вашій команді. Подробиці в <a href="/privacy">політиці конфіденційності</a>.</p></details>
+  </div></section>
+
+  <section class="kp-block" id="start"><div class="kp-wrap">
+    <div class="kp-final">
+      <h2>Приведіть техніку підрозділів до ладу</h2>
+      <p class="kp-sub">Якщо доступ уже є, увійдіть. Якщо ні, залиште заявку й ми з вами зв’яжемося.</p>
+      <div class="kp-cta">
+        <a class="btn" href="https://agro.trip-control.com">Увійти</a>
+        <a class="btn btn-ghost" href="#access">Залишити заявку на доступ</a>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="kp-block" id="access"><div class="kp-wrap">
+    <h2>Залишити заявку на доступ</h2>
+    <p class="kp-sub">Вкажіть контакти й коротко опишіть, який у вас автопарк. Ми зв’яжемося протягом робочого дня.</p>
+    <div class="kp-form" id="kp-form-box">
+      <form id="kp-form" data-lead-endpoint="/api/kp-lead" data-lead-prefix="[Park-Control: заявка на доступ]" novalidate>
+        <div class="kp-row">
+          <div class="kp-field"><label for="kp-name">Ім’я *</label><input type="text" id="kp-name" name="name" maxlength="120" autocomplete="name" required><p class="kp-err" data-err="name"></p></div>
+          <div class="kp-field"><label for="kp-company">Компанія *</label><input type="text" id="kp-company" name="company" maxlength="160" autocomplete="organization" required><p class="kp-err" data-err="company"></p></div>
+        </div>
+        <div class="kp-row">
+          <div class="kp-field"><label for="kp-phone">Телефон *</label><input type="tel" id="kp-phone" name="phone" maxlength="40" autocomplete="tel" placeholder="+380…" required><p class="kp-err" data-err="phone"></p></div>
+          <div class="kp-field"><label for="kp-email">Email</label><input type="email" id="kp-email" name="email" maxlength="160" autocomplete="email"><p class="kp-err" data-err="email"></p></div>
+        </div>
+        <div class="kp-field"><label for="kp-vehicles">Кількість одиниць техніки й транспорту</label><input type="number" id="kp-vehicles" name="vehicles" min="1" max="100000" step="1" inputmode="numeric"><p class="kp-err" data-err="vehicles"></p></div>
+        <div class="kp-field"><label for="kp-comment">Коментар</label><textarea id="kp-comment" name="comment" maxlength="1900"></textarea></div>
+        <div class="kp-trap" aria-hidden="true"><label for="kp-website">Не заповнюйте це поле</label><input type="text" id="kp-website" name="website" tabindex="-1" autocomplete="off"></div>
+        <div class="kp-field">
+          <label class="kp-consent" for="kp-consent"><input type="checkbox" id="kp-consent" name="consent"><span>Погоджуюсь з <a href="/privacy" target="_blank" rel="noopener">політикою конфіденційності</a> *</span></label>
+          <p class="kp-err" data-err="consent"></p>
+        </div>
+        <button type="submit" class="btn" id="kp-submit">Залишити заявку на доступ</button>
+        <p class="kp-status" id="kp-status" role="status" aria-live="polite"></p>
+      </form>
+      <div class="kp-thanks" id="kp-thanks" hidden>
+        <h3>Дякуємо, зв’яжемося протягом робочого дня</h3>
+        <p class="kp-sub" style="margin:0 auto">Якщо питання термінове — support@trip-control.com.</p>
+      </div>
+    </div>
+  </div></section>
+</main>
+<div class="kp-wrap kp-foot">
+  <footer class="tc-legal-footer">
+      <nav class="tc-legal-footer__links" aria-label="Юридична інформація">
+          <a href="/kontrol-plus">Контроль+ для компаній</a>
+          <a href="/park-control">Park-Control</a>
+          <a href="/offer">Публічна оферта</a>
+          <a href="/privacy">Політика конфіденційності</a>
+          <a href="/payment-refund">Оплата та повернення</a>
+      </nav>
+      <p class="tc-legal-footer__seller">ФОП Харченко С.В. · <a href="mailto:support@trip-control.com">support@trip-control.com</a> · <a href="tel:+380730888252">+380730888252</a> · <a href="/offer#requisites">Реквізити</a></p>
+  </footer>
+</div>
+<script src="/assets/product-pages.js?v=2026-11-23" defer></script>
+</body>
+</html>

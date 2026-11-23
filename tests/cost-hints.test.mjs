@@ -184,7 +184,7 @@ test('styles in assets/cost-hints.css (cabinet does not depend on landing.css); 
     assert.match(css, /#cabinet-screen \.tc-hint-btn \{ width: 22px; height: 22px; min-height: 0; min-width: 22px; \}/);
     assert.equal(read('assets/landing.css').includes('.tc-hint-'), false);
     for (const asset of ['landing.css', 'cost-hints.css']) {
-        assert.match(html, new RegExp('<link rel="stylesheet" href="/assets/' + asset.replace('.', '\\.') + '\\?v=2026-10-20">'), asset);
+        assert.match(html, new RegExp('<link rel="stylesheet" href="/assets/' + asset.replace('.', '\\.') + '\\?v=' + (asset === 'landing.css' ? '2026-11-23' : '2026-10-20') + '">'), asset); // landing.css: версія піднята разом із меню з продуктами
     }
     for (const asset of ['cost-hints.js', 'landing.js']) {
         assert.match(html, new RegExp('<script src="/assets/' + asset.replace('.', '\\.') + '\\?v=2026-10-20" defer></script>'), asset);

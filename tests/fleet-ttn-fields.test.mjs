@@ -112,6 +112,8 @@ test('index.html changes stay inside the vehicle card (formulas, themes and othe
     if (changedLines.every((l) => /tripcontrol\.com@gmail\.com|support@trip-control\.com/.test(l))) return;
     // Конфіг бази з env (/api/config) замість зашитих значень — ініціалізація Supabase, а не картка авто (tests/public-config.test.mjs).
     if (changedLines.every((l) => /TC_CONFIG|SUPABASE_URL|SUPABASE_ANON_KEY|api\/config|qkfqjorzsxcajcneohoy|sb_publishable_|auth-token|const cfg = window|Адреса бази|Ключ сесії supabase-js|ref береться|Не вдалося завантажити конфігурацію|^[+-]\s*\}\s*$/.test(l))) return;
+    // Пункти меню «Контроль+» і «Park-Control» у шапці лендингу й версія landing.css (tests/product-pages.test.mjs) — не картка авто.
+    if (changedLines.every((l) => /lp-nav-product|href="\/(kontrol-plus|park-control)"|landing\.css\?v=/.test(l))) return;
     // Нова редакція згоди (LEGAL_VERSION, tests/legal-pages.test.mjs) — не картка авто.
     if (changedLines.every((l) => /const LEGAL_VERSION = '\d{4}-\d{2}-\d{2}';/.test(l))) return;
     const lines = html.split('\n');

@@ -131,12 +131,14 @@ test('лендинг: секції, ціна, тексти оплати, фор�
         'режим лише для читання', 'Дані не видаляються', 'Дякуємо, зв’яжемося протягом робочого дня', 'оцінюються й оплачуються окремо']) assert.ok(html.includes(text), text);
     for (const name of ['name', 'company', 'phone', 'email', 'vehicles', 'comment', 'website', 'consent']) assert.match(html, new RegExp('name="' + name + '"'));
     assert.match(html, /<link rel="canonical" href="https:\/\/trip-control\.com\/kontrol-plus">/);
-    assert.match(html, /\[data-theme="dark"\]/);
-    assert.match(html, /max-width: 600px/);
+    const css = read('assets/product-pages.css'); // стилі й скрипт сторінки спільні з /park-control
+    assert.match(css, /\[data-theme="dark"\]/);
+    assert.match(css, /max-width: 600px/);
+    assert.match(html, /<form id="kp-form" data-lead-endpoint="\/api\/kp-lead"/);
     assert.equal((html.match(/<script defer src="\/_vercel\/insights\/script\.js"><\/script>/g) || []).length, 1);
     const footer = html.match(/<footer class="tc-legal-footer">[\s\S]*?<\/footer>/)[0];
     for (const value of ['ФОП Харченко С.В.', 'mailto:support@trip-control.com', 'tel:+380730888252', '<a href="/offer#requisites">Реквізити</a>', '<a href="/kontrol-plus">Контроль+ для компаній</a>', 'href="/privacy"', 'href="/offer"', 'href="/payment-refund"']) assert.ok(footer.includes(value), value);
-    assert.match(html.match(/<nav class="kp-nav"[\s\S]*?<\/nav>/)[0], /Контроль\+ для компаній/);
+    assert.match(html.match(/<nav class="kp-nav"[\s\S]*?<\/nav>/)[0], /Контроль\+/);
     assert.equal(/api\/(billing|checkout)/.test(html), false, 'без онлайн-оплати');
 });
 
@@ -211,16 +213,17 @@ test('413: тіло понад 16 КБ → PAYLOAD_TOO_LARGE без запису
 test('дубль сторінки: /landing/kontrol-plus.html → 301 на /kontrol-plus, інші rewrite-и ті самі', () => {
     const vercel = JSON.parse(read('vercel.json'));
     assert.deepEqual(vercel.redirects.filter((r) => !r.source.startsWith('/lib/')), [{ source: '/landing/kontrol-plus.html', destination: '/kontrol-plus', statusCode: 301 }]); // правило /lib/ — tests/lib-private.test.mjs
-    assert.equal(vercel.rewrites.length, 5);
+    assert.equal(vercel.rewrites.length, 6); // + /park-control
     assert.deepEqual(vercel.rewrites.find((r) => r.source === '/kontrol-plus'), { source: '/kontrol-plus', destination: '/landing/kontrol-plus.html' });
 });
 
-test('шапка на 360px: один рядок, кнопка теми не менше 40×40', () => {
+test('шапка на вузьких екранах: меню другим рядком, кнопка теми не менше 40×40', () => {
     const html = read('landing/kontrol-plus.html');
-    assert.ok(html.includes('.kp-theme { min-width: 40px; min-height: 40px;'));
-    assert.ok(html.includes('.kp-head .kp-wrap { flex-wrap: nowrap;'));
+    const css = read('assets/product-pages.css');
+    assert.ok(css.includes('.kp-theme { min-width: 40px; min-height: 40px;'));
+    assert.ok(css.includes('.kp-nav { order: 3; width: 100%;'));
     const nav = html.slice(html.indexOf('<nav class="kp-nav"'), html.indexOf('</nav>', html.indexOf('<nav class="kp-nav"')));
-    assert.ok(nav.includes('Контроль+ для компаній'), 'пункт меню лишається в розмітці');
+    assert.ok(nav.includes('Контроль+'), 'пункт меню лишається в розмітці');
 });
 
 test('щоденний cron прибирає заявки старші за рік (purge_old_kp_leads), збій не ламає cron; нова функція не додається', async () => {

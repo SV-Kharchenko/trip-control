@@ -27,7 +27,7 @@ test('vercel.json: /lib/* — тимчасовий редірект на /404 (r
 test('vercel.json: у rewrites правила для /lib/ немає (rewrites стоять після файлової системи й /lib/ не закривають)', () => {
     const rewrites = JSON.parse(read('vercel.json')).rewrites;
     assert.equal(rewrites.some((r) => /lib/.test(r.source) || /lib/.test(r.destination)), false);
-    assert.equal(rewrites.length, 5);
+    assert.equal(rewrites.length, 6); // + /park-control
 });
 
 test('.vercelignore не вирізає lib/ і api/ (інакше функції втратять імпорти)', () => {

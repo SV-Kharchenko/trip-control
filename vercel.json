@@ -16,7 +16,8 @@
     { "source": "/privacy", "destination": "/legal/privacy.html" },
     { "source": "/payment-refund", "destination": "/legal/payment-refund.html" },
     { "source": "/support", "destination": "/legal/support.html" },
-    { "source": "/kontrol-plus", "destination": "/landing/kontrol-plus.html" }
+    { "source": "/kontrol-plus", "destination": "/landing/kontrol-plus.html" },
+    { "source": "/park-control", "destination": "/landing/park-control.html" }
   ],
   "crons": [
     {

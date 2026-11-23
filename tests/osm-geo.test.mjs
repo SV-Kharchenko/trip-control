@@ -254,7 +254,7 @@ test('Photon / OSRM hostnames only on the server (and docs); CSP, rewrites, func
     assert.match(read('api/poi.js'), /https:\/\/photon\.komoot\.io\/api\//);
     assert.match(read('api/poi.js'), /https:\/\/router\.project-osrm\.org\/route\/v1\/driving\//);
     const vercel = JSON.parse(read('vercel.json'));
-    assert.equal(vercel.rewrites.length, 5);
+    assert.equal(vercel.rewrites.length, 6); // + /park-control
     assert.deepEqual(vercel.functions, { 'api/poi.js': { maxDuration: 60 }, 'api/agro/sso.js': { maxDuration: 10 } });
     const csp = vercel.headers[0].headers.find((h) => h.key === 'Content-Security-Policy').value;
     assert.match(csp, /connect-src 'self' https:\/\/\*\.supabase\.co wss:\/\/\*\.supabase\.co https:\/\/maps\.googleapis\.com https:\/\/\*\.googleapis\.com https:\/\/bank\.gov\.ua [^;]*;/);
