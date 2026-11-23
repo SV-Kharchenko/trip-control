@@ -238,7 +238,7 @@ test('банер: Контроль+ — «Замовити договір» (ф�
     w.els['billing-banner-btn'].onclick();
     assert.deepEqual(w.opened.urls, ['https://trip-control.com/kontrol-plus#demo']);
     assert.equal(w.opened.billing, 0);
-    assert.ok(read('landing/kontrol-plus.html').includes('id="demo"') && read('landing/kontrol-plus.html').includes("'/api/kp-lead'"));
+    assert.ok(read('landing/kontrol-plus.html').includes('id="demo"') && read('landing/kontrol-plus.html').includes('data-lead-endpoint="/api/kp-lead"') && read('assets/product-pages.js').includes("'/api/kp-lead'"));
     // Директор КП (org_directors) теж бачить банер із кнопкою.
     const dir = bannerWorld({ isKP: () => true, kpDirectorActive: () => true, currentOrgRole: 'logist' });
     dir.ctx.billingTrialEndsAt = TRIAL_END;
